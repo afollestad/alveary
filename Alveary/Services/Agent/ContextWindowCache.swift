@@ -6,9 +6,9 @@ struct ContextWindowCacheEntry: Codable, Equatable, Sendable {
 }
 
 protocol ContextWindowCache: Sendable {
-    func contextWindowSize(providerId: String, model: String) async -> Int?
+    func contextWindowSize(harnessId: String, model: String) async -> Int?
     func update(
-        providerId: String,
+        harnessId: String,
         selectedModel: String,
         reportedModelId: String?,
         contextWindowSize: Int
@@ -28,15 +28,15 @@ actor JSONContextWindowCache: ContextWindowCache {
         self.fileManager = fileManager
     }
 
-    func contextWindowSize(providerId: String, model: String) async -> Int? {
-        guard let key = Self.cacheKey(providerId: providerId, model: model) else {
+    func contextWindowSize(harnessId: String, model: String) async -> Int? {
+        guard let key = Self.cacheKey(harnessId: harnessId, model: model) else {
             return nil
         }
         return loadEntries()[key]?.contextWindowSize
     }
 
     func update(
-        providerId: String,
+        harnessId: String,
         selectedModel: String,
         reportedModelId: String?,
         contextWindowSize: Int
@@ -46,11 +46,11 @@ actor JSONContextWindowCache: ContextWindowCache {
         }
 
         var keys = Set<String>()
-        if let selectedKey = Self.cacheKey(providerId: providerId, model: selectedModel) {
+        if let selectedKey = Self.cacheKey(harnessId: harnessId, model: selectedModel) {
             keys.insert(selectedKey)
         }
         if let reportedModelId,
-           let reportedKey = Self.cacheKey(providerId: providerId, model: reportedModelId) {
+           let reportedKey = Self.cacheKey(harnessId: harnessId, model: reportedModelId) {
             keys.insert(reportedKey)
         }
         guard !keys.isEmpty else {
@@ -79,17 +79,17 @@ actor JSONContextWindowCache: ContextWindowCache {
             try data.write(to: fileURL, options: .atomic)
             entries = currentEntries
         } catch {
-            // Cache writes are best-effort; provider-reported result data remains authoritative.
+            // Cache writes are best-effort; harness-reported result data remains authoritative.
         }
     }
 
-    static func cacheKey(providerId: String, model: String) -> String? {
-        let provider = providerId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    static func cacheKey(harnessId: String, model: String) -> String? {
+        let harness = harnessId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let model = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !provider.isEmpty, !model.isEmpty else {
+        guard !harness.isEmpty, !model.isEmpty else {
             return nil
         }
-        return "\(provider):\(model)"
+        return "\(harness):\(model)"
     }
 
     private func loadEntries() -> [String: ContextWindowCacheEntry] {

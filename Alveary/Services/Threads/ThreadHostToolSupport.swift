@@ -1,7 +1,7 @@
 import Foundation
 
 /// Execution folders and sidebar placement are independent. Only this frozen value crosses
-/// provider discovery; changing the caller's project later must not retarget an inherited launch.
+/// harness discovery; changing the caller's project later must not retarget an inherited launch.
 struct ThreadHostToolCreateWorkspace: Equatable {
     let snapshot: WorkspaceSnapshot
     let placement: TaskThreadSidebarPlacement
@@ -57,12 +57,12 @@ struct ThreadHostToolSourcePlacement: Equatable {
     }
 }
 
-/// The calling conversation's own provider, model, and effort, as plain values — snapshotted
+/// The calling conversation's own harness, model, and effort, as plain values — snapshotted
 /// beside `ThreadHostToolSourcePlacement` for the same pre-`await` reason. A `create_thread`
 /// request that omits a setting inherits these, which is also what hands a scheduled run's
 /// fan-out the task's own settings: the run's thread carries the schedule's snapshots.
 struct ThreadHostToolSourceSettings: Equatable {
-    let provider: String
+    let harness: String
     let model: String?
     let effort: String
 }
@@ -73,7 +73,7 @@ struct ThreadHostToolSourceSettings: Equatable {
 struct ThreadHostToolCreateRequest {
     let workspace: ThreadHostToolCreateWorkspace
     let name: String?
-    let provider: String
+    let harness: String
     let model: String?
     let effort: String
     let permissionMode: String
@@ -86,7 +86,7 @@ struct ThreadHostToolCreateRequest {
 struct ThreadHostToolParsedCreateRequest {
     let workspace: ThreadHostToolRequestedWorkspace
     let name: String?
-    let provider: String?
+    let harness: String?
     let model: String?
     let effort: String?
     let permissionMode: String?
@@ -162,15 +162,15 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
     case listDoesNotAcceptArguments(toolName: String)
     case missingRequestIdentity
     case sourceConversationUnavailable
-    case sourceProviderMismatch
+    case sourceHarnessMismatch
     case projectNotRegistered(path: String)
     case grantedRootUnavailable(path: String)
     case sourcePlacementUnavailable
-    case noReadyProvider
-    case providerNotReady(providerID: String, ready: [String])
+    case noReadyHarness
+    case harnessNotReady(harnessID: String, ready: [String])
     case modelUnavailable(model: String)
     case effortUnavailable(effort: String, supported: [String])
-    case permissionModeUnavailable(mode: String, providerID: String, supported: [String])
+    case permissionModeUnavailable(mode: String, harnessID: String, supported: [String])
     case threadNotFound
     case threadArchived(name: String)
     case cannotArchiveOwnThread
@@ -197,8 +197,8 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
             "Alveary could not verify this thread request for safe retry handling."
         case .sourceConversationUnavailable:
             "Alveary thread tools require an active, saved Project or Task conversation."
-        case .sourceProviderMismatch:
-            "The thread request provider does not match its source conversation."
+        case .sourceHarnessMismatch:
+            "The thread request harness does not match its source conversation."
         case .projectNotRegistered(let path):
             "\(path) is not a Project in Alveary. Call list_projects and use its project_id. Shared folder paths require an explicit project_id."
         case .grantedRootUnavailable(let path):
@@ -207,16 +207,16 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
         case .sourcePlacementUnavailable:
             "Alveary cannot tell where this conversation's thread works, so the new thread's placement has to be " +
                 "named: pass project_id, or mode \"task\"."
-        case .noReadyProvider:
-            "No Alveary provider is installed, enabled, and ready, so a new thread cannot be created."
-        case let .providerNotReady(providerID, ready):
-            "\(providerID) is not an installed, enabled, ready provider. Available: \(Self.list(ready))."
+        case .noReadyHarness:
+            "No Alveary harness is installed, enabled, and ready, so a new thread cannot be created."
+        case let .harnessNotReady(harnessID, ready):
+            "\(harnessID) is not an installed, enabled, ready harness. Available: \(Self.list(ready))."
         case .modelUnavailable(let model):
-            "\(model) is not a model this provider offers. Omit model to use the user's default."
+            "\(model) is not a model this harness offers. Omit model to use the user's default."
         case let .effortUnavailable(effort, supported):
             "\(effort) is not a reasoning effort this model supports. Supported: \(Self.list(supported))."
-        case let .permissionModeUnavailable(mode, providerID, supported):
-            "\(mode) is not a permission mode \(providerID) supports. Supported: \(Self.list(supported))."
+        case let .permissionModeUnavailable(mode, harnessID, supported):
+            "\(mode) is not a permission mode \(harnessID) supports. Supported: \(Self.list(supported))."
         case .threadNotFound:
             "That thread no longer exists. Call list_threads again."
         case .threadArchived(let name):

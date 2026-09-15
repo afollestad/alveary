@@ -329,7 +329,7 @@ final class ReviewProposalAttachmentFixture {
         summary = makePullRequestSummary(number: 7)
 
         let thread = AgentThread(name: "Thread")
-        let conversation = Conversation(id: "source-conversation", provider: "codex", thread: thread)
+        let conversation = Conversation(id: "source-conversation", harness: "codex", thread: thread)
         thread.conversations = [conversation]
         context.insert(thread)
         try conversation.storePullRequestReviewProposal(
@@ -437,7 +437,7 @@ final class ReviewProposalAttachmentFixture {
             ],
             titleSnapshot: "Detail title",
             pendingCommentCountSnapshot: 0,
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: "token",
             sourceRequestID: "request-1",
             createdAt: Date(timeIntervalSince1970: 1_000)

@@ -137,7 +137,7 @@ extension PullRequestHostToolServiceTests {
         guard case .string(let destinationID)? = try object(started.structuredContent)["thread_id"] else {
             return XCTFail("Review launch returned no destination")
         }
-        let destinationContext = launch.host.agentContext(providerID: .claude, conversationID: destinationID)
+        let destinationContext = launch.host.agentContext(harnessID: .claude, conversationID: destinationID)
         launch.host.settingsService.update {
             $0.pullRequestReviewMode = .reviewTeam
             $0.pullRequestReviewPrompt = "Replacement review criteria."

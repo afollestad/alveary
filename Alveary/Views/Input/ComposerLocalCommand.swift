@@ -14,10 +14,10 @@ enum ComposerLocalCommandKind: String, CaseIterable, Sendable, Equatable {
 
 /// One selectable model for `/model`, flattened from the composer's reasoning model groups.
 struct ComposerModelCommandOption: Sendable, Equatable {
-    let providerID: String
+    let harnessID: String
     /// Picker value, matching `AgentModelOption.id`.
     let value: String
-    /// Provider-supplied alias, typically shorter than `value`.
+    /// Harness-supplied alias, typically shorter than `value`.
     let shortName: String
     let title: String
 }
@@ -67,7 +67,7 @@ struct ComposerLocalCommandAvailability: Sendable, Equatable {
     }
 }
 
-/// Suggested locally but submitted as raw provider text, not intercepted by `ComposerLocalCommandParser`.
+/// Suggested locally but submitted as raw harness text, not intercepted by `ComposerLocalCommandParser`.
 struct ComposerPassthroughSlashCommand: Sendable, Equatable {
     let command: String
     let subtitle: String

@@ -70,7 +70,7 @@ final class ScheduledTaskLifecycleCoordinatorTests: XCTestCase {
         )
         XCTAssertFalse(coordinator.canStartManualRuns)
 
-        await coordinator.activateAfterProviderRefresh()
+        await coordinator.activateAfterHarnessRefresh()
 
         XCTAssertTrue(coordinator.canStartManualRuns)
         XCTAssertEqual(order, ["load", "validate-safe", "validate-unsafe", "recover", "resume", "due"])
@@ -111,7 +111,7 @@ final class ScheduledTaskLifecycleCoordinatorTests: XCTestCase {
             publishRecoveryStateChange: { publishedChangeCount += 1 }
         )
 
-        await coordinator.activateAfterProviderRefresh()
+        await coordinator.activateAfterHarnessRefresh()
 
         XCTAssertEqual(publishedChangeCount, 1)
     }
@@ -146,7 +146,7 @@ final class ScheduledTaskLifecycleCoordinatorTests: XCTestCase {
             prepareRunsForTermination: { _ in Self.emptyTerminationPreparation }
         )
 
-        await coordinator.activateAfterProviderRefresh()
+        await coordinator.activateAfterHarnessRefresh()
         try await scheduledTaskLifecycleWaitUntil("expected initial deadline sleep") {
             sleeper.pendingDurations() == [.seconds(10)]
         }
@@ -202,7 +202,7 @@ final class ScheduledTaskLifecycleCoordinatorTests: XCTestCase {
             handleError: { _ in handledErrorCount += 1 }
         )
 
-        await coordinator.activateAfterProviderRefresh()
+        await coordinator.activateAfterHarnessRefresh()
         try await scheduledTaskLifecycleWaitUntil("expected activation retry sleep") {
             sleeper.pendingDurations() == [.seconds(5)]
         }
@@ -250,7 +250,7 @@ final class ScheduledTaskLifecycleCoordinatorTests: XCTestCase {
             handleError: { _ in handledErrorCount += 1 }
         )
 
-        await coordinator.activateAfterProviderRefresh()
+        await coordinator.activateAfterHarnessRefresh()
         try await scheduledTaskLifecycleWaitUntil("expected reconciliation retry sleep") {
             sleeper.pendingDurations() == [.seconds(7)]
         }
@@ -278,7 +278,7 @@ final class ScheduledTaskLifecycleCoordinatorTests: XCTestCase {
                 return 0
             }
         )
-        await coordinator.activateAfterProviderRefresh()
+        await coordinator.activateAfterHarnessRefresh()
 
         notificationCenter.post(name: .scheduledTasksChanged, object: nil)
         notificationCenter.post(name: NSNotification.Name.NSSystemClockDidChange, object: nil)
@@ -315,7 +315,7 @@ final class ScheduledTaskLifecycleCoordinatorTests: XCTestCase {
                 return Self.emptyTerminationPreparation
             }
         )
-        await coordinator.activateAfterProviderRefresh()
+        await coordinator.activateAfterHarnessRefresh()
         XCTAssertTrue(coordinator.canStartManualRuns)
         XCTAssertEqual(coordinator.scheduledDeadline, actionDate.addingTimeInterval(60))
 
@@ -391,7 +391,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
                 scheduledOccurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
                 recurrence: .once(Date(timeIntervalSinceReferenceDate: 1_000)),
                 timeZoneIdentifier: "UTC",
-                providerID: "codex",
+                harnessID: "codex",
                 model: nil,
                 effort: "medium",
                 permissionMode: "on-request",
@@ -434,7 +434,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
             destination: .newThreadPerRun,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             nextOccurrenceAt: actionDate.addingTimeInterval(-10),
             pendingOccurrenceAt: actionDate.addingTimeInterval(120)
         )
@@ -446,7 +446,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
             state: .paused,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             nextOccurrenceAt: actionDate.addingTimeInterval(60)
         )
         let completed = ScheduledTask(
@@ -457,7 +457,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
             state: .completed,
             recurrence: .once(actionDate),
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             nextOccurrenceAt: actionDate.addingTimeInterval(10)
         )
         context.insert(claiming)

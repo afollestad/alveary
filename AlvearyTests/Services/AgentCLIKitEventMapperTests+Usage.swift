@@ -9,9 +9,9 @@ extension AgentCLIKitEventMapperTests {
         let envelope = AgentCLIKit.AgentEventEnvelope(
             generation: 1,
             index: 0,
-            providerId: .codex,
+            harnessId: .codex,
             conversationId: "conversation",
-            providerSessionId: nil,
+            harnessSessionId: nil,
             source: .stdout,
             event: AgentCLIKit.AgentEvent.usage(AgentUsageEvent(
                 model: "gpt-5-codex",
@@ -38,7 +38,7 @@ extension AgentCLIKitEventMapperTests {
                 stopReason: "end_turn",
                 durationMs: 50,
                 costUsd: 0.01,
-                providerModelId: "gpt-5-codex",
+                harnessModelId: "gpt-5-codex",
                 contextWindowSize: 121_600,
                 permissionDenials: [],
                 isTerminal: true

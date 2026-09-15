@@ -12,14 +12,14 @@ extension SnapshotTests {
         let linkConversation = Conversation(
             id: "link",
             title: "[.alveary.json](.alveary.json)",
-            provider: "claude",
+            harness: "claude",
             isMain: true,
             displayOrder: 0,
             thread: thread
         )
         let plainConversation = Conversation(
             id: "plain",
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: thread

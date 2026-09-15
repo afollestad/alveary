@@ -6,20 +6,20 @@ import XCTest
 
 @MainActor
 extension ChatComposerActionRowTests {
-    /// Guards the seam `/model` depends on: a provider alias has to survive
+    /// Guards the seam `/model` depends on: a harness alias has to survive
     /// `AgentModelOption` -> `AgentModelOptionMenuItem` -> `ReasoningModelOption`.
-    /// Only an option whose alias differs from its id catches a dropped hop, which both providers now report.
-    func testProviderShortNamesReachMenuItems() {
+    /// Only an option whose alias differs from its id catches a dropped hop, which both harnesses now report.
+    func testHarnessShortNamesReachMenuItems() {
         let options = [
             AgentCLIKit.AgentModelOption(
-                providerId: .codex,
+                harnessId: .codex,
                 id: "gpt-5.6-sol",
                 model: "gpt-5.6-sol",
                 label: "GPT-5.6-Sol",
                 shortName: "sol"
             ),
             AgentCLIKit.AgentModelOption(
-                providerId: .codex,
+                harnessId: .codex,
                 id: "gpt-5.5",
                 model: "gpt-5.5",
                 label: "GPT-5.5"
@@ -50,14 +50,14 @@ extension ChatComposerActionRowTests {
     func testClaudeFamilyAliasesReachMenuItems() {
         let options = [
             AgentCLIKit.AgentModelOption(
-                providerId: .claude,
+                harnessId: .claude,
                 id: "claude-opus-5",
                 model: "claude-opus-5",
                 label: "Opus 5",
                 shortName: "opus"
             ),
             AgentCLIKit.AgentModelOption(
-                providerId: .claude,
+                harnessId: .claude,
                 id: "claude-opus-4-8",
                 model: "claude-opus-4-8",
                 label: "Opus 4.8"
@@ -76,7 +76,7 @@ extension ChatComposerActionRowTests {
 
     func testReasoningModelOptionDefaultsShortNameToItsValue() {
         let option = ChatComposerActionRowView.ReasoningModelOption(
-            providerID: "claude",
+            harnessID: "claude",
             value: "opus",
             title: "Opus"
         )

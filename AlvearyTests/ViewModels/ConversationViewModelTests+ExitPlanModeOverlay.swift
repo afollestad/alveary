@@ -6,7 +6,7 @@ import XCTest
 @MainActor
 extension ConversationViewModelTests {
     func testApproveExitPlanModeRoutesAllowDecisionForClaude() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, harnessId: "claude")
         let conversation = try fixture.dbConversation()
         let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
         let approvalRecord = exitPlanModeApprovalRecord(conversation: conversation, approval: approval)
@@ -20,7 +20,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.decision, .allow)
         XCTAssertEqual(calls.first?.approval, approval)
-        XCTAssertEqual(calls.first?.config.providerId, "claude")
+        XCTAssertEqual(calls.first?.config.harnessId, "claude")
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approving)
         XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
         XCTAssertNil(fixture.viewModel.latestUnresolvedToolApproval())
@@ -28,7 +28,7 @@ extension ConversationViewModelTests {
     }
 
     func testApprovedExitPlanModeClearsWhenImplementationToolCallStarts() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, harnessId: "codex")
         try fixture.dbThread().planModeEnabled = true
         try fixture.dbThread().permissionMode = "plan"
         try fixture.context.save()
@@ -110,7 +110,7 @@ extension ConversationViewModelTests {
     }
 
     func testDismissExitPlanModeRoutesDenyDecisionForCodex() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, harnessId: "codex")
         let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
 
@@ -121,7 +121,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(calls.first?.decision, .deny)
         XCTAssertEqual(calls.first?.resolution.responseText, ExitPlanModeDenialPolicy.deniedResponseText)
         XCTAssertEqual(calls.first?.approval, approval)
-        XCTAssertEqual(calls.first?.config.providerId, "codex")
+        XCTAssertEqual(calls.first?.config.harnessId, "codex")
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeRevisionGuidance)
         XCTAssertFalse(fixture.viewModel.state.turnState.isActive)

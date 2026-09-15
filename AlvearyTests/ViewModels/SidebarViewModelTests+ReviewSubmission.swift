@@ -33,7 +33,7 @@ extension SidebarViewModelTests {
 
     private func makeReviewingThread(in fixture: SidebarTestFixture, conversationID: String) throws -> AgentThread {
         let thread = AgentThread(name: "Reviewing")
-        thread.conversations = [Conversation(id: conversationID, provider: "codex", thread: thread)]
+        thread.conversations = [Conversation(id: conversationID, harness: "codex", thread: thread)]
         fixture.context.insert(thread)
         try fixture.context.save()
         return thread
@@ -46,7 +46,7 @@ extension SidebarViewModelTests {
     ) throws -> AgentThread {
         let project = Project(path: "/tmp/review-submission-\(conversationID)", name: "Reviewed")
         let thread = AgentThread(name: "Reviewing", project: project)
-        thread.conversations = [Conversation(id: conversationID, provider: "codex", thread: thread)]
+        thread.conversations = [Conversation(id: conversationID, harness: "codex", thread: thread)]
         project.threads = [thread]
         fixture.context.insert(project)
         try fixture.context.save()
@@ -132,8 +132,8 @@ extension SidebarViewModelTests {
         let fixture = try SidebarTestFixture()
         let thread = AgentThread(name: "Two conversations")
         thread.conversations = [
-            Conversation(id: "quiet-conversation", provider: "codex", thread: thread),
-            Conversation(id: "busy-conversation", provider: "codex", thread: thread)
+            Conversation(id: "quiet-conversation", harness: "codex", thread: thread),
+            Conversation(id: "busy-conversation", harness: "codex", thread: thread)
         ]
         fixture.context.insert(thread)
         try fixture.context.save()
@@ -283,7 +283,7 @@ extension SidebarViewModelTests {
             comments: nil,
             titleSnapshot: "Detail title",
             pendingCommentCountSnapshot: 0,
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: "token",
             sourceRequestID: "request-archived",
             createdAt: Date(timeIntervalSince1970: 1_000)

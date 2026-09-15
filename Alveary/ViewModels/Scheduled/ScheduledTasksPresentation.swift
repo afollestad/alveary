@@ -67,7 +67,7 @@ struct ScheduledTaskRowPresentation: Identifiable, Equatable {
     let state: ScheduledTaskState
     let recurrence: ScheduledTaskRecurrence?
     let timeZoneIdentifier: String
-    let providerID: String
+    let harnessID: String
     let workspaceSummary: String
     let destination: ScheduledTaskDestination?
     let isWaitingForTarget: Bool
@@ -133,7 +133,7 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     var weeklyWeekday: Int
     var monthlyDay: Int
     var timeZoneIdentifier: String
-    var providerID: String
+    var harnessID: String
     var modelSelection: String
     var effort: String
     var permissionMode: String

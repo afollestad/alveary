@@ -11,7 +11,7 @@ final class AppDelegateTests: XCTestCase {
         let context = ModelContext(fixture.modelContainer)
         let project = Project(path: "/tmp/stale-draft", name: "Stale")
         let thread = AgentThread(name: "New thread", isDraft: true, project: project)
-        let conversation = Conversation(id: "stale-draft-main", provider: "claude", thread: thread)
+        let conversation = Conversation(id: "stale-draft-main", harness: "claude", thread: thread)
         context.insert(project)
         context.insert(thread)
         context.insert(conversation)
@@ -28,7 +28,7 @@ final class AppDelegateTests: XCTestCase {
 
         let appDelegate = fixture.makeAppDelegate()
         appDelegate.applicationDidFinishLaunching(appDelegateDidFinishLaunchingNotification())
-        try await fixture.waitForProviderChecks(1, description: "expected startup cleanup to finish")
+        try await fixture.waitForHarnessChecks(1, description: "expected startup cleanup to finish")
 
         XCTAssertEqual(try mainContext.fetchCount(FetchDescriptor<AgentThread>()), 0)
         XCTAssertFalse(FileManager.default.fileExists(atPath: attachment.fileURL.path))
@@ -46,7 +46,7 @@ final class AppDelegateTests: XCTestCase {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        let conversation = Conversation(id: "stale-draft-save-failure-main", provider: "claude", thread: thread)
+        let conversation = Conversation(id: "stale-draft-save-failure-main", harness: "claude", thread: thread)
         context.insert(thread)
         context.insert(conversation)
         try context.save()
@@ -86,7 +86,7 @@ final class AppDelegateTests: XCTestCase {
             mode: .task,
             taskWorkspaceDescriptor: taskWorkspace
         )
-        let conversation = Conversation(id: "stale-task-main", provider: "codex", thread: thread)
+        let conversation = Conversation(id: "stale-task-main", harness: "codex", thread: thread)
         context.insert(thread)
         context.insert(conversation)
         try context.save()
@@ -125,7 +125,7 @@ final class AppDelegateTests: XCTestCase {
             promptSnapshot: "Run scheduled work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "default",
             workspaceKindSnapshot: .privateWorkspace,
@@ -158,7 +158,7 @@ final class AppDelegateTests: XCTestCase {
             promptSnapshot: "Run scheduled work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "default",
             workspaceKindSnapshot: .privateWorkspace,
@@ -192,7 +192,7 @@ final class AppDelegateTests: XCTestCase {
             promptSnapshot: "Run scheduled work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "default",
             workspaceKindSnapshot: .privateWorkspace,
@@ -234,7 +234,7 @@ final class AppDelegateTests: XCTestCase {
             promptSnapshot: "Run scheduled work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "default",
             workspaceKindSnapshot: .privateWorkspace,
@@ -277,7 +277,7 @@ final class AppDelegateTests: XCTestCase {
             promptSnapshot: "Run scheduled work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "default",
             workspaceKindSnapshot: .privateWorkspace,
@@ -294,7 +294,7 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.primaryRoot))
     }
 
-    func testStartupWarmupLoadsSessionsTerminatesOnlySessionMappedOrphansAndChecksProviders() async throws {
+    func testStartupWarmupLoadsSessionsTerminatesOnlySessionMappedOrphansAndChecksHarnesses() async throws {
         let fixture = try AppDelegateTestFixture()
         try fixture.insertConversations(["conversation-1", "conversation-2"])
         await fixture.seedSessions([
@@ -317,13 +317,13 @@ final class AppDelegateTests: XCTestCase {
         let appDelegate = fixture.makeAppDelegate(signalState: signalState)
 
         appDelegate.applicationDidFinishLaunching(appDelegateDidFinishLaunchingNotification())
-        try await fixture.waitForProviderChecks(1, description: "expected startup warmup to finish")
+        try await fixture.waitForHarnessChecks(1, description: "expected startup warmup to finish")
 
         let sessionLoadCount = await fixture.sessionManager.loadCount()
-        let providerCheckCount = await fixture.providerDetection.checkAllCount()
+        let harnessCheckCount = await fixture.harnessDetection.checkAllCount()
         let preservedSession = await fixture.sessionManager.hasSession(for: "conversation-1")
         XCTAssertEqual(sessionLoadCount, 1)
-        XCTAssertEqual(providerCheckCount, 1)
+        XCTAssertEqual(harnessCheckCount, 1)
         XCTAssertTrue(preservedSession)
         XCTAssertEqual(signalState.recordedSignals(), [.init(pid: 100, signal: SIGTERM)])
         XCTAssertTrue(signalState.contains(200))
@@ -353,8 +353,8 @@ final class AppDelegateTests: XCTestCase {
             !(await fixture.sessionManager.hasSession(for: "conversation-1"))
         }
 
-        let providerCheckCount = await fixture.providerDetection.checkAllCount()
-        XCTAssertEqual(providerCheckCount, 1)
+        let harnessCheckCount = await fixture.harnessDetection.checkAllCount()
+        XCTAssertEqual(harnessCheckCount, 1)
         XCTAssertEqual(signalState.recordedSignals(), [.init(pid: 100, signal: SIGTERM)])
 
         appDelegate.applicationWillTerminate(appDelegateWillTerminateNotification())
@@ -454,7 +454,7 @@ extension AppDelegateTests {
         let fixture = try AppDelegateTestFixture()
         let context = fixture.modelContainer.mainContext
         let staleThread = AgentThread(name: "New thread", isDraft: true)
-        let staleConversation = Conversation(id: "preexisting-launch-draft-main", provider: "codex", thread: staleThread)
+        let staleConversation = Conversation(id: "preexisting-launch-draft-main", harness: "codex", thread: staleThread)
         context.insert(staleThread)
         context.insert(staleConversation)
         try context.save()
@@ -467,13 +467,13 @@ extension AppDelegateTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        let conversation = Conversation(id: "current-launch-task-main", provider: "claude", thread: thread)
+        let conversation = Conversation(id: "current-launch-task-main", harness: "claude", thread: thread)
         context.insert(thread)
         context.insert(conversation)
         try context.save()
 
         appDelegate.applicationDidFinishLaunching(appDelegateDidFinishLaunchingNotification())
-        try await fixture.waitForProviderChecks(1, description: "expected startup cleanup to finish")
+        try await fixture.waitForHarnessChecks(1, description: "expected startup cleanup to finish")
 
         XCTAssertEqual(try context.fetch(FetchDescriptor<AgentThread>()).map(\.persistentModelID), [thread.persistentModelID])
         XCTAssertEqual(try context.fetch(FetchDescriptor<Conversation>()).map(\.persistentModelID), [conversation.persistentModelID])

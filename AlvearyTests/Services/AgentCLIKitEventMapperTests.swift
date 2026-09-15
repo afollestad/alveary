@@ -53,7 +53,7 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
                 stopReason: "permission_denial",
                 durationMs: 50,
                 costUsd: 0.01,
-                providerModelId: "sonnet",
+                harnessModelId: "sonnet",
                 contextWindowSize: 200_000,
                 permissionDenials: [PermissionDenialSummary(toolName: "Bash", toolUseId: "tool-1")],
                 isTerminal: true
@@ -352,13 +352,13 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         XCTAssertEqual(events, [.sessionInit(sessionId: "session-1")])
     }
 
-    func testMapsSessionMetadataToProviderSessionMetadataChanged() {
+    func testMapsSessionMetadataToHarnessSessionMetadataChanged() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
-            .sessionMetadata(AgentSessionMetadataEvent(providerSessionId: "thread-1", name: "Generated thread name", preview: "Initial preview")),
-            providerSessionId: "thread-1"
+            .sessionMetadata(AgentSessionMetadataEvent(harnessSessionId: "thread-1", name: "Generated thread name", preview: "Initial preview")),
+            harnessSessionId: "thread-1"
         ))
 
-        XCTAssertEqual(events, [.providerSessionMetadataChanged(sessionId: "thread-1", name: "Generated thread name", preview: "Initial preview")])
+        XCTAssertEqual(events, [.harnessSessionMetadataChanged(sessionId: "thread-1", name: "Generated thread name", preview: "Initial preview")])
     }
 
     func testMapsHookApprovalFailureDiagnostic() {
@@ -387,15 +387,15 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
 
     func envelope(
         _ event: AgentCLIKit.AgentEvent,
-        providerId: AgentProviderID = .claude,
-        providerSessionId: AgentSessionID? = nil
+        harnessId: AgentHarnessID = .claude,
+        harnessSessionId: AgentSessionID? = nil
     ) -> AgentCLIKit.AgentEventEnvelope {
         AgentCLIKit.AgentEventEnvelope(
             generation: 1,
             index: 0,
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: "conversation",
-            providerSessionId: providerSessionId,
+            harnessSessionId: harnessSessionId,
             source: .stdout,
             event: event,
             createdAt: Date(timeIntervalSince1970: 0)

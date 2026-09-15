@@ -170,7 +170,7 @@ extension PullRequestReviewTeamCoordinatorTests {
         let old = try fixture.makeRun()
         try fixture.coordinator.persist(old)
         try fixture.coordinator.cancellationStore.record(runID: old.id)
-        let newerConversation = Conversation(id: "newer-review", provider: "codex", thread: fixture.conversation.thread)
+        let newerConversation = Conversation(id: "newer-review", harness: "codex", thread: fixture.conversation.thread)
         fixture.container.mainContext.insert(newerConversation)
         try fixture.container.mainContext.save()
         let gate = PullRequestsServiceGate()

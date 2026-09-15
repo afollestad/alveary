@@ -26,11 +26,11 @@ extension AgentsManagerTests {
 
         try await manager.sendMessage("boom", conversationId: conversationId)
 
-        try await waitUntil("expected the provider error diagnostic to settle the status") {
+        try await waitUntil("expected the harness error diagnostic to settle the status") {
             manager.status(for: conversationId) == .error
         }
 
-        // The provider keeps its turn open — a bare error diagnostic never clears `isTurnActive` —
+        // The harness keeps its turn open — a bare error diagnostic never clears `isTurnActive` —
         // and the trailing tool-use row publishes a status past the terminal event index, so
         // index-based staleness no longer suppresses it. That publish is what used to re-arm
         // `.busy`, fast enough that the wait above never even saw `.error`.
@@ -64,7 +64,7 @@ extension AgentsManagerTests {
         }
 
         try await manager.sendMessage("boom", conversationId: conversationId)
-        try await waitUntil("expected the provider error diagnostic to settle the status") {
+        try await waitUntil("expected the harness error diagnostic to settle the status") {
             manager.status(for: conversationId) == .error
         }
 
@@ -113,7 +113,7 @@ extension AgentsManagerTests {
         }
 
         try await manager.sendMessage("boom", conversationId: conversationId)
-        try await waitUntil("expected the provider error diagnostic to settle the status") {
+        try await waitUntil("expected the harness error diagnostic to settle the status") {
             manager.status(for: conversationId) == .error
         }
 
@@ -133,7 +133,7 @@ extension AgentsManagerTests {
             ),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
         XCTAssertEqual(manager.status(for: conversationId), .idle)
 
@@ -145,8 +145,8 @@ extension AgentsManagerTests {
 /// runtime keeps publishing `running` + `isTurnActive` after Alveary has already settled `.error`.
 /// `TurnStatusAgentCLIKitAdapter` cannot stand in: every one of its rows either ends the turn or
 /// needs a fresh host send, and a send re-arms `.busy` on its own.
-struct StaleActiveTurnAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+struct StaleActiveTurnAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -199,12 +199,12 @@ struct StaleActiveTurnAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
 /// Writes its goal start over stdin the way Claude does, so the runtime marks a turn active.
 /// `GoalStartingAgentCLIKitAdapter` implements `startGoal` natively instead and marks no turn,
 /// which is why that fixture's test asserts the status stays away from `.busy`.
-struct GoalInputWritingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+struct GoalInputWritingAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"],
-        capabilities: AgentCLIKit.AgentProviderCapabilities(
+        capabilities: AgentCLIKit.AgentHarnessCapabilities(
             supportsGoalMode: true,
             supportsExistingSessionGoalStart: true
         )
@@ -231,9 +231,9 @@ struct GoalInputWritingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
 
     func encodeGoalStart(
         _ objective: String,
-        context: AgentCLIKit.AgentProviderGoalStartContext
-    ) async throws -> AgentCLIKit.AgentProviderEncodedGoalStart? {
-        AgentCLIKit.AgentProviderEncodedGoalStart(
+        context: AgentCLIKit.AgentHarnessGoalStartContext
+    ) async throws -> AgentCLIKit.AgentHarnessEncodedGoalStart? {
+        AgentCLIKit.AgentHarnessEncodedGoalStart(
             data: Data(("/goal " + objective + "\n").utf8),
             marksTurnActive: true
         )

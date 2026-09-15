@@ -4,14 +4,14 @@ import AgentCLIKit
 extension AppComponent {
     var agentCLIKitOneShotPromptRunner: AgentCLIKit.DefaultAgentOneShotPromptRunner {
         return shared {
-            let executableResolver = AgentCLIKit.DefaultAgentProviderExecutableResolver(detector: agentCLIKitProviderDetector)
+            let executableResolver = AgentCLIKit.DefaultAgentHarnessExecutableResolver(detector: agentCLIKitHarnessDetector)
             return AgentCLIKit.DefaultAgentOneShotPromptRunner(
-                adapterSet: AgentCLIKit.AgentProviderAdapterSet.default(
-                    claude: AgentCLIKit.ClaudeProviderAdapter.Configuration(
+                adapterSet: AgentCLIKit.AgentHarnessAdapterSet.default(
+                    claude: AgentCLIKit.ClaudeHarnessAdapter.Configuration(
                         enableHooks: false,
                         executableResolver: executableResolver
                     ),
-                    codex: AgentCLIKit.CodexProviderAdapter.Configuration(
+                    codex: AgentCLIKit.CodexHarnessAdapter.Configuration(
                         executableResolver: executableResolver
                     )
                 ),

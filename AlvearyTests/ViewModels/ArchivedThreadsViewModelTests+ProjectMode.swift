@@ -42,8 +42,8 @@ extension ArchivedThreadsViewModelTests {
     }
 
     /// Re-homed from `ProjectSettingsViewTests`: a project-mode archived thread still gets the
-    /// full worktree/provider cleanup now that deletion routes through the Archived screen.
-    func testPermanentDeleteOfProjectModeThreadRunsNormalWorktreeAndProviderCleanup() async throws {
+    /// full worktree/harness cleanup now that deletion routes through the Archived screen.
+    func testPermanentDeleteOfProjectModeThreadRunsNormalWorktreeAndHarnessCleanup() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -55,10 +55,10 @@ extension ArchivedThreadsViewModelTests {
             hasCompletedInitialSetup: true,
             useWorktree: true,
             archivedAt: Date(),
-            provider: "codex",
-            providerSessionId: "codex-thread",
-            providerSessionProviderId: "codex",
-            providerSessionWorkingDirectory: "/tmp/alveary-worktree"
+            harness: "codex",
+            harnessSessionId: "codex-thread",
+            harnessSessionHarnessId: "codex",
+            harnessSessionWorkingDirectory: "/tmp/alveary-worktree"
         )
         let viewModel = makeViewModel(fixture: fixture).viewModel
         viewModel.refresh()
@@ -74,7 +74,7 @@ extension ArchivedThreadsViewModelTests {
         XCTAssertEqual(removeCalls, [
             .init(projectPath: "/tmp/alveary-project", worktreePath: "/tmp/alveary-worktree", branch: "alveary/live")
         ])
-        let actions = await fixture.providerSessionActions.actions
+        let actions = await fixture.harnessSessionActions.actions
         XCTAssertEqual(actions.count, 2)
         guard case .resolve(let resolveSnapshot) = actions.first,
               case .delete(let deleteSnapshot) = actions.last else {

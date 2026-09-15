@@ -214,7 +214,7 @@ struct ReviewTeamConsensusTests {
 
 func reviewTestTeam(count: Int = 3) -> [ReviewWorkerConfiguration] {
     (0..<count).map { index in
-        ReviewWorkerConfiguration(id: index == 0 ? "lead" : "peer-\(index)", providerID: "codex",
+        ReviewWorkerConfiguration(id: index == 0 ? "lead" : "peer-\(index)", harnessID: "codex",
                                   modelOptionID: "model-\(index)", launchModel: "model-\(index)",
                                   effort: "medium", executablePath: "/fake/codex")
     }

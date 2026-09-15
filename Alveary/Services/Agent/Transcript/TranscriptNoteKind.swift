@@ -13,13 +13,13 @@ enum TranscriptNoteKind: Equatable {
     case contextCompactionStarted
     case contextCompactionCompleted
     case contextCompactionFailed
-    /// Carries the `ConversationProviderExit` message, which names the provider and exit code.
-    case providerExited(String)
+    /// Carries the `ConversationHarnessExit` message, which names the harness and exit code.
+    case harnessExited(String)
 
     var alignment: TranscriptNoteAlignment {
         switch self {
         case .sessionHandoffInProgress, .sessionHandoff, .sessionForked, .scheduledTask,
-             .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed, .providerExited:
+             .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed, .harnessExited:
             return .centered
         case .enteredPlanMode, .exitedPlanMode, .stayingInPlanMode, .steeredConversation:
             return .toolUsageLeading
@@ -56,7 +56,7 @@ enum TranscriptNoteKind: Equatable {
             return ConversationContextCompaction.completedDisplayMessage
         case .contextCompactionFailed:
             return ConversationContextCompaction.failedDisplayMessage
-        case .providerExited(let text):
+        case .harnessExited(let text):
             return text
         }
     }

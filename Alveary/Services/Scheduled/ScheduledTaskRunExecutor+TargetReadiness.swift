@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 extension DefaultScheduledTaskRunExecutor {
-    /// Retain the lease until provider-history recovery settles, then validate fresh models before any run mutation.
+    /// Retain the lease until harness-history recovery settles, then validate fresh models before any run mutation.
     func activateLeaseIfTargetIsReady(
         _ lease: ConversationControllerLease,
         resolveRun: () throws -> ScheduledTaskRun

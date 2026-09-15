@@ -150,7 +150,7 @@ extension ConversationViewModelTests {
             attachments: [payload.image],
             fileAttachments: [payload.file],
             appShots: [payload.appShot],
-            providerMetadata: ["codex-test": .string("metadata")],
+            harnessMetadata: ["codex-test": .string("metadata")],
             consumedExitPlanModeRevisionGuidance: payload.revisionGuidance
         )
 
@@ -166,7 +166,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(queued.attachments, [payload.image])
         XCTAssertEqual(queued.fileAttachments, [payload.file])
         XCTAssertEqual(queued.appShots, [payload.appShot])
-        XCTAssertEqual(queued.providerMetadata["codex-test"], .string("metadata"))
+        XCTAssertEqual(queued.harnessMetadata["codex-test"], .string("metadata"))
         XCTAssertEqual(queued.consumedExitPlanModeRevisionGuidance, payload.revisionGuidance)
 
         fixture.viewModel.resumeQueuedMessages()
@@ -225,8 +225,8 @@ private func makePausedQueuePayload() -> PausedQueuePayload {
         revisionGuidance: PendingExitPlanModeRevisionGuidance(
             toolUseId: "exit-plan-1",
             sessionId: "session-1",
-            providerId: "claude",
-            providerSessionId: nil
+            harnessId: "claude",
+            harnessSessionId: nil
         )
     )
 }

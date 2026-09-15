@@ -106,9 +106,9 @@ extension VoiceInputModelRepositoryTests {
         let repository = DefaultVoiceInputModelRepository(
             modelsDirectory: modelsDirectory,
             cacheOwnershipDirectory: cacheOwnershipDirectory,
-            descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: fixture.resolved),
+            descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: fixture.resolved),
             downloader: VoiceInputModelDownloaderFake(artifactData: fixture.dataByPath),
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
         )
 
         do {
@@ -144,9 +144,9 @@ extension VoiceInputModelRepositoryTests {
         let repository = DefaultVoiceInputModelRepository(
             modelsDirectory: modelsDirectory,
             cacheOwnershipDirectory: cacheOwnershipDirectory,
-            descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: fixture.resolved),
+            descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: fixture.resolved),
             downloader: downloader,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
         )
 
         do {
@@ -186,9 +186,9 @@ extension VoiceInputModelRepositoryTests {
         let repository = DefaultVoiceInputModelRepository(
             modelsDirectory: modelsDirectory,
             cacheOwnershipDirectory: cacheOwnershipDirectory,
-            descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: fixture.resolved),
+            descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: fixture.resolved),
             downloader: downloader,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
         )
 
         do {
@@ -226,9 +226,9 @@ extension VoiceInputModelRepositoryTests {
         let repository = DefaultVoiceInputModelRepository(
             modelsDirectory: modelsDirectory,
             cacheOwnershipDirectory: cacheOwnershipDirectory,
-            descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: fixture.resolved),
+            descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: fixture.resolved),
             downloader: VoiceInputModelDownloaderFake(artifactData: fixture.dataByPath),
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
         )
 
         do {
@@ -288,9 +288,9 @@ extension VoiceInputModelRepositoryTests {
             let reopenedRepository = DefaultVoiceInputModelRepository(
                 modelsDirectory: modelsDirectory,
                 cacheOwnershipDirectory: temporaryDirectory,
-                descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: fixture.resolved),
+                descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: fixture.resolved),
                 downloader: downloader,
-                diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+                diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
             )
 
             let recovered = try await reopenedRepository.prepareModel(mode: .normal) { _ in }
@@ -317,9 +317,9 @@ extension VoiceInputModelRepositoryTests {
         let reopenedRepository = DefaultVoiceInputModelRepository(
             modelsDirectory: modelsDirectory,
             cacheOwnershipDirectory: temporaryDirectory,
-            descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: fixture.resolved),
+            descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: fixture.resolved),
             downloader: downloader,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
         )
 
         let recovered = try await reopenedRepository.prepareModel(mode: .normal) { _ in }
@@ -405,9 +405,9 @@ extension VoiceInputModelRepositoryTests {
         let reopenedRepository = DefaultVoiceInputModelRepository(
             modelsDirectory: modelsDirectory,
             cacheOwnershipDirectory: temporaryDirectory,
-            descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: fixture.resolved),
+            descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: fixture.resolved),
             downloader: downloader,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
         )
 
         let recoveredModel = try await reopenedRepository.prepareModel(mode: .normal) { _ in }
@@ -429,9 +429,9 @@ extension VoiceInputModelRepositoryTests {
         DefaultVoiceInputModelRepository(
             modelsDirectory: modelsDirectory,
             cacheOwnershipDirectory: temporaryDirectory,
-            descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: fixture.resolved),
+            descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: fixture.resolved),
             downloader: VoiceInputModelDownloaderFake(artifactData: fixture.dataByPath),
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
         )
     }
 }

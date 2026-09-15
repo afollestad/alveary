@@ -41,7 +41,7 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         try fixture.insertDefinition(
             id: "blocked",
             state: .paused,
-            pauseReason: "Provider is unavailable."
+            pauseReason: "Harness is unavailable."
         )
         try fixture.insertDefinition(
             id: "completed",
@@ -54,7 +54,7 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         XCTAssertEqual(Set(fixture.viewModel.tasks(for: .all).map(\.id)), ["active", "blocked", "completed"])
         XCTAssertEqual(fixture.viewModel.tasks(for: .active).map(\.id), ["active"])
         XCTAssertEqual(fixture.viewModel.tasks(for: .paused).map(\.id), ["blocked"])
-        XCTAssertEqual(fixture.viewModel.tasks(for: .paused).first?.blockedReason, "Provider is unavailable.")
+        XCTAssertEqual(fixture.viewModel.tasks(for: .paused).first?.blockedReason, "Harness is unavailable.")
     }
 
     func testSaveCreatesStructuredProjectScheduleAndNormalizesGrants() throws {
@@ -256,20 +256,20 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         XCTAssertFalse(fixture.viewModel.pendingPaneDismissals.contains(request))
     }
 
-    func testProviderSwitchNormalizesIncompatiblePermissionMode() throws {
+    func testHarnessSwitchNormalizesIncompatiblePermissionMode() throws {
         let fixture = try ScheduledTasksViewModelFixture()
         var draft = fixture.viewModel.makeNewDraft()
         draft.permissionMode = "acceptEdits"
 
         XCTAssertTrue(
             fixture.viewModel.permissionModeOptions(
-                for: draft.providerID,
+                for: draft.harnessID,
                 including: draft.permissionMode
             ).contains(where: { $0.value == "acceptEdits" })
         )
 
-        draft.providerID = "codex"
-        fixture.viewModel.normalizeProviderDependentFields(&draft)
+        draft.harnessID = "codex"
+        fixture.viewModel.normalizeHarnessDependentFields(&draft)
 
         XCTAssertEqual(draft.permissionMode, "on-request")
         XCTAssertTrue(
@@ -330,7 +330,7 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         fixture.viewModel.reload()
         let definition = try XCTUnwrap(fixture.context.resolveScheduledTask(id: "automatic"))
         definition.state = .paused
-        definition.pauseReason = "Provider unavailable."
+        definition.pauseReason = "Harness unavailable."
         try fixture.context.save()
 
         fixture.notificationCenter.postScheduledTasksChanged(
@@ -343,7 +343,7 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         }
 
         XCTAssertEqual(fixture.viewModel.tasks.first?.state, .paused)
-        XCTAssertEqual(fixture.viewModel.tasks.first?.blockedReason, "Provider unavailable.")
+        XCTAssertEqual(fixture.viewModel.tasks.first?.blockedReason, "Harness unavailable.")
     }
 
     func testExternalMutationNotificationReloadsRows() async throws {
@@ -457,7 +457,7 @@ final class ScheduledTasksViewModelFixture {
             state: state,
             recurrence: recurrence,
             timeZoneIdentifier: currentTimeZone.identifier,
-            providerID: "claude",
+            harnessID: "claude",
             nextOccurrenceAt: nextOccurrenceAt,
             pauseReason: pauseReason,
             modifiedAt: Date(timeIntervalSince1970: Double(revision))
@@ -485,7 +485,7 @@ final class ScheduledTasksViewModelFixture {
             destination: .newThreadPerRun,
             recurrence: draft.recurrence,
             timeZoneIdentifier: draft.timeZoneIdentifier,
-            providerID: draft.providerID,
+            harnessID: draft.harnessID,
             model: nil,
             effort: draft.effort,
             permissionMode: draft.permissionMode,

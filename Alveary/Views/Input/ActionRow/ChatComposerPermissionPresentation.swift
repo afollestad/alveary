@@ -28,7 +28,7 @@ enum ChatComposerPermissionPresentation {
     private static let bypassPermissionsDescription = "Bypass all permission checks. Use only in sandboxed environments."
 
     static func options(
-        providerID: String,
+        harnessID: String,
         permissionModes: [PermissionModeOption]
     ) -> [ChatComposerActionRowView.PermissionOptionPresentation] {
         permissionModes.map { option in
@@ -36,14 +36,14 @@ enum ChatComposerPermissionPresentation {
                 value: option.value,
                 title: title(for: option),
                 description: description(for: option),
-                symbolName: symbolName(providerID: providerID, value: option.value),
-                isWarning: isWarning(providerID: providerID, value: option.value)
+                symbolName: symbolName(harnessID: harnessID, value: option.value),
+                isWarning: isWarning(harnessID: harnessID, value: option.value)
             )
         }
     }
 
-    static func symbolName(providerID: String, value: String) -> String {
-        switch (providerID, value) {
+    static func symbolName(harnessID: String, value: String) -> String {
+        switch (harnessID, value) {
         case ("claude", "default"), ("codex", "untrusted"):
             return "hand.raised"
         case ("claude", "acceptEdits"), ("codex", "on-request"):
@@ -55,9 +55,9 @@ enum ChatComposerPermissionPresentation {
         }
     }
 
-    static func isWarning(providerID: String, value: String) -> Bool {
-        (providerID == "claude" && value == "bypassPermissions")
-            || (providerID == "codex" && value == "never")
+    static func isWarning(harnessID: String, value: String) -> Bool {
+        (harnessID == "claude" && value == "bypassPermissions")
+            || (harnessID == "codex" && value == "never")
     }
 
     private static func title(for option: PermissionModeOption) -> String {
@@ -65,7 +65,7 @@ enum ChatComposerPermissionPresentation {
     }
 
     private static func description(for option: PermissionModeOption) -> String {
-        // Provider discovery supplies its own bypass copy; Alveary always shows
+        // Harness discovery supplies its own bypass copy; Alveary always shows
         // this shorter warning instead.
         if option.value == "bypassPermissions" {
             return bypassPermissionsDescription

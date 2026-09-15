@@ -154,8 +154,8 @@ extension BlockInputComposerBridgeControllerTests {
         let provider = BlockInputComposerCompletionProvider(
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
             localCommands: ComposerLocalCommandAvailability(modelOptions: [
-                ComposerModelCommandOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
-                ComposerModelCommandOption(providerID: "claude", value: "opus", shortName: "opus", title: "Opus")
+                ComposerModelCommandOption(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
+                ComposerModelCommandOption(harnessID: "claude", value: "opus", shortName: "opus", title: "Opus")
             ]),
             loadFileCompletions: { [] },
             loadSkillCompletions: {
@@ -176,7 +176,7 @@ extension BlockInputComposerBridgeControllerTests {
         let provider = BlockInputComposerCompletionProvider(
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
             localCommands: ComposerLocalCommandAvailability(modelOptions: [
-                ComposerModelCommandOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet")
+                ComposerModelCommandOption(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet")
             ]),
             loadFileCompletions: { [] },
             loadSkillCompletions: {
@@ -206,7 +206,7 @@ extension BlockInputComposerBridgeControllerTests {
         )
         let suggestions = await provider.suggestions(for: Self.completionContext(query: "c"))
 
-        XCTAssertEqual(suggestions.first?.id, "alveary://provider-commands/claude/compact")
+        XCTAssertEqual(suggestions.first?.id, "alveary://harness-commands/claude/compact")
         XCTAssertEqual(suggestions.first?.insertionText, "/compact ")
         XCTAssertEqual(suggestions.first?.detailText, "Claude")
         XCTAssertFalse(suggestions.dropFirst().contains { $0.subtitle == "External compact skill" })
@@ -232,7 +232,7 @@ extension BlockInputComposerBridgeControllerTests {
     func testSameLocationReconfigureUsesLatestPassthroughSlashCommands() async {
         let configuration = Self.bridgeConfiguration(markdown: "Before")
         let controller = BlockInputComposerBridgeController(configuration: configuration)
-        let initialProvider = controller.completionProvider
+        let initialHarness = controller.completionProvider
 
         controller.configure(Self.bridgeConfiguration(
             markdown: "After",
@@ -240,7 +240,7 @@ extension BlockInputComposerBridgeControllerTests {
         ))
         let suggestions = await controller.completionProvider.suggestions(for: Self.completionContext(query: "compact"))
 
-        XCTAssertTrue(controller.completionProvider === initialProvider)
+        XCTAssertTrue(controller.completionProvider === initialHarness)
         XCTAssertEqual(suggestions.map(\.insertionText), ["/compact "])
         XCTAssertEqual(suggestions.first?.detailText, "Claude")
     }
@@ -250,7 +250,7 @@ extension BlockInputComposerBridgeControllerTests {
             command: "compact",
             subtitle: "Compact context",
             detailText: "Claude",
-            uri: "alveary://provider-commands/claude/compact",
+            uri: "alveary://harness-commands/claude/compact",
             argumentHint: "Optional compact instructions"
         )
     }

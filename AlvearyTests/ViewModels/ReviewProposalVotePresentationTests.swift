@@ -22,7 +22,7 @@ struct ReviewProposalVotePresentationTests {
             findingID: evidence.findingID, sourceCandidateIDs: evidence.sourceCandidateIDs,
             priority: evidence.priority, votes: evidence.votes, reviewers: hasEmbeddedReviewers ? reviewers : nil
         )
-        let current = [PullRequestReviewProposalRecord.Reviewer(id: "current", providerID: "claude", modelOptionID: "current-model")]
+        let current = [PullRequestReviewProposalRecord.Reviewer(id: "current", harnessID: "claude", modelOptionID: "current-model")]
         let presentation = PullRequestReviewVotePresentation(evidence: stored, reviewers: current)
 
         #expect(presentation.denominator == (hasEmbeddedReviewers ? 5 : 1))
@@ -67,7 +67,7 @@ struct ReviewProposalVotePresentationTests {
 
     private var reviewers: [PullRequestReviewProposalRecord.Reviewer] {
         (0..<5).map { index in
-            .init(id: index == 0 ? "lead" : "peer-\(index)", providerID: "codex", modelOptionID: "model-\(index)")
+            .init(id: index == 0 ? "lead" : "peer-\(index)", harnessID: "codex", modelOptionID: "model-\(index)")
         }
     }
 

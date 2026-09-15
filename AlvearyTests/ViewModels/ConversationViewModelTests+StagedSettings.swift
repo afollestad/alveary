@@ -136,7 +136,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "claude"
+            harnessId: "claude"
         )
         try fixture.dbThread().permissionMode = "acceptEdits"
         try fixture.dbThread().planModeEnabled = false
@@ -155,7 +155,7 @@ extension ConversationViewModelTests {
 
         let appliedReconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(appliedReconfigureCalls.count, 1)
-        XCTAssertEqual(appliedReconfigureCalls.first?.config.providerId, "claude")
+        XCTAssertEqual(appliedReconfigureCalls.first?.config.harnessId, "claude")
         XCTAssertEqual(appliedReconfigureCalls.first?.config.planModeEnabled, true)
         XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
         XCTAssertNil(fixture.viewModel.state.pendingSessionSettingsChange)
@@ -165,7 +165,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "claude"
+            harnessId: "claude"
         )
         try fixture.dbThread().permissionMode = "acceptEdits"
         try fixture.dbThread().planModeEnabled = true
@@ -185,7 +185,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: false,
-            providerId: "claude"
+            harnessId: "claude"
         )
         try fixture.dbThread().permissionMode = "default"
         try fixture.dbThread().planModeEnabled = false
@@ -217,7 +217,7 @@ extension ConversationViewModelTests {
 
         reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(reconfigureCalls.count, 1)
-        XCTAssertEqual(reconfigureCalls.first?.config.providerId, "claude")
+        XCTAssertEqual(reconfigureCalls.first?.config.harnessId, "claude")
         XCTAssertEqual(reconfigureCalls.first?.config.model, "opus")
         XCTAssertEqual(reconfigureCalls.first?.config.effort, "high")
         XCTAssertEqual(reconfigureCalls.first?.config.permissionMode, "acceptEdits")
@@ -260,7 +260,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: true,
             reconfigureResult: .nextTurnRequired,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         try fixture.dbThread().permissionMode = "on-request"
         try fixture.context.save()

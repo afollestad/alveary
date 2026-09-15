@@ -203,7 +203,7 @@ actor SnapshotMockAgentsManager: AgentsManager {
     }
 
     func toolApprovalSelection(
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async -> ToolApprovalSelection? {
@@ -212,7 +212,7 @@ actor SnapshotMockAgentsManager: AgentsManager {
 
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async {}

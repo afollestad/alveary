@@ -9,7 +9,7 @@ extension ConversationViewModel {
         }
 
         guard newValue != .fast || supportsSpeedMode else {
-            state.lastTurnError = "Fast mode is not supported by this provider."
+            state.lastTurnError = "Fast mode is not supported by this harness."
             return Task {}
         }
 

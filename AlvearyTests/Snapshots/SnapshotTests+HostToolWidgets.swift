@@ -315,7 +315,7 @@ private final class ScheduledTaskProposalSnapshotFixture {
             destination: .newThreadPerRun,
             recurrence: .weekdays(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             model: nil,
             effort: "medium",
             permissionMode: "on-request",

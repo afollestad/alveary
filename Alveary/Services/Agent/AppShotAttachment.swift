@@ -111,12 +111,12 @@ struct TranscriptImageAttachment: Equatable, Sendable {
     }
 }
 
-enum AppShotProviderStrategy: Equatable, Sendable {
+enum AppShotHarnessStrategy: Equatable, Sendable {
     case codex
     case claude
 
-    init?(providerID: String) {
-        switch providerID {
+    init?(harnessID: String) {
+        switch harnessID {
         case "codex":
             self = .codex
         case "claude":
@@ -149,7 +149,7 @@ enum AppShotTransportFormatter {
     static func format(
         userInput: String,
         appShots: [AppShotAttachment],
-        strategy: AppShotProviderStrategy
+        strategy: AppShotHarnessStrategy
     ) -> AppShotTransportFormattingResult {
         let appShotBlocks = appShots.map(formatAppShotBlock(_:)).joined(separator: "\n\n")
         var requestBody = ""
@@ -181,14 +181,14 @@ enum AppShotTransportFormatter {
     static func debugPreview(
         userInput: String,
         appShots: [AppShotAttachment],
-        strategy: AppShotProviderStrategy
+        strategy: AppShotHarnessStrategy
     ) -> String {
         let formatted = format(userInput: userInput, appShots: appShots, strategy: strategy)
-        let providerMode = strategy == .codex ? "Codex localImage" : "Claude markdown screenshot link"
+        let harnessMode = strategy == .codex ? "Codex localImage" : "Claude markdown screenshot link"
         let paths = appShots.map { $0.screenshot.fileURL.path }.joined(separator: "\n")
         let roots = Set(appShots.map { $0.attachmentStoreRoot.path }).sorted().joined(separator: "\n")
         return """
-        Provider mode: \(providerMode)
+        Harness mode: \(harnessMode)
         Screenshot path:
         \(paths)
 

@@ -13,7 +13,7 @@ final class ScheduledTaskPreflightValidatorTests: XCTestCase {
         XCTAssertEqual(outcome, .ready(expectedIdentities(for: snapshot)))
     }
 
-    func testReadyProjectWorktreeValidatesProviderWorkspaceAndRepository() async {
+    func testReadyProjectWorktreeValidatesHarnessWorkspaceAndRepository() async {
         let recorder = PreflightValidationRecorder()
         let validator = makeValidator(recorder: recorder)
         let snapshot = makeSnapshot()
@@ -36,14 +36,14 @@ final class ScheduledTaskPreflightValidatorTests: XCTestCase {
         XCTAssertEqual(projectPaths, ["/tmp/project"])
     }
 
-    func testUnavailableProviderIsInvalid() async {
-        let validator = makeValidator(loadProviderStatus: { _, _ in nil })
+    func testUnavailableHarnessIsInvalid() async {
+        let validator = makeValidator(loadHarnessStatus: { _, _ in nil })
 
         let outcome = await validator.validate(makeSnapshot())
 
         XCTAssertEqual(
             outcome,
-            ScheduledTaskPreflightOutcome.invalid(reason: "The scheduled task provider is not ready: claude.")
+            ScheduledTaskPreflightOutcome.invalid(reason: "The scheduled task harness is not ready: claude.")
         )
     }
 
@@ -65,16 +65,16 @@ final class ScheduledTaskPreflightValidatorTests: XCTestCase {
     /// A task saved before Claude listed pinned versions stores a family alias, which matches no option id. Preflight
     /// refuses a model it cannot resolve, so an alias that stopped resolving would fail the task on its next run.
     func testTaskSavedWithAFamilyAliasStillValidates() async {
-        let status = Self.makeReadyProviderStatus(
+        let status = Self.makeReadyHarnessStatus(
             modelOptions: [
                 AgentModelOption(
-                    providerId: .claude,
+                    harnessId: .claude,
                     id: "claude-opus-5",
                     model: "claude-opus-5",
                     label: "Opus 5",
                     shortName: "opus",
                     isDefault: true,
-                    supportedEffortOptions: [AgentProviderOption(
+                    supportedEffortOptions: [AgentHarnessOption(
                         value: "high",
                         label: "High",
                         description: "Use high reasoning effort."
@@ -82,7 +82,7 @@ final class ScheduledTaskPreflightValidatorTests: XCTestCase {
                 )
             ]
         )
-        let validator = makeValidator(loadProviderStatus: { _, _ in status })
+        let validator = makeValidator(loadHarnessStatus: { _, _ in status })
         let snapshot = makeSnapshot(model: "opus")
 
         let outcome = await validator.validate(snapshot)
@@ -90,16 +90,16 @@ final class ScheduledTaskPreflightValidatorTests: XCTestCase {
         XCTAssertEqual(outcome, .ready(expectedIdentities(for: snapshot)))
     }
 
-    func testUnsupportedProviderSettingsAreInvalid() async {
-        let status = Self.makeReadyProviderStatus(
+    func testUnsupportedHarnessSettingsAreInvalid() async {
+        let status = Self.makeReadyHarnessStatus(
             modelOptions: [
                 AgentModelOption(
-                    providerId: .claude,
+                    harnessId: .claude,
                     id: "sonnet",
                     model: "claude-sonnet",
                     label: "Sonnet",
                     isDefault: true,
-                    supportedEffortOptions: [AgentProviderOption(
+                    supportedEffortOptions: [AgentHarnessOption(
                         value: "high",
                         label: "High",
                         description: "Use high reasoning effort."
@@ -107,7 +107,7 @@ final class ScheduledTaskPreflightValidatorTests: XCTestCase {
                 )
             ]
         )
-        let validator = makeValidator(loadProviderStatus: { _, _ in status })
+        let validator = makeValidator(loadHarnessStatus: { _, _ in status })
 
         let modelOutcome = await validator.validate(makeSnapshot(model: "missing"))
         let effortOutcome = await validator.validate(makeSnapshot(model: "claude-sonnet", effort: "low"))
@@ -156,9 +156,9 @@ final class ScheduledTaskPreflightValidatorTests: XCTestCase {
     func testSamePathDirectoryReplacementDuringAsyncPreflightIsInvalid() async {
         let identitySource = PreflightIdentitySource()
         let validator = makeValidator(
-            loadProviderStatus: { _, _ in
+            loadHarnessStatus: { _, _ in
                 identitySource.replaceDirectories()
-                return Self.makeReadyProviderStatus()
+                return Self.makeReadyHarnessStatus()
             },
             loadDirectoryIdentity: identitySource.identity(at:)
         )
@@ -229,7 +229,7 @@ final class ScheduledTaskPreflightValidatorTests: XCTestCase {
 private extension ScheduledTaskPreflightValidatorTests {
     func makeValidator(
         recorder: PreflightValidationRecorder = PreflightValidationRecorder(),
-        loadProviderStatus: DefaultScheduledTaskPreflightValidator.ProviderStatusLoader? = nil,
+        loadHarnessStatus: DefaultScheduledTaskPreflightValidator.HarnessStatusLoader? = nil,
         canonicalizeRoots: @escaping DefaultScheduledTaskPreflightValidator.RootCanonicalizer = { roots, primaryRoot in
             roots.map(CanonicalPath.normalize).filter { $0 != primaryRoot }
         },
@@ -239,12 +239,12 @@ private extension ScheduledTaskPreflightValidatorTests {
         },
         checkWorktreeFeasibility: DefaultScheduledTaskPreflightValidator.WorktreeFeasibilityChecker? = nil
     ) -> DefaultScheduledTaskPreflightValidator {
-        let resolvedStatusLoader = loadProviderStatus ?? { _, projectURL in
+        let resolvedStatusLoader = loadHarnessStatus ?? { _, projectURL in
             await recorder.record(projectURL: projectURL)
-            return Self.makeReadyProviderStatus()
+            return Self.makeReadyHarnessStatus()
         }
         return DefaultScheduledTaskPreflightValidator(
-            loadProviderStatus: resolvedStatusLoader,
+            loadHarnessStatus: resolvedStatusLoader,
             canonicalizeRoots: canonicalizeRoots,
             checkDirectoryAccess: checkDirectoryAccess,
             loadDirectoryIdentity: loadDirectoryIdentity,
@@ -274,7 +274,7 @@ private extension ScheduledTaskPreflightValidatorTests {
             scheduledOccurrenceAt: Date(timeIntervalSince1970: 1_700_000_000),
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "claude",
+            harnessID: "claude",
             model: model,
             effort: effort,
             permissionMode: permissionMode,
@@ -288,11 +288,11 @@ private extension ScheduledTaskPreflightValidatorTests {
         )
     }
 
-    static func makeReadyProviderStatus(
+    static func makeReadyHarnessStatus(
         modelOptions: [AgentModelOption] = []
-    ) -> AgentProviderStatus {
-        AgentProviderStatus(
-            providerId: .claude,
+    ) -> AgentHarnessStatus {
+        AgentHarnessStatus(
+            harnessId: .claude,
             installation: .installed,
             isEnabled: true,
             setup: .ready,

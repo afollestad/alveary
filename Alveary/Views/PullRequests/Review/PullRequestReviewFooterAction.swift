@@ -15,7 +15,7 @@ struct PullRequestReviewFooterAction: Equatable, Identifiable {
 
     var id: Kind { kind }
 
-    /// The brain glyph matches the Agents settings page, the app's one symbol for
+    /// The brain glyph matches the Harnesses settings page, the app's one symbol for
     /// "an agent does this" — so both agentic options wear it.
     var icon: ActionIcon {
         switch kind {

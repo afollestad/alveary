@@ -11,7 +11,7 @@ struct HostToolCallSource {
 
 enum HostToolSourceError: Error, Equatable, Sendable {
     case sourceConversationUnavailable
-    case sourceProviderMismatch
+    case sourceHarnessMismatch
 }
 
 @MainActor
@@ -19,7 +19,7 @@ enum HostToolSourceResolver {
     /// Resolves the calling conversation from `AgentHostToolCallContext`.
     ///
     /// A caller Alveary cannot place — a vanished conversation, a draft or archived thread, or a
-    /// process whose provider disagrees with the stored one — gets no host state at all. Feature
+    /// process whose harness disagrees with the stored one — gets no host state at all. Feature
     /// eligibility layers on top of this; it never replaces it.
     static func resolveSource(
         context: AgentCLIKit.AgentHostToolCallContext,
@@ -32,9 +32,9 @@ enum HostToolSourceResolver {
            thread.archivedAt == nil else {
             throw HostToolSourceError.sourceConversationUnavailable
         }
-        if let storedProviderID = conversation.provider,
-           storedProviderID != context.providerId.rawValue {
-            throw HostToolSourceError.sourceProviderMismatch
+        if let storedHarnessID = conversation.harness,
+           storedHarnessID != context.harnessId.rawValue {
+            throw HostToolSourceError.sourceHarnessMismatch
         }
         return HostToolCallSource(conversation: conversation, thread: thread)
     }

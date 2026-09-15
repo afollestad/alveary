@@ -114,20 +114,20 @@ extension ChatComposerReasoningMenuLayoutTests {
         XCTAssertEqual(expansionChanges, [true, false, true, false])
     }
 
-    func testSingleNonEmptyProviderOmitsHeadingEvenWhenTitleExists() throws {
+    func testSingleNonEmptyHarnessOmitsHeadingEvenWhenTitleExists() throws {
         let controller = groupedController(groups: [
-            modelGroup(providerID: "claude", title: "Claude", models: [("sonnet", "Sonnet")])
+            modelGroup(harnessID: "claude", title: "Claude", models: [("sonnet", "Sonnet")])
         ])
         controller.setModelsExpanded(true)
         controller.view.layoutSubtreeIfNeeded()
 
         XCTAssertTrue(controller.view.modelsDescendants(of: ComposerReasoningHeaderView.self).isEmpty)
-        XCTAssertEqual(controller.debugModelList?.debugShowsProviderHeaders, false)
+        XCTAssertEqual(controller.debugModelList?.debugShowsHarnessHeaders, false)
     }
 
     func testModelsDisclosureMatchesModelOptionTypographyAndInsets() throws {
         let controller = groupedController(groups: [
-            modelGroup(providerID: "claude", title: "Claude", models: [("sonnet", "Sonnet")])
+            modelGroup(harnessID: "claude", title: "Claude", models: [("sonnet", "Sonnet")])
         ])
         controller.setModelsExpanded(true)
         controller.view.layoutSubtreeIfNeeded()
@@ -156,17 +156,17 @@ extension ChatComposerReasoningMenuLayoutTests {
         XCTAssertEqual(disclosure.debugInteractionBackgroundFrame.height, modelRow.debugInteractionBackgroundFrame.height)
     }
 
-    func testMultipleNonEmptyProvidersShowHeadingsAndDivider() throws {
+    func testMultipleNonEmptyHarnessesShowHeadingsAndDivider() throws {
         let controller = groupedController(groups: [
-            modelGroup(providerID: "claude", title: "Claude", models: [("sonnet", "Sonnet")]),
-            modelGroup(providerID: "codex", title: "Codex", models: [("gpt", "GPT")])
+            modelGroup(harnessID: "claude", title: "Claude", models: [("sonnet", "Sonnet")]),
+            modelGroup(harnessID: "codex", title: "Codex", models: [("gpt", "GPT")])
         ])
         controller.setModelsExpanded(true)
         controller.view.layoutSubtreeIfNeeded()
 
         let headers = controller.view.modelsDescendants(of: ComposerReasoningHeaderView.self).map(\.stringValue)
         XCTAssertEqual(headers, ["Claude", "Codex"])
-        XCTAssertEqual(controller.debugModelList?.debugShowsProviderHeaders, true)
+        XCTAssertEqual(controller.debugModelList?.debugShowsHarnessHeaders, true)
         XCTAssertEqual(
             controller.debugModelList?.modelsDescendants(of: AppKitComposerPopoverDividerView.self).count,
             1
@@ -188,10 +188,10 @@ extension ChatComposerReasoningMenuLayoutTests {
         )
     }
 
-    func testEmptyProviderDoesNotTriggerHeadings() {
+    func testEmptyHarnessDoesNotTriggerHeadings() {
         let controller = groupedController(groups: [
-            modelGroup(providerID: "empty", title: "Empty", models: []),
-            modelGroup(providerID: "claude", title: "Claude", models: [("sonnet", "Sonnet")])
+            modelGroup(harnessID: "empty", title: "Empty", models: []),
+            modelGroup(harnessID: "claude", title: "Claude", models: [("sonnet", "Sonnet")])
         ])
         controller.setModelsExpanded(true)
         controller.view.layoutSubtreeIfNeeded()
@@ -210,14 +210,14 @@ extension ChatComposerReasoningMenuLayoutTests {
         XCTAssertFalse(row.accessibilityPerformPress())
     }
 
-    func testProviderQualifiedIdentitySelectsOnlyMatchingDuplicateModelID() throws {
+    func testHarnessQualifiedIdentitySelectsOnlyMatchingDuplicateModelID() throws {
         let groups = [
-            modelGroup(providerID: "claude", title: "Claude", models: [("default", "Provider default")]),
-            modelGroup(providerID: "codex", title: "Codex", models: [("default", "Provider default")])
+            modelGroup(harnessID: "claude", title: "Claude", models: [("default", "Harness default")]),
+            modelGroup(harnessID: "codex", title: "Codex", models: [("default", "Harness default")])
         ]
         let configuration = makeReasoningConfiguration(
             modelGroups: groups,
-            selectedProvider: "codex",
+            selectedHarness: "codex",
             selectedModel: "default"
         )
         let controller = ComposerReasoningMenuViewController(configuration: configuration, onRequestCloseMainMenu: {})
@@ -232,13 +232,13 @@ extension ChatComposerReasoningMenuLayoutTests {
         XCTAssertEqual(selectedIdentities, ["codex:default"])
         XCTAssertEqual(
             list.focusableRows.compactMap { $0.accessibilityLabel() },
-            ["Claude, Provider default", "Codex, Provider default"]
+            ["Claude, Harness default", "Codex, Harness default"]
         )
     }
 
     func testSelectionOnlyUpdatePreservesModelRowsWhileStructureChangeRebuilds() throws {
         let groups = [modelGroup(
-            providerID: "claude",
+            harnessID: "claude",
             title: "Claude",
             models: (0 ..< 20).map { ("model-\($0)", "Model \($0)") }
         )]
@@ -267,7 +267,7 @@ extension ChatComposerReasoningMenuLayoutTests {
 
         var structureUpdate = selectionUpdate
         structureUpdate.modelGroups = [modelGroup(
-            providerID: "claude",
+            harnessID: "claude",
             title: "Claude",
             models: (0 ... 20).map { ("model-\($0)", "Model \($0)") }
         )]
@@ -278,7 +278,7 @@ extension ChatComposerReasoningMenuLayoutTests {
 
     func testFocusingOffscreenModelRowScrollsItIntoView() throws {
         let groups = [modelGroup(
-            providerID: "claude",
+            harnessID: "claude",
             title: "Claude",
             models: (0 ..< 30).map { ("model-\($0)", "Model \($0)") }
         )]
@@ -302,7 +302,7 @@ extension ChatComposerReasoningMenuLayoutTests {
 
     func testModelRowsActivateFromReturnAndSpace() throws {
         let groups = [modelGroup(
-            providerID: "claude",
+            harnessID: "claude",
             title: "Claude",
             models: [("sonnet", "Sonnet"), ("opus", "Opus")]
         )]
@@ -330,20 +330,20 @@ extension ChatComposerReasoningMenuLayoutTests {
 
         XCTAssertTrue(window.makeFirstResponder(opusRow))
         opusRow.keyDown(with: modelRowKeyEvent(keyCode: 36, window: window))
-        XCTAssertEqual(requests, [.init(providerID: "claude", modelID: "opus")])
+        XCTAssertEqual(requests, [.init(harnessID: "claude", modelID: "opus")])
         XCTAssertEqual(opusRow.accessibilityValue() as? String, "Selected")
 
         XCTAssertTrue(window.makeFirstResponder(sonnetRow))
         sonnetRow.keyDown(with: modelRowKeyEvent(keyCode: 49, window: window))
         XCTAssertEqual(requests, [
-            .init(providerID: "claude", modelID: "opus"),
-            .init(providerID: "claude", modelID: "sonnet")
+            .init(harnessID: "claude", modelID: "opus"),
+            .init(harnessID: "claude", modelID: "sonnet")
         ])
         XCTAssertEqual(sonnetRow.accessibilityValue() as? String, "Selected")
     }
 
     func testModelRowShowsHoverPressedAndFocusInteractionStates() throws {
-        let groups = [modelGroup(providerID: "claude", title: "Claude", models: [("sonnet", "Sonnet")])]
+        let groups = [modelGroup(harnessID: "claude", title: "Claude", models: [("sonnet", "Sonnet")])]
         var requests: [ChatComposerActionRowView.ReasoningModelSelectionRequest] = []
         let selection = makeReasoningConfiguration(modelGroups: groups).selection
         let controller = ComposerReasoningMenuViewController(
@@ -369,15 +369,15 @@ extension ChatComposerReasoningMenuLayoutTests {
         XCTAssertTrue(window.firstResponder === row)
         XCTAssertTrue(row.debugShowsInteractionBackground)
         row.mouseUp(with: modelRowMouseEvent(type: .leftMouseUp, in: row, window: window))
-        XCTAssertEqual(requests, [.init(providerID: "claude", modelID: "sonnet")])
+        XCTAssertEqual(requests, [.init(harnessID: "claude", modelID: "sonnet")])
         XCTAssertTrue(window.firstResponder === row)
 
         row.mouseExited(with: NSEvent())
         XCTAssertFalse(row.debugShowsInteractionBackground)
         row.keyDown(with: modelRowKeyEvent(keyCode: 36, window: window))
         XCTAssertEqual(requests, [
-            .init(providerID: "claude", modelID: "sonnet"),
-            .init(providerID: "claude", modelID: "sonnet")
+            .init(harnessID: "claude", modelID: "sonnet"),
+            .init(harnessID: "claude", modelID: "sonnet")
         ])
         XCTAssertTrue(row.debugShowsInteractionBackground)
         XCTAssertTrue(window.makeFirstResponder(nil))
@@ -386,22 +386,22 @@ extension ChatComposerReasoningMenuLayoutTests {
 
     func testAppliedModelSelectionsUpdateEffortOptionsAndFastSupportInPlace() throws {
         let groups = [
-            modelGroup(providerID: "codex", title: "Codex", models: [("fast", "Fast model")]),
-            modelGroup(providerID: "claude", title: "Claude", models: [("slow", "Slow model")])
+            modelGroup(harnessID: "codex", title: "Codex", models: [("fast", "Fast model")]),
+            modelGroup(harnessID: "claude", title: "Claude", models: [("slow", "Slow model")])
         ]
         let supportedEfforts: [ChatComposerActionRowView.MenuOption] = [.init(value: "low", title: "Low"), .init(value: "high", title: "High")]
         let slowEfforts: [ChatComposerActionRowView.MenuOption] = [.init(value: "minimal", title: "Minimal"), .init(value: "ultra", title: "Ultra")]
-        let unsupportedSelection = makeReasoningConfiguration(modelGroups: groups, effortOptions: slowEfforts, selectedProvider: "claude",
+        let unsupportedSelection = makeReasoningConfiguration(modelGroups: groups, effortOptions: slowEfforts, selectedHarness: "claude",
             selectedModel: "slow", selectedEffort: "ultra", selectedSpeedMode: .standard, supportsSpeedMode: false).selection
-        let restoredSelection = makeReasoningConfiguration(modelGroups: groups, effortOptions: supportedEfforts, selectedProvider: "codex",
+        let restoredSelection = makeReasoningConfiguration(modelGroups: groups, effortOptions: supportedEfforts, selectedHarness: "codex",
             selectedModel: "fast", selectedEffort: "low", selectedSpeedMode: .standard, supportsSpeedMode: true).selection
         var displayedSelections: [ChatComposerActionRowView.ReasoningSelection] = []
         var closeCount = 0
         let controller = ComposerReasoningMenuViewController(
             configuration: makeReasoningConfiguration(
-                modelGroups: groups, effortOptions: supportedEfforts, selectedProvider: "codex",
+                modelGroups: groups, effortOptions: supportedEfforts, selectedHarness: "codex",
                 selectedModel: "fast", selectedEffort: "high", selectedSpeedMode: .fast, supportsSpeedMode: true,
-                onModelChange: { $0.providerID == "claude" ? .applied(selection: unsupportedSelection) : .applied(selection: restoredSelection) }
+                onModelChange: { $0.harnessID == "claude" ? .applied(selection: unsupportedSelection) : .applied(selection: restoredSelection) }
             ),
             onRequestCloseMainMenu: { closeCount += 1 },
             onDisplaySelectionChanged: { selection in if let selection { displayedSelections.append(selection) } }
@@ -440,7 +440,7 @@ extension ChatComposerReasoningMenuLayoutTests {
 
     func testLongModelListCapsOnlyViewport() throws {
         let models = (0 ..< 30).map { ("model-\($0)", "Model \($0)") }
-        let groups = [modelGroup(providerID: "claude", title: "Claude", models: models)]
+        let groups = [modelGroup(harnessID: "claude", title: "Claude", models: models)]
         let controller = groupedController(groups: groups)
         controller.setModelsExpanded(true)
         controller.view.layoutSubtreeIfNeeded()

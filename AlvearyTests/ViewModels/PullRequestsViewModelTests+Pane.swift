@@ -324,13 +324,13 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(service.detailCallCount, 1)
     }
 
-    func testOpeningAPaneWarmsProviderDiscoverySoTheFooterDoesNotPayForItOnTheClick() {
+    func testOpeningAPaneWarmsHarnessDiscoverySoTheFooterDoesNotPayForItOnTheClick() {
         let service = StubPullRequestsService()
         let summary = makePullRequestSummary(number: 7)
         let warms = PullRequestPaneWarmCounter()
         let viewModel = makePullRequestsViewModel(
             service: service,
-            warmAgentProviderDiscovery: { warms.count += 1 }
+            warmAgentHarnessDiscovery: { warms.count += 1 }
         )
 
         viewModel.requestDetails(summary)
@@ -340,13 +340,13 @@ extension PullRequestsViewModelTests {
 
     /// A reopen warms again on purpose: the cache's own TTL decides whether that costs a probe,
     /// and a retained session is exactly the case where the last one has most likely aged out.
-    func testReopeningAPaneWarmsProviderDiscoveryAgain() {
+    func testReopeningAPaneWarmsHarnessDiscoveryAgain() {
         let service = StubPullRequestsService()
         let summary = makePullRequestSummary(number: 7)
         let warms = PullRequestPaneWarmCounter()
         let viewModel = makePullRequestsViewModel(
             service: service,
-            warmAgentProviderDiscovery: { warms.count += 1 }
+            warmAgentHarnessDiscovery: { warms.count += 1 }
         )
 
         viewModel.requestDetails(summary)

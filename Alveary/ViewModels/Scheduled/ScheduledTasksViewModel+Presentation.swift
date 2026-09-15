@@ -28,21 +28,21 @@ extension ScheduledTasksViewModel {
 
     func loadForScreen() async {
         await load()
-        normalizeActiveProviderDependentFields()
+        normalizeActiveHarnessDependentFields()
     }
 
     func makeRowPresentation(_ definition: ScheduledTask) -> ScheduledTaskRowPresentation {
         let workspaceSummary: String
-        let providerID: String
+        let harnessID: String
         let destination = definition.decodedDestination
         switch destination {
         case .some(.existingThread):
             workspaceSummary = "Existing thread · \(definition.targetThread?.displayName() ?? "Unavailable thread")"
-            providerID = existingThreadProviderID(for: definition)
+            harnessID = existingThreadHarnessID(for: definition)
         case .some(.reusedThread):
-            // The reuse thread is a venue the definition owns, so provider and settings still
+            // The reuse thread is a venue the definition owns, so harness and settings still
             // come from the definition — unlike an existing target, whose thread is authoritative.
-            providerID = definition.providerID
+            harnessID = definition.harnessID
             // Once a run has minted the thread, later runs post into it and take their workspace
             // from it (`ScheduledTaskReusedThreadWorkspace`), so naming it is truer than
             // repeating definition columns those runs no longer read. Before the first run — and
@@ -52,10 +52,10 @@ extension ScheduledTasksViewModel {
                 \(reusedThreadLink(for: definition)?.name ?? workspaceDetail(for: definition))
                 """
         case .some(.newThreadPerRun):
-            providerID = definition.providerID
+            harnessID = definition.harnessID
             workspaceSummary = "New thread each time · \(workspaceDetail(for: definition))"
         case nil:
-            providerID = definition.providerID
+            harnessID = definition.harnessID
             workspaceSummary = "Unrecognized destination"
         }
 
@@ -67,7 +67,7 @@ extension ScheduledTasksViewModel {
             state: definition.state,
             recurrence: definition.recurrence,
             timeZoneIdentifier: currentTimeZone().identifier,
-            providerID: providerID,
+            harnessID: harnessID,
             workspaceSummary: workspaceSummary,
             destination: destination,
             isWaitingForTarget: definition.targetWaitStartedAt != nil,
@@ -99,9 +99,9 @@ private extension ScheduledTasksViewModel {
         }
     }
 
-    func existingThreadProviderID(for definition: ScheduledTask) -> String {
+    func existingThreadHarnessID(for definition: ScheduledTask) -> String {
         let mainConversations = definition.targetThread?.conversations.filter(\.isMain) ?? []
-        guard mainConversations.count == 1 else { return definition.providerID }
-        return mainConversations.first?.provider ?? definition.providerID
+        guard mainConversations.count == 1 else { return definition.harnessID }
+        return mainConversations.first?.harness ?? definition.harnessID
     }
 }

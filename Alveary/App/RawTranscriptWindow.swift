@@ -15,12 +15,22 @@ struct RawTranscriptWindowRequest: Codable, Hashable {
     let conversationID: String
     let threadName: String
     let conversationTitle: String
-    let providerID: String?
-    let providerSessionID: String?
-    let providerSessionWorkingDirectory: String?
+    let harnessID: String?
+    let harnessSessionID: String?
+    let harnessSessionWorkingDirectory: String?
 
     var windowTitle: String {
         "\(threadName) (\(conversationTitle))"
+    }
+
+    /// Keep the stored JSON format stable across the harness terminology rename.
+    private enum CodingKeys: String, CodingKey {
+        case conversationID
+        case threadName
+        case conversationTitle
+        case harnessID = "providerID"
+        case harnessSessionID = "providerSessionID"
+        case harnessSessionWorkingDirectory = "providerSessionWorkingDirectory"
     }
 }
 
@@ -91,12 +101,12 @@ struct RawTranscriptWindow: View {
 
     private var transcriptSource: RawTranscriptSource? {
         let conversation = conversations.first
-        let providerID = conversation?.providerSessionProviderId ?? request.providerID ?? conversation?.provider
-        let providerSessionID = conversation?.providerSessionId ?? request.providerSessionID
-        let workingDirectory = conversation?.providerSessionWorkingDirectory ?? request.providerSessionWorkingDirectory
+        let harnessID = conversation?.harnessSessionHarnessId ?? request.harnessID ?? conversation?.harness
+        let harnessSessionID = conversation?.harnessSessionId ?? request.harnessSessionID
+        let workingDirectory = conversation?.harnessSessionWorkingDirectory ?? request.harnessSessionWorkingDirectory
         return RawTranscriptSource(
-            providerID: providerID,
-            providerSessionID: providerSessionID,
+            harnessID: harnessID,
+            harnessSessionID: harnessSessionID,
             workingDirectory: workingDirectory
         )
     }

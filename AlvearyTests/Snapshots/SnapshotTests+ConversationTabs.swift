@@ -47,14 +47,14 @@ extension SnapshotTests {
         let chipConversation = Conversation(
             id: "chip",
             title: "Test `code block`",
-            provider: "claude",
+            harness: "claude",
             isMain: true,
             displayOrder: 0,
             thread: thread
         )
         let plainConversation = Conversation(
             id: "plain",
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: thread
@@ -80,14 +80,14 @@ extension SnapshotTests {
         let mentionConversation = Conversation(
             id: "mention",
             title: "@.alveary.json",
-            provider: "claude",
+            harness: "claude",
             isMain: true,
             displayOrder: 0,
             thread: thread
         )
         let plainConversation = Conversation(
             id: "plain",
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: thread
@@ -127,7 +127,7 @@ extension SnapshotTests {
         let thread = AgentThread(name: "Status Dot Coverage")
         let mainConversation = Conversation(
             id: "main",
-            provider: "claude",
+            harness: "claude",
             isMain: true,
             displayOrder: 0,
             thread: thread
@@ -135,7 +135,7 @@ extension SnapshotTests {
         let secondConversation = Conversation(
             id: "side",
             title: "Follow-up",
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: thread
@@ -179,7 +179,7 @@ extension SnapshotTests {
                 Conversation(
                     id: "conv-\(index)",
                     title: "Conversation \(index)",
-                    provider: "claude",
+                    harness: "claude",
                     isMain: index == 1,
                     displayOrder: index,
                     thread: thread
@@ -206,7 +206,7 @@ extension SnapshotTests {
         let thread = AgentThread(name: "Editing Chip Coverage")
         let mainConversation = Conversation(
             id: "main",
-            provider: "claude",
+            harness: "claude",
             isMain: true,
             displayOrder: 0,
             thread: thread
@@ -214,7 +214,7 @@ extension SnapshotTests {
         let secondConversation = Conversation(
             id: "side",
             title: "Follow-up",
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: thread
@@ -274,10 +274,10 @@ private struct ThreadDetailStatusFixture {
     let agentsManager: SnapshotMockAgentsManager
     let runtimeStore: MockConversationRuntimeStore
     let settingsService: InMemorySettingsService
-    let providerRegistry: DefaultProviderRegistry
-    let providerDiscovery: SnapshotThreadProviderDiscoveryService
+    let harnessRegistry: DefaultHarnessRegistry
+    let harnessDiscovery: SnapshotThreadHarnessDiscoveryService
     let worktreeManager: MockWorktreeManager
-    let providerSetup: MockProviderSetupService
+    let harnessSetup: MockHarnessSetupService
     let contextWindowCache: MockContextWindowCache
     let fileListManager: SnapshotMockFileListManager
     let notificationManager: RecordingNotificationManager
@@ -299,12 +299,12 @@ private struct ThreadDetailStatusFixture {
         agentsManager = SnapshotMockAgentsManager()
         runtimeStore = MockConversationRuntimeStore()
         settingsService = InMemorySettingsService()
-        providerRegistry = DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry())
-        providerDiscovery = SnapshotThreadProviderDiscoveryService()
+        harnessRegistry = DefaultHarnessRegistry(agentRegistry: DefaultAgentRegistry())
+        harnessDiscovery = SnapshotThreadHarnessDiscoveryService()
         worktreeManager = MockWorktreeManager(
             worktreeInfo: WorktreeInfo(path: "/tmp/alveary-worktree", branch: "main")
         )
-        providerSetup = MockProviderSetupService()
+        harnessSetup = MockHarnessSetupService()
         contextWindowCache = MockContextWindowCache()
         fileListManager = SnapshotMockFileListManager()
         notificationManager = RecordingNotificationManager()
@@ -327,7 +327,7 @@ private struct ThreadDetailStatusFixture {
                 modelContext: context,
                 settingsService: settingsService,
                 worktreeManager: worktreeManager,
-                providerSetup: providerSetup,
+                harnessSetup: harnessSetup,
                 contextWindowCache: contextWindowCache
             )
         }
@@ -341,9 +341,9 @@ private struct ThreadDetailStatusFixture {
             agentsManager: agentsManager,
             conversationControllerRegistry: conversationControllerRegistry,
             settingsService: settingsService,
-            providerRegistry: providerRegistry,
-            providerDiscovery: providerDiscovery,
-            providerSetup: providerSetup,
+            harnessRegistry: harnessRegistry,
+            harnessDiscovery: harnessDiscovery,
+            harnessSetup: harnessSetup,
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
@@ -378,7 +378,7 @@ private struct ThreadDetailStatusFixture {
         let mainConversation = Conversation(
             id: "main",
             title: "Main",
-            provider: "claude",
+            harness: "claude",
             isMain: true,
             displayOrder: 0,
             thread: thread
@@ -386,7 +386,7 @@ private struct ThreadDetailStatusFixture {
         let sideConversation = Conversation(
             id: "side",
             title: "Follow-up",
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: thread

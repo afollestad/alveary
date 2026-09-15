@@ -6,25 +6,25 @@ import XCTest
 
 @MainActor
 extension BlockInputComposerArgumentHintTests {
-    func testModelHintListsShortNamesAcrossProviders() {
-        let provider = makeProvider(modelOptions: [
-            Self.modelOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
-            Self.modelOption(providerID: "codex", value: "gpt-5.6-sol", shortName: "sol", title: "GPT-5.6-Sol")
+    func testModelHintListsShortNamesAcrossHarnesses() {
+        let provider = makeHarness(modelOptions: [
+            Self.modelOption(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
+            Self.modelOption(harnessID: "codex", value: "gpt-5.6-sol", shortName: "sol", title: "GPT-5.6-Sol")
         ])
 
         XCTAssertEqual(provider.inlineHint(for: modelHintContext(text: "/model"))?.text, " sonnet|sol")
         XCTAssertEqual(provider.inlineHint(for: modelHintContext(text: "/model "))?.text, "sonnet|sol")
     }
 
-    func testModelHintTruncatesLongProviderListsWithEllipsis() {
-        let provider = makeProvider(modelOptions: [
-            Self.modelOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
-            Self.modelOption(providerID: "claude", value: "fable", shortName: "fable", title: "Fable"),
-            Self.modelOption(providerID: "claude", value: "opus", shortName: "opus", title: "Opus"),
-            Self.modelOption(providerID: "claude", value: "haiku", shortName: "haiku", title: "Haiku"),
+    func testModelHintTruncatesLongHarnessListsWithEllipsis() {
+        let provider = makeHarness(modelOptions: [
+            Self.modelOption(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
+            Self.modelOption(harnessID: "claude", value: "fable", shortName: "fable", title: "Fable"),
+            Self.modelOption(harnessID: "claude", value: "opus", shortName: "opus", title: "Opus"),
+            Self.modelOption(harnessID: "claude", value: "haiku", shortName: "haiku", title: "Haiku"),
             // Codex ids that earn no alias stay long, which is what pushes the hint over its budget.
-            Self.modelOption(providerID: "codex", value: "gpt-5.4-mini", shortName: "gpt-5.4-mini", title: "GPT-5.4-Mini"),
-            Self.modelOption(providerID: "codex", value: "gpt-5.5", shortName: "gpt-5.5", title: "GPT-5.5")
+            Self.modelOption(harnessID: "codex", value: "gpt-5.4-mini", shortName: "gpt-5.4-mini", title: "GPT-5.4-Mini"),
+            Self.modelOption(harnessID: "codex", value: "gpt-5.5", shortName: "gpt-5.5", title: "GPT-5.5")
         ])
 
         let hint = provider.inlineHint(for: modelHintContext(text: "/model "))?.text
@@ -33,17 +33,17 @@ extension BlockInputComposerArgumentHintTests {
     }
 
     func testModelHintIsAbsentWithFewerThanTwoOptions() {
-        let provider = makeProvider(modelOptions: [
-            Self.modelOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet")
+        let provider = makeHarness(modelOptions: [
+            Self.modelOption(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet")
         ])
 
         XCTAssertNil(provider.inlineHint(for: modelHintContext(text: "/model")))
     }
 
     func testModelHintUpdatesWhenModelOptionsChange() {
-        let provider = makeProvider(modelOptions: [
-            Self.modelOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
-            Self.modelOption(providerID: "claude", value: "opus", shortName: "opus", title: "Opus")
+        let provider = makeHarness(modelOptions: [
+            Self.modelOption(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
+            Self.modelOption(harnessID: "claude", value: "opus", shortName: "opus", title: "Opus")
         ])
 
         XCTAssertEqual(provider.inlineHint(for: modelHintContext(text: "/model"))?.text, " sonnet|opus")
@@ -51,8 +51,8 @@ extension BlockInputComposerArgumentHintTests {
         provider.update(
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
             localCommands: ComposerLocalCommandAvailability(modelOptions: [
-                Self.modelOption(providerID: "codex", value: "gpt-5.6-sol", shortName: "sol", title: "GPT-5.6-Sol"),
-                Self.modelOption(providerID: "codex", value: "gpt-5.6-luna", shortName: "luna", title: "GPT-5.6-Luna")
+                Self.modelOption(harnessID: "codex", value: "gpt-5.6-sol", shortName: "sol", title: "GPT-5.6-Sol"),
+                Self.modelOption(harnessID: "codex", value: "gpt-5.6-luna", shortName: "luna", title: "GPT-5.6-Luna")
             ]),
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] }
@@ -66,8 +66,8 @@ extension BlockInputComposerArgumentHintTests {
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
             localCommands: ComposerLocalCommandAvailability(
                 modelOptions: [
-                    Self.modelOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
-                    Self.modelOption(providerID: "claude", value: "opus", shortName: "opus", title: "Opus")
+                    Self.modelOption(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
+                    Self.modelOption(harnessID: "claude", value: "opus", shortName: "opus", title: "Opus")
                 ],
                 suppressesSlashCommandSuggestions: true
             ),
@@ -78,7 +78,7 @@ extension BlockInputComposerArgumentHintTests {
         XCTAssertNil(provider.inlineHint(for: modelHintContext(text: "/model")))
     }
 
-    private func makeProvider(
+    private func makeHarness(
         modelOptions: [ComposerModelCommandOption]
     ) -> BlockInputComposerCompletionProvider {
         BlockInputComposerCompletionProvider(
@@ -104,11 +104,11 @@ extension BlockInputComposerArgumentHintTests {
     }
 
     nonisolated static func modelOption(
-        providerID: String,
+        harnessID: String,
         value: String,
         shortName: String,
         title: String
     ) -> ComposerModelCommandOption {
-        ComposerModelCommandOption(providerID: providerID, value: value, shortName: shortName, title: title)
+        ComposerModelCommandOption(harnessID: harnessID, value: value, shortName: shortName, title: title)
     }
 }

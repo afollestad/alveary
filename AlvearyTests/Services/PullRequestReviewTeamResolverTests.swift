@@ -6,16 +6,16 @@ import XCTest
 final class PullRequestReviewTeamResolverTests: XCTestCase {
     func testResolvesLeadFirstAndFreezesConcreteLaunchSettings() throws {
         var settings = AppSettings()
-        settings.defaultProvider = "claude"
+        settings.defaultHarness = "claude"
         settings.defaultModel = AppSettings.defaultModelValue
         settings.effort = "high"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "codex", model: "gpt-5.5", effort: "medium")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "codex", model: "gpt-5.5", effort: "medium")
         ]
 
         let workers = try PullRequestReviewTeamResolver.resolve(
             settings: settings,
-            providerStatuses: Self.readyStatuses
+            harnessStatuses: Self.readyStatuses
         )
 
         XCTAssertEqual(workers.map(\.id), ["lead", "peer-1"])
@@ -23,7 +23,7 @@ final class PullRequestReviewTeamResolverTests: XCTestCase {
             workers[0],
             ReviewWorkerConfiguration(
                 id: "lead",
-                providerID: "claude",
+                harnessID: "claude",
                 modelOptionID: "sonnet",
                 launchModel: "sonnet",
                 effort: "high",
@@ -37,25 +37,25 @@ final class PullRequestReviewTeamResolverTests: XCTestCase {
         var settings = AppSettings()
         settings.pullRequestReviewModel = "retired-model"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "codex", model: "gpt-5.5", effort: "medium")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "codex", model: "gpt-5.5", effort: "medium")
         ]
 
         XCTAssertThrowsError(
-            try PullRequestReviewTeamResolver.resolve(settings: settings, providerStatuses: Self.readyStatuses)
+            try PullRequestReviewTeamResolver.resolve(settings: settings, harnessStatuses: Self.readyStatuses)
         ) { error in
             XCTAssertEqual(
                 error as? PullRequestReviewTeamResolutionError,
-                .modelUnavailable(memberID: "lead", memberName: "Lead", providerID: "claude", model: "retired-model")
+                .modelUnavailable(memberID: "lead", memberName: "Lead", harnessID: "claude", model: "retired-model")
             )
         }
     }
 
-    func testInheritedUnavailableProviderDoesNotFallBackToAnotherReadyProvider() {
+    func testInheritedUnavailableHarnessDoesNotFallBackToAnotherReadyHarness() {
         var settings = AppSettings()
-        settings.defaultProvider = "claude"
+        settings.defaultHarness = "claude"
         settings.defaultModel = "sonnet"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "codex", model: "gpt-5.4-mini", effort: "medium")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "codex", model: "gpt-5.4-mini", effort: "medium")
         ]
         var statuses = Self.readyStatuses
         statuses[.claude] = nil
@@ -63,71 +63,71 @@ final class PullRequestReviewTeamResolverTests: XCTestCase {
         XCTAssertThrowsError(
             try PullRequestReviewTeamResolver.resolve(
                 settings: settings,
-                providerStatuses: statuses,
-                providerOrdering: ["codex", "claude"]
+                harnessStatuses: statuses,
+                harnessOrdering: ["codex", "claude"]
             )
         ) { error in
             XCTAssertEqual(
                 error as? PullRequestReviewTeamResolutionError,
-                .providerUnavailable(memberID: "lead", memberName: "Lead", providerID: "claude")
+                .harnessUnavailable(memberID: "lead", memberName: "Lead", harnessID: "claude")
             )
         }
     }
 
-    func testInheritedStaleModelDoesNotFallBackToTheProviderDefault() {
+    func testInheritedStaleModelDoesNotFallBackToTheHarnessDefault() {
         var settings = AppSettings()
         settings.defaultModel = "retired-model"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "codex", model: "gpt-5.5", effort: "medium")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "codex", model: "gpt-5.5", effort: "medium")
         ]
 
         XCTAssertThrowsError(
-            try PullRequestReviewTeamResolver.resolve(settings: settings, providerStatuses: Self.readyStatuses)
+            try PullRequestReviewTeamResolver.resolve(settings: settings, harnessStatuses: Self.readyStatuses)
         ) { error in
             XCTAssertEqual(
                 error as? PullRequestReviewTeamResolutionError,
-                .modelUnavailable(memberID: "lead", memberName: "Lead", providerID: "claude", model: "retired-model")
+                .modelUnavailable(memberID: "lead", memberName: "Lead", harnessID: "claude", model: "retired-model")
             )
         }
     }
 
-    func testRejectsAProviderDefaultWithNoConcreteLaunchModel() {
+    func testRejectsAHarnessDefaultWithNoConcreteLaunchModel() {
         var settings = AppSettings()
-        settings.defaultProvider = "codex"
+        settings.defaultHarness = "codex"
         settings.defaultModel = AppSettings.defaultModelValue
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "claude", model: "sonnet", effort: "high")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "claude", model: "sonnet", effort: "high")
         ]
         var statuses = Self.readyStatuses
         statuses[.codex] = Self.status(
-            providerID: .codex,
-            options: AgentDefaultModelOptions.providerDefault(for: .codex)
+            harnessID: .codex,
+            options: AgentDefaultModelOptions.harnessDefault(for: .codex)
         )
 
         XCTAssertThrowsError(
-            try PullRequestReviewTeamResolver.resolve(settings: settings, providerStatuses: statuses)
+            try PullRequestReviewTeamResolver.resolve(settings: settings, harnessStatuses: statuses)
         ) { error in
             XCTAssertEqual(
                 error as? PullRequestReviewTeamResolutionError,
                 .modelUnavailable(
                     memberID: "lead",
                     memberName: "Lead",
-                    providerID: "codex",
+                    harnessID: "codex",
                     model: AppSettings.defaultModelValue
                 )
             )
         }
     }
 
-    func testRejectsDuplicateResolvedProviderAndModelPairs() {
+    func testRejectsDuplicateResolvedHarnessAndModelPairs() {
         var settings = AppSettings()
         settings.defaultModel = "sonnet"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "claude", model: "sonnet", effort: "medium")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "claude", model: "sonnet", effort: "medium")
         ]
 
         XCTAssertThrowsError(
-            try PullRequestReviewTeamResolver.resolve(settings: settings, providerStatuses: Self.readyStatuses)
+            try PullRequestReviewTeamResolver.resolve(settings: settings, harnessStatuses: Self.readyStatuses)
         ) { error in
             XCTAssertEqual(
                 error as? PullRequestReviewTeamResolutionError,
@@ -141,42 +141,42 @@ final class PullRequestReviewTeamResolverTests: XCTestCase {
         }
     }
 
-    func testRejectsAnUnavailablePinnedProvider() {
+    func testRejectsAnUnavailablePinnedHarness() {
         var settings = AppSettings()
         settings.defaultModel = "sonnet"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "codex", model: "gpt-5.5", effort: "medium")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "codex", model: "gpt-5.5", effort: "medium")
         ]
         var statuses = Self.readyStatuses
-        statuses[.codex] = Self.status(providerID: .codex, installation: .missing, options: [])
+        statuses[.codex] = Self.status(harnessID: .codex, installation: .missing, options: [])
 
         XCTAssertThrowsError(
-            try PullRequestReviewTeamResolver.resolve(settings: settings, providerStatuses: statuses)
+            try PullRequestReviewTeamResolver.resolve(settings: settings, harnessStatuses: statuses)
         ) { error in
             XCTAssertEqual(
                 error as? PullRequestReviewTeamResolutionError,
-                .providerUnavailable(memberID: "peer-1", memberName: "Reviewer 2", providerID: "codex")
+                .harnessUnavailable(memberID: "peer-1", memberName: "Reviewer 2", harnessID: "codex")
             )
             XCTAssertEqual(error.localizedDescription, "Reviewer 2 uses codex, which is not ready.")
         }
     }
 
-    func testExplicitLeadProviderDoesNotFallBackWhenUnavailable() {
+    func testExplicitLeadHarnessDoesNotFallBackWhenUnavailable() {
         var settings = AppSettings()
-        settings.pullRequestReviewProvider = "codex"
+        settings.pullRequestReviewHarness = "codex"
         settings.pullRequestReviewModel = "gpt-5.5"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "claude", model: "sonnet", effort: "high")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "claude", model: "sonnet", effort: "high")
         ]
         var statuses = Self.readyStatuses
-        statuses[.codex] = Self.status(providerID: .codex, installation: .missing, options: [])
+        statuses[.codex] = Self.status(harnessID: .codex, installation: .missing, options: [])
 
         XCTAssertThrowsError(
-            try PullRequestReviewTeamResolver.resolve(settings: settings, providerStatuses: statuses)
+            try PullRequestReviewTeamResolver.resolve(settings: settings, harnessStatuses: statuses)
         ) { error in
             XCTAssertEqual(
                 error as? PullRequestReviewTeamResolutionError,
-                .providerUnavailable(memberID: "lead", memberName: "Lead", providerID: "codex")
+                .harnessUnavailable(memberID: "lead", memberName: "Lead", harnessID: "codex")
             )
         }
     }
@@ -186,16 +186,16 @@ final class PullRequestReviewTeamResolverTests: XCTestCase {
         settings.defaultModel = "sonnet"
 
         XCTAssertThrowsError(
-            try PullRequestReviewTeamResolver.resolve(settings: settings, providerStatuses: Self.readyStatuses)
+            try PullRequestReviewTeamResolver.resolve(settings: settings, harnessStatuses: Self.readyStatuses)
         ) { error in
             XCTAssertEqual(error as? PullRequestReviewTeamResolutionError, .invalidTeamSize(1))
         }
 
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "codex", model: "gpt-5.4-mini", effort: "xhigh")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "codex", model: "gpt-5.4-mini", effort: "xhigh")
         ]
         XCTAssertThrowsError(
-            try PullRequestReviewTeamResolver.resolve(settings: settings, providerStatuses: Self.readyStatuses)
+            try PullRequestReviewTeamResolver.resolve(settings: settings, harnessStatuses: Self.readyStatuses)
         ) { error in
             XCTAssertEqual(
                 error as? PullRequestReviewTeamResolutionError,
@@ -208,14 +208,14 @@ final class PullRequestReviewTeamResolverTests: XCTestCase {
         var settings = AppSettings()
         settings.defaultModel = "sonnet"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "codex", model: "gpt-5.5", effort: "medium")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "codex", model: "gpt-5.5", effort: "medium")
         ]
         var statuses = Self.readyStatuses
         statuses[.codex] = Self.status(
-            providerID: .codex,
+            harnessID: .codex,
             options: [
                 AgentModelOption(
-                    providerId: .codex,
+                    harnessId: .codex,
                     id: "gpt-5.5",
                     model: "gpt-5.5",
                     label: "GPT-5.5"
@@ -224,7 +224,7 @@ final class PullRequestReviewTeamResolverTests: XCTestCase {
         )
 
         XCTAssertThrowsError(
-            try PullRequestReviewTeamResolver.resolve(settings: settings, providerStatuses: statuses)
+            try PullRequestReviewTeamResolver.resolve(settings: settings, harnessStatuses: statuses)
         ) { error in
             XCTAssertEqual(
                 error as? PullRequestReviewTeamResolutionError,
@@ -235,23 +235,23 @@ final class PullRequestReviewTeamResolverTests: XCTestCase {
 }
 
 private extension PullRequestReviewTeamResolverTests {
-    static let readyStatuses: [AgentProviderID: AgentProviderStatus] = [
-        .claude: status(providerID: .claude, options: AgentModelOptionTestFixtures.claudeModelOptions),
-        .codex: status(providerID: .codex, options: AgentModelOptionTestFixtures.codexModelOptions)
+    static let readyStatuses: [AgentHarnessID: AgentHarnessStatus] = [
+        .claude: status(harnessID: .claude, options: AgentModelOptionTestFixtures.claudeModelOptions),
+        .codex: status(harnessID: .codex, options: AgentModelOptionTestFixtures.codexModelOptions)
     ]
 
     static func status(
-        providerID: AgentProviderID,
-        installation: AgentProviderInstallationState = .installed,
+        harnessID: AgentHarnessID,
+        installation: AgentHarnessInstallationState = .installed,
         options: [AgentModelOption]
-    ) -> AgentProviderStatus {
-        AgentProviderStatus(
-            providerId: providerID,
-            definition: providerID == .claude ? ClaudeProviderDefinition.definition : CodexProviderDefinition.definition,
+    ) -> AgentHarnessStatus {
+        AgentHarnessStatus(
+            harnessId: harnessID,
+            definition: harnessID == .claude ? ClaudeHarnessDefinition.definition : CodexHarnessDefinition.definition,
             installation: installation,
-            availability: AgentProviderAvailability(
-                providerId: providerID,
-                executablePath: installation == .installed ? "/usr/local/bin/\(providerID.rawValue)" : nil
+            availability: AgentHarnessAvailability(
+                harnessId: harnessID,
+                executablePath: installation == .installed ? "/usr/local/bin/\(harnessID.rawValue)" : nil
             ),
             setup: .ready,
             modelOptions: options

@@ -10,7 +10,7 @@ extension SidebarViewModelTests {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/attached-project", name: "Attached Project")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
-        let conversation = Conversation(id: "attached-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "attached-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         project.threads = [target]
         let definition = ScheduledTask(
@@ -19,7 +19,7 @@ extension SidebarViewModelTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             createdAt: Date(timeIntervalSince1970: 200),
             targetThread: target
         )
@@ -32,7 +32,7 @@ extension SidebarViewModelTests {
             state: .completed,
             recurrence: .daily(hour: 10, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             createdAt: Date(timeIntervalSince1970: 100),
             targetThread: target
         )
@@ -59,7 +59,7 @@ extension SidebarViewModelTests {
         project.pinnedSortOrder = 4
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
         target.pinnedSortOrder = 5
-        target.conversations = [Conversation(id: "pinned-project-main", provider: "codex", thread: target)]
+        target.conversations = [Conversation(id: "pinned-project-main", harness: "codex", thread: target)]
         project.threads = [target]
         let definition = ScheduledTask(
             title: "Attached schedule",
@@ -67,7 +67,7 @@ extension SidebarViewModelTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             targetThread: target
         )
         fixture.context.insert(project)
@@ -98,7 +98,7 @@ extension SidebarViewModelTests {
             promptSnapshot: "Continue work.",
             destinationSnapshot: .existingThread,
             timeZoneIdentifierSnapshot: "America/Chicago",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "default",
             workspaceKindSnapshot: .project,
@@ -125,7 +125,7 @@ extension SidebarViewModelTests {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/late-delete-attachment", name: "Late attachment")
         let thread = AgentThread(name: "Pinned target", isPinned: true, project: project)
-        thread.conversations = [Conversation(id: "late-delete-main", provider: "codex", thread: thread)]
+        thread.conversations = [Conversation(id: "late-delete-main", harness: "codex", thread: thread)]
         project.threads = [thread]
         fixture.context.insert(project)
         try fixture.context.save()
@@ -136,7 +136,7 @@ extension SidebarViewModelTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             targetThread: thread
         )
         fixture.context.insert(definition)
@@ -193,9 +193,9 @@ extension SidebarViewModelTests {
         let actionDate = Date(timeIntervalSince1970: 2_000)
         let project = Project(path: "/tmp/cascade-detach", name: "Cascade detach")
         let cascaded = AgentThread(name: "Cascaded thread", project: project)
-        cascaded.conversations = [Conversation(id: "cascade-main", provider: "codex", thread: cascaded)]
+        cascaded.conversations = [Conversation(id: "cascade-main", harness: "codex", thread: cascaded)]
         let survivingTask = AgentThread(name: "Detached task", mode: .task, project: project)
-        survivingTask.conversations = [Conversation(id: "surviving-main", provider: "codex", thread: survivingTask)]
+        survivingTask.conversations = [Conversation(id: "surviving-main", harness: "codex", thread: survivingTask)]
         let cascadedDefinition = ScheduledTask(
             id: "cascaded-definition",
             title: "Cascaded schedule",
@@ -203,7 +203,7 @@ extension SidebarViewModelTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             targetThread: cascaded
         )
         let survivingDefinition = ScheduledTask(
@@ -213,7 +213,7 @@ extension SidebarViewModelTests {
             destination: .existingThread,
             recurrence: .daily(hour: 10, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             targetThread: survivingTask
         )
         project.threads = [cascaded, survivingTask]
@@ -440,7 +440,7 @@ private struct ScheduledProjectDeletionGraph {
             destination: .newThreadPerRun,
             recurrence: .daily(hour: 8, minute: 0),
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             workspaceKind: .project,
             workspaceStrategy: .worktree,
             project: project,
@@ -482,7 +482,7 @@ private struct ScheduledProjectDeletionGraph {
             promptSnapshot: definition.prompt,
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: definition.timeZoneIdentifier,
-            providerIDSnapshot: definition.providerID,
+            harnessIDSnapshot: definition.harnessID,
             effortSnapshot: definition.effort,
             permissionModeSnapshot: definition.permissionMode,
             workspaceKindSnapshot: definition.workspaceKind,

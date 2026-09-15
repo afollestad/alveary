@@ -44,20 +44,20 @@ struct ScheduledTaskHostToolCreateSource {
 /// Agent settings a proposed definition carries, all bound from trusted host state — the model
 /// never supplies any of them. Grouped so draft builders take one parameter instead of four.
 struct ScheduledTaskProposalAgentSettings {
-    let providerID: String
+    let harnessID: String
     let model: String?
     let effort: String
     let permissionMode: String
 
-    init(sourceThread: AgentThread, providerID: String) {
-        self.providerID = providerID
+    init(sourceThread: AgentThread, harnessID: String) {
+        self.harnessID = harnessID
         model = sourceThread.model
         effort = sourceThread.effort
         permissionMode = sourceThread.permissionMode
     }
 
     init(definition: ScheduledTask) {
-        providerID = definition.providerID
+        harnessID = definition.harnessID
         model = definition.model
         effort = definition.effort
         permissionMode = definition.permissionMode
@@ -187,7 +187,7 @@ enum ScheduledTaskHostToolServiceError: LocalizedError {
     case listDoesNotAcceptArguments(toolName: String)
     case missingRequestIdentity
     case sourceConversationUnavailable
-    case sourceProviderMismatch
+    case sourceHarnessMismatch
     case automatedRunCannotSchedule
     case workspaceUnavailable
     case workspaceRootsChanged
@@ -214,8 +214,8 @@ enum ScheduledTaskHostToolServiceError: LocalizedError {
             "Alveary could not verify this scheduling request for safe retry handling."
         case .sourceConversationUnavailable:
             "Scheduling proposals require an active, saved Project or Task conversation."
-        case .sourceProviderMismatch:
-            "The scheduling request provider does not match its source conversation."
+        case .sourceHarnessMismatch:
+            "The scheduling request harness does not match its source conversation."
         case .automatedRunCannotSchedule:
             "Automated scheduled runs cannot open scheduling proposals."
         case .workspaceUnavailable:

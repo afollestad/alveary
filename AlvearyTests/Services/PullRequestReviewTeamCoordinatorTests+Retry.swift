@@ -52,7 +52,7 @@ extension PullRequestReviewTeamCoordinatorTests {
         #expect(resumed.inspections == failed.inspections)
         #expect(resumed.canonical == failed.canonical)
         #expect(resumed.voteReports["lead"] == failed.voteReports["lead"])
-        #expect(resumed.failures == ["inspecting:peer-2": "Provider failed"])
+        #expect(resumed.failures == ["inspecting:peer-2": "Harness failed"])
         let calls = await fixture.worker.calls
         #expect(calls.filter { $0.phase == "inspection" }.count == 3)
         #expect(calls.filter { $0.phase == "consolidation" }.count == 1)

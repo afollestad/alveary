@@ -16,7 +16,7 @@ extension AgentsManagerTests {
 
         try await manager.spawn(
             id: conversationId,
-            config: spawnConfig(providerId: "codex", workingDirectory: "/tmp")
+            config: spawnConfig(harnessId: "codex", workingDirectory: "/tmp")
         )
 
         try await manager.startGoal("  Audit existing thread goal mode  ", conversationId: conversationId)

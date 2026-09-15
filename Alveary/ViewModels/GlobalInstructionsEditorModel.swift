@@ -2,7 +2,7 @@ import BlockInputKit
 import Foundation
 import Observation
 
-/// Backs the Agents settings `AGENTS.md` sub-section: owns the shared-file draft,
+/// Backs the Harnesses settings `AGENTS.md` sub-section: owns the shared-file draft,
 /// per-agent link states, and the `AppMarkdownDraft` the editor renders.
 ///
 /// Observation shape is deliberate: the draft box and dirty baseline are

@@ -109,7 +109,7 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
     let targetConversationID: String?
     let recurrence: ScheduledTaskRecurrence
     let timeZoneIdentifier: String
-    let providerID: String
+    let harnessID: String
     let model: String?
     let effort: String
     let permissionMode: String
@@ -128,7 +128,7 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         targetConversationID: String? = nil,
         recurrence: ScheduledTaskRecurrence,
         timeZoneIdentifier: String,
-        providerID: String,
+        harnessID: String,
         model: String?,
         effort: String,
         permissionMode: String,
@@ -146,7 +146,7 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         self.targetConversationID = targetConversationID
         self.recurrence = recurrence
         self.timeZoneIdentifier = timeZoneIdentifier
-        self.providerID = providerID
+        self.harnessID = harnessID
         self.model = model
         self.effort = effort
         self.permissionMode = permissionMode
@@ -169,7 +169,7 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         case targetConversationID
         case recurrence
         case timeZoneIdentifier
-        case providerID
+        case harnessID = "providerID"
         case model
         case effort
         case permissionMode
@@ -191,7 +191,7 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         targetConversationID = try container.decodeIfPresent(String.self, forKey: .targetConversationID)
         recurrence = try container.decode(ScheduledTaskRecurrence.self, forKey: .recurrence)
         timeZoneIdentifier = try container.decode(String.self, forKey: .timeZoneIdentifier)
-        providerID = try container.decode(String.self, forKey: .providerID)
+        harnessID = try container.decode(String.self, forKey: .harnessID)
         model = try container.decodeIfPresent(String.self, forKey: .model)
         effort = try container.decode(String.self, forKey: .effort)
         permissionMode = try container.decode(String.self, forKey: .permissionMode)
@@ -230,6 +230,12 @@ final class ScheduledTaskProposal {
     var sourceConversation: Conversation?
     var project: Project?
 
+    /// Keeps the existing SwiftData column while exposing harness terminology.
+    var sourceHarnessID: String {
+        get { sourceProviderID }
+        set { sourceProviderID = newValue }
+    }
+
     init(
         id: String = UUID().uuidString,
         sourceConversationID: String? = nil,
@@ -237,7 +243,7 @@ final class ScheduledTaskProposal {
         action: ScheduledTaskProposalAction,
         canonicalPayloadJSON: String,
         canonicalPayloadHash: String,
-        sourceProviderID: String,
+        sourceHarnessID: String,
         sourceProcessToken: UUID,
         sourceRequestID: String,
         targetDefinitionID: String? = nil,
@@ -261,7 +267,7 @@ final class ScheduledTaskProposal {
         self.actionRawValue = action.rawValue
         self.canonicalPayloadJSON = canonicalPayloadJSON
         self.canonicalPayloadHash = canonicalPayloadHash
-        self.sourceProviderID = sourceProviderID
+        self.sourceProviderID = sourceHarnessID
         self.sourceProcessToken = sourceProcessToken.uuidString.lowercased()
         self.sourceRequestID = sourceRequestID
         self.targetDefinitionID = targetDefinitionID

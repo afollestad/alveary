@@ -13,8 +13,8 @@ struct AgentCLIKitManagerFixture {
     let services: AgentCLIKitHostServices
 }
 
-struct ModelEchoingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+struct ModelEchoingAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -48,9 +48,9 @@ struct ModelEchoingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     }
 }
 
-struct DelayedReconfigureAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+struct DelayedReconfigureAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let counter = AgentCLIKitLaunchCounter()
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -86,9 +86,9 @@ struct DelayedReconfigureAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     }
 }
 
-struct FailedReplacementAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+struct FailedReplacementAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let counter = AgentCLIKitLaunchCounter()
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -124,10 +124,10 @@ struct FailedReplacementAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     }
 }
 
-struct DeferredThenMessageAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+struct DeferredThenMessageAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let counter = AgentCLIKitLaunchCounter()
     var failsResume = false
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -189,8 +189,8 @@ enum DeferredThenMessageAdapterError: Error {
     case resumeFailed
 }
 
-struct RestoredPromptResolutionCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+struct RestoredPromptResolutionCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -232,9 +232,9 @@ struct RestoredPromptResolutionCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     }
 }
 
-struct DeferredReplayAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+struct DeferredReplayAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let counter = AgentCLIKitLaunchCounter()
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -293,9 +293,9 @@ struct DeferredReplayAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     }
 }
 
-struct DeferredDeltaReplayAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+struct DeferredDeltaReplayAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let counter = AgentCLIKitLaunchCounter()
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -367,8 +367,8 @@ struct DeferredDeltaReplayAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     }
 }
 
-struct DelayedInitialLaunchAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+struct DelayedInitialLaunchAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -395,8 +395,8 @@ struct DelayedInitialLaunchAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter 
     }
 }
 
-struct RawThenMessageAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+struct RawThenMessageAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]

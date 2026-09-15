@@ -5,10 +5,10 @@ import SwiftData
 extension AppDelegate {
     struct Dependencies: @unchecked Sendable {
         let agentsManager: any AgentsManager
-        let providerDetection: any ProviderDetectionService
+        let harnessDetection: any HarnessDetectionService
         /// Warmed at launch and dropped on wake, so the session's first thread creation does not
-        /// pay for provider discovery and a slept machine does not answer from a stale probe.
-        let providerDiscoveryCache: CachingAgentProviderDiscoveryService
+        /// pay for harness discovery and a slept machine does not answer from a stale probe.
+        let harnessDiscoveryCache: CachingAgentHarnessDiscoveryService
         let sessionManager: any SessionManager
         let attachmentStore: any ConversationAttachmentStore
         let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
@@ -44,8 +44,8 @@ extension AppDelegate {
             let component = AppDI.component
             return Dependencies(
                 agentsManager: component.agentsManager,
-                providerDetection: component.providerDetectionService,
-                providerDiscoveryCache: component.cachedAgentProviderDiscoveryService,
+                harnessDetection: component.harnessDetectionService,
+                harnessDiscoveryCache: component.cachedAgentHarnessDiscoveryService,
                 sessionManager: component.sessionManager,
                 attachmentStore: component.conversationAttachmentStore,
                 taskWorkspaceOwnershipService: component.taskWorkspaceOwnershipService,
@@ -55,7 +55,7 @@ extension AppDelegate {
                     component.conversationControllerRegistry.flushForTermination()
                 },
                 activateScheduledTasks: {
-                    await component.scheduledTaskLifecycleCoordinator.activateAfterProviderRefresh()
+                    await component.scheduledTaskLifecycleCoordinator.activateAfterHarnessRefresh()
                 },
                 reconcileScheduledTasks: {
                     component.scheduledTaskLifecycleCoordinator.reconcileAfterSystemChange()

@@ -3,17 +3,17 @@ import Foundation
 extension ScheduledTasksViewModel {
     func makeNewDraft() -> ScheduledTaskEditorDraft {
         let settings = settingsService.current
-        let resolution = providerResolution
-        let providerID = resolution.providerID ?? settings.defaultProvider
-        let modelOptions = modelOptions(for: providerID)
-        let storedModel = resolution.providerID == providerID ? resolution.storedThreadModel : nil
+        let resolution = harnessResolution
+        let harnessID = resolution.harnessID ?? settings.defaultHarness
+        let modelOptions = modelOptions(for: harnessID)
+        let storedModel = resolution.harnessID == harnessID ? resolution.storedThreadModel : nil
         let modelSelection = AgentModelOptionSelection.pickerValue(in: modelOptions, matching: storedModel)
         let effort = AgentModelOptionSelection.normalizedEffort(
             resolution.effort,
             options: modelOptions,
             selectedModel: storedModel
         )
-        let permissionModes = permissionModeOptions(for: providerID)
+        let permissionModes = permissionModeOptions(for: harnessID)
         let permissionMode = permissionModes.contains(where: { $0.value == resolution.permissionMode })
             ? resolution.permissionMode
             : permissionModes.first?.value ?? settings.permissionMode
@@ -43,7 +43,7 @@ extension ScheduledTasksViewModel {
             weeklyWeekday: calendar.component(.weekday, from: suggestedOccurrence),
             monthlyDay: calendar.component(.day, from: suggestedOccurrence),
             timeZoneIdentifier: timeZone.identifier,
-            providerID: providerID,
+            harnessID: harnessID,
             modelSelection: modelSelection,
             effort: effort,
             permissionMode: permissionMode,
@@ -63,7 +63,7 @@ extension ScheduledTasksViewModel {
         let (destination, unresolvedDestinationRawValue) = editorDestinationSeed(for: definition)
 
         let recurrence = definition.recurrence
-        let modelOptions = modelOptions(for: definition.providerID)
+        let modelOptions = modelOptions(for: definition.harnessID)
         let actionDate = now()
         let fallbackDate = actionDate.addingTimeInterval(60 * 60)
         let fallbackIntervalAnchor = startOfMinute(actionDate)
@@ -97,7 +97,7 @@ extension ScheduledTasksViewModel {
             weeklyWeekday: definition.weeklyWeekday ?? 2,
             monthlyDay: definition.monthlyDay ?? 1,
             timeZoneIdentifier: currentTimeZone().identifier,
-            providerID: definition.providerID,
+            harnessID: definition.harnessID,
             modelSelection: AgentModelOptionSelection.pickerValue(in: modelOptions, matching: definition.model),
             effort: definition.effort,
             permissionMode: definition.permissionMode,
@@ -115,7 +115,7 @@ extension ScheduledTasksViewModel {
         definitionID: String?,
         expectedRevision: Int?
     ) -> ScheduledTaskEditorDraft {
-        let modelOptions = modelOptions(for: definitionDraft.providerID)
+        let modelOptions = modelOptions(for: definitionDraft.harnessID)
         let recurrence = definitionDraft.recurrence
         let actionDate = now()
         let recurrenceFields = ProposalDraftRecurrenceFields(
@@ -151,7 +151,7 @@ extension ScheduledTasksViewModel {
             weeklyWeekday: recurrenceFields.weeklyWeekday,
             monthlyDay: recurrenceFields.monthlyDay,
             timeZoneIdentifier: currentTimeZone().identifier,
-            providerID: definitionDraft.providerID,
+            harnessID: definitionDraft.harnessID,
             modelSelection: AgentModelOptionSelection.pickerValue(
                 in: modelOptions,
                 matching: definitionDraft.model

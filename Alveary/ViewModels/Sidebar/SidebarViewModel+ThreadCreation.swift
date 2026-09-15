@@ -2,12 +2,12 @@ import Foundation
 import SwiftData
 
 extension SidebarViewModel {
-    func createThread(project: Project, provider: String, permissionMode: String) async throws -> AgentThread {
+    func createThread(project: Project, harness: String, permissionMode: String) async throws -> AgentThread {
         let defaultModel = settingsService.current.defaultModel.trimmingCharacters(in: .whitespacesAndNewlines)
         let threadModel = defaultModel != AppSettings.defaultModelValue && !defaultModel.isEmpty ? defaultModel : nil
         return try await createThread(
             project: project,
-            provider: provider,
+            harness: harness,
             permissionMode: permissionMode,
             threadModel: threadModel,
             effort: seedEffortLevel()
@@ -16,12 +16,12 @@ extension SidebarViewModel {
 
     func createThread(project: Project) async throws -> AgentThread {
         let resolution = await resolvedThreadDefaults()
-        guard let providerID = resolution.providerID else {
-            throw SidebarViewModelError.noReadyThreadDefaultProvider
+        guard let harnessID = resolution.harnessID else {
+            throw SidebarViewModelError.noReadyThreadDefaultHarness
         }
         return try await createThread(
             project: project,
-            provider: providerID,
+            harness: harnessID,
             permissionMode: resolution.permissionMode,
             threadModel: resolution.storedThreadModel,
             effort: resolution.effort
@@ -91,8 +91,8 @@ private extension SidebarViewModel {
         let task = Task { @MainActor [weak self] in
             guard let self else { throw SidebarViewModelError.threadMissing }
             let resolution = await resolvedThreadDefaults()
-            guard let providerID = resolution.providerID else {
-                throw SidebarViewModelError.noReadyThreadDefaultProvider
+            guard let harnessID = resolution.harnessID else {
+                throw SidebarViewModelError.noReadyThreadDefaultHarness
             }
             let draft: AgentThread
             switch pendingDraftDestination ?? .tasks {
@@ -103,7 +103,7 @@ private extension SidebarViewModel {
                 draft = try threadLifecycle.insertProjectThread(
                     project: project,
                     seed: ProjectThreadSeed(
-                        provider: providerID, permissionMode: resolution.permissionMode,
+                        harness: harnessID, permissionMode: resolution.permissionMode,
                         model: resolution.storedThreadModel, effort: resolution.effort, isDraft: true,
                         workspaceSnapshot: project.workspaceSnapshot()
                     )
@@ -112,7 +112,7 @@ private extension SidebarViewModel {
                 let placement: TaskThreadSidebarPlacement
                 if case .section(let id) = pendingDraftDestination { placement = .section(id: id) } else { placement = .tasks }
                 draft = try threadLifecycle.insertTaskThread(seed: TaskThreadSeed(
-                    provider: providerID, permissionMode: resolution.permissionMode,
+                    harness: harnessID, permissionMode: resolution.permissionMode,
                     model: resolution.storedThreadModel, effort: resolution.effort, isDraft: true, placement: placement
                 ))
             }
@@ -125,7 +125,7 @@ private extension SidebarViewModel {
 
     func createThread(
         project: Project,
-        provider: String,
+        harness: String,
         permissionMode: String,
         threadModel: String?,
         effort: String
@@ -134,7 +134,7 @@ private extension SidebarViewModel {
         return try threadLifecycle.insertProjectThread(
             project: dbProject,
             seed: ProjectThreadSeed(
-                provider: provider,
+                harness: harness,
                 permissionMode: permissionMode,
                 model: threadModel,
                 effort: effort,
@@ -156,16 +156,16 @@ private extension SidebarViewModel {
     }
 
     func resolvedThreadDefaults() async -> ThreadDefaultResolution {
-        if let providerDiscovery {
+        if let harnessDiscovery {
             return await ThreadDefaultResolver.resolve(
                 settings: settingsService.current,
-                providerDiscovery: providerDiscovery
+                harnessDiscovery: harnessDiscovery
             )
         }
         return ThreadDefaultResolver.resolve(
             settings: settingsService.current,
-            providerOrdering: AppSettings.supportedProviderIDs,
-            providerStatuses: [:],
+            harnessOrdering: AppSettings.supportedHarnessIDs,
+            harnessStatuses: [:],
             allowStaticFallback: true
         )
     }

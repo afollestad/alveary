@@ -22,7 +22,7 @@ extension ThreadHostToolService {
               !thread.isDraft else {
             throw ThreadHostToolServiceError.threadNotFound
         }
-        // Archiving kills the calling provider process mid-call, so the result would never be
+        // Archiving kills the calling harness process mid-call, so the result would never be
         // delivered and the model would be left unsure whether it applied.
         guard thread.persistentModelID != source.thread.persistentModelID else {
             throw ThreadHostToolServiceError.cannotArchiveOwnThread
@@ -41,7 +41,7 @@ extension ThreadHostToolService {
             throw ThreadHostToolServiceError.threadCannotBeArchived(reason: reason)
         }
 
-        let diagnostics: [ProviderSessionActionDiagnostic]
+        let diagnostics: [HarnessSessionActionDiagnostic]
         do {
             diagnostics = try await lifecycleService.archiveThread(threadID: thread.persistentModelID)
         } catch let cleanupError as ThreadArchiveCleanupError {
@@ -62,7 +62,7 @@ private extension ThreadHostToolService {
     func archivedResult(
         threadID: String,
         name: String,
-        diagnostics: [ProviderSessionActionDiagnostic],
+        diagnostics: [HarnessSessionActionDiagnostic],
         cleanupFailure: String? = nil
     ) -> AgentCLIKit.AgentHostToolResult {
         var message = "Archived the thread \"\(name)\". The user can restore it from Alveary's Archived screen; " +

@@ -10,7 +10,7 @@ extension ScheduledTaskModelTests {
         let container = try makeScheduledTaskDestinationContainer()
         let context = ModelContext(container)
         let target = AgentThread(name: "Pinned target", isPinned: true, mode: .task)
-        let conversation = Conversation(id: "target-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "target-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         let task = ScheduledTask(
             title: "Attached schedule",
@@ -18,13 +18,13 @@ extension ScheduledTaskModelTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             targetThread: target
         )
         let targetSnapshot = ScheduledTaskTargetSnapshot(
             conversationID: conversation.id,
             threadName: target.name,
-            providerID: "codex",
+            harnessID: "codex",
             model: "gpt-5",
             effort: "high",
             permissionMode: "default",
@@ -66,7 +66,7 @@ extension ScheduledTaskModelTests {
             destination: .newThreadPerRun,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex"
+            harnessID: "codex"
         )
         context.insert(task)
         // Snapshot while the destination is still valid; `init(snapshotting:)` fails closed on
@@ -99,7 +99,7 @@ extension ScheduledTaskModelTests {
         let container = try makeScheduledTaskDestinationContainer()
         let context = ModelContext(container)
         let reused = AgentThread(name: "Rolling thread", mode: .task)
-        let conversation = Conversation(id: "reused-main", provider: "codex", thread: reused)
+        let conversation = Conversation(id: "reused-main", harness: "codex", thread: reused)
         reused.conversations = [conversation]
         let task = ScheduledTask(
             title: "Rolling schedule",
@@ -107,7 +107,7 @@ extension ScheduledTaskModelTests {
             destination: .reusedThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex"
+            harnessID: "codex"
         )
         task.reusedThread = reused
         let run = ScheduledTaskRun(
@@ -131,11 +131,11 @@ extension ScheduledTaskModelTests {
         XCTAssertEqual(fetchedTask.destination, .reusedThread)
         XCTAssertEqual(fetchedTask.runTargetThread?.persistentModelID, reused.persistentModelID)
         // The reused target contributes identity only; the definition stays authoritative for
-        // provider and settings, unlike an existing-thread target snapshot.
+        // harness and settings, unlike an existing-thread target snapshot.
         XCTAssertEqual(fetchedRun.destinationSnapshot, .reusedThread)
         XCTAssertEqual(fetchedRun.targetConversationIDSnapshot, conversation.id)
         XCTAssertEqual(fetchedRun.targetThread?.persistentModelID, reused.persistentModelID)
-        XCTAssertEqual(fetchedRun.providerIDSnapshot, task.providerID)
+        XCTAssertEqual(fetchedRun.harnessIDSnapshot, task.harnessID)
         XCTAssertNil(fetchedRun.planModeEnabledSnapshot)
         XCTAssertNil(fetchedRun.speedModeSnapshot)
         XCTAssertNil(fetchedRun.thread)
@@ -145,7 +145,7 @@ extension ScheduledTaskModelTests {
         let container = try makeScheduledTaskDestinationContainer()
         let context = ModelContext(container)
         let original = AgentThread(name: "Original", mode: .task)
-        let originalConversation = Conversation(id: "original-main", provider: "codex", thread: original)
+        let originalConversation = Conversation(id: "original-main", harness: "codex", thread: original)
         original.conversations = [originalConversation]
         let replacement = AgentThread(name: "Replacement", mode: .task)
         let task = ScheduledTask(
@@ -154,7 +154,7 @@ extension ScheduledTaskModelTests {
             destination: .reusedThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex"
+            harnessID: "codex"
         )
         context.insert(task)
         context.insert(original)
@@ -189,7 +189,7 @@ extension ScheduledTaskModelTests {
             destination: .reusedThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex"
+            harnessID: "codex"
         )
         task.reusedThread = reused
         context.insert(task)
@@ -215,7 +215,7 @@ extension ScheduledTaskModelTests {
             destination: .reusedThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex"
+            harnessID: "codex"
         )
         context.insert(section)
         context.insert(task)

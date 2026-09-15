@@ -344,7 +344,7 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
 
         XCTAssertTrue(opusRow.accessibilityPerformPress())
 
-        XCTAssertEqual(requests, [.init(providerID: "claude", modelID: "opus")])
+        XCTAssertEqual(requests, [.init(harnessID: "claude", modelID: "opus")])
         XCTAssertEqual(closeCount, 0)
         XCTAssertTrue(controller.isModelsExpanded)
         XCTAssertEqual(opusRow.accessibilityValue() as? String, "Selected")

@@ -20,7 +20,7 @@ struct ReviewProposalCompletionWarningTests {
             payloadVersion: 4, id: matchesRun ? run.proposalID : "another-proposal", deduplicationKey: "dedup",
             repositoryNameWithOwner: run.identifier.nameWithOwner, number: run.identifier.number,
             event: "approve", body: nil, comments: [], titleSnapshot: "PR title", pendingCommentCountSnapshot: 0,
-            sourceProviderID: nil, sourceProcessToken: nil, sourceRequestID: nil,
+            sourceHarnessID: nil, sourceProcessToken: nil, sourceRequestID: nil,
             sourceKind: isCollective ? .collectiveReview : .hostTool, sourceRunID: run.id, createdAt: .now
         )
         try fixture.conversation.storePullRequestReviewProposal(record)

@@ -41,7 +41,7 @@ extension AgentsManagerTests {
         }
         let recordedLaunches = await launchRecorder.values()
         let resumedLaunch = try XCTUnwrap(recordedLaunches.last)
-        XCTAssertEqual(resumedLaunch.resumedProviderSessionID, "provider-session")
+        XCTAssertEqual(resumedLaunch.resumedHarnessSessionID, "provider-session")
         XCTAssertFalse(resumedLaunch.forksSession)
         await fixture.manager.kill(conversationId: context.conversationId)
     }
@@ -98,7 +98,7 @@ extension AgentsManagerTests {
             suspensionLagTerminalEvent(),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude",
+            harnessId: "claude",
             runtimeEventIndex: Int.max
         )
         XCTAssertEqual(manager.status(for: conversationId), .idle)
@@ -333,11 +333,11 @@ extension AgentsManagerTests {
         try await destructiveTeardown.value
         await suspension.value
 
-        let providerSession = try await fixture.sessionStore.record(
+        let harnessSession = try await fixture.sessionStore.record(
             conversationId: runtimeConversationId,
-            providerId: .claude
+            harnessId: .claude
         )
-        XCTAssertNil(providerSession)
+        XCTAssertNil(harnessSession)
     }
 
     private func seedSuspensionState(
@@ -352,15 +352,15 @@ extension AgentsManagerTests {
         _ = await fixture.sessionManager.createEntry(
             conversationId: conversationId,
             cwd: workingDirectory.path,
-            providerId: "claude"
+            harnessId: "claude"
         )
         let alvearySessionId = await fixture.sessionManager.sessionId(for: conversationId)
         let approvalRequest = makeSuspensionApprovalRequest(conversationId: runtimeConversationId)
         let approvalGrant = try XCTUnwrap(approvalRequest.sessionApprovalGrant(for: .exact))
         try await fixture.sessionStore.save(AgentCLIKit.AgentSessionRecord(
             conversationId: runtimeConversationId,
-            providerId: .claude,
-            providerSessionId: "provider-session",
+            harnessId: .claude,
+            harnessSessionId: "provider-session",
             workingDirectory: workingDirectory,
             generation: 1
         ))
@@ -383,9 +383,9 @@ extension AgentsManagerTests {
         let readiness = await fixture.manager.outboundReadiness(conversationId: context.conversationId)
         let hasAlvearySession = await fixture.sessionManager.hasSession(for: context.conversationId)
         let alvearySessionId = await fixture.sessionManager.sessionId(for: context.conversationId)
-        let providerSession = try await fixture.sessionStore.record(
+        let harnessSession = try await fixture.sessionStore.record(
             conversationId: context.runtimeConversationId,
-            providerId: .claude
+            harnessId: .claude
         )
         let allowsApproval = await fixture.approvalStore.allowsSessionApproval(context.approvalRequest)
 
@@ -395,7 +395,7 @@ extension AgentsManagerTests {
         XCTAssertEqual(context.originalState.inputDraft, "Retain me")
         XCTAssertTrue(hasAlvearySession)
         XCTAssertEqual(alvearySessionId, context.alvearySessionId)
-        XCTAssertNotNil(providerSession)
+        XCTAssertNotNil(harnessSession)
         XCTAssertTrue(allowsApproval)
     }
 
@@ -448,8 +448,8 @@ private struct SuspensionTestContext {
     let approvalRequest: AgentCLIKit.AgentSessionApprovalRequest
 }
 
-private struct WaitingStatusAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+private struct WaitingStatusAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -491,7 +491,7 @@ private func makeSuspensionApprovalRequest(
     conversationId: AgentCLIKit.AgentConversationID
 ) -> AgentCLIKit.AgentSessionApprovalRequest {
     AgentCLIKit.AgentSessionApprovalRequest(
-        providerId: .claude,
+        harnessId: .claude,
         conversationId: conversationId,
         sessionId: "provider-session",
         toolName: "Read",

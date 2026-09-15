@@ -462,7 +462,7 @@ extension ChatItemGrouperTests {
         id: String,
         items: [ConversationTaskListItem]
     ) throws -> ConversationEventRecord {
-        let conversation = Conversation(provider: "codex")
+        let conversation = Conversation(harness: "codex")
         return try XCTUnwrap(ConversationEvent.taskListSnapshot(
             ConversationTaskListSnapshot(id: id, items: items)
         ).toRecord(conversation: conversation))

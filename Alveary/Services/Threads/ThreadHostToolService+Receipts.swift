@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 /// The exact-retry ledger `create_thread` and `send_prompt_to_thread` share. Both apply on the
-/// first call, so a provider retransmitting the same request must get the recorded answer back
+/// first call, so a harness retransmitting the same request must get the recorded answer back
 /// rather than a second thread or a second copy of the prompt.
 extension ThreadHostToolService {
     func replayedReceipt(

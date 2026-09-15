@@ -21,7 +21,7 @@ final class PullRequestReviewFooterActionTests: XCTestCase {
         XCTAssertEqual(submit.icon, .octicon(.codeReview16))
         XCTAssertEqual(agentic.title, "Agentic review")
         XCTAssertEqual(feedback.title, "Address feedback")
-        // Both agentic options wear the glyph the Agents settings page uses for
+        // Both agentic options wear the glyph the Harnesses settings page uses for
         // "an agent does this".
         XCTAssertEqual(agentic.icon, .system("brain"))
         XCTAssertEqual(feedback.icon, .system("brain"))

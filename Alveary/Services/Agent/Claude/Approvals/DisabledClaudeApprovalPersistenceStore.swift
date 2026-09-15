@@ -17,18 +17,18 @@ actor DisabledClaudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
     }
 
     /// Always reports that no approval selection exists.
-    func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection? {
+    func toolApprovalSelection(harnessId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection? {
         nil
     }
 
     /// Ignores approval-selection writes.
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async {}
 
     /// Ignores approval cleanup.
-    func removeSessionApprovals(providerId: String, conversationId: String, sessionId: String) async {}
+    func removeSessionApprovals(harnessId: String, conversationId: String, sessionId: String) async {}
 }

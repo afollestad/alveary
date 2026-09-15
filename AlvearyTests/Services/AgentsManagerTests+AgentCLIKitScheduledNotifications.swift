@@ -33,19 +33,19 @@ extension AgentsManagerTests {
             questionEvent,
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
         await manager.handleStreamEvent(
             approvalEvent,
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
         await manager.handleStreamEvent(
             scheduledTerminalSuccessTokens(),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
 
         XCTAssertEqual(notifications.handledEvents.map(\.event), [questionEvent, approvalEvent])
@@ -54,7 +54,7 @@ extension AgentsManagerTests {
 
     private func scheduledSpawnConfig(workingDirectory: String) -> Alveary.AgentSpawnConfig {
         Alveary.AgentSpawnConfig(
-            providerId: "claude",
+            harnessId: "claude",
             workingDirectory: workingDirectory,
             permissionMode: nil,
             model: nil,

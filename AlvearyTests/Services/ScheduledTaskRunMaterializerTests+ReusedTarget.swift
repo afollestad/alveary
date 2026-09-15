@@ -44,7 +44,7 @@ extension ScheduledTaskRunMaterializerTests {
                 ownershipStrategy: .privateOwned
             )
         )
-        let conversation = Conversation(id: "reused-main", provider: "codex", thread: thread)
+        let conversation = Conversation(id: "reused-main", harness: "codex", thread: thread)
         thread.conversations = [conversation]
         fixture.context.insert(thread)
         try fixture.context.save()
@@ -85,7 +85,7 @@ extension ScheduledTaskRunMaterializerTests {
             )
         )
         archived.archivedAt = Date(timeIntervalSince1970: 1_799_999_000)
-        let conversation = Conversation(id: "archived-main", provider: "codex", thread: archived)
+        let conversation = Conversation(id: "archived-main", harness: "codex", thread: archived)
         archived.conversations = [conversation]
         let definition = try fixture.insertReuseDefinition()
         definition.reusedThread = archived
@@ -152,7 +152,7 @@ extension ScheduledTaskRunMaterializerFixture {
             destination: .reusedThread,
             recurrence: .daily(hour: 2, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex"
+            harnessID: "codex"
         )
         context.insert(definition)
         try context.save()

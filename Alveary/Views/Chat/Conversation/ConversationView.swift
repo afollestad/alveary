@@ -6,8 +6,8 @@ struct ConversationView: View {
     let conversation: Conversation
     let modelContext: ModelContext
     let settingsService: SettingsService
-    let providerRegistry: ProviderRegistry
-    let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
+    let harnessRegistry: HarnessRegistry
+    let harnessDiscovery: any AgentCLIKit.AgentHarnessDiscoveryService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let voiceInputService: any VoiceInputService
@@ -27,22 +27,22 @@ struct ConversationView: View {
     @Environment(PullRequestReviewTeamCoordinator.self) var reviewTeamCoordinator: PullRequestReviewTeamCoordinator?
 
     @State var controllerLease: ConversationControllerLease
-    @State var composerProviderStatuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
-    @State var composerProviderOrdering: [AgentCLIKit.AgentProviderID]
-    @State var hasLoadedComposerProviderStatuses: Bool
+    @State var composerHarnessStatuses: [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus]
+    @State var composerHarnessOrdering: [AgentCLIKit.AgentHarnessID]
+    @State var hasLoadedComposerHarnessStatuses: Bool
 
     var composerCapabilities: ComposerCapabilities {
-        let provider = providerRegistry.provider(for: activeProviderID)
+        let harness = harnessRegistry.harness(for: activeHarnessID)
 
-        let supportsPlanMode = activeProviderStatus?.definition?.capabilities.supportsPlanMode
-            ?? Self.fallbackPlanModeProviderIDs.contains(activeProviderID)
-        let activeCapabilities = activeProviderStatus?.definition?.capabilities
+        let supportsPlanMode = activeHarnessStatus?.definition?.capabilities.supportsPlanMode
+            ?? Self.fallbackPlanModeHarnessIDs.contains(activeHarnessID)
+        let activeCapabilities = activeHarnessStatus?.definition?.capabilities
         let supportsGoalMode = activeCapabilities?.supportsGoalMode ?? false
         let supportsExistingSessionGoalStart = activeCapabilities?.supportsExistingSessionGoalStart ?? false
         return ComposerCapabilities(
-            supportedPermissionModes: providerPermissionModes(),
+            supportedPermissionModes: harnessPermissionModes(),
             supportsMidTurnSteering: activeCapabilities?.supportsMidTurnSteering
-                ?? provider?.supportsMidTurnSteering
+                ?? harness?.supportsMidTurnSteering
                 ?? false,
             supportsGoalMode: supportsGoalMode,
             supportsExistingSessionGoalStart: supportsExistingSessionGoalStart,
@@ -62,8 +62,8 @@ struct ConversationView: View {
         conversationControllerRegistry: any ConversationControllerRegistry,
         modelContext: ModelContext,
         settingsService: SettingsService,
-        providerRegistry: ProviderRegistry,
-        providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService,
+        harnessRegistry: HarnessRegistry,
+        harnessDiscovery: any AgentCLIKit.AgentHarnessDiscoveryService,
         contextWindowCache: any ContextWindowCache,
         fileListManager: FileListManager,
         voiceInputService: any VoiceInputService,
@@ -84,8 +84,8 @@ struct ConversationView: View {
         self.conversation = conversation
         self.modelContext = modelContext
         self.settingsService = settingsService
-        self.providerRegistry = providerRegistry
-        self.providerDiscovery = providerDiscovery
+        self.harnessRegistry = harnessRegistry
+        self.harnessDiscovery = harnessDiscovery
         self.contextWindowCache = contextWindowCache
         self.fileListManager = fileListManager
         self.voiceInputService = voiceInputService
@@ -102,15 +102,15 @@ struct ConversationView: View {
         self.availableSections = availableSections
         self.onSelectDraftDestination = onSelectDraftDestination
         self.appState = appState
-        let providerStatusCacheKey = Self.composerProviderStatusCacheKey(
-            projectURL: Self.providerDiscoveryURL(for: conversation.thread),
-            activeProviderID: conversation.provider ?? settingsService.current.defaultProvider,
+        let harnessStatusCacheKey = Self.composerHarnessStatusCacheKey(
+            projectURL: Self.harnessDiscoveryURL(for: conversation.thread),
+            activeHarnessID: conversation.harness ?? settingsService.current.defaultHarness,
             settings: settingsService.current
         )
-        let providerStatusSnapshot = ComposerProviderStatusCache.snapshot(for: providerStatusCacheKey)
-        _composerProviderStatuses = State(initialValue: providerStatusSnapshot?.statuses ?? [:])
-        _composerProviderOrdering = State(initialValue: providerStatusSnapshot?.ordering ?? AgentCLIKit.AgentProviderID.allCases)
-        _hasLoadedComposerProviderStatuses = State(initialValue: providerStatusSnapshot != nil)
+        let harnessStatusSnapshot = ComposerHarnessStatusCache.snapshot(for: harnessStatusCacheKey)
+        _composerHarnessStatuses = State(initialValue: harnessStatusSnapshot?.statuses ?? [:])
+        _composerHarnessOrdering = State(initialValue: harnessStatusSnapshot?.ordering ?? AgentCLIKit.AgentHarnessID.allCases)
+        _hasLoadedComposerHarnessStatuses = State(initialValue: harnessStatusSnapshot != nil)
         _controllerLease = State(
             initialValue: conversationControllerRegistry.makeViewLease(for: conversation)
         )
@@ -131,7 +131,7 @@ struct ConversationView: View {
             composerCapabilities: composerCapabilities,
             reasoningConfiguration: composerReasoningConfiguration,
             defaultEnterBehavior: settings.defaultEnterBehavior,
-            providerID: activeProviderID,
+            harnessID: activeHarnessID,
             runtimeStatus: runtimeStatus,
             isReviewTeamWorking: reviewRun?.phase.isWorking == true,
             onCancelReviewTeam: {
@@ -165,12 +165,12 @@ struct ConversationView: View {
                 await fileListManager.warmCache(for: path)
             }
         }
-        .task(id: composerProviderStatusTaskID) {
-            await refreshComposerProviderStatuses()
+        .task(id: composerHarnessStatusTaskID) {
+            await refreshComposerHarnessStatuses()
         }
         .onReceive(NotificationCenter.default.publisher(for: .appSettingsChanged)) { _ in
             Task {
-                await refreshComposerProviderStatuses()
+                await refreshComposerHarnessStatuses()
             }
         }
         .onDisappear {
@@ -196,7 +196,7 @@ struct ConversationView: View {
 }
 
 private extension ConversationView {
-    static let fallbackPlanModeProviderIDs: Set<String> = ["claude", "codex"]
+    static let fallbackPlanModeHarnessIDs: Set<String> = ["claude", "codex"]
 
     var composerReasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration {
         ChatComposerActionRowView.ReasoningConfiguration(
@@ -209,14 +209,14 @@ private extension ConversationView {
     }
 
     var composerReasoningSelection: ChatComposerActionRowView.ReasoningSelection {
-        let selectedModel = selectedComposerModelOptionID(for: activeAgentProviderID)
-        let options = modelOptions(for: activeAgentProviderID)
+        let selectedModel = selectedComposerModelOptionID(for: activeAgentHarnessID)
+        let options = modelOptions(for: activeAgentHarnessID)
         let modelTitle = AgentModelOptionSelection.menuItems(
             in: options,
             selectedModel: selectedModel,
             fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
         ).first { $0.value == selectedModel }?.title ?? ChatComposerTextSupport.modelLabel(for: selectedModel)
-        let effortOptions = reasoningEffortOptions(for: activeAgentProviderID, selectedModel: selectedModel)
+        let effortOptions = reasoningEffortOptions(for: activeAgentHarnessID, selectedModel: selectedModel)
         let defaultEffort = AgentModelOptionSelection.defaultEffortValue(in: options, selectedModel: selectedModel)
         let effortValue = conversation.thread?.effort ?? AppSettings.defaultEffortLevel
         let effortTitle = effortOptions.first { $0.value == effortValue }?.title
@@ -224,8 +224,8 @@ private extension ConversationView {
         let speedMode = composerCapabilities.supportsSpeedMode ? conversation.thread?.normalizedSpeedMode ?? .standard : .standard
 
         return ChatComposerActionRowView.ReasoningSelection(
-            providerID: activeProviderID,
-            providerTitle: activeAgentProviderID.map(providerDisplayName(for:)) ?? activeProviderID.capitalized,
+            harnessID: activeHarnessID,
+            harnessTitle: activeAgentHarnessID.map(harnessDisplayName(for:)) ?? activeHarnessID.capitalized,
             modelID: selectedModel,
             modelTitle: modelTitle,
             effortValue: effortValue,
@@ -240,81 +240,81 @@ private extension ConversationView {
     var composerReasoningModelGroups: [ChatComposerActionRowView.ReasoningModelGroup] {
         let hasStartedThread = conversation.thread?.hasCompletedInitialSetup == true
         if hasStartedThread {
-            guard let providerID = activeAgentProviderID else {
+            guard let harnessID = activeAgentHarnessID else {
                 return []
             }
-            return [reasoningModelGroup(for: providerID, providerTitle: nil)]
+            return [reasoningModelGroup(for: harnessID, harnessTitle: nil)]
         }
-        guard hasLoadedComposerProviderStatuses else {
+        guard hasLoadedComposerHarnessStatuses else {
             return []
         }
 
-        return composerProviderOrdering.compactMap { providerID in
-            let rawValue = providerID.rawValue
-            guard AppSettings.supportedProviderIDs.contains(rawValue) else {
+        return composerHarnessOrdering.compactMap { harnessID in
+            let rawValue = harnessID.rawValue
+            guard AppSettings.supportedHarnessIDs.contains(rawValue) else {
                 return nil
             }
-            guard let status = composerProviderStatuses[providerID],
-                  isSelectableComposerProvider(status, providerID: rawValue) else {
+            guard let status = composerHarnessStatuses[harnessID],
+                  isSelectableComposerHarness(status, harnessID: rawValue) else {
                 return nil
             }
-            return reasoningModelGroup(for: providerID, providerTitle: providerDisplayName(for: providerID))
+            return reasoningModelGroup(for: harnessID, harnessTitle: harnessDisplayName(for: harnessID))
         }
     }
 
-    func providerDisplayName(for providerId: AgentCLIKit.AgentProviderID) -> String {
-        composerProviderStatuses[providerId]?.definition?.displayName ?? providerId.rawValue.capitalized
+    func harnessDisplayName(for harnessId: AgentCLIKit.AgentHarnessID) -> String {
+        composerHarnessStatuses[harnessId]?.definition?.displayName ?? harnessId.rawValue.capitalized
     }
 
-    func modelOptions(for providerId: AgentCLIKit.AgentProviderID?) -> [AgentCLIKit.AgentModelOption] {
-        guard let providerId else {
+    func modelOptions(for harnessId: AgentCLIKit.AgentHarnessID?) -> [AgentCLIKit.AgentModelOption] {
+        guard let harnessId else {
             return []
         }
-        if let options = composerProviderStatuses[providerId]?.modelOptions, !options.isEmpty {
+        if let options = composerHarnessStatuses[harnessId]?.modelOptions, !options.isEmpty {
             return options
         }
-        return AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: providerId)
+        return AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: harnessId)
     }
 
     func reasoningModelGroup(
-        for providerID: AgentCLIKit.AgentProviderID,
-        providerTitle: String?
+        for harnessID: AgentCLIKit.AgentHarnessID,
+        harnessTitle: String?
     ) -> ChatComposerActionRowView.ReasoningModelGroup {
-        let selectedModel = providerID.rawValue == activeProviderID
+        let selectedModel = harnessID.rawValue == activeHarnessID
             ? conversation.thread?.model ?? AppSettings.defaultModelValue
             : AppSettings.defaultModelValue
         let options = AgentModelOptionSelection.menuItems(
-            in: modelOptions(for: providerID),
+            in: modelOptions(for: harnessID),
             selectedModel: selectedModel,
             fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
         ).map { item in
             ChatComposerActionRowView.ReasoningModelOption(
-                providerID: providerID.rawValue,
+                harnessID: harnessID.rawValue,
                 value: item.value,
                 title: item.title,
                 shortName: item.shortName
             )
         }
         return ChatComposerActionRowView.ReasoningModelGroup(
-            providerID: providerID.rawValue,
-            providerTitle: providerTitle,
+            harnessID: harnessID.rawValue,
+            harnessTitle: harnessTitle,
             options: options
         )
     }
 
-    func selectedComposerModelOptionID(for providerID: AgentCLIKit.AgentProviderID?) -> String {
+    func selectedComposerModelOptionID(for harnessID: AgentCLIKit.AgentHarnessID?) -> String {
         AgentModelOptionSelection.pickerValue(
-            in: modelOptions(for: providerID),
+            in: modelOptions(for: harnessID),
             matching: conversation.thread?.model ?? AppSettings.defaultModelValue
         )
     }
 
     func reasoningEffortOptions(
-        for providerID: AgentCLIKit.AgentProviderID?,
+        for harnessID: AgentCLIKit.AgentHarnessID?,
         selectedModel: String
     ) -> [ChatComposerActionRowView.MenuOption] {
         AgentModelOptionSelection.effortOptions(
-            in: modelOptions(for: providerID),
+            in: modelOptions(for: harnessID),
             selectedModel: selectedModel
         ).map { option in
             ChatComposerActionRowView.MenuOption(value: option.value, title: option.label)
@@ -337,26 +337,26 @@ private extension ConversationView {
         _ request: ChatComposerActionRowView.ReasoningModelSelectionRequest
     ) -> ChatComposerActionRowView.ReasoningModelSelectionOutcome {
         guard composerReasoningModelGroups.contains(where: { group in
-            group.providerID == request.providerID && group.options.contains { $0.value == request.modelID }
+            group.harnessID == request.harnessID && group.options.contains { $0.value == request.modelID }
         }),
-        let requestProviderID = AgentCLIKit.AgentProviderID(rawValue: request.providerID) else {
+        let requestHarnessID = AgentCLIKit.AgentHarnessID(rawValue: request.harnessID) else {
             return .rejected
         }
 
-        let previousProviderID = activeProviderID
-        let previousModelID = selectedComposerModelOptionID(for: activeAgentProviderID)
-        guard previousProviderID != request.providerID || previousModelID != request.modelID else {
+        let previousHarnessID = activeHarnessID
+        let previousModelID = selectedComposerModelOptionID(for: activeAgentHarnessID)
+        guard previousHarnessID != request.harnessID || previousModelID != request.modelID else {
             return .unchanged(composerReasoningSelection)
         }
 
-        let requestOptions = modelOptions(for: requestProviderID)
+        let requestOptions = modelOptions(for: requestHarnessID)
         let storedModel = AgentModelOptionSelection.storedModelValue(in: requestOptions, matching: request.modelID)
         let requestEffortOptions = AgentModelOptionSelection.effortOptions(in: requestOptions, selectedModel: storedModel)
         let defaultEffort = AgentModelOptionSelection.defaultEffortValue(in: requestOptions, selectedModel: storedModel)
-        let requestSupportsSpeedMode = composerProviderStatuses[requestProviderID]?.definition?.capabilities.supportsSpeedMode ?? false
+        let requestSupportsSpeedMode = composerHarnessStatuses[requestHarnessID]?.definition?.capabilities.supportsSpeedMode ?? false
         let didApply: Bool
 
-        if previousProviderID == request.providerID {
+        if previousHarnessID == request.harnessID {
             guard viewModel.canApplySettingsChange else {
                 return .rejected
             }
@@ -366,20 +366,20 @@ private extension ConversationView {
                 defaultEffort: defaultEffort,
                 supportsSpeedMode: requestSupportsSpeedMode
             )
-            didApply = activeProviderID == request.providerID &&
-                selectedComposerModelOptionID(for: activeAgentProviderID) == request.modelID
+            didApply = activeHarnessID == request.harnessID &&
+                selectedComposerModelOptionID(for: activeAgentHarnessID) == request.modelID
         } else {
             guard conversation.thread?.hasCompletedInitialSetup != true else {
                 return .rejected
             }
-            didApply = viewModel.applyPreStartupProviderModelChange(
-                providerID: request.providerID,
+            didApply = viewModel.applyPreStartupHarnessModelChange(
+                harnessID: request.harnessID,
                 model: storedModel,
                 effortOptions: requestEffortOptions,
                 defaultEffort: defaultEffort,
                 supportsSpeedMode: requestSupportsSpeedMode
-            ) && activeProviderID == request.providerID &&
-                selectedComposerModelOptionID(for: requestProviderID) == request.modelID
+            ) && activeHarnessID == request.harnessID &&
+                selectedComposerModelOptionID(for: requestHarnessID) == request.modelID
         }
 
         guard didApply else {
@@ -389,21 +389,21 @@ private extension ConversationView {
         return .applied(selection: composerReasoningSelection)
     }
 
-    func providerPermissionModes() -> [PermissionModeOption] {
-        if let modes = activeProviderStatus?.definition?.supportedPermissionModes {
+    func harnessPermissionModes() -> [PermissionModeOption] {
+        if let modes = activeHarnessStatus?.definition?.supportedPermissionModes {
             return modes.filter { $0.value != "plan" }.map { option in
                 PermissionModeOption(value: option.value, label: option.label, description: option.description)
             }
         }
-        return (providerRegistry.provider(for: activeProviderID)?.supportedPermissionModes ?? [])
+        return (harnessRegistry.harness(for: activeHarnessID)?.supportedPermissionModes ?? [])
             .filter { $0.value != "plan" }
     }
 
     func planModeDisabledTooltip(supportsPlanMode: Bool) -> String? {
         guard supportsPlanMode else {
-            return "Plan mode is not supported by this agent."
+            return "Plan mode is not supported by this harness."
         }
-        guard activeProviderID == "codex" else {
+        guard activeHarnessID == "codex" else {
             return nil
         }
         return hasConcreteCodexModelSelection() ? nil : "Choose a concrete Codex model to use plan mode."
@@ -413,15 +413,15 @@ private extension ConversationView {
         supportsGoalMode: Bool,
         supportsExistingSessionGoalStart: Bool
     ) -> String? {
-        guard hasLoadedComposerProviderStatuses else {
+        guard hasLoadedComposerHarnessStatuses else {
             return "Checking Goal mode support..."
         }
         guard supportsGoalMode else {
-            return "Goal mode is not supported by this agent."
+            return "Goal mode is not supported by this harness."
         }
         if viewModel.hasVisibleUserMessageHistory,
            !supportsExistingSessionGoalStart {
-            return "This agent can only start Goal mode before the first visible user message."
+            return "This harness can only start Goal mode before the first visible user message."
         }
         return nil
     }
@@ -432,7 +432,7 @@ private extension ConversationView {
            storedModel != AppSettings.defaultModelValue {
             return true
         }
-        let options = modelOptions(for: activeAgentProviderID)
+        let options = modelOptions(for: activeAgentHarnessID)
         let selectedModel = conversation.thread?.model ?? AppSettings.defaultModelValue
         guard let model = AgentModelOptionSelection.option(in: options, matching: selectedModel)?.model else {
             return false

@@ -89,7 +89,7 @@ extension ThreadHostToolServiceTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "Etc/UTC",
-            providerID: "codex",
+            harnessID: "codex",
             targetThread: target
         )
         target.targetedScheduledTasks = [definition]

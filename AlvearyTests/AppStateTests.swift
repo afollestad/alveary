@@ -26,7 +26,7 @@ final class AppStateTests: XCTestCase {
 
     func testOpenSettingsPreservesPreviousSelectionUntilLeavingSettings() throws {
         let fixture = try makeFixture(
-            primaryConversations: [Conversation(title: "Main", provider: "claude")]
+            primaryConversations: [Conversation(title: "Main", harness: "claude")]
         )
         let state = AppState()
 
@@ -53,7 +53,7 @@ final class AppStateTests: XCTestCase {
 
     func testOpenSettingsCanTargetOneSettingsPage() throws {
         let fixture = try makeFixture(
-            primaryConversations: [Conversation(title: "Main", provider: "claude")]
+            primaryConversations: [Conversation(title: "Main", harness: "claude")]
         )
         let state = AppState()
 
@@ -127,8 +127,8 @@ final class AppStateTests: XCTestCase {
     }
 
     func testSelectedConversationIsPureRead() throws {
-        let mainConversation = Conversation(title: "Main", provider: "claude", isMain: true, displayOrder: 1)
-        let sideConversation = Conversation(title: "Side", provider: "claude", isMain: false, displayOrder: 2)
+        let mainConversation = Conversation(title: "Main", harness: "claude", isMain: true, displayOrder: 1)
+        let sideConversation = Conversation(title: "Side", harness: "claude", isMain: false, displayOrder: 2)
         let fixture = try makeFixture(primaryConversations: [sideConversation, mainConversation])
         let state = AppState()
 
@@ -142,8 +142,8 @@ final class AppStateTests: XCTestCase {
     }
 
     func testSelectedConversationUsesStableIDTieBreaker() throws {
-        let laterID = Conversation(id: "b", title: "Later", provider: "claude", isMain: false, displayOrder: 1)
-        let earlierID = Conversation(id: "a", title: "Earlier", provider: "claude", isMain: false, displayOrder: 1)
+        let laterID = Conversation(id: "b", title: "Later", harness: "claude", isMain: false, displayOrder: 1)
+        let earlierID = Conversation(id: "a", title: "Earlier", harness: "claude", isMain: false, displayOrder: 1)
         let fixture = try makeFixture(primaryConversations: [laterID, earlierID])
         let state = AppState()
 
@@ -156,9 +156,9 @@ final class AppStateTests: XCTestCase {
     }
 
     func testRepairSelectedConversationFallsBackToMainConversation() throws {
-        let mainConversation = Conversation(title: "Main", provider: "claude", isMain: true, displayOrder: 2)
-        let otherConversation = Conversation(title: "Other", provider: "claude", isMain: false, displayOrder: 1)
-        let wrongConversation = Conversation(title: "Wrong", provider: "claude")
+        let mainConversation = Conversation(title: "Main", harness: "claude", isMain: true, displayOrder: 2)
+        let otherConversation = Conversation(title: "Other", harness: "claude", isMain: false, displayOrder: 1)
+        let wrongConversation = Conversation(title: "Wrong", harness: "claude")
         let fixture = try makeFixture(
             primaryConversations: [mainConversation, otherConversation],
             secondaryConversations: [wrongConversation]
@@ -178,9 +178,9 @@ final class AppStateTests: XCTestCase {
     }
 
     func testRepairSelectedConversationFallsBackToFirstDisplayOrderWhenNoMainConversationExists() throws {
-        let firstConversation = Conversation(title: "First", provider: "claude", isMain: false, displayOrder: 1)
-        let laterConversation = Conversation(title: "Later", provider: "claude", isMain: false, displayOrder: 4)
-        let wrongConversation = Conversation(title: "Wrong", provider: "claude")
+        let firstConversation = Conversation(title: "First", harness: "claude", isMain: false, displayOrder: 1)
+        let laterConversation = Conversation(title: "Later", harness: "claude", isMain: false, displayOrder: 4)
+        let wrongConversation = Conversation(title: "Wrong", harness: "claude")
         let fixture = try makeFixture(
             primaryConversations: [laterConversation, firstConversation],
             secondaryConversations: [wrongConversation]
@@ -200,7 +200,7 @@ final class AppStateTests: XCTestCase {
     }
 
     func testRepairSelectedConversationRemovesBookmarkWhenThreadHasNoConversations() throws {
-        let wrongConversation = Conversation(title: "Wrong", provider: "claude")
+        let wrongConversation = Conversation(title: "Wrong", harness: "claude")
         let fixture = try makeFixture(
             primaryConversations: [],
             secondaryConversations: [wrongConversation]

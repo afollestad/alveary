@@ -204,7 +204,7 @@ final class ScheduledTaskProposalQueueCoordinator {
         return makePresentation(proposal)
     }
 
-    /// The conversation's single live proposal. Providers that surface only a host tool's
+    /// The conversation's single live proposal. Harnesses that surface only a host tool's
     /// text fallback give the transcript no proposal id, so its widget resolves by
     /// conversation instead — safe because a conversation holds at most one proposal.
     func presentation(forConversationID conversationID: String) -> ScheduledTaskProposalPresentation? {

@@ -159,7 +159,7 @@ final class DemoTranscriptBuilder {
         record.tokenCacheRead = cacheRead
         record.costUsd = costUsd
         record.costUsdReported = true
-        record.providerModelId = model
+        record.harnessModelId = model
         record.contextWindowSize = 200_000
         record.stopReason = stopReason
         record.durationMs = durationMs

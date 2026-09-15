@@ -251,7 +251,7 @@ final class BlockInputComposerArgumentHintTests: XCTestCase {
                     command: "compact",
                     subtitle: "Compact context",
                     detailText: "Claude",
-                    uri: "alveary://provider-commands/claude/compact",
+                    uri: "alveary://harness-commands/claude/compact",
                     argumentHint: "Optional compact instructions"
                 )
             ],

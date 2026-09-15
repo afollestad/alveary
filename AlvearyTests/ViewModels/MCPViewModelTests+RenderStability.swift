@@ -10,7 +10,7 @@ extension MCPViewModelTests {
         let row = makeRow(server: server)
 
         XCTAssertEqual(row, makeRow(server: server))
-        XCTAssertNotEqual(row, makeRow(server: makeServer(providers: ["codex"])))
+        XCTAssertNotEqual(row, makeRow(server: makeServer(harnesses: ["codex"])))
         XCTAssertNotEqual(row, makeRow(server: makeServer(name: "other")))
         XCTAssertNotEqual(row, makeRow(server: server, isSelected: true))
         XCTAssertNotEqual(row, makeRow(server: server, focusID: "mcp-edit-other"))
@@ -39,7 +39,7 @@ extension MCPViewModelTests {
     }
 }
 
-private func makeServer(name: String = "context7", providers: [String] = ["claude"]) -> MCPServer {
+private func makeServer(name: String = "context7", harnesses: [String] = ["claude"]) -> MCPServer {
     MCPServer(
         name: name,
         transport: .http,
@@ -48,7 +48,7 @@ private func makeServer(name: String = "context7", providers: [String] = ["claud
         url: "https://mcp.context7.com/mcp",
         headers: nil,
         env: nil,
-        providers: providers
+        harnesses: harnesses
     )
 }
 
@@ -65,7 +65,7 @@ private func makeRecommended(
             url: nil,
             headers: nil,
             env: nil,
-            providers: []
+            harnesses: []
         ),
         description: description,
         headerPrompts: []

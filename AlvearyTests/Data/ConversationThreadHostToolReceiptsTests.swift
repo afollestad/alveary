@@ -44,7 +44,7 @@ final class ConversationThreadHostToolReceiptsTests: XCTestCase {
         XCTAssertEqual(found?.threadID, "thread-first")
     }
 
-    /// A receipt cannot survive a provider restart, or a genuinely new call reusing a request ID
+    /// A receipt cannot survive a harness restart, or a genuinely new call reusing a request ID
     /// would replay a stale result.
     func testReceiptsFromAnotherProcessAreDropped() throws {
         let conversation = try makeConversation()
@@ -179,7 +179,7 @@ final class ConversationThreadHostToolReceiptsTests: XCTestCase {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let context = ModelContext(container)
-        let conversation = Conversation(id: "source-conversation", provider: "codex")
+        let conversation = Conversation(id: "source-conversation", harness: "codex")
         context.insert(conversation)
         try context.save()
         return conversation

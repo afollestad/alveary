@@ -39,7 +39,7 @@ extension DefaultAgentsManager {
                 .toolApprovalRequested(deferredToolRequest.request),
                 conversationId: conversationId,
                 generation: generation,
-                providerId: "claude",
+                harnessId: "claude",
                 allowAfterDeferredStop: true
             )
             return
@@ -51,7 +51,7 @@ extension DefaultAgentsManager {
             .toolApprovalRequested(deferredToolRequest.request),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude",
+            harnessId: "claude",
             allowAfterDeferredStop: true
         )
     }

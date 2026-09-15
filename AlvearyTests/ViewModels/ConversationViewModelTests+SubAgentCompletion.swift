@@ -7,7 +7,7 @@ import XCTest
 @MainActor
 extension ConversationViewModelTests {
     func testSubAgentStartPersistsDeterministicAgentToolCallOnce() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let startEvent = subAgentStartEvent(toolUseId: "spawn-1", description: "Review the diff")
 
         fixture.viewModel.handleEvent(startEvent)
@@ -34,7 +34,7 @@ extension ConversationViewModelTests {
     }
 
     func testLegacyCodexSubAgentStartRecordSuppressesMigratedDuplicate() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let legacyRecord = ConversationEventRecord(
             id: ConversationViewModel.codexSubAgentStartRecordId(conversationId: fixture.conversation.id, toolUseId: "spawn-1"),
             conversationId: fixture.conversation.id,
@@ -56,7 +56,7 @@ extension ConversationViewModelTests {
     }
 
     func testDuplicateSubAgentStartAndCompletionStillAdvanceRuntimeCursor() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let generation = UUID()
         let startEvent = subAgentStartEvent(toolUseId: "spawn-1", description: "Review the diff")
         let completionEvent = ConversationEvent.subAgentCompleted(
@@ -94,7 +94,7 @@ extension ConversationViewModelTests {
     }
 
     func testSubAgentStartAndCompletionRebuildVisibleSubAgentBlock() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
 
         fixture.viewModel.handleEvent(subAgentStartEvent(toolUseId: "spawn-1", description: "Review the diff"))
         fixture.viewModel.handleEvent(.subAgentCompleted(

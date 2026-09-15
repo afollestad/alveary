@@ -32,7 +32,7 @@ extension SettingsServiceTests {
         let container = try makeModelContainer()
         let context = ModelContext(container)
         let project = Project(path: "/tmp/\(UUID().uuidString)", name: "Fixture")
-        let conversation = Conversation(title: "Main", provider: "claude")
+        let conversation = Conversation(title: "Main", harness: "claude")
         let thread = AgentThread(name: "Primary", project: project, conversations: [conversation])
         project.threads.append(thread)
         context.insert(project)

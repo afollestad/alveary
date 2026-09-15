@@ -10,7 +10,7 @@ struct ToolApprovalTranscriptLookup: Sendable {
 
 typealias ToolApprovalTranscriptReader = @Sendable (ToolApprovalTranscriptLookup) async -> ToolApprovalStatus?
 
-/// Provider transcript reads can load and decode an entire JSONL file; never inherit the mounting view's main actor.
+/// Harness transcript reads can load and decode an entire JSONL file; never inherit the mounting view's main actor.
 nonisolated func readClaudeToolApprovalTranscript(_ lookup: ToolApprovalTranscriptLookup) async -> ToolApprovalStatus? {
     await Task.detached(priority: .utility) {
         let resolution = ClaudeHookTranscriptReader().resolution(
@@ -35,17 +35,17 @@ extension ConversationViewModel {
     }
 
     func restoreToolApproval(_ approval: ToolApprovalRequest) {
-        guard (conversation.provider ?? settingsService.current.defaultProvider) == "claude" else {
+        guard (conversation.harness ?? settingsService.current.defaultHarness) == "claude" else {
             state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
             return
         }
         let token = UUID()
-        let providerSessionID = conversation.providerSessionId ?? approval.sessionId
+        let harnessSessionID = conversation.harnessSessionId ?? approval.sessionId
         toolApprovalRestoreToken = token
         state.isRestoringToolApproval = true
         toolApprovalRestoreTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.finishToolApprovalRestoration(token: token, providerSessionID: providerSessionID) }
+            defer { self.finishToolApprovalRestoration(token: token, harnessSessionID: harnessSessionID) }
             do {
                 let status = try await self.resolvedToolApprovalStatusFromClaudeSession(approval)
                 guard self.toolApprovalRestoreToken == token, self.state.pendingToolApproval == nil else { return }
@@ -72,13 +72,13 @@ extension ConversationViewModel {
     func resolvedToolApprovalStatusFromClaudeSession(_ approval: ToolApprovalRequest) async throws -> ToolApprovalStatus? {
         try Task.checkCancellation()
         guard let dbConversation = dbConversation(),
-              (dbConversation.provider ?? settingsService.current.defaultProvider) == "claude",
+              (dbConversation.harness ?? settingsService.current.defaultHarness) == "claude",
               let workingDirectory = dbConversation.thread?.primaryWorkingDirectory else {
             return nil
         }
         let previousState = state
         let persistedApproval = unresolvedToolApproval(toolUseId: approval.toolUseId, sessionId: approval.sessionId)
-        let providerSessionID = dbConversation.providerSessionId ?? approval.sessionId
+        let harnessSessionID = dbConversation.harnessSessionId ?? approval.sessionId
         let generation = toolApprovalTranscriptGeneration
         let pendingApproval = state.pendingToolApproval
         let lookup = ToolApprovalTranscriptLookup(
@@ -90,8 +90,8 @@ extension ConversationViewModel {
               toolApprovalTranscriptGeneration == generation,
               state.pendingToolApproval == pendingApproval,
               let currentConversation = fetchToolApprovalConversation(),
-              (currentConversation.providerSessionId ?? approval.sessionId) == providerSessionID,
-              (currentConversation.provider ?? settingsService.current.defaultProvider) == "claude",
+              (currentConversation.harnessSessionId ?? approval.sessionId) == harnessSessionID,
+              (currentConversation.harness ?? settingsService.current.defaultHarness) == "claude",
               currentConversation.thread?.primaryWorkingDirectory == workingDirectory,
               unresolvedToolApproval(toolUseId: approval.toolUseId, sessionId: approval.sessionId) == persistedApproval else {
             throw CancellationError()
@@ -104,14 +104,14 @@ extension ConversationViewModel {
         return try? modelContext.fetch(FetchDescriptor<Conversation>(predicate: #Predicate { $0.id == conversationID })).first
     }
 
-    private func finishToolApprovalRestoration(token: UUID, providerSessionID: String) {
+    private func finishToolApprovalRestoration(token: UUID, harnessSessionID: String) {
         guard toolApprovalRestoreToken == token else { return }
         toolApprovalRestoreTask = nil
         toolApprovalRestoreToken = nil
         state.isRestoringToolApproval = false
         guard let conversation = fetchToolApprovalConversation(),
-              (conversation.providerSessionId ?? providerSessionID) == providerSessionID,
-              (conversation.provider ?? settingsService.current.defaultProvider) == "claude" else { return }
+              (conversation.harnessSessionId ?? harnessSessionID) == harnessSessionID,
+              (conversation.harness ?? settingsService.current.defaultHarness) == "claude" else { return }
         // A live result can settle this row while its file read is pending. Discover the next
         // unresolved interaction synchronously, before allowing the parked queue to continue.
         hydratePendingToolApprovalIfNeeded()

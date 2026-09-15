@@ -15,7 +15,7 @@ extension ConversationViewModelTests {
             id: "assistant-before-note",
             type: "message",
             role: "assistant",
-            content: "Provider output",
+            content: "Harness output",
             timestamp: earlierDate,
             conversation: fixture.conversation
         )
@@ -46,7 +46,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(
             fixture.viewModel.state.grouper.items,
             [
-                .assistantMessage(id: assistant.id, text: "Provider output"),
+                .assistantMessage(id: assistant.id, text: "Harness output"),
                 .transcriptNote(id: note.id, kind: .scheduledTask(try XCTUnwrap(note.content))),
                 .userMessage(id: user.id, text: "Scheduled prompt")
             ]
@@ -323,12 +323,12 @@ extension ConversationViewModelTests {
         XCTAssertFalse(try fixture.dbThread().hasCompletedInitialSetup)
     }
 
-    func testAutomatedScheduledTurnRevalidatesAfterProviderSetupBeforeSpawn() async throws {
+    func testAutomatedScheduledTurnRevalidatesAfterHarnessSetupBeforeSpawn() async throws {
         let scheduledFixture = try ScheduledConversationViewModelFixture()
         defer { scheduledFixture.removeFiles() }
         let fixture = scheduledFixture.fixture
         let grantPath = scheduledFixture.grant.path
-        await fixture.providerSetup.setPrepareForSpawnHook {
+        await fixture.harnessSetup.setPrepareForSpawnHook {
             try? FileManager.default.removeItem(atPath: grantPath)
             try? FileManager.default.createDirectory(
                 atPath: grantPath,
@@ -346,7 +346,7 @@ extension ConversationViewModelTests {
             )
         }
 
-        let setupCalls = await fixture.providerSetup.calls()
+        let setupCalls = await fixture.harnessSetup.calls()
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         XCTAssertEqual(setupCalls.count, 1)
         XCTAssertTrue(spawnCalls.isEmpty)
@@ -410,7 +410,7 @@ struct ScheduledConversationViewModelFixture {
         )
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
-            providerId: "claude",
+            harnessId: "claude",
             threadMode: .task,
             taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
                 primaryRoot: workspace.path,
@@ -457,7 +457,7 @@ struct ScheduledConversationViewModelFixture {
             promptSnapshot: "Run it.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "America/Chicago",
-            providerIDSnapshot: "claude",
+            harnessIDSnapshot: "claude",
             effortSnapshot: "high",
             permissionModeSnapshot: "acceptEdits",
             workspaceKindSnapshot: .project,

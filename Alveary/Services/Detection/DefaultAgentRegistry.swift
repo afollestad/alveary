@@ -6,7 +6,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
             installCommand: "curl -fsSL https://claude.ai/install.sh | bash",
             signInCommand: "claude auth login",
             docUrl: "https://code.claude.com/docs/en/quickstart",
-            provider: ProviderDefinition(
+            harness: HarnessDefinition(
                 id: "claude",
                 commands: ["claude"],
                 versionArgs: ["--version"],
@@ -50,7 +50,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
             installCommand: "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
             signInCommand: "codex login",
             docUrl: "https://developers.openai.com/codex/app-server",
-            provider: ProviderDefinition(
+            harness: HarnessDefinition(
                 id: "codex",
                 commands: ["codex"],
                 versionArgs: ["--version"],
@@ -90,18 +90,18 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
     }
 }
 
-final class DefaultProviderRegistry: ProviderRegistry, Sendable {
+final class DefaultHarnessRegistry: HarnessRegistry, Sendable {
     private let agentRegistry: AgentRegistry
 
     init(agentRegistry: AgentRegistry) {
         self.agentRegistry = agentRegistry
     }
 
-    var providers: [ProviderDefinition] {
-        agentRegistry.agents.compactMap(\.provider)
+    var harnesses: [HarnessDefinition] {
+        agentRegistry.agents.compactMap(\.harness)
     }
 
-    func provider(for id: String) -> ProviderDefinition? {
-        agentRegistry.agent(for: id)?.provider
+    func harness(for id: String) -> HarnessDefinition? {
+        agentRegistry.agent(for: id)?.harness
     }
 }

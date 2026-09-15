@@ -25,7 +25,7 @@ final class MockAgentsManagerStatusStore: @unchecked Sendable {
     }
 }
 
-final class MockProviderSetupTrustCache: @unchecked Sendable {
+final class MockHarnessSetupTrustCache: @unchecked Sendable {
     private let lock = NSLock()
     private var trustedProjectPaths: Set<String> = []
 

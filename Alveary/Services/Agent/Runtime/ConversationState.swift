@@ -110,13 +110,13 @@ final class ConversationState {
     private(set) var hasDeferredControllerTerminalBoundary = false
     var stagedContext: String?
     var sessionContinuityNotice: String?
-    /// Message from a provider that refused the turn until its credential is renewed.
+    /// Message from a harness that refused the turn until its credential is renewed.
     ///
     /// Held apart from `lastTurnError` on purpose: `shouldPersistErrorEvent` nils that field on the
-    /// provider-error path, so it cannot carry a notice that has to survive the failure it describes —
+    /// harness-error path, so it cannot carry a notice that has to survive the failure it describes —
     /// signing in means leaving the app, and the banner must still be there on return. Cleared by
     /// `markVisibleTurnStarted()` instead, so it outlives the failed turn but not the next one.
-    var providerAuthenticationFailure: String?
+    var harnessAuthenticationFailure: String?
     var isSendingMessage = false
     var isCancellingTurn = false
     var isCancellingInitialSetup = false
@@ -167,7 +167,7 @@ final class ConversationState {
     var queuedMessagesPauseReason: QueuedMessagesPauseReason?
     var setupPhase: SetupPhase?
     var pendingToolApproval: PendingToolApproval?
-    /// Recovery reads provider history off-main; its pending decision must block outbound work until that read settles.
+    /// Recovery reads harness history off-main; its pending decision must block outbound work until that read settles.
     var isRestoringToolApproval = false
     var pendingExitPlanModeFollowUp: PendingExitPlanModeFollowUp?
     var pendingExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
@@ -189,15 +189,15 @@ final class ConversationState {
     var retryableFailedMessageAttachments: [String: [LocalImageAttachment]] = [:]
     var retryableFailedMessageFileAttachments: [String: [LocalFileAttachment]] = [:]
     var retryableFailedMessageAppShots: [String: [AppShotAttachment]] = [:]
-    var retryableFailedMessageProviderMetadata: [String: [String: AgentCLIKit.JSONValue]] = [:]
+    var retryableFailedMessageHarnessMetadata: [String: [String: AgentCLIKit.JSONValue]] = [:]
     var transcriptImageAttachments: [String: [LocalImageAttachment]] = [:]
     var transcriptFileAttachments: [String: [LocalFileAttachment]] = [:]
     var transcriptAppShots: [String: [AppShotAttachment]] = [:]
     /// Survives controller remounts so automatic attachment maintenance shares the first authoritative transcript read.
     @ObservationIgnored var hasScheduledAutomaticAttachmentCleanup = false
-    var appShotProviderSessionTitleFallback: String?
+    var appShotHarnessSessionTitleFallback: String?
     var pendingSyntheticAssistantDuplicateText: String?
-    /// Non-ambient background tasks the provider process still owns after its turn ended, mirrored from
+    /// Non-ambient background tasks the harness process still owns after its turn ended, mirrored from
     /// `AgentRuntimeStatus.liveBackgroundTaskCount`. The controller registry keeps the controller and
     /// runtime while this is non-zero because suspension would kill those tasks with the process.
     var liveBackgroundTaskCount = 0
@@ -296,7 +296,7 @@ final class ConversationState {
             return
         }
         if thoughtText == nil {
-            // Providers emit a whitespace-only chunk to separate reasoning sections. With no live
+            // Harnesses emit a whitespace-only chunk to separate reasoning sections. With no live
             // thought to separate from, that break is leading padding rather than a new thought.
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return
@@ -414,7 +414,7 @@ final class ConversationState {
         attachments: [LocalImageAttachment] = [],
         fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
-        providerMetadata: [String: AgentCLIKit.JSONValue] = [:]
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:]
     ) {
         retryableFailedMessageIDs.insert(id)
         if let stagedContext {
@@ -442,10 +442,10 @@ final class ConversationState {
         } else {
             retryableFailedMessageAppShots[id] = appShots
         }
-        if providerMetadata.isEmpty {
-            retryableFailedMessageProviderMetadata.removeValue(forKey: id)
+        if harnessMetadata.isEmpty {
+            retryableFailedMessageHarnessMetadata.removeValue(forKey: id)
         } else {
-            retryableFailedMessageProviderMetadata[id] = providerMetadata
+            retryableFailedMessageHarnessMetadata[id] = harnessMetadata
         }
     }
 
@@ -456,7 +456,7 @@ final class ConversationState {
         retryableFailedMessageAttachments.removeValue(forKey: id)
         retryableFailedMessageFileAttachments.removeValue(forKey: id)
         retryableFailedMessageAppShots.removeValue(forKey: id)
-        retryableFailedMessageProviderMetadata.removeValue(forKey: id)
+        retryableFailedMessageHarnessMetadata.removeValue(forKey: id)
     }
 
     func markTranscriptImageAttachments(id: String, attachments: [LocalImageAttachment]) {

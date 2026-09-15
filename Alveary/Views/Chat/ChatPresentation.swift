@@ -125,7 +125,7 @@ struct ChatThreadPresentation: Equatable, Sendable {
     @MainActor
     init(
         thread: AgentThread?,
-        providerID: String,
+        harnessID: String,
         runtimePermissionMode: String? = nil,
         pendingPermissionMode: String? = nil,
         runtimePlanModeEnabled: Bool? = nil,
@@ -137,7 +137,7 @@ struct ChatThreadPresentation: Equatable, Sendable {
         selectedSpeedMode = thread?.normalizedSpeedMode ?? .standard
         selectedPermissionMode = Self.nonPlanPermissionMode(
             pendingPermissionMode ?? runtimePermissionMode ?? thread?.permissionMode,
-            providerID: providerID,
+            harnessID: harnessID,
             fallback: thread?.permissionMode
         )
         selectedPlanModeEnabled = pendingPlanModeEnabled ?? runtimePlanModeEnabled ?? thread?.planModeEnabled ?? false
@@ -153,16 +153,16 @@ struct ChatThreadPresentation: Equatable, Sendable {
             showWorktreePicker = false
         }
 
-        contextWindowCacheLookupID = "\(providerID):\(selectedModel)"
+        contextWindowCacheLookupID = "\(harnessID):\(selectedModel)"
     }
 
-    private static func nonPlanPermissionMode(_ mode: String?, providerID: String, fallback: String?) -> String {
+    private static func nonPlanPermissionMode(_ mode: String?, harnessID: String, fallback: String?) -> String {
         if let mode, mode != "plan" {
             return mode
         }
         if let fallback, fallback != "plan" {
             return fallback
         }
-        return AppSettings.defaultPermissionMode(forProvider: providerID)
+        return AppSettings.defaultPermissionMode(forHarness: harnessID)
     }
 }

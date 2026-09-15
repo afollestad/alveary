@@ -78,7 +78,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertEqual(reportedTransition, transition)
     }
 
-    func testBridgeForwardsOverlayCompletionPopupProvider() {
+    func testBridgeForwardsOverlayCompletionPopupHarness() {
         let configuration = BlockInputComposerBridgeConfiguration(
             markdown: "Hello",
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
@@ -246,11 +246,11 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
 
     func testSameLocationReconfigureKeepsCompletionProviderIdentity() {
         let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Before"))
-        let initialProvider = controller.completionProvider
+        let initialHarness = controller.completionProvider
 
         controller.configure(makeConfiguration(markdown: "After"))
 
-        XCTAssertTrue(controller.completionProvider === initialProvider)
+        XCTAssertTrue(controller.completionProvider === initialHarness)
     }
 
     func testSameLocationReconfigureUsesLatestCompletionLoaders() async {
@@ -258,7 +258,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
             markdown: "Before",
             loadFileCompletions: { ["Sources/Before.swift"] }
         ))
-        let initialProvider = controller.completionProvider
+        let initialHarness = controller.completionProvider
 
         controller.configure(makeConfiguration(
             markdown: "After",
@@ -270,7 +270,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
             rawQuery: "After"
         ))
 
-        XCTAssertTrue(controller.completionProvider === initialProvider)
+        XCTAssertTrue(controller.completionProvider === initialHarness)
         XCTAssertEqual(suggestions.map(\.title), ["Sources/After.swift"])
     }
 
@@ -279,14 +279,14 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
             markdown: "Before",
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project")
         ))
-        let initialProvider = controller.completionProvider
+        let initialHarness = controller.completionProvider
 
         controller.configure(makeConfiguration(
             markdown: "After",
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/other-project")
         ))
 
-        XCTAssertFalse(controller.completionProvider === initialProvider)
+        XCTAssertFalse(controller.completionProvider === initialHarness)
     }
 
     func testFileCompletionHonorsParentDirectoryReference() async {

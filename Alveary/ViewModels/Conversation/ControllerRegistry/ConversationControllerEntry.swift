@@ -200,7 +200,7 @@ struct ObservedControllerState: Equatable {
     let isGeneratingCommitMessage: Bool
     let hasNonterminalGoal: Bool
     /// Retains the controller and runtime like a nonterminal goal, but never defers the terminal
-    /// boundary: the provider's follow-up turn produces its own boundary once the tasks report back.
+    /// boundary: the harness's follow-up turn produces its own boundary once the tasks report back.
     let hasLiveBackgroundTasks: Bool
     let terminalBoundary: ConversationTerminalBoundary?
     let hasPendingPersistence: Bool

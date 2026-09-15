@@ -49,7 +49,7 @@ struct ToolApprovalPromptCopy: Sendable, Equatable {
 
 /// Alveary's UI model for a Claude tool approval request.
 ///
-/// `AgentCLIKit` owns the provider hook transport that creates these requests. This type owns
+/// `AgentCLIKit` owns the harness hook transport that creates these requests. This type owns
 /// app-facing copy, summaries, supported session scopes, and updated-input helpers used by
 /// transcript rows and approval controls.
 struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
@@ -62,7 +62,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
 
     var id: String { toolUseId }
 
-    /// Creates a request for a provider session tool approval.
+    /// Creates a request for a harness session tool approval.
     init(
         sessionId: String,
         toolUseId: String,
@@ -91,7 +91,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         }
     }
 
-    /// Whether this request represents an app-native prompt instead of a provider tool execution.
+    /// Whether this request represents an app-native prompt instead of a harness tool execution.
     var isAppNativeInteractionPrompt: Bool {
         toolName == "AskUserQuestion" || toolName == "ExitPlanMode"
     }
@@ -180,7 +180,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         agentCLIKitSessionApprovalRequest.recommendedSessionApprovalScope.flatMap(Self.toolApprovalSessionScope)
     }
 
-    /// Approval selection implied by the provider-owned recommendation, if any.
+    /// Approval selection implied by the harness-owned recommendation, if any.
     var recommendedApprovalSelection: ToolApprovalSelection? {
         recommendedSessionApprovalScope.map(ToolApprovalSelection.init(sessionScope:))
     }
@@ -207,21 +207,21 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     /// Returns a durable approval grant for the selected reusable scope.
     func sessionApprovalGrant(
         conversationId: String,
-        providerId: String,
+        harnessId: String,
         scope: ToolApprovalSessionScope
     ) -> AgentSessionApprovalGrant? {
-        guard let agentProviderId = AgentCLIKit.AgentProviderID(rawValue: providerId),
+        guard let agentHarnessId = AgentCLIKit.AgentHarnessID(rawValue: harnessId),
               let agentScope = Self.agentCLIKitScope(scope),
               let grant = agentCLIKitSessionApprovalRequest(
                 conversationId: conversationId,
-                providerId: agentProviderId
+                harnessId: agentHarnessId
               ).sessionApprovalGrant(for: agentScope),
               let matchKind = Self.agentSessionApprovalRuleKind(grant.matchKind) else {
             return nil
         }
 
         return AgentSessionApprovalGrant(
-            providerId: grant.providerId.rawValue,
+            harnessId: grant.harnessId.rawValue,
             conversationId: grant.conversationId.rawValue,
             sessionId: grant.sessionId.rawValue,
             matchKind: matchKind,
@@ -385,15 +385,15 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         // Scope, recommendation, and match-value lookups do not depend on the
         // conversation, so a placeholder ID is safe here; real grants thread
         // actual IDs through the parameterized variant below.
-        agentCLIKitSessionApprovalRequest(conversationId: "", providerId: .claude)
+        agentCLIKitSessionApprovalRequest(conversationId: "", harnessId: .claude)
     }
 
     private func agentCLIKitSessionApprovalRequest(
         conversationId: String,
-        providerId: AgentCLIKit.AgentProviderID
+        harnessId: AgentCLIKit.AgentHarnessID
     ) -> AgentCLIKit.AgentSessionApprovalRequest {
         AgentCLIKit.AgentSessionApprovalRequest(
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
             sessionId: AgentCLIKit.AgentSessionID(rawValue: sessionId),
             toolName: toolName,

@@ -40,7 +40,7 @@ extension SnapshotTests {
 }
 
 private extension SnapshotTests {
-    // The Handoff tab reads no provider state, so it needs no provider-discovery stub.
+    // The Handoff tab reads no harness state, so it needs no harness-discovery stub.
     func handoffSettingsScreen(settings: AppSettings) -> some View {
         SettingsScreen(
             viewModel: SettingsViewModel(settingsService: InMemorySettingsService(current: settings)),

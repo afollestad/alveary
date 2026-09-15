@@ -363,9 +363,9 @@ enum ReviewProposalSnapshotFixture {
     }
 
     static let collectiveReviewers = [
-        PullRequestReviewProposalRecord.Reviewer(id: "lead", providerID: "codex", modelOptionID: "gpt-5.6-sol"),
-        PullRequestReviewProposalRecord.Reviewer(id: "peer-1", providerID: "codex", modelOptionID: "gpt-6-astra"),
-        PullRequestReviewProposalRecord.Reviewer(id: "peer-2", providerID: "claude", modelOptionID: "claude-fable-5-1")
+        PullRequestReviewProposalRecord.Reviewer(id: "lead", harnessID: "codex", modelOptionID: "gpt-5.6-sol"),
+        PullRequestReviewProposalRecord.Reviewer(id: "peer-1", harnessID: "codex", modelOptionID: "gpt-6-astra"),
+        PullRequestReviewProposalRecord.Reviewer(id: "peer-2", harnessID: "claude", modelOptionID: "claude-fable-5-1")
     ]
 
     static let collectiveEvidence = PullRequestReviewProposalRecord.CommentEvidence(
@@ -404,7 +404,7 @@ enum ReviewProposalSnapshotFixture {
 
     static func mixedVoteEvidenceView() -> AppKitReviewProposalVoteEvidenceView {
         let reviewers = collectiveReviewers + [
-            PullRequestReviewProposalRecord.Reviewer(id: "peer-3", providerID: "claude", modelOptionID: "claude-opus-5")
+            PullRequestReviewProposalRecord.Reviewer(id: "peer-3", harnessID: "claude", modelOptionID: "claude-opus-5")
         ]
         let view = AppKitReviewProposalVoteEvidenceView()
         view.configure(

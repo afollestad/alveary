@@ -12,7 +12,7 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
         let projectRoot = try fixture.createDirectory(named: "ExistingProject")
         let project = Project(path: projectRoot.path, name: "Existing Project")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
-        let conversation = Conversation(id: "existing-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "existing-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         project.threads = [target]
         fixture.context.insert(project)
@@ -50,7 +50,7 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
         let projectRoot = try fixture.createDirectory(named: "ExistingPendingProject")
         let project = Project(path: projectRoot.path, name: "Existing Project")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
-        let conversation = Conversation(id: "existing-pending-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "existing-pending-main", harness: "codex", thread: target)
         let approval = ConversationEventRecord(
             id: "existing-pending-approval",
             conversationId: conversation.id,
@@ -170,7 +170,7 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
         XCTAssertEqual(persistedFirst.preparedWorkspaceMarkerID, first.workspace.ownershipMarkerID)
 
         let conversation = try XCTUnwrap(firstThread.conversations.first)
-        XCTAssertEqual(conversation.provider, "codex")
+        XCTAssertEqual(conversation.harness, "codex")
         try assertScheduledNote(conversation: conversation, fixedNow: fixedNow)
     }
 
@@ -341,7 +341,7 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
     func testScheduledNoteIsExplicitlyExcludedFromRestoreAndForkHistory() throws {
         let fixture = try ScheduledTaskRunMaterializerFixture()
         defer { fixture.removeFiles() }
-        let conversation = Conversation(provider: "codex")
+        let conversation = Conversation(harness: "codex")
         let message = ConversationEventRecord(
             conversationId: conversation.id,
             type: "message",

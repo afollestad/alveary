@@ -35,7 +35,7 @@ extension SnapshotTests {
 
     func testSettingsScreenGitTabWithReviewTeam() async {
         let viewModel = makeReviewTeamSettingsViewModel()
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
         assertMacSnapshot(
             SettingsScreen(
@@ -55,7 +55,7 @@ extension SnapshotTests {
 
     func testPullRequestReviewTeamEditor() async {
         let viewModel = makeReviewTeamSettingsViewModel()
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
         assertMacSnapshot(
             PullRequestReviewTeamEditorSheet(
@@ -72,9 +72,9 @@ extension SnapshotTests {
     func testPullRequestReviewTeamEditorDefaults() async {
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: AppSettings()),
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: ReviewTeamDefaultsFixtures.statuses)
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: ReviewTeamDefaultsFixtures.statuses)
         )
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
         assertMacSnapshot(
             PullRequestReviewTeamEditorSheet(
@@ -90,10 +90,10 @@ extension SnapshotTests {
 
     func testPullRequestReviewTeamEditorNeedsAttention() async {
         let viewModel = makeReviewTeamSettingsViewModel()
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
         let unavailablePeer = PullRequestReviewPeer(
             id: "reviewer-2",
-            providerID: "codex",
+            harnessID: "codex",
             model: "gpt-5.5",
             effort: "medium"
         )
@@ -235,17 +235,17 @@ private extension SnapshotTests {
         var settings = AppSettings()
         settings.branchPrefix = "af/"
         settings.pullRequestReviewMode = .reviewTeam
-        settings.pullRequestAddressFeedbackProvider = "claude"
+        settings.pullRequestAddressFeedbackHarness = "claude"
         settings.pullRequestAddressFeedbackModel = "haiku"
         settings.pullRequestAddressFeedbackEffort = "low"
         settings.pullRequestAddressFeedbackPermissionMode = "acceptEdits"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "reviewer-2", providerID: "claude", model: "fable", effort: "high"),
-            PullRequestReviewPeer(id: "reviewer-3", providerID: "claude", model: "opus", effort: "high")
+            PullRequestReviewPeer(id: "reviewer-2", harnessID: "claude", model: "fable", effort: "high"),
+            PullRequestReviewPeer(id: "reviewer-3", harnessID: "claude", model: "opus", effort: "high")
         ]
         return SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
+            harnessDiscovery: SnapshotHarnessDiscoveryService.defaultStatuses()
         )
     }
 }

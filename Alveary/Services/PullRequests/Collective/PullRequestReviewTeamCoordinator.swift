@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import SwiftData
 
-/// Owns collective work independently of windows and provider turns. Only a persisted active generation may stage.
+/// Owns collective work independently of windows and harness turns. Only a persisted active generation may stage.
 @MainActor @Observable
 final class PullRequestReviewTeamCoordinator {
     private(set) var runs: [String: ReviewTeamRun] = [:]
@@ -230,7 +230,7 @@ final class PullRequestReviewTeamCoordinator {
         didPersist(run)
     }
 
-    /// Publishes committed state; team workers bypass the provider-turn notification path.
+    /// Publishes committed state; team workers bypass the harness-turn notification path.
     func didPersist(_ run: ReviewTeamRun) {
         let previous = runs.updateValue(run, forKey: run.conversationID)
         publish(run)

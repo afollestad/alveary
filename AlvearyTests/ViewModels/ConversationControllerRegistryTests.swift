@@ -362,7 +362,7 @@ extension ConversationControllerRegistryTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.context.insert(ConversationEventRecord(
             conversationId: fixture.conversation.id,

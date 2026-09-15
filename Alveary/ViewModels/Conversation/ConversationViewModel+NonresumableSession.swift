@@ -29,14 +29,14 @@ extension ConversationViewModel {
     }
 
     func recoverHiddenSessionHandoffFromLocalHistoryIfNeeded(_ error: Error) async -> Bool {
-        guard isNonresumableProviderSessionError(error) else {
+        guard isNonresumableHarnessSessionError(error) else {
             return false
         }
 
         let restoreContext = localRestoreContextForNonresumableSession()
             ?? "No local transcript history was available."
         nonresumableSessionLogger.error(
-            "Hidden handoff could not resume provider session; using local transcript fallback: \(error.localizedDescription, privacy: .public)"
+            "Hidden handoff could not resume harness session; using local transcript fallback: \(error.localizedDescription, privacy: .public)"
         )
         state.endTurn()
         let output = SessionHandoffPromptBuilder.localHistoryFallbackOutput(
@@ -51,13 +51,13 @@ extension ConversationViewModel {
         _ error: Error,
         config: AgentSpawnConfig
     ) async throws -> String? {
-        guard isNonresumableProviderSessionError(error) else {
+        guard isNonresumableHarnessSessionError(error) else {
             throw error
         }
 
         let restoreContext = localRestoreContextForNonresumableSession()
         nonresumableSessionLogger.error(
-            "Provider session could not be resumed; starting fresh session with local context available=\(restoreContext != nil)"
+            "Harness session could not be resumed; starting fresh session with local context available=\(restoreContext != nil)"
         )
         try await startFreshSessionAfterNonresumableResume(config: config)
         return restoreContext
@@ -119,10 +119,10 @@ extension ConversationViewModel {
         )
     }
 
-    func isNonresumableProviderSessionError(_ error: Error) -> Bool {
+    func isNonresumableHarnessSessionError(_ error: Error) -> Bool {
         if let error = error as? CodexAppServerError,
            case let .jsonRPCError(method, code, message) = error {
-            return isNonresumableProviderSessionError(method: method, code: code, message: message)
+            return isNonresumableHarnessSessionError(method: method, code: code, message: message)
         }
 
         let description = error.localizedDescription
@@ -137,7 +137,7 @@ extension ConversationViewModel {
         return isCodexNoRollout || isMissingResumeTarget
     }
 
-    func isNonresumableProviderSessionError(method: String, code: Int?, message: String) -> Bool {
+    func isNonresumableHarnessSessionError(method: String, code: Int?, message: String) -> Bool {
         method == "thread/resume" &&
             code == -32600 &&
             message.localizedCaseInsensitiveContains("no rollout found")

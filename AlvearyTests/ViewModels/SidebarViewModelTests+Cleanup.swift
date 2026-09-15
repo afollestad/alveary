@@ -117,7 +117,7 @@ extension SidebarViewModelTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        task.conversations = [Conversation(id: "worktree-task", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "worktree-task", harness: "codex", thread: task)]
         fixture.context.insert(task)
         try fixture.context.save()
         await fixture.worktreeManager.setListResult([
@@ -159,7 +159,7 @@ extension SidebarViewModelTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        task.conversations = [Conversation(id: "orphaned-worktree-task", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "orphaned-worktree-task", harness: "codex", thread: task)]
         fixture.context.insert(task)
         try fixture.context.save()
 
@@ -189,7 +189,7 @@ extension SidebarViewModelTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        task.conversations = [Conversation(id: "unregistered-worktree-task", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "unregistered-worktree-task", harness: "codex", thread: task)]
         fixture.context.insert(task)
         try fixture.context.save()
 
@@ -213,7 +213,7 @@ extension SidebarViewModelTests {
                 sourceProjectPath: project.path
             )
         )
-        task.conversations = [Conversation(id: "backed-task", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "backed-task", harness: "codex", thread: task)]
         fixture.context.insert(task)
         try fixture.context.save()
         let taskID = task.persistentModelID
@@ -238,7 +238,7 @@ extension SidebarViewModelTests {
             ),
             project: project
         )
-        task.conversations = [Conversation(id: "attached-task", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "attached-task", harness: "codex", thread: task)]
         project.threads.append(task)
         fixture.context.insert(task)
         try fixture.context.save()
@@ -272,7 +272,7 @@ extension SidebarViewModelTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        task.conversations = [Conversation(id: "worktree-task", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "worktree-task", harness: "codex", thread: task)]
         fixture.context.insert(task)
         try fixture.context.save()
         let taskID = task.persistentModelID
@@ -293,11 +293,11 @@ extension SidebarViewModelTests {
         let project = Project(path: "/tmp/alveary-project-attachment-cleanup", name: "Alveary")
         let first = AgentThread(name: "First", project: project)
         first.conversations = [
-            Conversation(id: "first", provider: "claude", isMain: true, displayOrder: 0, thread: first)
+            Conversation(id: "first", harness: "claude", isMain: true, displayOrder: 0, thread: first)
         ]
         let second = AgentThread(name: "Second", project: project)
         second.conversations = [
-            Conversation(id: "second", provider: "claude", isMain: true, displayOrder: 0, thread: second)
+            Conversation(id: "second", harness: "claude", isMain: true, displayOrder: 0, thread: second)
         ]
         project.threads = [first, second]
         fixture.context.insert(project)
@@ -311,8 +311,8 @@ extension SidebarViewModelTests {
     }
 
     func testTrustEquivalentDraftDeleteCannotReuseOldDraftOrDestroyReplacementRuntime() async throws {
-        let providerSessionActions = RecordingProviderSessionActionService(pausesResolution: true)
-        let fixture = try SidebarTestFixture(providerSessionActions: providerSessionActions)
+        let harnessSessionActions = RecordingHarnessSessionActionService(pausesResolution: true)
+        let fixture = try SidebarTestFixture(harnessSessionActions: harnessSessionActions)
         let project = try fixture.insertProject(name: "Alveary", path: "/tmp/draft-delete-race")
         let oldDraft = try await fixture.viewModel.openDraftThread(project: project)
         let oldThreadID = oldDraft.persistentModelID
@@ -321,8 +321,8 @@ extension SidebarViewModelTests {
         let deletion = Task { @MainActor in
             try await fixture.viewModel.deleteThread(oldDraft)
         }
-        await providerSessionActions.waitUntilResolutionBegins()
-        defer { Task { await providerSessionActions.resumeResolution() } }
+        await harnessSessionActions.waitUntilResolutionBegins()
+        defer { Task { await harnessSessionActions.resumeResolution() } }
 
         XCTAssertNil(fixture.context.resolveThread(id: oldThreadID))
         let replacement = try await fixture.viewModel.openDraftThread(project: project)
@@ -331,7 +331,7 @@ extension SidebarViewModelTests {
         replacement.isDraft = false
         try fixture.context.save()
 
-        await providerSessionActions.resumeResolution()
+        await harnessSessionActions.resumeResolution()
         try await deletion.value
 
         XCTAssertNotEqual(replacementID, oldThreadID)
@@ -342,8 +342,8 @@ extension SidebarViewModelTests {
     }
 
     func testProjectDeleteRejectsStaleProjectWhileCleanupIsInFlightAndPreservesOtherDraft() async throws {
-        let providerSessionActions = RecordingProviderSessionActionService(pausesResolution: true)
-        let fixture = try SidebarTestFixture(providerSessionActions: providerSessionActions)
+        let harnessSessionActions = RecordingHarnessSessionActionService(pausesResolution: true)
+        let fixture = try SidebarTestFixture(harnessSessionActions: harnessSessionActions)
         let deletedProject = try fixture.insertProject(name: "Deleted", path: "/tmp/draft-project-delete-race")
         let deletedProjectID = deletedProject.persistentModelID
         let oldDraft = try await fixture.viewModel.openDraftThread(project: deletedProject)
@@ -352,8 +352,8 @@ extension SidebarViewModelTests {
         let deletion = Task { @MainActor in
             try await fixture.viewModel.deleteProject(deletedProject)
         }
-        await providerSessionActions.waitUntilResolutionBegins()
-        defer { Task { await providerSessionActions.resumeResolution() } }
+        await harnessSessionActions.waitUntilResolutionBegins()
+        defer { Task { await harnessSessionActions.resumeResolution() } }
 
         XCTAssertNil(fixture.context.resolveProject(id: deletedProjectID))
         do {
@@ -369,7 +369,7 @@ extension SidebarViewModelTests {
         survivingDraft.isDraft = false
         try fixture.context.save()
 
-        await providerSessionActions.resumeResolution()
+        await harnessSessionActions.resumeResolution()
         try await deletion.value
 
         XCTAssertNotNil(fixture.context.resolveThread(id: survivingID))
@@ -436,7 +436,7 @@ extension SidebarViewModelTests {
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
         let thread = AgentThread(name: "Primary", project: project)
         thread.conversations = [
-            Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: thread)
+            Conversation(id: "main", title: "Main", harness: "claude", isMain: true, displayOrder: 0, thread: thread)
         ]
 
         project.threads = [thread]

@@ -36,7 +36,7 @@ extension AppDelegateTestFixture {
     func makeStartupOrderingAppDelegate(
         recorder: AppDelegateShutdownOrderRecorder,
         sessionManager: AppDelegateStartupOrderSessionManager,
-        providerDetection: AppDelegateOrderProviderDetection,
+        harnessDetection: AppDelegateOrderHarnessDetection,
         signalState: AppDelegateProcessSignalState,
         scheduledTaskLifecycle: AppDelegateScheduledTaskLifecycleSpy
     ) -> AppDelegate {
@@ -47,8 +47,8 @@ extension AppDelegateTestFixture {
         return AppDelegate(
             dependencies: .init(
                 agentsManager: agentsManager,
-                providerDetection: providerDetection,
-                providerDiscoveryCache: inertProviderDiscoveryCache,
+                harnessDetection: harnessDetection,
+                harnessDiscoveryCache: inertHarnessDiscoveryCache,
                 sessionManager: sessionManager,
                 attachmentStore: recordingAttachmentStore,
                 taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
@@ -96,7 +96,7 @@ extension AppDelegateTestFixture {
         let context = modelContainer.mainContext
         let project = Project(path: "/tmp/scheduled-startup-order", name: "Startup order")
         let thread = AgentThread(name: "Stale draft", isDraft: true, project: project)
-        let conversation = Conversation(id: "scheduled-startup-order", provider: "claude", thread: thread)
+        let conversation = Conversation(id: "scheduled-startup-order", harness: "claude", thread: thread)
         context.insert(project)
         context.insert(thread)
         context.insert(conversation)
@@ -105,7 +105,7 @@ extension AppDelegateTestFixture {
             conversationId: conversation.id,
             entry: SessionEntry(
                 cwd: project.path,
-                providerId: "claude",
+                harnessId: "claude",
                 appSessionId: "scheduled-startup-session",
                 launchSessionId: "scheduled-startup-session"
             )
@@ -130,13 +130,13 @@ actor AppDelegateStartupOrderSessionManager: SessionManager {
         self.recorder = recorder
     }
 
-    func createEntry(conversationId: String, cwd: String, providerId: String) -> Bool {
+    func createEntry(conversationId: String, cwd: String, harnessId: String) -> Bool {
         guard entries[conversationId] == nil else {
             return false
         }
         entries[conversationId] = SessionEntry(
             cwd: CanonicalPath.normalize(cwd),
-            providerId: providerId,
+            harnessId: harnessId,
             appSessionId: conversationId,
             launchSessionId: conversationId
         )
@@ -155,10 +155,10 @@ actor AppDelegateStartupOrderSessionManager: SessionManager {
         entries[conversationId]?.appSessionId ?? ""
     }
 
-    func conversationId(forSessionId sessionId: String, cwd: String, providerId: String) -> String? {
+    func conversationId(forSessionId sessionId: String, cwd: String, harnessId: String) -> String? {
         let normalizedCWD = CanonicalPath.normalize(cwd)
         return entries.first { _, entry in
-            entry.providerId == providerId &&
+            entry.harnessId == harnessId &&
                 entry.cwd == normalizedCWD &&
                 (entry.appSessionId == sessionId || entry.launchSessionId == sessionId)
         }?.key
@@ -183,26 +183,26 @@ actor AppDelegateStartupOrderSessionManager: SessionManager {
     }
 }
 
-actor AppDelegateOrderProviderDetection: ProviderDetectionService {
+actor AppDelegateOrderHarnessDetection: HarnessDetectionService {
     private let recorder: AppDelegateShutdownOrderRecorder
 
     init(recorder: AppDelegateShutdownOrderRecorder) {
         self.recorder = recorder
     }
 
-    func resolvedPath(for providerId: String) -> String? {
+    func resolvedPath(for harnessId: String) -> String? {
         nil
     }
 
-    func status(for providerId: String) -> ProviderStatus {
+    func status(for harnessId: String) -> HarnessStatus {
         .unchecked
     }
 
-    func checkAllProviders() async {
+    func checkAllHarnesses() async {
         recorder.record("provider-refresh")
     }
 
-    func checkProvider(_ providerId: String) async {}
+    func checkHarness(_ harnessId: String) async {}
 }
 
 private actor AppDelegateStartupOrderAttachmentStore: ConversationAttachmentStore {

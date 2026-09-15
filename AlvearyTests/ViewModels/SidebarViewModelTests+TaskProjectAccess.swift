@@ -30,7 +30,7 @@ extension SidebarViewModelTests {
         XCTAssertTrue(snapshot.activeTaskThreads.isEmpty)
         XCTAssertEqual(granted.primaryWorkingDirectory, workspaceRoot)
         XCTAssertTrue(FileManager.default.fileExists(atPath: workspaceRoot))
-        // Suspend, never destroy: the provider session survives so the next turn resumes history.
+        // Suspend, never destroy: the harness session survives so the next turn resumes history.
         let suspended = await fixture.agentsManager.recordedSuspendCalls
         XCTAssertEqual(suspended, [conversationID])
         let destroyed = await fixture.agentsManager.recordedDestroyCalls
@@ -108,12 +108,12 @@ extension SidebarViewModelTests {
         let projectPath = try fixture.makeTemporaryDirectory(named: "grant-rejects")
         let project = try fixture.insertProject(name: "Target", path: projectPath)
         let projectThread = AgentThread(name: "Project thread", project: project)
-        projectThread.conversations = [Conversation(id: "grant-project-thread", provider: "claude", thread: projectThread)]
+        projectThread.conversations = [Conversation(id: "grant-project-thread", harness: "claude", thread: projectThread)]
         let archived = try await fixture.materializedTask(named: "Archived")
         archived.archivedAt = Date()
         let multiConversation = try await fixture.materializedTask(named: "Two tabs")
         multiConversation.conversations.append(
-            Conversation(id: "grant-second-tab", provider: "claude", thread: multiConversation)
+            Conversation(id: "grant-second-tab", harness: "claude", thread: multiConversation)
         )
         let draft = try await fixture.viewModel.openTaskDraft()
         fixture.context.insert(projectThread)
@@ -176,7 +176,7 @@ extension SidebarViewModelTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             createdAt: Date(timeIntervalSince1970: 100),
             targetThread: task
         ))
@@ -202,7 +202,7 @@ extension SidebarViewModelTests {
         let originalWorkspace = task.workspaceSnapshot
         let schedule = ScheduledTask(
             title: "Rolling schedule", prompt: "Continue here", destination: .reusedThread,
-            recurrence: .daily(hour: 9, minute: 0), timeZoneIdentifier: "UTC", providerID: "codex",
+            recurrence: .daily(hour: 9, minute: 0), timeZoneIdentifier: "UTC", harnessID: "codex",
             workspaceSnapshot: originalWorkspace
         )
         schedule.reusedThread = task

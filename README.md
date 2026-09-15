@@ -4,6 +4,8 @@ _An alveary is a place where bees are kept, including a beehive or apiary enclos
 
 Alveary is a native macOS app for orchestrating AI coding agents. It's inspired by other apps like OpenAI's Codex.
 
+Claude Code and Codex are **harnesses**: they run models and manage agent sessions and tools. Anthropic and OpenAI are **model providers**. Alveary uses harness terminology when selecting or configuring a coding CLI.
+
 ![Alveary app screenshot](docs/hero.png)
 
 ## Download
@@ -32,7 +34,7 @@ The toolbar's folder picker chooses the repository for diffs, commits, pushes, p
 
 ## Development
 
-Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, BlockInputKit, FluidAudio, and SwiftTerm. AgentCLIKit owns provider processes and resumable sessions; Alveary owns provider-neutral scheduled-task persistence, execution, and recovery. Alveary's app-scoped conversation controllers share each conversation's subscription and persistence path across visible and background work. BlockInputKit provides the markdown editors. FluidAudio provides English speech recognition for on-device voice input on Apple silicon. Primer Octicons supplies the pull-request status glyphs. The embedded terminal runs local PTYs, and project actions are injected into the user's interactive zsh so their real prompt and startup environment apply. The app target intentionally remains unsandboxed while keeping hardened runtime enabled. Run setup once per clone:
+Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, BlockInputKit, FluidAudio, and SwiftTerm. AgentCLIKit owns harness processes and resumable sessions; Alveary owns harness-neutral scheduled-task persistence, execution, and recovery. Alveary's app-scoped conversation controllers share each conversation's subscription and persistence path across visible and background work. BlockInputKit provides the markdown editors. FluidAudio provides English speech recognition for on-device voice input on Apple silicon. Primer Octicons supplies the pull-request status glyphs. The embedded terminal runs local PTYs, and project actions are injected into the user's interactive zsh so their real prompt and startup environment apply. The app target intentionally remains unsandboxed while keeping hardened runtime enabled. Run setup once per clone:
 
 ```sh
 ./scripts/setup.sh
@@ -46,7 +48,7 @@ Validation and release builds run on GitHub's `xcode-27` runner with Xcode 27.0 
 
 Project upgrades migrate a copy of the database before installing it. The original database and SQLite companions remain available beside the store. A failed upgrade shows recovery details with Retry and Quit; it never substitutes an empty database.
 
-Provider-session cleanup borrows the runtime's AgentCLIKit adapters so Codex archive and delete requests reach the server holding each thread's writer lock. Approval continuations explicitly resume runtime activity so the transcript and task indicators stay synchronized.
+Harness-session cleanup borrows the runtime's AgentCLIKit adapters so Codex archive and delete requests reach the server holding each thread's writer lock. Approval continuations explicitly resume runtime activity so the transcript and task indicators stay synchronized.
 
 Generate the Xcode project after project-structure changes:
 

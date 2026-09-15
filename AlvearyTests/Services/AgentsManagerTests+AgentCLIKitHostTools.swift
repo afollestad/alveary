@@ -72,7 +72,7 @@ extension AgentsManagerTests {
         )
         let conversationId = "agentclikit-resume-without-host-tools"
         let config = Alveary.AgentSpawnConfig(
-            providerId: "claude",
+            harnessId: "claude",
             workingDirectory: "/tmp",
             permissionMode: nil,
             model: nil,
@@ -172,7 +172,7 @@ extension AgentsManagerTests {
         }
     }
 
-    func testFallbackDecisionRejectsUnrelatedCodexAndProviderFailures() {
+    func testFallbackDecisionRejectsUnrelatedCodexAndHarnessFailures() {
         let codexConfig = hostToolTestConfig(
             hostToolServer: AgentHostToolServerMetadata(name: "alveary_host"),
             hostTools: [hostToolTestDefinition]
@@ -201,7 +201,7 @@ extension AgentsManagerTests {
         }
 
         let claudeConfig = hostToolTestConfig(
-            providerId: "claude",
+            harnessId: "claude",
             hostToolServer: AgentHostToolServerMetadata(name: "alveary_host"),
             hostTools: [hostToolTestDefinition]
         )
@@ -232,14 +232,14 @@ extension AgentsManagerTests {
     }
 
     private func hostToolTestConfig(
-        providerId: String = "codex",
+        harnessId: String = "codex",
         additionalWorkspaceRoots: [String] = ["/tmp/grant"],
         allowedDirectories: [String] = ["/tmp/allowed"],
         hostToolServer: AgentHostToolServerMetadata = AgentHostToolServerMetadata(),
         hostTools: [AgentHostToolDefinition] = []
     ) -> Alveary.AgentSpawnConfig {
         Alveary.AgentSpawnConfig(
-            providerId: providerId,
+            harnessId: harnessId,
             workingDirectory: "/tmp/project",
             permissionMode: "on-request",
             planModeEnabled: true,
@@ -315,9 +315,9 @@ private func hostToolUnavailableEnvelope(
     AgentCLIKit.AgentEventEnvelope(
         generation: generation,
         index: index,
-        providerId: .claude,
+        harnessId: .claude,
         conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
-        providerSessionId: nil,
+        harnessSessionId: nil,
         source: .runtime,
         event: .diagnostic(AgentCLIKit.AgentDiagnosticEvent(
             code: .hostToolServerUnavailable,
@@ -337,9 +337,9 @@ private func messageEnvelope(
     AgentCLIKit.AgentEventEnvelope(
         generation: generation,
         index: index,
-        providerId: .claude,
+        harnessId: .claude,
         conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
-        providerSessionId: nil,
+        harnessSessionId: nil,
         source: .runtime,
         event: .message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: text)),
         createdAt: Date(timeIntervalSince1970: Double(index))

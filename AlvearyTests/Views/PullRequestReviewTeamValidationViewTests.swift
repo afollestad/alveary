@@ -77,7 +77,7 @@ final class PullRequestReviewTeamValidationViewTests: XCTestCase {
             settingsService: settings,
             reviewTeamSettingsValidator: { _ in await gates.validate() },
             reviewTeamValidationSleeper: { await gates.waitForDeadline() },
-            refreshReviewTeamProviderDiscovery: { gates.refreshDiscovery() }
+            refreshReviewTeamHarnessDiscovery: { gates.refreshDiscovery() }
         )
         viewModel.requestDetails(summary)
         let target = PullRequestPaneTarget.details(summary.id)

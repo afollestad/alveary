@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 extension AppKitChatSurfaceViewTests {
-    func testGoalElapsedClockTicksActiveGoalFromProviderElapsed() {
+    func testGoalElapsedClockTicksActiveGoalFromHarnessElapsed() {
         var now = 100.0
         let clock = GoalElapsedDisplayClock(now: { now })
         let snapshot = goalSnapshot(elapsedSeconds: 15)
@@ -118,7 +118,7 @@ extension AppKitChatSurfaceViewTests {
         XCTAssertFalse(goalMetadataStrings(in: view).contains(goalMetadata(elapsed: "0s", tokenCount: 2)))
     }
 
-    func testTopContentGoalMetadataKeepsTokenCountProviderDriven() {
+    func testTopContentGoalMetadataKeepsTokenCountHarnessDriven() {
         var now = 0.0
         let view = AppKitChatComposerTopContentView(goalElapsedTimeProvider: { now })
         view.configure(.init(items: [

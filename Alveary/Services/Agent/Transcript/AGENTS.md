@@ -8,15 +8,15 @@ These instructions cover `Alveary/Services/Agent/Transcript/` — `ChatItemGroup
 
 - **Do not auto-close a group when its last in-flight tool completes.** Claude serializes sequential groupable tools as `call → result → call → result …` even for calls that were parallel from the model's perspective, so a completion-triggered seal fractures one burst into many single-entry groups. Groups close only on the explicit close paths.
 - **Only a path that appends its own transcript item may call `flushGroup()`.** `append(event:)` ends every cycle in `reemitPendingGroup()` instead; flushing there gives each streamed tool call its own group until the turn-end rebuild coalesces them.
-- **Match tool results by `toolId`, not event order alone.** Provider events can persist a `tool_result` timestamped before its `tool_call`; cache unmatched results and consume them when the owning call arrives, or a no-output command stays loading forever.
+- **Match tool results by `toolId`, not event order alone.** Harness events can persist a `tool_result` timestamped before its `tool_call`; cache unmatched results and consume them when the owning call arrives, or a no-output command stays loading forever.
 - **Never render `thinking` events.** Persisted thinking rows stay hidden and live thoughts render only as transient AppKit rows. Do not reintroduce a durable transcript row for thinking without an explicit product ask.
-- **A tool that needs its own block type is routed in `handleToolCall`, ahead of the classifier** — `AskUserQuestion`, `TodoWrite`, `Agent`, the plan-mode tools, catalog-matched host tools, and the provider task tools all reach their block that way. Only `handleGenericToolCall` consults `groupability(forToolNamed:)`, so never grow a classifier case to carve out a block type.
+- **A tool that needs its own block type is routed in `handleToolCall`, ahead of the classifier** — `AskUserQuestion`, `TodoWrite`, `Agent`, the plan-mode tools, catalog-matched host tools, and the harness task tools all reach their block that way. Only `handleGenericToolCall` consults `groupability(forToolNamed:)`, so never grow a classifier case to carve out a block type.
 
 ### Task Lists
 
 - **One `.taskListBlock` per logical list, keyed by `ConversationEventRecord.toolId`.** A `TodoWrite` with the same tool ID updates that block. Claude also re-emits progress under fresh tool IDs, so a new ID whose content overlaps the latest incomplete block updates it and keeps that block's existing ID; only a genuinely unrelated list appends, and prior blocks stay.
 - **Pin only the latest incomplete list.** Route every other row through `appendTranscriptItem(_:)` so it inserts above that block. Once the latest list is complete, later rows append below it in normal transcript order.
-- **Use `AgentTaskListReducer` for the provider task tools.** `TaskCreate`, `TaskUpdate`, `TaskList`, and `TaskGet` must not have their Claude wire shape parsed here; their snapshots arrive as persisted `task_list` records and reuse the same block helpers, including when rebuilding from saved rows.
+- **Use `AgentTaskListReducer` for the harness task tools.** `TaskCreate`, `TaskUpdate`, `TaskList`, and `TaskGet` must not have their Claude wire shape parsed here; their snapshots arrive as persisted `task_list` records and reuse the same block helpers, including when rebuilding from saved rows.
     - Suppress task-only `ToolSearch(select:TaskCreate,TaskUpdate,TaskList,TaskGet)` rows, but keep mixed or unrelated `ToolSearch` rows visible.
 
 ### Prompts
@@ -24,7 +24,7 @@ These instructions cover `Alveary/Services/Agent/Transcript/` — `ChatItemGroup
 - **Default to an `Other` escape hatch.** Parsed `AskUserQuestion` questions synthesize a custom-response option unless the tool input explicitly disables it, so the transcript can capture freeform answers even when Claude offered only fixed labels.
 - **Keep one live prompt block per question.** A replacement `AskUserQuestion` replaces the older unanswered prompt and drops the intervening retry chatter; an identical replay *after* the prompt was answered, with no later user message, keeps the original answered block instead of appending a copy under a fresh tool ID.
 - **Do not render a second approval card for a prompt.** The deferred `tool_approval` row is persisted for restore and resume bookkeeping only.
-- **Clear stale prompts after continuation.** When the provider advances from an unanswered prompt to a non-question approval, mark that prompt handled so it cannot block later approval controls on restore.
+- **Clear stale prompts after continuation.** When the harness advances from an unanswered prompt to a non-question approval, mark that prompt handled so it cannot block later approval controls on restore.
 
 ### Sub-Agents
 
@@ -44,5 +44,5 @@ These instructions cover `Alveary/Services/Agent/Transcript/` — `ChatItemGroup
 
 ### Transcript Notes
 
-- **Use typed transcript notes for subtle lifecycle rows.** `Interrupted`, session handoff, provider context compaction, steering markers, plan-mode transitions, and a relayed prompt's sender all flow through `ChatItem.transcriptNote` so grouping, restore, alignment, and future note-style events share one representation.
+- **Use typed transcript notes for subtle lifecycle rows.** `Interrupted`, session handoff, harness context compaction, steering markers, plan-mode transitions, and a relayed prompt's sender all flow through `ChatItem.transcriptNote` so grouping, restore, alignment, and future note-style events share one representation.
 - **Replace compaction starts with terminal notes.** A later completed or failed record with the same compaction ID replaces the `context_compaction_started` row instead of appending beneath it.

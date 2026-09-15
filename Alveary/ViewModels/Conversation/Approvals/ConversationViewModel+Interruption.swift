@@ -15,17 +15,17 @@ struct PromptAnswerContinuationSnapshot {
 /// Dismissing an `AskUserQuestion` prompt, and the event filtering that makes it look like an
 /// interruption rather than an answer.
 ///
-/// A dismissal resolves the provider's prompt as denied/cancelled and marks it handled without a
+/// A dismissal resolves the harness's prompt as denied/cancelled and marks it handled without a
 /// submitted-response card, ends the active turn, and allows the `Interrupted` note. The filtering
 /// below suppresses only the fallout *of the dismissal in flight* — every suppression flag is
 /// transient and bounded by a terminal event or a replacement turn. None of it is persisted: durable
 /// prompt-dismiss state would go on to swallow legitimate later sends.
 extension ConversationViewModel {
-    /// Arms suppression for the window between asking the provider to deny and it acknowledging.
+    /// Arms suppression for the window between asking the harness to deny and it acknowledging.
     ///
     /// Claude and Codex can emit fallback text or a follow-up prompt before the host-side denial call
     /// returns. Suppress that direct in-flight fallout here; successful dismissals also arm a
-    /// terminal-bounded filter for delayed provider events.
+    /// terminal-bounded filter for delayed harness events.
     func beginPromptDismissResolution(promptId: String) {
         if promptDismissalsResolving.isEmpty {
             promptDismissalSuppressedApprovals.removeAll()

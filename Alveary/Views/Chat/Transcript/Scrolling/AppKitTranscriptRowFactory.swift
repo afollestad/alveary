@@ -41,7 +41,7 @@ final class AppKitTranscriptRowFactory {
         // Host-tool widgets confirm scheduling proposals inline, so the row needs live
         // proposal state plus its editor draft from the queue coordinator.
         var scheduledProposalPresentation: (String) -> ScheduledTaskProposalPresentation? = { _ in nil }
-        /// The conversation's own live proposal, for providers whose tool result carries
+        /// The conversation's own live proposal, for harnesses whose tool result carries
         /// no proposal id (Codex emits the plain-text fallback, not structured content).
         var conversationScheduledProposal: () -> ScheduledTaskProposalPresentation? = { nil }
         var isScheduledProposalInteractive: (String) -> Bool = { _ in false }
@@ -54,7 +54,7 @@ final class AppKitTranscriptRowFactory {
         // A review proposal confirms inline too, so its card needs the coordinator's live state:
         // the loaded diff preview, the picked verdict, and whether a submission is in flight.
         var reviewProposalState: (String) -> ReviewProposalWidgetState? = { _ in nil }
-        /// The conversation's own live review proposal, for providers whose tool result carries
+        /// The conversation's own live review proposal, for harnesses whose tool result carries
         /// no proposal id.
         var conversationReviewProposal: () -> ReviewProposalWidgetState? = { nil }
         var onConfirmReviewProposal: (String, PullRequestReviewEvent) -> Void = { _, _ in }

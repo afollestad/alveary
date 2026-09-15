@@ -9,14 +9,14 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
 
         await fixture.viewModel.applyEffortChange("high").value
 
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(reconfigureCalls.count, 1)
-        XCTAssertEqual(reconfigureCalls.first?.config.providerId, "codex")
+        XCTAssertEqual(reconfigureCalls.first?.config.harnessId, "codex")
         XCTAssertEqual(reconfigureCalls.first?.config.effort, "high")
         XCTAssertEqual(reconfigureCalls.first?.config.reasoningSummaryMode, .concise)
     }
@@ -25,7 +25,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.state.turnState.beginTurn()
 
@@ -40,7 +40,7 @@ extension ConversationViewModelTests {
 
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(reconfigureCalls.count, 1)
-        XCTAssertEqual(reconfigureCalls.first?.config.providerId, "codex")
+        XCTAssertEqual(reconfigureCalls.first?.config.harnessId, "codex")
         XCTAssertEqual(reconfigureCalls.first?.config.effort, "high")
         XCTAssertEqual(reconfigureCalls.first?.config.reasoningSummaryMode, .concise)
         XCTAssertNil(fixture.viewModel.state.pendingSessionSettingsChange)
@@ -50,7 +50,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         try fixture.dbThread().permissionMode = "on-request"
         try fixture.context.save()
@@ -69,7 +69,7 @@ extension ConversationViewModelTests {
 
         let approvalCalls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(approvalCalls.count, 1)
-        XCTAssertEqual(approvalCalls.first?.config.providerId, "codex")
+        XCTAssertEqual(approvalCalls.first?.config.harnessId, "codex")
         XCTAssertEqual(approvalCalls.first?.config.effort, "medium")
         XCTAssertEqual(try fixture.dbThread().effort, "high")
         XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.effort, "high")
@@ -79,7 +79,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.state.turnState.beginTurn()
 
@@ -89,7 +89,7 @@ extension ConversationViewModelTests {
 
         let freshSessionCalls = await fixture.agentsManager.freshSessionCalls()
         XCTAssertEqual(freshSessionCalls.count, 1)
-        XCTAssertEqual(freshSessionCalls.first?.config.providerId, "codex")
+        XCTAssertEqual(freshSessionCalls.first?.config.harnessId, "codex")
         XCTAssertEqual(freshSessionCalls.first?.config.effort, "high")
         XCTAssertNil(fixture.viewModel.state.pendingSessionSettingsChange)
     }

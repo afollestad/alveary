@@ -5,15 +5,15 @@ import XCTest
 
 @MainActor
 extension ChatComposerGoalModeTests {
-    func testGoalResumeCommandRoutesProviderResumeForPausedGoal() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+    func testGoalResumeCommandRoutesHarnessResumeForPausedGoal() async throws {
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .paused, availableActions: [.resume, .delete])
         fixture.viewModel.replaceInputDraft("/goal resume", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -25,7 +25,7 @@ extension ChatComposerGoalModeTests {
     }
 
     func testGoalResumeCommandRestartsBlockedGoal() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .blocked)
         fixture.viewModel.replaceInputDraft("/goal resume", source: .blockInputMarkdown)
@@ -33,7 +33,7 @@ extension ChatComposerGoalModeTests {
             fixture: fixture,
             appState: appState,
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -46,14 +46,14 @@ extension ChatComposerGoalModeTests {
     }
 
     func testGoalRestartCommandReportsNoBlockedGoalForActiveGoal() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartActiveGoal()
         fixture.viewModel.replaceInputDraft("/goal restart", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -63,14 +63,14 @@ extension ChatComposerGoalModeTests {
     }
 
     func testGoalRestartCommandReportsNoBlockedGoalForPausedGoal() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .paused, availableActions: [.resume])
         fixture.viewModel.replaceInputDraft("/goal restart", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -80,14 +80,14 @@ extension ChatComposerGoalModeTests {
     }
 
     func testGoalRestartCommandReportsNoBlockedGoalForAchievedGoal() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .achieved)
         fixture.viewModel.replaceInputDraft("/goal restart", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -97,13 +97,13 @@ extension ChatComposerGoalModeTests {
     }
 
     func testGoalRestartCommandReportsNoBlockedGoalWithoutVisibleGoal() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.replaceInputDraft("/goal restart", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -112,15 +112,15 @@ extension ChatComposerGoalModeTests {
         XCTAssertFalse(fixture.viewModel.state.isGoalModeArmed)
     }
 
-    func testGoalResumeCommandOnAchievedGoalUsesProviderActionHandling() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+    func testGoalResumeCommandOnAchievedGoalUsesHarnessActionHandling() async throws {
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .achieved)
         fixture.viewModel.replaceInputDraft("/goal resume", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -131,14 +131,14 @@ extension ChatComposerGoalModeTests {
         XCTAssertFalse(fixture.viewModel.state.isGoalModeArmed)
     }
 
-    func testGoalResumeCommandWithoutActiveGoalUsesProviderActionHandling() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+    func testGoalResumeCommandWithoutActiveGoalUsesHarnessActionHandling() async throws {
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.replaceInputDraft("/goal resume", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -150,7 +150,7 @@ extension ChatComposerGoalModeTests {
     }
 
     func testGoalRestartCommandDoesNotUseDismissedTerminalGoal() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let blocked = restartGoal(status: .blocked)
         fixture.viewModel.state.goalSnapshot = blocked
         fixture.viewModel.state.dismissedTerminalGoalKeys.insert(blocked.stableGoalKey)
@@ -159,7 +159,7 @@ extension ChatComposerGoalModeTests {
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -169,14 +169,14 @@ extension ChatComposerGoalModeTests {
     }
 
     func testGoalRestartCommandUnavailableWhileProjectTrustBlocked() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .blocked)
         fixture.viewModel.replaceInputDraft("/goal restart", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex",
+            harnessID: "codex",
             isProjectTrustBlocked: true
         )
 
@@ -191,7 +191,7 @@ extension ChatComposerGoalModeTests {
     }
 
     func testGoalRestartCommandWhileAlreadyArmedPreservesDraft() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .blocked)
         fixture.viewModel.state.isGoalModeArmed = true
@@ -200,7 +200,7 @@ extension ChatComposerGoalModeTests {
             fixture: fixture,
             appState: appState,
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -211,14 +211,14 @@ extension ChatComposerGoalModeTests {
     }
 
     func testGoalRestartCommandRestartsUsageLimitedGoal() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .usageLimited)
         fixture.viewModel.replaceInputDraft("/goal restart", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -229,13 +229,13 @@ extension ChatComposerGoalModeTests {
     }
 
     func testGoalRestartCommandWithExtraTextStartsGoalObjective() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.replaceInputDraft("/goal restart flaky tests", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -248,7 +248,7 @@ extension ChatComposerGoalModeTests {
     }
 
     func testBlockedGoalRowRestartArmsGoalModeAndPrefillsEmptyDraft() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         try fixture.dbThread().planModeEnabled = true
         try fixture.context.save()
@@ -259,7 +259,7 @@ extension ChatComposerGoalModeTests {
             appState: appState,
             supportsGoalMode: true,
             supportsPlanMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         let goalConfiguration = try restartGoalStatusConfiguration(from: chatView)
@@ -280,14 +280,14 @@ extension ChatComposerGoalModeTests {
     }
 
     func testBlockedGoalRowRestartPreservesNonEmptyDraft() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .blocked)
         fixture.viewModel.replaceInputDraft("Use this instead", source: .blockInputMarkdown)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         let goalConfiguration = try restartGoalStatusConfiguration(from: chatView)
@@ -300,7 +300,7 @@ extension ChatComposerGoalModeTests {
     }
 
     func testBlockedGoalRowRestartHiddenWhenGoalModeArmed() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .blocked)
         fixture.viewModel.state.isGoalModeArmed = true
         fixture.viewModel.replaceInputDraft("Current restart draft", source: .blockInputMarkdown)
@@ -308,7 +308,7 @@ extension ChatComposerGoalModeTests {
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         let goalConfiguration = try restartGoalStatusConfiguration(from: chatView)
@@ -322,13 +322,13 @@ extension ChatComposerGoalModeTests {
     }
 
     func testBlockedGoalRowRestartUnavailableWhileProjectTrustBlocked() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .blocked)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex",
+            harnessID: "codex",
             isProjectTrustBlocked: true
         )
 
@@ -344,13 +344,13 @@ extension ChatComposerGoalModeTests {
     }
 
     func testUsageLimitedGoalRowExposesRestart() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .usageLimited)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         let goalConfiguration = try restartGoalStatusConfiguration(from: chatView)
@@ -360,13 +360,13 @@ extension ChatComposerGoalModeTests {
     }
 
     func testAchievedGoalRowDoesNotExposeRestart() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .achieved)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         let goalConfiguration = try restartGoalStatusConfiguration(from: chatView)
@@ -377,13 +377,13 @@ extension ChatComposerGoalModeTests {
     }
 
     func testTerminalGoalRestartDoesNotCallGoalStartUntilSubmit() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = restartGoal(status: .blocked)
         let chatView = makeRestartChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         let goalConfiguration = try restartGoalStatusConfiguration(from: chatView)
@@ -428,7 +428,7 @@ extension ChatComposerGoalModeTests {
         supportsGoalMode: Bool = false,
         supportsExistingSessionGoalStart: Bool = false,
         supportsPlanMode: Bool = false,
-        providerID: String = "claude",
+        harnessID: String = "claude",
         isProjectTrustBlocked: Bool = false
     ) -> ChatView {
         ChatView(
@@ -452,7 +452,7 @@ extension ChatComposerGoalModeTests {
                 selectedModel: AppSettings.defaultModelValue
             ),
             defaultEnterBehavior: .queue,
-            providerID: providerID,
+            harnessID: harnessID,
             runtimeStatus: .neutral,
             contextWindowCache: fixture.contextWindowCache,
             workingDirectory: fixture.project.path,

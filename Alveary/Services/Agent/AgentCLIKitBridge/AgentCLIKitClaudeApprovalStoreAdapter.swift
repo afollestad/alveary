@@ -3,7 +3,7 @@ import Foundation
 
 /// Bridges `AgentCLIKit` approval policy storage to Alveary's durable approval store.
 ///
-/// Session-scoped reusable approvals are provider-scoped and persisted by Alveary so the
+/// Session-scoped reusable approvals are harness-scoped and persisted by Alveary so the
 /// UI can preserve approval selections across app launches. Claude transient one-shot
 /// and batch fallback decisions remain in `AgentCLIKit.ClaudeApprovalPolicyStore`
 /// because they belong to the hook runtime.
@@ -57,12 +57,12 @@ actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicySto
     }
 
     func removeSessionApprovals(
-        providerId: AgentCLIKit.AgentProviderID,
+        harnessId: AgentCLIKit.AgentHarnessID,
         conversationId: AgentCLIKit.AgentConversationID,
         sessionId: AgentCLIKit.AgentSessionID
     ) async {
         await approvalPersistenceStore.removeSessionApprovals(
-            providerId: providerId.rawValue,
+            harnessId: harnessId.rawValue,
             conversationId: conversationId.rawValue,
             sessionId: sessionId.rawValue
         )
@@ -113,7 +113,7 @@ actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicySto
             return nil
         }
         return AgentSessionApprovalGrant(
-            providerId: grant.providerId.rawValue,
+            harnessId: grant.harnessId.rawValue,
             conversationId: grant.conversationId.rawValue,
             sessionId: grant.sessionId.rawValue,
             matchKind: matchKind,

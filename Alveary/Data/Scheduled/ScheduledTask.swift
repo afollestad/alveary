@@ -90,6 +90,12 @@ final class ScheduledTask {
     var threadSection: SidebarSection?
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTaskRun.scheduledTask) var runs: [ScheduledTaskRun]
 
+    /// Keeps the existing SwiftData column while exposing harness terminology.
+    var harnessID: String {
+        get { providerID }
+        set { providerID = newValue }
+    }
+
     init(
         id: String = UUID().uuidString,
         title: String,
@@ -99,7 +105,7 @@ final class ScheduledTask {
         state: ScheduledTaskState = .active,
         recurrence: ScheduledTaskRecurrence,
         timeZoneIdentifier: String,
-        providerID: String,
+        harnessID: String,
         model: String? = nil,
         effort: String = AppSettings.defaultEffortLevel,
         permissionMode: String = "default",
@@ -126,7 +132,7 @@ final class ScheduledTask {
         self.stateRawValue = state.rawValue
         self.recurrenceKindRawValue = recurrence.kind.rawValue
         self.timeZoneIdentifier = timeZoneIdentifier
-        self.providerID = providerID
+        self.providerID = harnessID
         self.model = model
         self.effort = effort
         self.permissionMode = permissionMode

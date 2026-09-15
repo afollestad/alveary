@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ThreadsSettingsTabView: View {
     let viewModel: SettingsViewModel
-    @Binding var defaultProvider: String
+    @Binding var defaultHarness: String
     @Binding var defaultModel: String
     @Binding var permissionMode: String
     @Binding var effort: String
@@ -69,7 +69,7 @@ struct ThreadsSettingsTabView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task {
-            await viewModel.refreshProviderStatuses()
+            await viewModel.refreshHarnessStatuses()
         }
     }
 }
@@ -78,14 +78,14 @@ private extension ThreadsSettingsTabView {
     @ViewBuilder
     var defaultsSectionRows: some View {
         SettingsFormRow {
-            SettingsResponsiveControlRow("Agent", horizontalControlSizing: .intrinsic) {
+            SettingsResponsiveControlRow("Harness", horizontalControlSizing: .intrinsic) {
                 SettingsMenuPicker(
-                    "Agent",
-                    selection: threadDefaultProviderBinding,
-                    options: viewModel.threadDefaultProviderIDs,
-                    placeholder: providerPlaceholder,
+                    "Harness",
+                    selection: threadDefaultHarnessBinding,
+                    options: viewModel.threadDefaultHarnessIDs,
+                    placeholder: harnessPlaceholder,
                     isDisabled: threadDefaultControlsDisabled,
-                    label: { viewModel.providerDisplayName(for: $0) }
+                    label: { viewModel.harnessDisplayName(for: $0) }
                 )
             }
         }
@@ -98,7 +98,7 @@ private extension ThreadsSettingsTabView {
                     options: viewModel.threadDefaultModelOptionValues,
                     placeholder: dependentPlaceholder,
                     isDisabled: threadDefaultControlsDisabled,
-                    label: { viewModel.modelLabel(for: $0, providerId: viewModel.threadDefaultProviderSelection) }
+                    label: { viewModel.modelLabel(for: $0, harnessId: viewModel.threadDefaultHarnessSelection) }
                 )
             }
         }
@@ -111,7 +111,7 @@ private extension ThreadsSettingsTabView {
                         "Effort",
                         selection: $effort,
                         options: effortOptions.map(\.value),
-                        isDisabled: viewModel.isCheckingThreadDefaultProviders,
+                        isDisabled: viewModel.isCheckingThreadDefaultHarnesses,
                         label: { value in
                             effortOptions.first { $0.value == value }?.label
                                 ?? ChatComposerTextSupport.effortLabel(for: value)
@@ -129,8 +129,8 @@ private extension ThreadsSettingsTabView {
                         "Permission mode",
                         selection: $permissionMode,
                         options: permissionModeOptions,
-                        isDisabled: viewModel.isCheckingThreadDefaultProviders,
-                        label: { viewModel.permissionModeLabel(for: $0, providerId: viewModel.threadDefaultProviderSelection) }
+                        isDisabled: viewModel.isCheckingThreadDefaultHarnesses,
+                        label: { viewModel.permissionModeLabel(for: $0, harnessId: viewModel.threadDefaultHarnessSelection) }
                     )
                 }
             }
@@ -169,25 +169,25 @@ private extension ThreadsSettingsTabView {
         }
     }
 
-    var providerPlaceholder: String? {
-        if viewModel.isCheckingThreadDefaultProviders {
-            return "Checking agents..."
+    var harnessPlaceholder: String? {
+        if viewModel.isCheckingThreadDefaultHarnesses {
+            return "Checking harnesses..."
         }
-        return viewModel.hasReadyThreadDefaultProvider ? nil : "No ready agents"
+        return viewModel.hasReadyThreadDefaultHarness ? nil : "No ready harnesses"
     }
 
     var dependentPlaceholder: String? {
-        threadDefaultControlsDisabled ? providerPlaceholder : nil
+        threadDefaultControlsDisabled ? harnessPlaceholder : nil
     }
 
     var threadDefaultControlsDisabled: Bool {
-        viewModel.isCheckingThreadDefaultProviders || !viewModel.hasReadyThreadDefaultProvider
+        viewModel.isCheckingThreadDefaultHarnesses || !viewModel.hasReadyThreadDefaultHarness
     }
 
-    var threadDefaultProviderBinding: Binding<String> {
+    var threadDefaultHarnessBinding: Binding<String> {
         Binding(
-            get: { viewModel.threadDefaultProviderSelection },
-            set: { defaultProvider = $0 }
+            get: { viewModel.threadDefaultHarnessSelection },
+            set: { defaultHarness = $0 }
         )
     }
 

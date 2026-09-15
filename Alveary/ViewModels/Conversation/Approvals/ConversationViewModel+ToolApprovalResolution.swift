@@ -5,7 +5,7 @@ extension ConversationViewModel {
     /// The single funnel every approve and deny passes through.
     ///
     /// An unanswered `AskUserQuestion` prompt outranks any approval: while one is open this refuses
-    /// both decisions, because the provider is waiting on the prompt and a decision taken now would
+    /// both decisions, because the harness is waiting on the prompt and a decision taken now would
     /// resolve against the wrong interaction. Prompt *submission* is deliberately not gated the same
     /// way — see `answerDeferredAskUserQuestion`, which sends its structured answer even with a
     /// hook-owned approval row present.
@@ -19,7 +19,7 @@ extension ConversationViewModel {
         decision: ClaudeToolApprovalDecision,
         sessionApprovalScope: ToolApprovalSessionScope? = nil,
         responseText: String? = nil,
-        providerRestartConfig: AgentSpawnConfig? = nil
+        harnessRestartConfig: AgentSpawnConfig? = nil
     ) async throws {
         try ensureToolApprovalRestorationFinished()
         guard !hasUnansweredPrompt else {
@@ -50,7 +50,7 @@ extension ConversationViewModel {
                 sessionApprovalScope: sessionApprovalScope,
                 updatedToolInput: nil,
                 responseText: responseText,
-                providerRestartConfig: providerRestartConfig
+                harnessRestartConfig: harnessRestartConfig
             )
         } catch {
             state.pendingToolApproval = PendingToolApproval(request: pendingApproval.request, status: .pending)
@@ -73,9 +73,9 @@ extension ConversationViewModel {
         return PendingToolApproval(request: approval, status: .pending)
     }
 
-    /// Releases the provider's held hook with the decision, restarting the process when asked to.
+    /// Releases the harness's held hook with the decision, restarting the process when asked to.
     ///
-    /// `providerRestartConfig` is non-nil only when an approved `ExitPlanMode` is consuming a staged
+    /// `harnessRestartConfig` is non-nil only when an approved `ExitPlanMode` is consuming a staged
     /// model or effort change: `--model` and `--effort` are Claude launch flags, so they cannot be
     /// applied in place. A restart replaces the process, which means the held hook is *released*
     /// rather than answered — so the approval is forced down the not-live path no matter what the
@@ -87,19 +87,19 @@ extension ConversationViewModel {
         sessionApprovalScope: ToolApprovalSessionScope?,
         updatedToolInput: String?,
         responseText: String? = nil,
-        providerRestartConfig: AgentSpawnConfig? = nil
+        harnessRestartConfig: AgentSpawnConfig? = nil
     ) async throws {
         let resolvesLiveHook: Bool
-        if providerRestartConfig == nil {
+        if harnessRestartConfig == nil {
             resolvesLiveHook = await isResolvingLiveHookApproval(pendingApproval)
         } else {
             resolvesLiveHook = false
         }
-        let config = try providerRestartConfig ?? makeSpawnConfig(settingsSource: .currentContinuation)
+        let config = try harnessRestartConfig ?? makeSpawnConfig(settingsSource: .currentContinuation)
         let sessionApproval = sessionApprovalScope.flatMap {
             pendingApproval.request.sessionApprovalGrant(
                 conversationId: conversation.id,
-                providerId: config.providerId,
+                harnessId: config.harnessId,
                 scope: $0
             )
         }
@@ -116,7 +116,7 @@ extension ConversationViewModel {
             ),
             sessionApproval: sessionApproval,
             config: config,
-            requiresProviderRestart: providerRestartConfig != nil
+            requiresHarnessRestart: harnessRestartConfig != nil
         )
         finishApprovalResolution(
             pendingApproval,
@@ -188,8 +188,8 @@ extension ConversationViewModel {
         state.activeRuntimeActivityTurnId = nil
     }
 
-    func toolApprovalProviderId() -> String {
-        conversation.provider ?? settingsService.current.defaultProvider
+    func toolApprovalHarnessId() -> String {
+        conversation.harness ?? settingsService.current.defaultHarness
     }
 
     func shouldResolveInactiveLiveToolApproval(_ pendingApproval: PendingToolApproval) -> Bool {

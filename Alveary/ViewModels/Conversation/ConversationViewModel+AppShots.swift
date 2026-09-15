@@ -1,15 +1,15 @@
 import Foundation
 
 extension ConversationViewModel {
-    func ensureAppShotProviderPrerequisites(appShots: [AppShotAttachment]) async throws {
+    func ensureAppShotHarnessPrerequisites(appShots: [AppShotAttachment]) async throws {
         guard !appShots.isEmpty else {
             return
         }
-        let providerID = conversation.provider ?? settingsService.current.defaultProvider
-        guard AppShotProviderStrategy(providerID: providerID) != nil else {
-            throw AppShotCaptureError.unsupportedProvider(providerID)
+        let harnessID = conversation.harness ?? settingsService.current.defaultHarness
+        guard AppShotHarnessStrategy(harnessID: harnessID) != nil else {
+            throw AppShotCaptureError.unsupportedHarness(harnessID)
         }
-        guard providerID == "claude" else {
+        guard harnessID == "claude" else {
             return
         }
         guard !needsSetup else {
@@ -19,8 +19,8 @@ extension ConversationViewModel {
     }
 
     func claudeAppShotDirectoriesIfNeeded(appShots: [AppShotAttachment]) -> [String] {
-        let providerID = conversation.provider ?? settingsService.current.defaultProvider
-        guard providerID == "claude" else {
+        let harnessID = conversation.harness ?? settingsService.current.defaultHarness
+        guard harnessID == "claude" else {
             return []
         }
         return appShotAttachmentStoreRoots(appShots: appShots)
@@ -35,9 +35,9 @@ extension ConversationViewModel {
         return required.isSubset(of: granted)
     }
 
-    func appShotDebugPreview(providerID: String, userInput: String) throws -> String {
-        guard let strategy = AppShotProviderStrategy(providerID: providerID) else {
-            throw AppShotCaptureError.unsupportedProvider(providerID)
+    func appShotDebugPreview(harnessID: String, userInput: String) throws -> String {
+        guard let strategy = AppShotHarnessStrategy(harnessID: harnessID) else {
+            throw AppShotCaptureError.unsupportedHarness(harnessID)
         }
         return AppShotTransportFormatter.debugPreview(
             userInput: userInput,

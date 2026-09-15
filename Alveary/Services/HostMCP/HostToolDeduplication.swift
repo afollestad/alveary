@@ -4,11 +4,11 @@ import Foundation
 
 /// Exact-retry identity for mutating host tools.
 ///
-/// A provider may replay a tool call it never saw the result of. Every mutating feature keys its
+/// A harness may replay a tool call it never saw the result of. Every mutating feature keys its
 /// receipt ledger on the same hash so a replay reads back the recorded result instead of acting
 /// twice; sharing the derivation keeps two features from disagreeing on what "the same call" is.
 enum HostToolDeduplication {
-    /// Scoped by conversation *and* process token, so a receipt cannot survive a provider restart
+    /// Scoped by conversation *and* process token, so a receipt cannot survive a harness restart
     /// and silently swallow a genuinely new call that reuses a request ID.
     static func key(
         sourceConversationID: String,

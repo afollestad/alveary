@@ -33,7 +33,7 @@ AppKit-native transcript row primitives live here, because SwiftUI lazy-list rec
 - **Keep streaming monotonic.** Live bubble text only advances within a mounted stream: ignore stale shorter partials, and place the cursor at the final line's insertion advance rather than the full line width or the last glyph's ink bounds.
 - **Mirror task lists.** AppKit task rows share SwiftUI ordering/accessibility labels and keep 16pt status slots stable across progress changes.
 - **Mirror notes and errors.** AppKit transcript notes are text-only and follow `TranscriptNoteAlignment`; error rows mirror inline-banner width caps and red chrome.
-- **Keep transient rows lightweight** — inherit transcript typography, report streaming height changes directly, and reveal appended text over frames instead of swapping whole provider chunks.
+- **Keep transient rows lightweight** — inherit transcript typography, report streaming height changes directly, and reveal appended text over frames instead of swapping whole harness chunks.
 - **Align transient indicators.** Standalone working/thinking indicators align their dots with row-leading content, not text-bubble interior padding.
 
 ### Text Bubbles And Hydration

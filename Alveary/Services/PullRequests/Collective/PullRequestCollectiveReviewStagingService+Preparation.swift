@@ -256,7 +256,7 @@ extension PullRequestCollectiveReviewStagingService {
             comments: review.comments.isEmpty ? nil : review.comments,
             titleSnapshot: detail.title,
             pendingCommentCountSnapshot: detail.pendingCommentCount,
-            sourceProviderID: nil,
+            sourceHarnessID: nil,
             sourceProcessToken: nil,
             sourceRequestID: nil,
             sourceKind: .collectiveReview,
@@ -273,7 +273,7 @@ extension PullRequestCollectiveReviewStagingService {
         team.map {
             PullRequestReviewProposalRecord.Reviewer(
                 id: $0.id,
-                providerID: $0.providerID,
+                harnessID: $0.harnessID,
                 modelOptionID: $0.modelOptionID
             )
         }

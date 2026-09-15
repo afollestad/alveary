@@ -15,7 +15,7 @@ extension ConversationViewModelTests {
             try await fixture.viewModel.dismissPrompt(promptId: "prompt-1")
         }
         defer { dismissTask.cancel() }
-        try await waitUntil("expected dismiss to pause during provider resolution") {
+        try await waitUntil("expected dismiss to pause during harness resolution") {
             await fixture.agentsManager.isApprovalResolutionPaused()
         }
 

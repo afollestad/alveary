@@ -359,7 +359,7 @@ final class AppRuntimeProfileTests: XCTestCase {
         _ = component.contextWindowCache
         _ = component.notificationManager
         _ = component.appUpdateManager
-        _ = component.providerSetupService
+        _ = component.harnessSetupService
         _ = component.agentCLIKitHostServices
         _ = component.claudeApprovalPersistenceStore
         _ = component.agentsManager
@@ -386,13 +386,13 @@ final class AppRuntimeProfileTests: XCTestCase {
         _ = await component.sessionManager.createEntry(
             conversationId: "storage-profile-test",
             cwd: "/tmp",
-            providerId: "codex"
+            harnessId: "codex"
         )
         let sessionFileURL = profile.appSupportDirectory.appendingPathComponent("session-map.json")
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionFileURL.path))
 
         await component.contextWindowCache.update(
-            providerId: "codex",
+            harnessId: "codex",
             selectedModel: "storage-profile-test",
             reportedModelId: nil,
             contextWindowSize: 1
@@ -405,7 +405,7 @@ final class AppRuntimeProfileTests: XCTestCase {
         use profile: AppStorageProfile
     ) async throws {
         try await component.agentCLIKitContextWindowCache.update(
-            providerId: .codex,
+            harnessId: .codex,
             selectedModel: "storage-profile-test",
             contextWindowSize: 1
         )
@@ -413,7 +413,7 @@ final class AppRuntimeProfileTests: XCTestCase {
 
         try await component.agentCLIKitSessionStore.remove(
             conversationId: "storage-profile-test",
-            providerId: .codex
+            harnessId: .codex
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: profile.agentCLIKitSessionStoreFileURL.path))
 

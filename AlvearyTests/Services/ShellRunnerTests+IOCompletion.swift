@@ -72,7 +72,7 @@ extension ShellRunnerTests {
             XCTAssertEqual(failure.stdoutFailure, .drainTimedOut)
             XCTAssertNil(failure.stderrFailure)
             XCTAssertEqual(failure.result.stdoutData, Data([0xFF, 0x41]))
-            XCTAssertEqual(failure.result.stderr, "provider diagnostic\n")
+            XCTAssertEqual(failure.result.stderr, "harness diagnostic\n")
             XCTAssertFalse(failure.result.stdoutWasTruncated)
             XCTAssertFalse(registry.hasLiveProcesses)
             XCTAssertLessThan(start.duration(to: .now), .seconds(5))
@@ -148,7 +148,7 @@ extension ShellRunnerTests {
     my $ready=<$reader>;
     close $reader;
     print pack('C*', 0xff, 0x41);
-    print STDERR "provider diagnostic\n";
+    print STDERR "harness diagnostic\n";
     exit 0;
     """#
 }

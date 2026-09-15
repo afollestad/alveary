@@ -30,7 +30,7 @@ final class ConversationViewModel {
     let worktreeManager: WorktreeManager
     let resolveSourceFolder: @Sendable (String) async -> SourceFolderSnapshot
     let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
-    let providerSetup: ProviderSetupService
+    let harnessSetup: HarnessSetupService
     let contextWindowCache: any ContextWindowCache
     let attachmentStore: any ConversationAttachmentStore
     @ObservationIgnored var readToolApprovalTranscript: ToolApprovalTranscriptReader = readClaudeToolApprovalTranscript
@@ -76,9 +76,9 @@ final class ConversationViewModel {
             (agentsManager.status(for: conversation.id) == .busy && state.liveBackgroundTaskCount == 0)
     }
 
-    var providerCanSteerCurrentTurn: Bool {
-        let providerId = conversation.provider ?? settingsService.current.defaultProvider
-        if providerId == "codex" {
+    var harnessCanSteerCurrentTurn: Bool {
+        let harnessId = conversation.harness ?? settingsService.current.defaultHarness
+        if harnessId == "codex" {
             return state.turnState.isActive && state.activeRuntimeActivityTurnId != nil
         }
         return isAgentActivelyWorking
@@ -88,7 +88,7 @@ final class ConversationViewModel {
         !state.isRestoringToolApproval &&
             !state.isNormalSteeringBlockedBySessionHandoff &&
             !defersOrdinaryScheduledOutbound &&
-            providerCanSteerCurrentTurn
+            harnessCanSteerCurrentTurn
     }
 
     var lastTurnError: String? {
@@ -111,9 +111,9 @@ final class ConversationViewModel {
         set { state.sessionContinuityNotice = newValue }
     }
 
-    var providerAuthenticationFailure: String? {
-        get { state.providerAuthenticationFailure }
-        set { state.providerAuthenticationFailure = newValue }
+    var harnessAuthenticationFailure: String? {
+        get { state.harnessAuthenticationFailure }
+        set { state.harnessAuthenticationFailure = newValue }
     }
 
     var setupPhase: SetupPhase? {
@@ -153,7 +153,7 @@ final class ConversationViewModel {
         settingsService: SettingsService,
         worktreeManager: WorktreeManager,
         taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService = DefaultTaskWorkspaceOwnershipService(),
-        providerSetup: ProviderSetupService,
+        harnessSetup: HarnessSetupService,
         contextWindowCache: any ContextWindowCache,
         attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
@@ -172,7 +172,7 @@ final class ConversationViewModel {
         self.worktreeManager = worktreeManager
         self.resolveSourceFolder = resolveSourceFolder
         self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
-        self.providerSetup = providerSetup
+        self.harnessSetup = harnessSetup
         self.contextWindowCache = contextWindowCache
         self.attachmentStore = attachmentStore
         self.threadActivityRecorder = threadActivityRecorder

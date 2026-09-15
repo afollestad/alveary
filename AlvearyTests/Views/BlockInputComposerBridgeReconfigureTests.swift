@@ -84,11 +84,11 @@ final class BlockInputComposerBridgeReconfigureTests: XCTestCase {
     }
 
     func testSkippedViewReconfigureUsesLatestOverlayProvider() {
-        var usedInitialProvider = false
+        var usedInitialHarness = false
         let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(
             markdown: "Before",
             completionPopupOverlayProvider: { _ in
-                usedInitialProvider = true
+                usedInitialHarness = true
                 return nil
             }
         ))
@@ -115,17 +115,17 @@ final class BlockInputComposerBridgeReconfigureTests: XCTestCase {
             )
         )
 
-        XCTAssertFalse(usedInitialProvider)
+        XCTAssertFalse(usedInitialHarness)
         XCTAssertTrue(overlay?.container === controller.view)
         XCTAssertEqual(overlay?.frame, NSRect(x: 5, y: 6, width: 7, height: 8))
     }
 
     func testSkippedViewReconfigureUsesLatestModalOverlayProvider() {
-        var usedInitialProvider = false
+        var usedInitialHarness = false
         let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(
             markdown: "Before",
             modalOverlayProvider: { _ in
-                usedInitialProvider = true
+                usedInitialHarness = true
                 return nil
             }
         ))
@@ -154,7 +154,7 @@ final class BlockInputComposerBridgeReconfigureTests: XCTestCase {
             )
         )
 
-        XCTAssertFalse(usedInitialProvider)
+        XCTAssertFalse(usedInitialHarness)
         XCTAssertTrue(overlay?.container === controller.view)
         XCTAssertEqual(overlay?.frame, NSRect(x: 9, y: 10, width: 11, height: 12))
     }

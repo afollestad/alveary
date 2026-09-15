@@ -146,7 +146,7 @@ enum DemoCatalogs {
             url: "https://mcp.linear.app/sse",
             headers: ["Authorization": "Bearer ***"],
             env: nil,
-            providers: ["claude", "codex"]
+            harnesses: ["claude", "codex"]
         ),
         MCPServer(
             name: "postgres",
@@ -156,7 +156,7 @@ enum DemoCatalogs {
             url: nil,
             headers: nil,
             env: ["PGSSLMODE": "disable"],
-            providers: ["claude"]
+            harnesses: ["claude"]
         ),
         MCPServer(
             name: "figma",
@@ -166,7 +166,7 @@ enum DemoCatalogs {
             url: "https://mcp.figma.com/mcp",
             headers: nil,
             env: nil,
-            providers: ["codex"]
+            harnesses: ["codex"]
         )
     ]
 
@@ -180,7 +180,7 @@ enum DemoCatalogs {
                 url: "https://mcp.sentry.dev/mcp",
                 headers: nil,
                 env: nil,
-                providers: []
+                harnesses: []
             ),
             description: "Read issues, releases, and stack traces from Sentry.",
             headerPrompts: ["Authorization"]
@@ -194,7 +194,7 @@ enum DemoCatalogs {
                 url: nil,
                 headers: nil,
                 env: nil,
-                providers: []
+                harnesses: []
             ),
             description: "Drive a real browser to reproduce and verify UI bugs.",
             headerPrompts: []

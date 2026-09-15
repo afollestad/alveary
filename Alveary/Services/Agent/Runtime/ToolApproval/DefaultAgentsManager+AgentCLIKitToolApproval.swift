@@ -97,7 +97,7 @@ extension DefaultAgentsManager {
         _ request: AgentToolApprovalResolutionRequest,
         services: AgentCLIKitHostServices
     ) async {
-        switch request.config.providerId {
+        switch request.config.harnessId {
         case "claude":
             await nudgeClaudeRespawnIfDeferredReplayUnavailable(request, services: services)
         case "codex":

@@ -8,7 +8,7 @@ import XCTest
 extension SnapshotTests {
     func testComposerReasoningMenuCollapsedContent() {
         let controller = makeSnapshotReasoningMenuController(
-            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeSingleProviderReasoningModelGroups())
+            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeSingleHarnessReasoningModelGroups())
         )
 
         assertMacSnapshot(
@@ -19,30 +19,30 @@ extension SnapshotTests {
         )
     }
 
-    func testComposerReasoningMenuExpandedSingleProviderContent() {
+    func testComposerReasoningMenuExpandedSingleHarnessContent() {
         let controller = makeSnapshotReasoningMenuController(
-            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeSingleProviderReasoningModelGroups())
+            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeSingleHarnessReasoningModelGroups())
         )
         controller.setModelsExpanded(true, animated: false)
 
         assertMacSnapshot(
             ComposerReasoningMenuSnapshot(controller: controller),
             size: controller.preferredContentSize,
-            named: "composer_reasoning_menu_expanded_single_provider_content",
+            named: "composer_reasoning_menu_expanded_single_harness_content",
             colorScheme: .dark
         )
     }
 
-    func testComposerReasoningMenuExpandedMultipleProvidersContent() {
+    func testComposerReasoningMenuExpandedMultipleHarnessesContent() {
         let controller = makeSnapshotReasoningMenuController(
-            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeMultipleProviderReasoningModelGroups())
+            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeMultipleHarnessReasoningModelGroups())
         )
         controller.setModelsExpanded(true, animated: false)
 
         assertMacSnapshot(
             ComposerReasoningMenuSnapshot(controller: controller),
             size: controller.preferredContentSize,
-            named: "composer_reasoning_menu_expanded_multiple_providers_content",
+            named: "composer_reasoning_menu_expanded_multiple_harnesses_content",
             colorScheme: .dark
         )
     }
@@ -50,7 +50,7 @@ extension SnapshotTests {
     func testComposerReasoningMenuFastEnabledContent() {
         let controller = makeSnapshotReasoningMenuController(
             configuration: makeSnapshotReasoningMenuConfiguration(
-                groups: makeSingleProviderReasoningModelGroups(),
+                groups: makeSingleHarnessReasoningModelGroups(),
                 selectedSpeedMode: .fast
             )
         )
@@ -65,7 +65,7 @@ extension SnapshotTests {
 
     func testComposerReasoningMenuEffortDraggingContent() throws {
         let controller = makeSnapshotReasoningMenuController(
-            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeSingleProviderReasoningModelGroups())
+            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeSingleHarnessReasoningModelGroups())
         )
         let size = controller.preferredContentSize
         let hostController = NSViewController()
@@ -159,7 +159,7 @@ private func makeSnapshotReasoningMenuConfiguration(
             .init(value: "max", title: "Max"),
             .init(value: "ultra", title: "Ultra")
         ],
-        selectedProvider: selectedGroup?.providerID ?? "codex",
+        selectedHarness: selectedGroup?.harnessID ?? "codex",
         selectedModel: selectedModel?.value ?? "gpt-5.6-sol",
         selectedEffort: "medium",
         selectedSpeedMode: selectedSpeedMode,
@@ -185,42 +185,42 @@ private func makeSnapshotReasoningMenuController(
 }
 
 @MainActor
-private func makeSingleProviderReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
+private func makeSingleHarnessReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
     [
         .init(
-            providerID: "codex",
-            providerTitle: "Codex",
+            harnessID: "codex",
+            harnessTitle: "Codex",
             options: [
-                .init(providerID: "codex", value: "gpt-5.6-sol", title: "GPT-5.6-Sol"),
-                .init(providerID: "codex", value: "gpt-5.6-luna", title: "GPT-5.6-Luna"),
-                .init(providerID: "codex", value: "gpt-5.6-terra", title: "GPT-5.6-Terra"),
-                .init(providerID: "codex", value: "gpt-5.5", title: "GPT-5.5")
+                .init(harnessID: "codex", value: "gpt-5.6-sol", title: "GPT-5.6-Sol"),
+                .init(harnessID: "codex", value: "gpt-5.6-luna", title: "GPT-5.6-Luna"),
+                .init(harnessID: "codex", value: "gpt-5.6-terra", title: "GPT-5.6-Terra"),
+                .init(harnessID: "codex", value: "gpt-5.5", title: "GPT-5.5")
             ]
         )
     ]
 }
 
 @MainActor
-private func makeMultipleProviderReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
+private func makeMultipleHarnessReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
     [
         .init(
-            providerID: "claude",
-            providerTitle: "Claude",
+            harnessID: "claude",
+            harnessTitle: "Claude",
             options: [
-                .init(providerID: "claude", value: "sonnet", title: "Sonnet"),
-                .init(providerID: "claude", value: "fable", title: "Fable"),
-                .init(providerID: "claude", value: "opus", title: "Opus"),
-                .init(providerID: "claude", value: "haiku", title: "Haiku")
+                .init(harnessID: "claude", value: "sonnet", title: "Sonnet"),
+                .init(harnessID: "claude", value: "fable", title: "Fable"),
+                .init(harnessID: "claude", value: "opus", title: "Opus"),
+                .init(harnessID: "claude", value: "haiku", title: "Haiku")
             ]
         ),
         .init(
-            providerID: "codex",
-            providerTitle: "Codex",
+            harnessID: "codex",
+            harnessTitle: "Codex",
             options: [
-                .init(providerID: "codex", value: "gpt-5.6-sol", title: "GPT-5.6-Sol"),
-                .init(providerID: "codex", value: "gpt-5.6-luna", title: "GPT-5.6-Luna"),
-                .init(providerID: "codex", value: "gpt-5.6-terra", title: "GPT-5.6-Terra"),
-                .init(providerID: "codex", value: "gpt-5.5", title: "GPT-5.5")
+                .init(harnessID: "codex", value: "gpt-5.6-sol", title: "GPT-5.6-Sol"),
+                .init(harnessID: "codex", value: "gpt-5.6-luna", title: "GPT-5.6-Luna"),
+                .init(harnessID: "codex", value: "gpt-5.6-terra", title: "GPT-5.6-Terra"),
+                .init(harnessID: "codex", value: "gpt-5.5", title: "GPT-5.5")
             ]
         )
     ]
@@ -229,7 +229,7 @@ private func makeMultipleProviderReasoningModelGroups() -> [ChatComposerActionRo
 @MainActor
 private func makeSnapshotPermissionOptions() -> [ChatComposerActionRowView.PermissionOptionPresentation] {
     ChatComposerPermissionPresentation.options(
-        providerID: "codex",
+        harnessID: "codex",
         permissionModes: [
             PermissionModeOption(
                 value: "untrusted",

@@ -3,7 +3,7 @@ import Foundation
 
 extension BlockInputComposerCompletionProvider {
     /// Local hints are rebuilt from the current availability on every keystroke, so `/effort` and `/model` stay live
-    /// across model and provider refreshes without replacing the completion provider.
+    /// across model and harness refreshes without replacing the completion provider.
     static func argumentHints(
         localCommands: ComposerLocalCommandAvailability,
         passthroughCommands: [ComposerPassthroughSlashCommand],

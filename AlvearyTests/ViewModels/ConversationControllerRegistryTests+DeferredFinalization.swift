@@ -34,7 +34,7 @@ extension ConversationControllerRegistryTests {
         XCTAssertFalse(fixture.viewModel.hasActivatedBackgroundLifecycle)
     }
 
-    func testDeferredLeaseRetriesFailedTerminalFlushBeforePublishingProviderResult() async throws {
+    func testDeferredLeaseRetriesFailedTerminalFlushBeforePublishingHarnessResult() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let recorder = ControllerMaintenanceRecorder(flushFailuresRemaining: 1)
         let registry = DefaultConversationControllerRegistry(
@@ -58,7 +58,7 @@ extension ConversationControllerRegistryTests {
 
         let terminal = await outcomes.next()
         guard case .terminal(.succeeded) = terminal?.state else {
-            XCTFail("Expected the provider terminal after the flush retry")
+            XCTFail("Expected the harness terminal after the flush retry")
             return
         }
 

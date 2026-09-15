@@ -4,8 +4,8 @@ import XCTest
 
 @testable import Alveary
 
-/// The Git tab's agentic-review agent pickers: a leading inherit row that persists as
-/// nil, and the lockstep clearing that keeps a pinned model from outliving its provider.
+/// The Git tab's agentic-review harness pickers: a leading inherit row that persists as
+/// nil, and the lockstep clearing that keeps a pinned model from outliving its harness.
 @MainActor
 extension SettingsViewModelTests {
     /// Lets a test change what the loader answers after the view model is built, which is what
@@ -27,13 +27,13 @@ extension SettingsViewModelTests {
         let settingsService = InMemorySettingsService(current: settings)
         let viewModel = SettingsViewModel(
             settingsService: settingsService,
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
-                .codex: Self.providerStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
+                .codex: Self.harnessStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
             ]),
             sidebarSectionOptionsLoader: { store.options }
         )
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
         viewModel.refreshSidebarSectionOptions()
         return (viewModel, settingsService)
     }
@@ -46,18 +46,18 @@ extension SettingsViewModelTests {
     func testUnpinnedReviewAgentSettingsSelectTheInheritRow() async {
         let (viewModel, _) = await reviewViewModel()
 
-        XCTAssertEqual(viewModel.pullRequestReviewProviderSelection, SettingsViewModel.pullRequestReviewInheritValue)
+        XCTAssertEqual(viewModel.pullRequestReviewHarnessSelection, SettingsViewModel.pullRequestReviewInheritValue)
         XCTAssertEqual(viewModel.pullRequestReviewModelSelection, SettingsViewModel.pullRequestReviewInheritValue)
         XCTAssertEqual(viewModel.pullRequestReviewEffortSelection, SettingsViewModel.pullRequestReviewInheritValue)
         XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
-        XCTAssertEqual(viewModel.pullRequestReviewLabel(forProvider: SettingsViewModel.pullRequestReviewInheritValue), "Default")
+        XCTAssertEqual(viewModel.pullRequestReviewLabel(forHarness: SettingsViewModel.pullRequestReviewInheritValue), "Default")
         XCTAssertEqual(viewModel.pullRequestReviewLabel(forPermission: SettingsViewModel.pullRequestReviewInheritValue), "Use thread default")
     }
 
     func testTheInheritRowLeadsEveryPickerExactlyOnce() async {
         let (viewModel, _) = await reviewViewModel()
 
-        XCTAssertEqual(viewModel.pullRequestReviewProviderOptions.first, SettingsViewModel.pullRequestReviewInheritValue)
+        XCTAssertEqual(viewModel.pullRequestReviewHarnessOptions.first, SettingsViewModel.pullRequestReviewInheritValue)
         XCTAssertEqual(viewModel.pullRequestReviewModelOptions.first, SettingsViewModel.pullRequestReviewInheritValue)
         XCTAssertEqual(
             viewModel.pullRequestReviewModelOptions.filter { $0 == SettingsViewModel.pullRequestReviewInheritValue }.count,
@@ -71,19 +71,19 @@ extension SettingsViewModelTests {
 
     func testPickingTheInheritRowClearsTheStoredValue() async {
         var settings = AppSettings()
-        settings.pullRequestReviewProvider = "codex"
+        settings.pullRequestReviewHarness = "codex"
         settings.pullRequestReviewPermissionMode = "never"
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
         let initialUpdateCount = settingsService.updateCount
 
-        viewModel.setPullRequestReviewProvider(SettingsViewModel.pullRequestReviewInheritValue)
+        viewModel.setPullRequestReviewHarness(SettingsViewModel.pullRequestReviewInheritValue)
 
-        XCTAssertNil(settingsService.current.pullRequestReviewProvider)
+        XCTAssertNil(settingsService.current.pullRequestReviewHarness)
         XCTAssertNil(settingsService.current.pullRequestReviewPermissionMode)
         XCTAssertEqual(settingsService.updateCount, initialUpdateCount + 1)
     }
 
-    func testPinningAProviderClearsDependentOverridesInOneWrite() async {
+    func testPinningAHarnessClearsDependentOverridesInOneWrite() async {
         var settings = AppSettings()
         settings.pullRequestReviewModel = "sonnet"
         settings.pullRequestReviewEffort = "max"
@@ -91,9 +91,9 @@ extension SettingsViewModelTests {
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
         let initialUpdateCount = settingsService.updateCount
 
-        viewModel.setPullRequestReviewProvider("codex")
+        viewModel.setPullRequestReviewHarness("codex")
 
-        XCTAssertEqual(settingsService.current.pullRequestReviewProvider, "codex")
+        XCTAssertEqual(settingsService.current.pullRequestReviewHarness, "codex")
         XCTAssertNil(settingsService.current.pullRequestReviewModel)
         XCTAssertNil(settingsService.current.pullRequestReviewEffort)
         XCTAssertNil(settingsService.current.pullRequestReviewPermissionMode)
@@ -103,11 +103,11 @@ extension SettingsViewModelTests {
     func testFeedbackAgentEditsLeaveReviewPinsUntouched() async {
         var settings = AppSettings()
         settings.pullRequestReviewAgent = PullRequestAgentSettings(
-            provider: "codex", model: "gpt-5.5", effort: "high", permissionMode: "never"
+            harness: "codex", model: "gpt-5.5", effort: "high", permissionMode: "never"
         )
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
 
-        viewModel.setAddressFeedbackProvider("claude")
+        viewModel.setAddressFeedbackHarness("claude")
         viewModel.setAddressFeedbackModel("haiku")
         viewModel.setAddressFeedbackEffort("low")
         viewModel.setAddressFeedbackPermission("acceptEdits")
@@ -115,38 +115,38 @@ extension SettingsViewModelTests {
         XCTAssertEqual(settingsService.current.pullRequestReviewAgent, settings.pullRequestReviewAgent)
         XCTAssertEqual(
             settingsService.current.pullRequestAddressFeedbackAgent,
-            PullRequestAgentSettings(provider: "claude", model: "haiku", effort: "low", permissionMode: "acceptEdits")
+            PullRequestAgentSettings(harness: "claude", model: "haiku", effort: "low", permissionMode: "acceptEdits")
         )
-        XCTAssertEqual(viewModel.addressFeedbackEffectiveProviderID, "claude")
+        XCTAssertEqual(viewModel.addressFeedbackEffectiveHarnessID, "claude")
         XCTAssertEqual(viewModel.addressFeedbackModelSelection, "haiku")
         XCTAssertEqual(viewModel.addressFeedbackEffortSelection, "low")
         XCTAssertEqual(viewModel.addressFeedbackPermissionSelection, "acceptEdits")
 
-        viewModel.setPullRequestReviewProvider("claude")
+        viewModel.setPullRequestReviewHarness("claude")
 
         XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackModel, "haiku")
         XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackPermissionMode, "acceptEdits")
     }
 
-    func testFeedbackProviderChangeClearsOnlyItsDependentPins() async {
+    func testFeedbackHarnessChangeClearsOnlyItsDependentPins() async {
         var settings = AppSettings()
         settings.pullRequestAddressFeedbackAgent = PullRequestAgentSettings(
-            provider: "claude", model: "sonnet", effort: "high", permissionMode: "acceptEdits"
+            harness: "claude", model: "sonnet", effort: "high", permissionMode: "acceptEdits"
         )
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
         let beforeUpdates = settingsService.updateCount
 
-        viewModel.setAddressFeedbackProvider("codex")
+        viewModel.setAddressFeedbackHarness("codex")
 
-        XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackAgent, PullRequestAgentSettings(provider: "codex"))
+        XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackAgent, PullRequestAgentSettings(harness: "codex"))
         XCTAssertEqual(settingsService.updateCount, beforeUpdates + 1)
         XCTAssertTrue(viewModel.addressFeedbackModelOptions.contains("gpt-5.5"))
         XCTAssertFalse(viewModel.addressFeedbackModelOptions.contains("sonnet"))
 
-        viewModel.setAddressFeedbackProvider(SettingsViewModel.pullRequestReviewInheritValue)
+        viewModel.setAddressFeedbackHarness(SettingsViewModel.pullRequestReviewInheritValue)
 
         XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackAgent, PullRequestAgentSettings())
-        XCTAssertEqual(viewModel.addressFeedbackProviderSelection, SettingsViewModel.pullRequestReviewInheritValue)
+        XCTAssertEqual(viewModel.addressFeedbackHarnessSelection, SettingsViewModel.pullRequestReviewInheritValue)
     }
 
     func testPinningAModelPersistsItAndTheEffortRowFollowsThatModel() async {
@@ -213,21 +213,21 @@ extension SettingsViewModelTests {
         XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
     }
 
-    func testAnUnavailableReviewProviderShowsInheritedPermissionWithoutDiscardingThePin() async {
+    func testAnUnavailableReviewHarnessShowsInheritedPermissionWithoutDiscardingThePin() async {
         var settings = AppSettings()
-        settings.pullRequestReviewProvider = "codex"
+        settings.pullRequestReviewHarness = "codex"
         settings.pullRequestReviewPermissionMode = "never"
         let settingsService = InMemorySettingsService(current: settings)
         let viewModel = SettingsViewModel(
             settingsService: settingsService,
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
             ])
         )
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
         let initialUpdateCount = settingsService.updateCount
 
-        XCTAssertEqual(viewModel.pullRequestReviewEffectiveProviderID, "claude")
+        XCTAssertEqual(viewModel.pullRequestReviewEffectiveHarnessID, "claude")
         XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
         XCTAssertEqual(settingsService.current.pullRequestReviewPermissionMode, "never")
         XCTAssertEqual(settingsService.updateCount, initialUpdateCount)
@@ -235,7 +235,7 @@ extension SettingsViewModelTests {
         XCTAssertTrue(viewModel.pullRequestReviewPermissionOptions.contains("acceptEdits"))
         viewModel.setPullRequestReviewPermission("acceptEdits")
 
-        XCTAssertEqual(settingsService.current.pullRequestReviewProvider, "codex")
+        XCTAssertEqual(settingsService.current.pullRequestReviewHarness, "codex")
         XCTAssertEqual(settingsService.current.pullRequestReviewPermissionMode, "acceptEdits")
         XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, "acceptEdits")
     }
@@ -261,31 +261,31 @@ extension SettingsViewModelTests {
 
     func testPeerSeedingUsesTheStrictResolvedLeadModel() async {
         var settings = AppSettings()
-        settings.defaultProvider = "claude"
+        settings.defaultHarness = "claude"
         settings.defaultModel = "fable"
-        settings.pullRequestReviewProvider = "codex"
+        settings.pullRequestReviewHarness = "codex"
         let (viewModel, _) = await reviewViewModel(settings: settings)
 
         XCTAssertEqual(
-            viewModel.defaultPullRequestReviewPeer(providerID: "codex", excluding: [])?.model,
+            viewModel.defaultPullRequestReviewPeer(harnessID: "codex", excluding: [])?.model,
             "gpt-5.4-mini"
         )
     }
 
-    func testReviewTeamRefreshPreservesAnUnavailableInheritedProvider() async {
+    func testReviewTeamRefreshPreservesAnUnavailableInheritedHarness() async {
         var settings = AppSettings()
         settings.pullRequestReviewMode = .reviewTeam
-        settings.defaultProvider = "codex"
+        settings.defaultHarness = "codex"
         settings.defaultModel = "gpt-5.5"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "claude", model: "sonnet", effort: "high")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "claude", model: "sonnet", effort: "high")
         ]
         let settingsService = InMemorySettingsService(current: settings)
         let viewModel = SettingsViewModel(
             settingsService: settingsService,
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
-                .codex: Self.providerStatus(
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
+                .codex: Self.harnessStatus(
                     for: .codex,
                     installation: .missing,
                     modelOptions: AgentModelOptionTestFixtures.codexModelOptions
@@ -293,9 +293,9 @@ extension SettingsViewModelTests {
             ])
         )
 
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
-        XCTAssertEqual(settingsService.current.defaultProvider, "codex")
+        XCTAssertEqual(settingsService.current.defaultHarness, "codex")
         XCTAssertEqual(settingsService.current.defaultModel, "gpt-5.5")
         XCTAssertEqual(
             viewModel.pullRequestReviewTeamSettingsStatus,
@@ -306,10 +306,10 @@ extension SettingsViewModelTests {
     func testReviewTeamRefreshPreservesAStaleInheritedModel() async {
         var settings = AppSettings()
         settings.pullRequestReviewMode = .reviewTeam
-        settings.defaultProvider = "claude"
+        settings.defaultHarness = "claude"
         settings.defaultModel = "retired-model"
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "codex", model: "gpt-5.5", effort: "medium")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "codex", model: "gpt-5.5", effort: "medium")
         ]
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
 
@@ -322,27 +322,27 @@ extension SettingsViewModelTests {
 
     func testReviewTeamPeerOptionsDoNotUseStaticCatalogFallbacks() async {
         var settings = AppSettings()
-        settings.defaultProvider = "codex"
+        settings.defaultHarness = "codex"
         settings.defaultModel = "gpt-5.5"
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: []),
-                .codex: Self.providerStatus(
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: []),
+                .codex: Self.harnessStatus(
                     for: .codex,
                     modelOptions: AgentModelOptionTestFixtures.codexModelOptions
                 )
             ])
         )
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
         let stalePeer = PullRequestReviewPeer(
             id: "peer-1",
-            providerID: "claude",
+            harnessID: "claude",
             model: "sonnet",
             effort: "high"
         )
 
-        XCTAssertNil(viewModel.defaultPullRequestReviewPeer(providerID: "claude", excluding: []))
+        XCTAssertNil(viewModel.defaultPullRequestReviewPeer(harnessID: "claude", excluding: []))
         XCTAssertEqual(viewModel.pullRequestReviewPeerModelOptions(stalePeer), ["sonnet"])
         guard case .needsAttention = viewModel.pullRequestReviewTeamSettingsStatus(peers: [stalePeer]) else {
             return XCTFail("Expected the absent live catalog to need attention")
@@ -353,7 +353,7 @@ extension SettingsViewModelTests {
         var settings = AppSettings()
         let stalePeer = PullRequestReviewPeer(
             id: "peer-1",
-            providerID: "codex",
+            harnessID: "codex",
             model: "retired-model",
             effort: "medium"
         )
@@ -367,12 +367,12 @@ extension SettingsViewModelTests {
         XCTAssertTrue(viewModel.pullRequestReviewPeerModelOptions(stalePeer).contains("retired-model"))
     }
 
-    func testAPinnedProviderSuppliesModelAndPermissionOptions() async {
+    func testAPinnedHarnessSuppliesModelAndPermissionOptions() async {
         var settings = AppSettings()
-        settings.pullRequestReviewProvider = "codex"
+        settings.pullRequestReviewHarness = "codex"
         let (viewModel, _) = await reviewViewModel(settings: settings)
 
-        XCTAssertEqual(viewModel.pullRequestReviewEffectiveProviderID, "codex")
+        XCTAssertEqual(viewModel.pullRequestReviewEffectiveHarnessID, "codex")
         XCTAssertTrue(viewModel.pullRequestReviewModelOptions.contains("gpt-5.5"))
         XCTAssertFalse(viewModel.pullRequestReviewModelOptions.contains("sonnet"))
         XCTAssertEqual(

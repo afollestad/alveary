@@ -48,7 +48,7 @@ final class SidebarSectionServiceTests: XCTestCase {
             destination: .reusedThread,
             recurrence: .daily(hour: 8, minute: 0),
             timeZoneIdentifier: "Etc/UTC",
-            providerID: "codex"
+            harnessID: "codex"
         )
         let modifiedAt = definition.modifiedAt
         fixture.context.insert(builtin)
@@ -300,7 +300,7 @@ final class SidebarSectionServiceTests: XCTestCase {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             createdAt: Date(timeIntervalSince1970: 100),
             targetThread: task
         )

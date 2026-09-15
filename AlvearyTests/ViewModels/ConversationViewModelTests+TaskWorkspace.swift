@@ -5,13 +5,13 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testProjectlessTaskSetupUsesPrimaryWorkspaceAndProviderNeutralGrants() async throws {
+    func testProjectlessTaskSetupUsesPrimaryWorkspaceAndHarnessNeutralGrants() async throws {
         let environment = try TaskWorkspaceTestEnvironment()
         defer { environment.remove() }
         let descriptor = try environment.privateDescriptorWithGrants()
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
-            providerId: "codex",
+            harnessId: "codex",
             threadMode: .task,
             taskWorkspaceDescriptor: descriptor,
             autoTrustProjects: false,
@@ -22,7 +22,7 @@ extension ConversationViewModelTests {
 
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         let createCalls = await fixture.worktreeManager.createCalls()
-        let providerSetupCalls = await fixture.providerSetup.calls()
+        let harnessSetupCalls = await fixture.harnessSetup.calls()
         let spawnCall = try XCTUnwrap(spawnCalls.first)
         XCTAssertNil(try fixture.dbThread().project)
         XCTAssertEqual(spawnCall.config.workingDirectory, descriptor.primaryRoot)
@@ -30,8 +30,8 @@ extension ConversationViewModelTests {
         XCTAssertTrue(spawnCall.config.allowedDirectories.isEmpty)
         XCTAssertTrue(createCalls.isEmpty)
         XCTAssertEqual(
-            providerSetupCalls,
-            [.init(providerId: "codex", workingDirectory: descriptor.primaryRoot, autoTrust: true)]
+            harnessSetupCalls,
+            [.init(harnessId: "codex", workingDirectory: descriptor.primaryRoot, autoTrust: true)]
         )
     }
 
@@ -92,10 +92,10 @@ extension ConversationViewModelTests {
 
         try await fixture.viewModel.setupHiddenInitialRuntimeIfNeeded()
 
-        let providerSetupCalls = await fixture.providerSetup.calls()
+        let harnessSetupCalls = await fixture.harnessSetup.calls()
         XCTAssertEqual(
-            providerSetupCalls,
-            [.init(providerId: "claude", workingDirectory: descriptor.primaryRoot, autoTrust: false)]
+            harnessSetupCalls,
+            [.init(harnessId: "claude", workingDirectory: descriptor.primaryRoot, autoTrust: false)]
         )
     }
 
@@ -118,10 +118,10 @@ extension ConversationViewModelTests {
 
         try await fixture.viewModel.setupHiddenInitialRuntimeIfNeeded()
 
-        let providerSetupCalls = await fixture.providerSetup.calls()
+        let harnessSetupCalls = await fixture.harnessSetup.calls()
         XCTAssertEqual(
-            providerSetupCalls,
-            [.init(providerId: "claude", workingDirectory: descriptor.primaryRoot, autoTrust: false)]
+            harnessSetupCalls,
+            [.init(harnessId: "claude", workingDirectory: descriptor.primaryRoot, autoTrust: false)]
         )
     }
 

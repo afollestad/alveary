@@ -26,7 +26,7 @@ extension ConversationViewModel {
             files: fileAttachments
         )
         if !appShots.isEmpty {
-            state.appShotProviderSessionTitleFallback = Self.appShotThreadPreviewTitle(fromVisibleUserInput: message)
+            state.appShotHarnessSessionTitleFallback = Self.appShotThreadPreviewTitle(fromVisibleUserInput: message)
         }
         modelContext.insert(record)
         state.grouper.appendLocalUserMessage(id: record.id, text: message, relayedFromThreadName: relayedFrom?.threadName)

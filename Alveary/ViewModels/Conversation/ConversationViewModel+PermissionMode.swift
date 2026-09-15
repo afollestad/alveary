@@ -56,7 +56,7 @@ extension ConversationViewModel {
         do {
             try modelContext.save()
         } catch {
-            // Best-effort: the runtime event already reflects provider state.
+            // Best-effort: the runtime event already reflects harness state.
         }
     }
 
@@ -72,7 +72,7 @@ extension ConversationViewModel {
            storedMode != "plan" {
             return storedMode
         }
-        let providerId = dbConversation()?.provider ?? settingsService.current.defaultProvider
-        return AppSettings.defaultPermissionMode(forProvider: providerId)
+        let harnessId = dbConversation()?.harness ?? settingsService.current.defaultHarness
+        return AppSettings.defaultPermissionMode(forHarness: harnessId)
     }
 }

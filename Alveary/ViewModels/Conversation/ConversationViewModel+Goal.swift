@@ -135,7 +135,7 @@ extension ConversationViewModel {
             throw AgentError.spawnFailed(message)
         }
         guard goal.availableActions.contains(action) else {
-            let message = "Goal \(action.rawValue) is not supported by this agent."
+            let message = "Goal \(action.rawValue) is not supported by this harness."
             state.goalActionError = message
             throw AgentError.spawnFailed(message)
         }
@@ -176,7 +176,7 @@ extension ConversationViewModel {
         do {
             if hasVisibleUserMessageHistory {
                 guard supportsExistingSessionGoalStart else {
-                    throw AgentError.spawnFailed("This agent can only start Goal mode before the first visible user message.")
+                    throw AgentError.spawnFailed("This harness can only start Goal mode before the first visible user message.")
                 }
                 try await startExistingSessionGoal(trimmedObjective)
             } else {

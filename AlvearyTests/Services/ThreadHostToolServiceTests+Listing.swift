@@ -19,7 +19,7 @@ extension ThreadHostToolServiceTests {
         )
 
         XCTAssertFalse(result.isError)
-        // The rows ride in the text too — a plain-text-fallback provider sees nothing else.
+        // The rows ride in the text too — a plain-text-fallback harness sees nothing else.
         XCTAssertTrue(result.text.contains("Found 3 Projects:"))
         XCTAssertTrue(result.text.contains("project_id: \(fixture.project.id)"))
         XCTAssertTrue(result.text.contains(fixture.project.path))
@@ -66,9 +66,12 @@ extension ThreadHostToolServiceTests {
         let second = try object(threads[1])
         XCTAssertEqual(second["effort"], .string("low"))
         XCTAssertEqual(second["permission_mode"], .string("never"))
-        // No stored model reads as the provider's default rather than as a missing field.
+        // No stored model reads as the harness's default rather than as a missing field.
         XCTAssertEqual(second["model"], .string("default"))
-        XCTAssertEqual(second["provider"], .string("codex"))
+        XCTAssertEqual(second["harness"], .string("codex"))
+        for row in threads {
+            XCTAssertNil(try object(row)["provider"])
+        }
 
         let source = try object(threads[2])
         XCTAssertEqual(source["workspace"], .string("project: Source Project"))
@@ -110,7 +113,7 @@ extension ThreadHostToolServiceTests {
         let draft = try fixture.insertThread(name: "Draft", conversationID: "draft-main")
         draft.isDraft = true
         let forked = try fixture.insertThread(name: "Forked", conversationID: "forked-main")
-        forked.conversations.append(Conversation(id: "forked-second-main", provider: "codex", thread: forked))
+        forked.conversations.append(Conversation(id: "forked-second-main", harness: "codex", thread: forked))
         try fixture.modelContext.save()
 
         let result = await fixture.service.handle(
@@ -120,7 +123,7 @@ extension ThreadHostToolServiceTests {
 
         let threads = try array(try object(result.structuredContent)["threads"])
         XCTAssertEqual(try threads.map { try object($0)["id"] }, [.string(fixture.conversation.id)])
-        // Nothing about an omitted thread reaches the provider, not even its name.
+        // Nothing about an omitted thread reaches the harness, not even its name.
         let encodedResult = try encoded(result)
         for name in ["Archived", "Fork", "Draft", "Forked"] {
             XCTAssertFalse(encodedResult.contains(name), name)

@@ -3,24 +3,24 @@ import Foundation
 
 @testable import Alveary
 
-struct ParallelApprovalResolutionAdapter: AgentCLIKit.AgentProviderAdapter {
+struct ParallelApprovalResolutionAdapter: AgentCLIKit.AgentHarnessAdapter {
     let counter = AgentCLIKitLaunchCounter()
-    let providerId: AgentCLIKit.AgentProviderID
+    let harnessId: AgentCLIKit.AgentHarnessID
     let resolutionRecorder: AgentInteractionResolutionRecorder?
 
     init(
-        providerId: AgentCLIKit.AgentProviderID = .claude,
+        harnessId: AgentCLIKit.AgentHarnessID = .claude,
         resolutionRecorder: AgentInteractionResolutionRecorder? = nil
     ) {
-        self.providerId = providerId
+        self.harnessId = harnessId
         self.resolutionRecorder = resolutionRecorder
     }
 
-    var definition: AgentCLIKit.AgentProviderDefinition {
-        AgentCLIKit.AgentProviderDefinition(
-            id: providerId,
-            displayName: providerId.rawValue.capitalized,
-            executableNames: [providerId.rawValue]
+    var definition: AgentCLIKit.AgentHarnessDefinition {
+        AgentCLIKit.AgentHarnessDefinition(
+            id: harnessId,
+            displayName: harnessId.rawValue.capitalized,
+            executableNames: [harnessId.rawValue]
         )
     }
 

@@ -140,7 +140,7 @@ struct CollectiveReviewStagingTests {
             reviewers: [
                 PullRequestReviewProposalRecord.Reviewer(
                     id: "old-reviewer",
-                    providerID: "old-provider",
+                    harnessID: "old-provider",
                     modelOptionID: "old-model"
                 )
             ]
@@ -257,8 +257,8 @@ private final class CollectiveStagingFixture {
         context = ModelContext(container)
         service = StubPullRequestsService()
         let thread = AgentThread(name: "Collective review")
-        source = Conversation(id: "source", provider: "codex", thread: thread)
-        prior = Conversation(id: "prior", provider: "codex", isMain: false, thread: thread)
+        source = Conversation(id: "source", harness: "codex", thread: thread)
+        prior = Conversation(id: "prior", harness: "codex", isMain: false, thread: thread)
         thread.conversations = [source, prior]
         context.insert(thread)
         source.pullRequestReviewRunJSON = "before"
@@ -365,7 +365,7 @@ private func makePriorProposal(
         ],
         titleSnapshot: "Prior title",
         pendingCommentCountSnapshot: 0,
-        sourceProviderID: "codex",
+        sourceHarnessID: "codex",
         sourceProcessToken: "process",
         sourceRequestID: "request",
         sourceKind: .hostTool,
@@ -403,7 +403,7 @@ private func makeCollectiveStagingTeam() -> [ReviewWorkerConfiguration] {
     (0..<3).map { index in
         ReviewWorkerConfiguration(
             id: index == 0 ? "lead" : "peer-\(index)",
-            providerID: "codex",
+            harnessID: "codex",
             modelOptionID: "model-\(index)",
             launchModel: "model-\(index)",
             effort: "medium",

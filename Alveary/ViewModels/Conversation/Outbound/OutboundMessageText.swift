@@ -6,7 +6,7 @@ struct OutboundMessageText: Equatable, Sendable {
     let transportText: String?
     let attachments: [LocalImageAttachment]
     let appShots: [AppShotAttachment]
-    let providerMetadata: [String: AgentCLIKit.JSONValue]
+    let harnessMetadata: [String: AgentCLIKit.JSONValue]
     let consumedAttachments: [LocalImageAttachment]
     let consumedFileAttachments: [LocalFileAttachment]
     let consumedAppShots: [AppShotAttachment]
@@ -20,7 +20,7 @@ struct OutboundMessageText: Equatable, Sendable {
         transportText: String? = nil,
         attachments: [LocalImageAttachment] = [],
         appShots: [AppShotAttachment] = [],
-        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedAttachments: [LocalImageAttachment] = [],
         consumedFileAttachments: [LocalFileAttachment] = [],
         consumedAppShots: [AppShotAttachment] = [],
@@ -31,7 +31,7 @@ struct OutboundMessageText: Equatable, Sendable {
         self.transportText = transportText
         self.attachments = attachments
         self.appShots = appShots
-        self.providerMetadata = providerMetadata
+        self.harnessMetadata = harnessMetadata
         self.consumedAttachments = consumedAttachments
         self.consumedFileAttachments = consumedFileAttachments
         self.consumedAppShots = consumedAppShots
@@ -53,7 +53,7 @@ struct OutboundMessageText: Equatable, Sendable {
                 transportText: transportText,
                 attachments: stagedAttachments,
                 appShots: appShots,
-                providerMetadata: providerMetadata,
+                harnessMetadata: harnessMetadata,
                 consumedAttachments: stagedAttachments,
                 consumedFileAttachments: consumedFileAttachments,
                 consumedAppShots: consumedAppShots,
@@ -66,7 +66,7 @@ struct OutboundMessageText: Equatable, Sendable {
             visibleText: fallbackText(visibleText, stagedAttachments),
             transportText: transportText.map { fallbackText($0, stagedAttachments) },
             appShots: appShots,
-            providerMetadata: providerMetadata,
+            harnessMetadata: harnessMetadata,
             consumedAttachments: stagedAttachments,
             consumedFileAttachments: consumedFileAttachments,
             consumedAppShots: consumedAppShots,
@@ -87,7 +87,7 @@ struct OutboundMessageText: Equatable, Sendable {
             transportText: transportText.map { fallbackText($0, stagedAttachments) },
             attachments: attachments,
             appShots: appShots,
-            providerMetadata: providerMetadata,
+            harnessMetadata: harnessMetadata,
             consumedAttachments: consumedAttachments,
             consumedFileAttachments: stagedAttachments,
             consumedAppShots: consumedAppShots,
@@ -98,13 +98,13 @@ struct OutboundMessageText: Equatable, Sendable {
 
     func resolvingAppShots(
         _ stagedAppShots: [AppShotAttachment],
-        providerID: String
+        harnessID: String
     ) throws -> OutboundMessageText {
         guard !stagedAppShots.isEmpty else {
             return self
         }
-        guard let strategy = AppShotProviderStrategy(providerID: providerID) else {
-            throw AppShotCaptureError.unsupportedProvider(providerID)
+        guard let strategy = AppShotHarnessStrategy(harnessID: harnessID) else {
+            throw AppShotCaptureError.unsupportedHarness(harnessID)
         }
         if strategy == .claude {
             for appShot in stagedAppShots where !FileManager.default.isReadableFile(atPath: appShot.screenshot.fileURL.path) {
@@ -117,7 +117,7 @@ struct OutboundMessageText: Equatable, Sendable {
             appShots: stagedAppShots,
             strategy: strategy
         )
-        var nextMetadata = providerMetadata
+        var nextMetadata = harnessMetadata
         if strategy == .codex {
             nextMetadata[AgentCLIKit.CodexInputMetadata.isAppshot] = .bool(true)
         }
@@ -126,7 +126,7 @@ struct OutboundMessageText: Equatable, Sendable {
             transportText: formatted.text,
             attachments: attachments + formatted.localImageAttachments,
             appShots: stagedAppShots,
-            providerMetadata: nextMetadata,
+            harnessMetadata: nextMetadata,
             consumedAttachments: consumedAttachments,
             consumedFileAttachments: consumedFileAttachments,
             consumedAppShots: stagedAppShots,

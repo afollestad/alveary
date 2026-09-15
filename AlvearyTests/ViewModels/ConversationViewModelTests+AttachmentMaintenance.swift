@@ -41,7 +41,7 @@ extension ConversationViewModelTests {
             modelContext: fixture.context,
             settingsService: fixture.settingsService,
             worktreeManager: fixture.worktreeManager,
-            providerSetup: fixture.providerSetup,
+            harnessSetup: fixture.harnessSetup,
             contextWindowCache: fixture.contextWindowCache,
             attachmentStore: store
         )

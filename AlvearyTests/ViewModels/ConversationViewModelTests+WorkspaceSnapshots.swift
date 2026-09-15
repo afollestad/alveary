@@ -72,7 +72,7 @@ extension ConversationViewModelTests {
     }
 
     func testLegacyNativeRootsRemainOmittedUntilWorkspaceEdit() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.thread.workspaceSnapshot = WorkspaceSnapshot(
             primarySource: fixture.thread.sourceFolder, rootsExplicitlyManaged: false
         )
@@ -93,7 +93,7 @@ extension ConversationViewModelTests {
     }
 
     func testProjectGrantFinalRemovalUsesWorkingDirectoryOnlyOverride() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         try fixture.thread.replaceAdditionalFolders([SourceFolderSnapshot(path: "/tmp/missing-grant")])
         try fixture.context.save()
 
@@ -107,7 +107,7 @@ extension ConversationViewModelTests {
     }
 
     func testFailedProjectGrantRemovalRestoresLegacyRootPolicy() async throws {
-        let fixture = try ConversationViewModelTestFixture(reconfigureResult: .nextTurnRequired, providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(reconfigureResult: .nextTurnRequired, harnessId: "codex")
         let original = WorkspaceSnapshot(
             primarySource: fixture.thread.sourceFolder,
             grants: [SourceFolderSnapshot(path: "/tmp/old-grant")], rootsExplicitlyManaged: false

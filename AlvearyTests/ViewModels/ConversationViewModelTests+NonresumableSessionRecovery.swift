@@ -9,7 +9,7 @@ extension ConversationViewModelTests {
     func testQueuedMessageRecoveryFailureKeepsLocalContextForRetry() async throws {
         let fixture = try ConversationViewModelTestFixture(
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.state.stagedContext = "Queued context"

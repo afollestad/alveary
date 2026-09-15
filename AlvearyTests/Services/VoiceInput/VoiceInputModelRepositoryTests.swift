@@ -229,9 +229,9 @@ final class VoiceInputModelRepositoryTests: XCTestCase {
         let repository = DefaultVoiceInputModelRepository(
             modelsDirectory: modelsDirectory,
             cacheOwnershipDirectory: temporaryDirectory,
-            descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: model.resolved),
+            descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: model.resolved),
             downloader: downloader,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
         )
 
         let prepared = try await repository.prepareModel(mode: .normal) { _ in }
@@ -256,9 +256,9 @@ final class VoiceInputModelRepositoryTests: XCTestCase {
         let repository = DefaultVoiceInputModelRepository(
             modelsDirectory: modelsDirectory,
             cacheOwnershipDirectory: temporaryDirectory,
-            descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: model.resolved),
+            descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: model.resolved),
             downloader: VoiceInputModelDownloaderFake(artifactData: model.dataByPath),
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
         )
 
         let prepared = try await repository.prepareModel(mode: .normal) { _ in }
@@ -276,7 +276,7 @@ final class VoiceInputModelRepositoryTests: XCTestCase {
         let repository = makeRepository(
             model: model,
             downloader: downloader,
-            diskSpace: FixedVoiceInputDiskSpaceProvider(capacity: 512 * 1_024 * 1_024)
+            diskSpace: FixedVoiceInputDiskSpaceHarness(capacity: 512 * 1_024 * 1_024)
         )
 
         do {
@@ -331,12 +331,12 @@ final class VoiceInputModelRepositoryTests: XCTestCase {
     private func makeRepository(
         model: VoiceInputTestModelDescriptor,
         downloader: VoiceInputModelDownloaderFake,
-        diskSpace: any VoiceInputDiskSpaceProviding = FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+        diskSpace: any VoiceInputDiskSpaceProviding = FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
     ) -> DefaultVoiceInputModelRepository {
         DefaultVoiceInputModelRepository(
             modelsDirectory: temporaryDirectory,
             cacheOwnershipDirectory: temporaryDirectory,
-            descriptorProvider: StaticVoiceInputModelDescriptorProvider(resolvedDescriptor: model.resolved),
+            descriptorProvider: StaticVoiceInputModelDescriptorHarness(resolvedDescriptor: model.resolved),
             downloader: downloader,
             diskSpaceProvider: diskSpace
         )

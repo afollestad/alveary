@@ -76,7 +76,7 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
                 destination: .newThreadPerRun,
                 recurrence: .interval(minutes: 10, anchor: Date(timeIntervalSince1970: 0)),
                 timeZoneIdentifier: "UTC",
-                providerID: "claude",
+                harnessID: "claude",
                 model: "model-2",
                 effort: "high",
                 permissionMode: "acceptEdits",
@@ -97,7 +97,7 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
         XCTAssertEqual(run.definitionRevision, 1)
         XCTAssertEqual(run.titleSnapshot, "Original")
         XCTAssertEqual(run.promptSnapshot, "Original prompt")
-        XCTAssertEqual(run.providerIDSnapshot, "codex")
+        XCTAssertEqual(run.harnessIDSnapshot, "codex")
         XCTAssertEqual(run.status, .running)
     }
 
@@ -106,8 +106,8 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
         let definition = try fixture.insertDefinition(
             state: .paused,
             recurrence: .daily(hour: 8, minute: 0),
-            pauseReason: "Provider unavailable",
-            lastError: "Missing provider"
+            pauseReason: "Harness unavailable",
+            lastError: "Missing harness"
         )
 
         try fixture.service.edit(
@@ -118,7 +118,7 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
                 destination: .newThreadPerRun,
                 recurrence: .daily(hour: 9, minute: 30),
                 timeZoneIdentifier: "UTC",
-                providerID: "codex",
+                harnessID: "codex",
                 model: nil,
                 effort: "medium",
                 permissionMode: "default",
@@ -432,7 +432,7 @@ struct ScheduledTaskMutationFixture {
             state: state,
             recurrence: recurrence,
             timeZoneIdentifier: "Etc/UTC",
-            providerID: "codex",
+            harnessID: "codex",
             nextOccurrenceAt: nextOccurrenceAt,
             pendingOccurrenceAt: pendingOccurrenceAt,
             pauseReason: pauseReason,
@@ -459,7 +459,7 @@ struct ScheduledTaskMutationFixture {
             promptSnapshot: definition.prompt,
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: definition.timeZoneIdentifier,
-            providerIDSnapshot: definition.providerID,
+            harnessIDSnapshot: definition.harnessID,
             effortSnapshot: definition.effort,
             permissionModeSnapshot: definition.permissionMode,
             workspaceKindSnapshot: definition.workspaceKind,

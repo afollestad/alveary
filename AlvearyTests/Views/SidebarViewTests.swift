@@ -456,7 +456,7 @@ final class SidebarViewTests: XCTestCase {
         let conversation = Conversation(
             id: UUID().uuidString,
             title: "Main",
-            provider: "claude",
+            harness: "claude",
             thread: thread
         )
         thread.conversations = [conversation]

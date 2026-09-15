@@ -105,7 +105,7 @@ extension ScheduledTasksViewModelTests {
     func testForkedReusedThreadFallsBackToTheWorkspaceItWouldRecreate() throws {
         let fixture = try ScheduledTasksViewModelFixture()
         let thread = try fixture.insertReusedThreadDefinition(id: "reuse")
-        thread.conversations.append(Conversation(id: "reuse-second-main", provider: "claude", thread: thread))
+        thread.conversations.append(Conversation(id: "reuse-second-main", harness: "claude", thread: thread))
         try fixture.context.save()
         fixture.viewModel.reload()
 
@@ -150,7 +150,7 @@ extension ScheduledTasksViewModelTests {
             targetConversationID: nil,
             recurrence: .weekly(weekday: 2, hour: 9, minute: 0),
             timeZoneIdentifier: "UTC",
-            providerID: "claude",
+            harnessID: "claude",
             model: nil,
             effort: "medium",
             permissionMode: "default",
@@ -214,7 +214,7 @@ extension ScheduledTasksViewModelFixture {
             primaryRoot: "/tmp/\(id)-workspace",
             ownershipStrategy: .projectLocal
         )
-        thread.conversations = [Conversation(id: "\(id)-main", provider: "claude", thread: thread)]
+        thread.conversations = [Conversation(id: "\(id)-main", harness: "claude", thread: thread)]
         context.insert(thread)
 
         let definition = ScheduledTask(
@@ -225,7 +225,7 @@ extension ScheduledTasksViewModelFixture {
             state: .active,
             recurrence: .daily(hour: 8, minute: 0),
             timeZoneIdentifier: currentTimeZone.identifier,
-            providerID: "claude"
+            harnessID: "claude"
         )
         if linksThread {
             definition.reusedThread = thread

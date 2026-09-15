@@ -22,7 +22,7 @@ extension AgentCLIKitEventMapperTests {
                     ])
                 ]
             )),
-            providerSessionId: "session-1"
+            harnessSessionId: "session-1"
         ))
 
         guard case let .toolApprovalRequested(request)? = events.first,
@@ -52,7 +52,7 @@ extension AgentCLIKitEventMapperTests {
                     "tool_input": .object([:])
                 ]
             )),
-            providerSessionId: "session-1"
+            harnessSessionId: "session-1"
         ))
 
         XCTAssertEqual(events.count, 1)
@@ -77,7 +77,7 @@ extension AgentCLIKitEventMapperTests {
                     "approval_identity_tool_input": .object(["command": .string("git add README.md")])
                 ]
             )),
-            providerSessionId: "session-1"
+            harnessSessionId: "session-1"
         ))
 
         guard case let .toolApprovalRequested(request)? = events.first else {

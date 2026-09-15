@@ -10,7 +10,7 @@ import XCTest
 extension ThreadLifecycleServiceTests {
     private func makeTaskWorkspaceSeed(workspace: TaskWorkspaceDescriptor?) -> TaskThreadSeed {
         TaskThreadSeed(
-            provider: "claude",
+            harness: "claude",
             permissionMode: "default",
             model: nil,
             effort: AppSettings.defaultEffortLevel,
@@ -127,7 +127,7 @@ extension ThreadLifecycleServiceTests {
         let thread = try fixture.viewModel.threadLifecycle.insertProjectThread(
             project: project,
             seed: ProjectThreadSeed(
-                provider: "claude",
+                harness: "claude",
                 permissionMode: "default",
                 model: nil,
                 effort: AppSettings.defaultEffortLevel,

@@ -70,12 +70,12 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
         let draftThread = AgentThread(name: "Draft", isDraft: true, project: fixture.project)
         otherProject.threads = [otherThread, sharedThread]
         fixture.project.threads += [archivedThread, draftThread]
-        otherThread.conversations = [Conversation(id: "other", title: "Other", provider: "claude", thread: otherThread)]
-        sharedThread.conversations = [Conversation(id: "shared", provider: "claude", thread: sharedThread)]
-        archivedThread.conversations = [Conversation(id: "archived", provider: "claude", thread: archivedThread)]
-        draftThread.conversations = [Conversation(id: "draft", provider: "claude", thread: draftThread)]
+        otherThread.conversations = [Conversation(id: "other", title: "Other", harness: "claude", thread: otherThread)]
+        sharedThread.conversations = [Conversation(id: "shared", harness: "claude", thread: sharedThread)]
+        archivedThread.conversations = [Conversation(id: "archived", harness: "claude", thread: archivedThread)]
+        draftThread.conversations = [Conversation(id: "draft", harness: "claude", thread: draftThread)]
         fixture.thread.conversations = [
-            Conversation(id: "main", title: "Main", provider: "claude", thread: fixture.thread)
+            Conversation(id: "main", title: "Main", harness: "claude", thread: fixture.thread)
         ]
         fixture.context.insert(otherProject)
         try fixture.context.save()

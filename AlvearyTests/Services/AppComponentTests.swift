@@ -28,8 +28,8 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.notificationManager, component.notificationManager)
         assertSameInstance(component.appUpdateManager, component.appUpdateManager)
         assertSameInstance(component.agentRegistry, component.agentRegistry)
-        assertSameInstance(component.providerRegistry, component.providerRegistry)
-        assertSameInstance(component.providerDetectionService, component.providerDetectionService)
+        assertSameInstance(component.harnessRegistry, component.harnessRegistry)
+        assertSameInstance(component.harnessDetectionService, component.harnessDetectionService)
         assertSameInstance(component.keepAwakeService, component.keepAwakeService)
         assertAgentCLIKitServicesAreAppScoped(component)
         assertSameInstance(component.claudeApprovalPersistenceStore, component.claudeApprovalPersistenceStore)
@@ -55,12 +55,12 @@ final class AppComponentTests: XCTestCase {
         _ = component.appUpdateReleaseClient
         _ = component.appVersionProvider
         _ = component.agentEnvironmentBuilder
-        _ = component.providerSetupService
+        _ = component.harnessSetupService
         _ = component.contextWindowCache
         _ = component.agentCLIKitShellRunner
-        _ = component.agentCLIKitProviderDetector
-        _ = component.agentCLIKitProviderSetup
-        _ = component.agentCLIKitCodexProviderSetup
+        _ = component.agentCLIKitHarnessDetector
+        _ = component.agentCLIKitHarnessSetup
+        _ = component.agentCLIKitCodexHarnessSetup
         _ = component.agentCLIKitHostAdapter
         _ = component.agentCLIKitHostServices
         _ = component.worktreeManager
@@ -90,11 +90,11 @@ final class AppComponentTests: XCTestCase {
         XCTAssertNil(component.scheduledTaskLifecycleCoordinator.scheduledDeadline)
     }
 
-    func testAgentCLIKitProviderRegistryUsesAdapterSetDefinitions() async {
+    func testAgentCLIKitHarnessRegistryUsesAdapterSetDefinitions() async {
         let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
 
-        let adapterSetIDs = component.agentCLIKitProviderAdapterSet.definitions.map(\.id.rawValue)
-        let registryIDs = await component.agentCLIKitProviderRegistry.allDefinitions().map(\.id.rawValue)
+        let adapterSetIDs = component.agentCLIKitHarnessAdapterSet.definitions.map(\.id.rawValue)
+        let registryIDs = await component.agentCLIKitHarnessRegistry.allDefinitions().map(\.id.rawValue)
 
         XCTAssertEqual(registryIDs, adapterSetIDs)
     }
@@ -102,7 +102,7 @@ final class AppComponentTests: XCTestCase {
     func testAgentCLIKitCodexAdapterUsesSharedSessionApprovalStore() throws {
         let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
         let approvalStore = try XCTUnwrap(
-            component.agentCLIKitCodexProviderConfiguration.sessionApprovalPolicyStore as? AgentCLIKitClaudeApprovalStoreAdapter
+            component.agentCLIKitCodexHarnessConfiguration.sessionApprovalPolicyStore as? AgentCLIKitClaudeApprovalStoreAdapter
         )
 
         XCTAssertTrue(approvalStore === component.agentCLIKitClaudeApprovalPolicyStore)
@@ -111,7 +111,7 @@ final class AppComponentTests: XCTestCase {
     func testAgentCLIKitHostAdapterMapsSpawnConfig() throws {
         let adapter = AgentCLIKitHostAdapter()
         let config = try adapter.spawnConfig(from: AgentSpawnConfig(
-            providerId: "claude",
+            harnessId: "claude",
             workingDirectory: "/tmp/project",
             permissionMode: "bypassPermissions",
             planModeEnabled: true,
@@ -125,7 +125,7 @@ final class AppComponentTests: XCTestCase {
             hostTools: [mappedHostTool]
         ))
 
-        XCTAssertEqual(config.providerId.rawValue, "claude")
+        XCTAssertEqual(config.harnessId.rawValue, "claude")
         XCTAssertEqual(config.workingDirectory.path, "/tmp/project")
         XCTAssertEqual(config.permissionMode, "bypassPermissions")
         XCTAssertEqual(config.collaborationMode, .plan)
@@ -139,11 +139,11 @@ final class AppComponentTests: XCTestCase {
         XCTAssertEqual(config.hostTools, [mappedHostTool])
     }
 
-    func testAgentCLIKitHostAdapterAcceptsCodexProvider() throws {
+    func testAgentCLIKitHostAdapterAcceptsCodexHarness() throws {
         let adapter = AgentCLIKitHostAdapter()
 
         let config = try adapter.spawnConfig(from: AgentSpawnConfig(
-            providerId: "codex",
+            harnessId: "codex",
             workingDirectory: "/tmp/project",
             permissionMode: "on-request",
             model: nil,
@@ -152,24 +152,24 @@ final class AppComponentTests: XCTestCase {
             additionalWorkspaceRoots: ["/tmp/granted"]
         ))
 
-        XCTAssertEqual(config.providerId.rawValue, "codex")
+        XCTAssertEqual(config.harnessId.rawValue, "codex")
         XCTAssertEqual(config.permissionMode, "on-request")
         XCTAssertEqual(config.effort, "high")
         XCTAssertEqual(config.additionalWorkspaceRoots.map(\.path), ["/tmp/granted"])
     }
 
-    func testAgentCLIKitHostAdapterRejectsUnsupportedProvider() {
+    func testAgentCLIKitHostAdapterRejectsUnsupportedHarness() {
         let adapter = AgentCLIKitHostAdapter()
 
         XCTAssertThrowsError(try adapter.spawnConfig(from: AgentSpawnConfig(
-            providerId: "unknown",
+            harnessId: "unknown",
             workingDirectory: "/tmp/project",
             permissionMode: nil,
             model: nil,
             effort: nil,
             initialPrompt: nil
         ))) { error in
-            XCTAssertEqual(error as? AgentCLIKitHostAdapterError, .unsupportedProvider("unknown"))
+            XCTAssertEqual(error as? AgentCLIKitHostAdapterError, .unsupportedHarness("unknown"))
         }
     }
 
@@ -179,16 +179,16 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.agentCLIKitInteractionStore, component.agentCLIKitInteractionStore)
         assertSameInstance(component.agentCLIKitApprovalPolicyStore, component.agentCLIKitApprovalPolicyStore)
         assertSameInstance(component.agentCLIKitClaudeApprovalPolicyStore, component.agentCLIKitClaudeApprovalPolicyStore)
-        XCTAssertEqual(component.agentCLIKitProviderAdapterSet.definitions.map(\.id.rawValue), ["claude", "codex"])
+        XCTAssertEqual(component.agentCLIKitHarnessAdapterSet.definitions.map(\.id.rawValue), ["claude", "codex"])
         _ = component.agentCLIKitOneShotPromptRunner
         assertSameInstance(component.agentCLIKitClaudeConfigStore, component.agentCLIKitClaudeConfigStore)
         assertSameInstance(component.agentCLIKitCodexConfigStore, component.agentCLIKitCodexConfigStore)
-        assertSameInstance(component.agentCLIKitProviderRegistry, component.agentCLIKitProviderRegistry)
+        assertSameInstance(component.agentCLIKitHarnessRegistry, component.agentCLIKitHarnessRegistry)
         _ = component.agentCLIKitProjectTrustService
-        _ = component.agentCLIKitProviderDiscoveryService
+        _ = component.agentCLIKitHarnessDiscoveryService
         // The decorator is only worth anything shared: a per-resolution instance would give every
         // injection site its own empty cache, silently restoring the per-thread-creation probe.
-        XCTAssertTrue(component.cachedAgentProviderDiscoveryService === component.cachedAgentProviderDiscoveryService)
+        XCTAssertTrue(component.cachedAgentHarnessDiscoveryService === component.cachedAgentHarnessDiscoveryService)
         assertSameInstance(component.agentCLIKitContextWindowCache, component.agentCLIKitContextWindowCache)
     }
 

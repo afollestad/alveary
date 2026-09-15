@@ -6,7 +6,7 @@ import XCTest
 @MainActor
 extension ChatComposerDraftTests {
     func testBareModelCommandOpensModelListWithoutSendingOrRequestingComposerFocus() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         let attachment = LocalFileAttachment(
             fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("notes.txt")
@@ -17,7 +17,7 @@ extension ChatComposerDraftTests {
             fixture: fixture,
             appState: appState,
             modelGroups: Self.codexModelGroups,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -33,7 +33,7 @@ extension ChatComposerDraftTests {
     }
 
     func testModelCommandAppliesShortNameCaseInsensitivelyWithoutSending() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         var requests: [ChatComposerActionRowView.ReasoningModelSelectionRequest] = []
         fixture.viewModel.replaceInputDraft("/model SOL", source: .blockInputMarkdown)
@@ -45,13 +45,13 @@ extension ChatComposerDraftTests {
                 requests.append(request)
                 return .applied(selection: Self.appliedSelection)
             },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
 
         XCTAssertEqual(requests.map(\.modelID), ["gpt-5.6-sol"])
-        XCTAssertEqual(requests.map(\.providerID), ["codex"])
+        XCTAssertEqual(requests.map(\.harnessID), ["codex"])
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
         XCTAssertNotNil(appState.pendingComposerFocusToken)
         XCTAssertNil(fixture.viewModel.lastTurnError)
@@ -60,7 +60,7 @@ extension ChatComposerDraftTests {
     }
 
     func testModelCommandClearsDraftWhenSelectionIsUnchanged() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.replaceInputDraft("/model gpt-5.5", source: .blockInputMarkdown)
         let chatView = makeChatView(
@@ -68,7 +68,7 @@ extension ChatComposerDraftTests {
             appState: appState,
             modelGroups: Self.codexModelGroups,
             onModelChange: { _ in .unchanged(Self.appliedSelection) },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -79,7 +79,7 @@ extension ChatComposerDraftTests {
     }
 
     func testUnknownModelKeepsDraftAndAttachmentsAndSurfacesOptions() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         let attachment = LocalFileAttachment(
             fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("notes.txt")
@@ -95,7 +95,7 @@ extension ChatComposerDraftTests {
                 requestCount += 1
                 return .rejected
             },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -110,7 +110,7 @@ extension ChatComposerDraftTests {
     }
 
     func testRejectedModelChangeKeepsDraftAndReportsFallbackError() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.replaceInputDraft("/model luna", source: .blockInputMarkdown)
         let chatView = makeChatView(
@@ -118,7 +118,7 @@ extension ChatComposerDraftTests {
             appState: appState,
             modelGroups: Self.codexModelGroups,
             onModelChange: { _ in .rejected },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -129,7 +129,7 @@ extension ChatComposerDraftTests {
     }
 
     func testRejectedModelChangePreservesUnderlyingError() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.replaceInputDraft("/model luna", source: .blockInputMarkdown)
         let chatView = makeChatView(
@@ -140,7 +140,7 @@ extension ChatComposerDraftTests {
                 fixture.viewModel.lastTurnError = "Finish the current turn first."
                 return .rejected
             },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -149,8 +149,8 @@ extension ChatComposerDraftTests {
         XCTAssertEqual(fixture.viewModel.lastTurnError, "Finish the current turn first.")
     }
 
-    func testModelCommandSwitchesProviderWhenGroupsSpanProviders() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+    func testModelCommandSwitchesHarnessWhenGroupsSpanHarnesses() async throws {
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         var requests: [ChatComposerActionRowView.ReasoningModelSelectionRequest] = []
         fixture.viewModel.replaceInputDraft("/model opus", source: .blockInputMarkdown)
@@ -162,18 +162,18 @@ extension ChatComposerDraftTests {
                 requests.append(request)
                 return .applied(selection: Self.appliedSelection)
             },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
 
-        XCTAssertEqual(requests.map(\.providerID), ["claude"])
+        XCTAssertEqual(requests.map(\.harnessID), ["claude"])
         XCTAssertEqual(requests.map(\.modelID), ["opus"])
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
     }
 
     func testModelCommandPassesThroughWhenOnlyOneModelIsAvailable() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.replaceInputDraft("/model sol", source: .blockInputMarkdown)
         var requestCount = 0
@@ -182,8 +182,8 @@ extension ChatComposerDraftTests {
             appState: appState,
             modelGroups: [
                 ChatComposerActionRowView.ReasoningModelGroup(
-                    providerID: "codex",
-                    providerTitle: "Codex",
+                    harnessID: "codex",
+                    harnessTitle: "Codex",
                     options: [Self.modelOption(value: "gpt-5.6-sol", shortName: "sol", title: "GPT-5.6-Sol")]
                 )
             ],
@@ -191,7 +191,7 @@ extension ChatComposerDraftTests {
                 requestCount += 1
                 return .rejected
             },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -206,8 +206,8 @@ extension ChatComposerDraftTests {
     private static var codexModelGroups: [ChatComposerActionRowView.ReasoningModelGroup] {
         [
             ChatComposerActionRowView.ReasoningModelGroup(
-                providerID: "codex",
-                providerTitle: "Codex",
+                harnessID: "codex",
+                harnessTitle: "Codex",
                 options: [
                     modelOption(value: "gpt-5.6-sol", shortName: "sol", title: "GPT-5.6-Sol"),
                     modelOption(value: "gpt-5.6-luna", shortName: "luna", title: "GPT-5.6-Luna"),
@@ -220,10 +220,10 @@ extension ChatComposerDraftTests {
     private static var claudeModelGroups: [ChatComposerActionRowView.ReasoningModelGroup] {
         [
             ChatComposerActionRowView.ReasoningModelGroup(
-                providerID: "claude",
-                providerTitle: "Claude",
+                harnessID: "claude",
+                harnessTitle: "Claude",
                 options: [
-                    modelOption(providerID: "claude", value: "opus", shortName: "opus", title: "Opus")
+                    modelOption(harnessID: "claude", value: "opus", shortName: "opus", title: "Opus")
                 ]
             )
         ]
@@ -231,8 +231,8 @@ extension ChatComposerDraftTests {
 
     private static var appliedSelection: ChatComposerActionRowView.ReasoningSelection {
         ChatComposerActionRowView.ReasoningSelection(
-            providerID: "codex",
-            providerTitle: "Codex",
+            harnessID: "codex",
+            harnessTitle: "Codex",
             modelID: "gpt-5.6-sol",
             modelTitle: "GPT-5.6-Sol",
             effortValue: "medium",
@@ -245,13 +245,13 @@ extension ChatComposerDraftTests {
     }
 
     private static func modelOption(
-        providerID: String = "codex",
+        harnessID: String = "codex",
         value: String,
         shortName: String,
         title: String
     ) -> ChatComposerActionRowView.ReasoningModelOption {
         ChatComposerActionRowView.ReasoningModelOption(
-            providerID: providerID,
+            harnessID: harnessID,
             value: value,
             title: title,
             shortName: shortName

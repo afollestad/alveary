@@ -7,7 +7,7 @@ import XCTest
 
 @MainActor
 extension SidebarViewModelTests {
-    func testForkThreadIntoLocalCreatesThreadCopiesTranscriptAndStartsProviderFork() async throws {
+    func testForkThreadIntoLocalCreatesThreadCopiesTranscriptAndStartsHarnessFork() async throws {
         let setup = try localForkSetup()
         let fixture = setup.fixture
         let thread = setup.thread
@@ -47,9 +47,9 @@ extension SidebarViewModelTests {
         XCTAssertEqual(fixture.threadStatus(for: thread), .stopped)
     }
 
-    func testForkThreadIntoWorktreeCreatesWorktreeBeforeProviderFork() async throws {
+    func testForkThreadIntoWorktreeCreatesWorktreeBeforeHarnessFork() async throws {
         let sourceHead = "9c9f673d2b98e8e249e189ebd3b6193bff0afce4"
-        let setup = try worktreeForkSetup(providerId: .claude, sessionId: "claude-session")
+        let setup = try worktreeForkSetup(harnessId: .claude, sessionId: "claude-session")
         let fixture = setup.fixture
         let thread = setup.thread
         await fixture.worktreeManager.setCreateInfo(WorktreeInfo(path: "/tmp/new-worktree", branch: "alveary/forked-thread"))
@@ -166,8 +166,8 @@ extension SidebarViewModelTests {
         }
     }
 
-    func testForkThreadRollsBackThreadAndWorktreeOnProviderBootstrapFailure() async throws {
-        let setup = try projectForkSetup(providerId: .codex, sessionId: "codex-thread")
+    func testForkThreadRollsBackThreadAndWorktreeOnHarnessBootstrapFailure() async throws {
+        let setup = try projectForkSetup(harnessId: .codex, sessionId: "codex-thread")
         let fixture = setup.fixture
         let thread = setup.thread
         await fixture.agentsManager.setSpawnError(.spawnFailed("fork failed"))
@@ -175,7 +175,7 @@ extension SidebarViewModelTests {
 
         do {
             _ = try await fixture.viewModel.forkThreadIntoWorktree(thread)
-            XCTFail("Expected provider bootstrap failure")
+            XCTFail("Expected harness bootstrap failure")
         } catch let error as SidebarViewModelError {
             guard case .threadForkFailed = error else {
                 XCTFail("Expected thread fork failure")
@@ -185,23 +185,23 @@ extension SidebarViewModelTests {
 
         let threads = try fixture.context.fetch(FetchDescriptor<AgentThread>())
         let removeCalls = await fixture.worktreeManager.removeCalls()
-        let actions = await fixture.providerSessionActions.actions
+        let actions = await fixture.harnessSessionActions.actions
 
         XCTAssertEqual(threads.map(\.name), ["Thread"])
         XCTAssertEqual(removeCalls, [
             .init(projectPath: "/tmp/alveary-project", worktreePath: "/tmp/new-worktree", branch: "alveary/forked-thread")
         ])
         guard case .delete(let deleteSnapshot) = actions.last else {
-            XCTFail("Expected rollback to request provider deletion")
+            XCTFail("Expected rollback to request harness deletion")
             return
         }
-        XCTAssertEqual(deleteSnapshot.providerIDs, ["codex"])
+        XCTAssertEqual(deleteSnapshot.harnessIDs, ["codex"])
         XCTAssertEqual(deleteSnapshot.workingDirectory, URL(fileURLWithPath: "/tmp/new-worktree", isDirectory: true))
         XCTAssertEqual(deleteSnapshot.conversationIDs.count, 1)
     }
 
     func testForkThreadCleansUpWorktreeWhenContextPreparationFails() async throws {
-        let setup = try projectForkSetup(providerId: .codex, sessionId: "codex-thread")
+        let setup = try projectForkSetup(harnessId: .codex, sessionId: "codex-thread")
         let fixture = setup.fixture
         let thread = setup.thread
         await fixture.worktreeManager.setCreateInfo(WorktreeInfo(path: "/tmp/new-worktree", branch: "alveary/forked-thread"))
@@ -226,14 +226,14 @@ extension SidebarViewModelTests {
 
 @MainActor
 private func localForkSetup() throws -> ForkTestSetup {
-    let sourceRecord = forkProviderSessionRecord(
+    let sourceRecord = forkHarnessSessionRecord(
         conversationId: "main",
-        providerId: .codex,
+        harnessId: .codex,
         sessionId: "codex-thread",
         workingDirectory: "/tmp/alveary-project"
     )
     let fixture = try SidebarTestFixture(
-        providerSessionActions: RecordingProviderSessionActionService(
+        harnessSessionActions: RecordingHarnessSessionActionService(
             resolvedRecordsByConversationID: ["main": [sourceRecord]]
         )
     )
@@ -241,21 +241,21 @@ private func localForkSetup() throws -> ForkTestSetup {
         projectName: "Alveary",
         projectPath: "/tmp/alveary-project",
         conversationIDs: ["main"],
-        provider: "codex",
-        providerSessionId: "codex-thread",
-        providerSessionProviderId: "codex",
-        providerSessionWorkingDirectory: "/tmp/alveary-project"
+        harness: "codex",
+        harnessSessionId: "codex-thread",
+        harnessSessionHarnessId: "codex",
+        harnessSessionWorkingDirectory: "/tmp/alveary-project"
     )
     return ForkTestSetup(fixture: fixture, thread: thread)
 }
 
 @MainActor
 private func worktreeForkSetup(
-    providerId: AgentCLIKit.AgentProviderID,
+    harnessId: AgentCLIKit.AgentHarnessID,
     sessionId: AgentCLIKit.AgentSessionID
 ) throws -> ForkTestSetup {
     let setup = try projectForkSetup(
-        providerId: providerId,
+        harnessId: harnessId,
         sessionId: sessionId,
         sourceWorktreePath: "/tmp/source-worktree",
         threadName: "Source Thread"
@@ -269,20 +269,20 @@ private func worktreeForkSetup(
 
 @MainActor
 func projectForkSetup(
-    providerId: AgentCLIKit.AgentProviderID,
+    harnessId: AgentCLIKit.AgentHarnessID,
     sessionId: AgentCLIKit.AgentSessionID,
     sourceWorktreePath: String? = nil,
     threadName: String = "Thread"
 ) throws -> ForkTestSetup {
     let workingDirectory = sourceWorktreePath ?? "/tmp/alveary-project"
-    let sourceRecord = forkProviderSessionRecord(
+    let sourceRecord = forkHarnessSessionRecord(
         conversationId: "main",
-        providerId: providerId,
+        harnessId: harnessId,
         sessionId: sessionId,
         workingDirectory: workingDirectory
     )
     let fixture = try SidebarTestFixture(
-        providerSessionActions: RecordingProviderSessionActionService(
+        harnessSessionActions: RecordingHarnessSessionActionService(
             resolvedRecordsByConversationID: ["main": [sourceRecord]]
         )
     )
@@ -292,10 +292,10 @@ func projectForkSetup(
         Conversation(
             id: "main",
             title: threadName,
-            provider: providerId.rawValue,
-            providerSessionId: sessionId.rawValue,
-            providerSessionProviderId: providerId.rawValue,
-            providerSessionWorkingDirectory: workingDirectory,
+            harness: harnessId.rawValue,
+            harnessSessionId: sessionId.rawValue,
+            harnessSessionHarnessId: harnessId.rawValue,
+            harnessSessionWorkingDirectory: workingDirectory,
             isMain: true,
             displayOrder: 0,
             thread: thread
@@ -320,7 +320,7 @@ private func assertLocalForkThread(
     XCTAssertTrue(forkedThread.hasCompletedInitialSetup)
     XCTAssertFalse(forkedThread.isForkBootstrapPending)
     XCTAssertEqual(conversation.title, "Thread")
-    XCTAssertEqual(conversation.provider, "codex")
+    XCTAssertEqual(conversation.harness, "codex")
     XCTAssertEqual(spawnCall.id, conversation.id)
     XCTAssertEqual(spawnCall.config.workingDirectory, "/tmp/alveary-project")
     XCTAssertEqual(spawnCall.config.initialPrompt, nil)
@@ -477,16 +477,16 @@ private func events(in fixture: SidebarTestFixture, conversationID: String) thro
     }
 }
 
-private func forkProviderSessionRecord(
+private func forkHarnessSessionRecord(
     conversationId: AgentCLIKit.AgentConversationID,
-    providerId: AgentCLIKit.AgentProviderID,
+    harnessId: AgentCLIKit.AgentHarnessID,
     sessionId: AgentCLIKit.AgentSessionID,
     workingDirectory: String
 ) -> AgentCLIKit.AgentSessionRecord {
     AgentCLIKit.AgentSessionRecord(
         conversationId: conversationId,
-        providerId: providerId,
-        providerSessionId: sessionId,
+        harnessId: harnessId,
+        harnessSessionId: sessionId,
         workingDirectory: URL(fileURLWithPath: workingDirectory, isDirectory: true),
         generation: 0,
         createdAt: Date(timeIntervalSince1970: 0),

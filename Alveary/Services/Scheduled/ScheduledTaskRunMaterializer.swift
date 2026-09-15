@@ -169,7 +169,7 @@ extension DefaultScheduledTaskRunMaterializer {
         let thread = makeTaskThread(run: run, snapshot: snapshot, preparedWorkspace: nil)
         thread.customSection = resolvedRunSection(snapshot)
         let conversation = Conversation(
-            provider: snapshot.providerID,
+            harness: snapshot.harnessID,
             isMain: true,
             displayOrder: 0,
             thread: thread

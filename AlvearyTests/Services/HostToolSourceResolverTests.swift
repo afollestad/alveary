@@ -23,7 +23,7 @@ final class HostToolSourceResolverTests: XCTestCase {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let context = AgentCLIKit.AgentHostToolCallContext(
             conversationId: AgentCLIKit.AgentConversationID(rawValue: "missing-conversation"),
-            providerId: .codex,
+            harnessId: .codex,
             processToken: UUID(),
             requestId: "request-1"
         )
@@ -56,16 +56,16 @@ final class HostToolSourceResolverTests: XCTestCase {
         }
     }
 
-    func testRejectsAProviderThatDisagreesWithTheStoredOne() throws {
+    func testRejectsAHarnessThatDisagreesWithTheStoredOne() throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
 
         XCTAssertThrowsError(
             try HostToolSourceResolver.resolveSource(
-                context: fixture.agentContext(providerID: .claude),
+                context: fixture.agentContext(harnessID: .claude),
                 in: fixture.modelContext
             )
         ) { error in
-            XCTAssertEqual(error as? HostToolSourceError, .sourceProviderMismatch)
+            XCTAssertEqual(error as? HostToolSourceError, .sourceHarnessMismatch)
         }
     }
 }

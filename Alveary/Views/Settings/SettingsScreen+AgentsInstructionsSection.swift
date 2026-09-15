@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The `AGENTS.md` sub-section on the Agents settings tab: a shared global
+/// The `AGENTS.md` sub-section on the Harnesses settings tab: a shared global
 /// instructions file at `~/.agents/AGENTS.md`, per-agent link rows, and an
 /// `Edit` row opening `AgentsInstructionsEditorSheet`.
 struct AgentsInstructionsSection: View {

@@ -43,7 +43,7 @@ extension ScheduledTaskHostToolFixture {
     @discardableResult
     func insertTargetThread(name: String, conversationID: String) throws -> AgentThread {
         let target = AgentThread(name: name, mode: .task)
-        target.conversations = [Conversation(id: conversationID, provider: "codex", thread: target)]
+        target.conversations = [Conversation(id: conversationID, harness: "codex", thread: target)]
         modelContext.insert(target)
         try modelContext.save()
         return target

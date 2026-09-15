@@ -2,7 +2,7 @@ import Foundation
 
 /// Live scheduled-task data and actions a tool row's expanded detail renders.
 ///
-/// The list tool's own result cannot supply this: it is a snapshot, and providers that
+/// The list tool's own result cannot supply this: it is a snapshot, and harnesses that
 /// surface only the text fallback carry no rows at all. Alveary owns the definitions, so
 /// the row reads them directly and always shows current state.
 struct ScheduledTaskListToolActions {
@@ -20,7 +20,7 @@ struct ScheduledTaskListRow: Equatable, Identifiable {
 }
 
 enum ScheduledTaskListToolPresentation {
-    /// Providers disagree on whether a host tool name carries the server prefix.
+    /// Harnesses disagree on whether a host tool name carries the server prefix.
     static func isListTool(named toolName: String) -> Bool {
         matches(toolName, hostToolName: ScheduledTaskHostToolCatalog.listToolName)
     }

@@ -141,9 +141,9 @@ extension ChatItemGrouper {
         AgentEventEnvelope(
             generation: 0,
             index: processedCount,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: AgentConversationID(rawValue: event.conversationId),
-            providerSessionId: nil,
+            harnessSessionId: nil,
             source: .stdout,
             event: .toolCall(AgentToolCallEvent(
                 id: event.toolId ?? event.id,
@@ -158,9 +158,9 @@ extension ChatItemGrouper {
         AgentEventEnvelope(
             generation: 0,
             index: processedCount,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: AgentConversationID(rawValue: event.conversationId),
-            providerSessionId: nil,
+            harnessSessionId: nil,
             source: .stdout,
             event: .toolResult(AgentToolResultEvent(
                 id: event.toolId ?? event.id,

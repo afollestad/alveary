@@ -35,7 +35,7 @@ enum OnboardingDependency: String, CaseIterable, Identifiable, Sendable, Equatab
         }
     }
 
-    var providerID: String? {
+    var harnessID: String? {
         switch self {
         case .commandLineTools, .githubCLI:
             return nil
@@ -110,7 +110,7 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
     private static let outputLimitBytes = 128 * 1024
 
     private let gitHubCLI: GitHubCLIService
-    private let providerDetection: any ProviderDetectionService
+    private let harnessDetection: any HarnessDetectionService
     private let agentRegistry: AgentRegistry
     // Internal so the Command Line Tools companion can probe with it.
     let shell: ShellRunner
@@ -120,7 +120,7 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
 
     init(
         gitHubCLI: GitHubCLIService,
-        providerDetection: any ProviderDetectionService,
+        harnessDetection: any HarnessDetectionService,
         agentRegistry: AgentRegistry,
         shell: ShellRunner,
         executableResolver: any ExecutablePathResolving,
@@ -128,7 +128,7 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
         commandLineToolsPollInterval: Duration = .seconds(5)
     ) {
         self.gitHubCLI = gitHubCLI
-        self.providerDetection = providerDetection
+        self.harnessDetection = harnessDetection
         self.agentRegistry = agentRegistry
         self.shell = shell
         self.commandLineToolsPollInterval = commandLineToolsPollInterval
@@ -147,15 +147,15 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
             }
             return OnboardingDependencyStatus(dependency: dependency, state: .missing)
         case .claude, .codex:
-            guard let providerID = dependency.providerID else {
+            guard let harnessID = dependency.harnessID else {
                 return OnboardingDependencyStatus(dependency: dependency, state: .missing)
             }
-            await providerDetection.checkProvider(providerID)
-            guard let path = await providerDetection.resolvedPath(for: providerID) else {
+            await harnessDetection.checkHarness(harnessID)
+            guard let path = await harnessDetection.resolvedPath(for: harnessID) else {
                 return OnboardingDependencyStatus(dependency: dependency, state: .missing)
             }
             let detail: String?
-            switch await providerDetection.status(for: providerID) {
+            switch await harnessDetection.status(for: harnessID) {
             case .connected(path: _, version: let version):
                 let trimmedVersion = version.trimmingCharacters(in: .whitespacesAndNewlines)
                 detail = trimmedVersion.isEmpty ? path : "\(trimmedVersion) at \(path)"
@@ -215,10 +215,10 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
     }
 
     private func installAgentDependency(_ dependency: OnboardingDependency) async throws -> OnboardingDependencyStatus {
-        guard let providerID = dependency.providerID else {
+        guard let harnessID = dependency.harnessID else {
             throw OnboardingDependencyInstallError(message: "Unsupported dependency: \(dependency.displayName)")
         }
-        let command = agentRegistry.agent(for: providerID)?.installCommand ?? dependency.fallbackInstallCommand
+        let command = agentRegistry.agent(for: harnessID)?.installCommand ?? dependency.fallbackInstallCommand
         let environment = dependency == .codex ? ["CODEX_NON_INTERACTIVE": "1"] : nil
         // These commands pipe `curl` into a shell. Without `pipefail` a failed download still exits
         // 0, so an offline install would report success and then fail detection for no clear reason.
@@ -231,7 +231,7 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
         let installedStatus = await status(for: dependency)
         guard installedStatus.isInstalled else {
             throw postconditionFailure(
-                "\(dependency.displayName) installer finished, but `\(providerID)` could not be found.",
+                "\(dependency.displayName) installer finished, but `\(harnessID)` could not be found.",
                 result: result
             )
         }

@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 extension ChatComposerDraftTests {
-    func testLocalImageSelectionStagesImagesWhenProviderSupportsAttachments() async throws {
+    func testLocalImageSelectionStagesImagesWhenHarnessSupportsAttachments() async throws {
         let root = temporaryDirectory()
         let sourceDirectory = temporaryDirectory()
         defer {
@@ -57,7 +57,7 @@ extension ChatComposerDraftTests {
         }
     }
 
-    func testLocalImageSelectionStagesImagesWhenProviderDoesNotSupportAttachments() async throws {
+    func testLocalImageSelectionStagesImagesWhenHarnessDoesNotSupportAttachments() async throws {
         let sourceDirectory = temporaryDirectory()
         defer {
             try? FileManager.default.removeItem(at: sourceDirectory)

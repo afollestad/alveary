@@ -21,7 +21,7 @@ extension SnapshotTests {
         let conversation = Conversation(
             id: "mixed-pinned-task",
             title: "Main",
-            provider: "claude",
+            harness: "claude",
             thread: task
         )
         task.conversations = [conversation]

@@ -21,7 +21,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.state.runtimeSpeedMode = .standard
@@ -45,19 +45,19 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.state.pendingSessionSettingsChange)
     }
 
-    func testExplicitFastSelectionRejectsUnsupportedProviderWithoutChangingThread() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+    func testExplicitFastSelectionRejectsUnsupportedHarnessWithoutChangingThread() async throws {
+        let fixture = try ConversationViewModelTestFixture(harnessId: "claude")
 
         await fixture.viewModel.applySpeedModeChange(.fast, supportsSpeedMode: false).value
 
         XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .standard)
-        XCTAssertEqual(fixture.viewModel.lastTurnError, "Fast mode is not supported by this provider.")
+        XCTAssertEqual(fixture.viewModel.lastTurnError, "Fast mode is not supported by this harness.")
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertTrue(reconfigureCalls.isEmpty)
     }
 
-    func testUnsupportedProviderStatusNormalizesStoredFastBeforeSend() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+    func testUnsupportedHarnessStatusNormalizesStoredFastBeforeSend() throws {
+        let fixture = try ConversationViewModelTestFixture(harnessId: "claude")
         try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
         try fixture.context.save()
 
@@ -67,17 +67,17 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.state.runtimeSpeedMode, .standard)
     }
 
-    func testPreStartupProviderModelChangeForcesFastOffWhenTargetProviderDoesNotSupportSpeed() throws {
+    func testPreStartupHarnessModelChangeForcesFastOffWhenTargetHarnessDoesNotSupportSpeed() throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
         try fixture.context.save()
 
-        let didApply = fixture.viewModel.applyPreStartupProviderModelChange(
-            providerID: "claude",
+        let didApply = fixture.viewModel.applyPreStartupHarnessModelChange(
+            harnessID: "claude",
             model: "opus",
             effortOptions: [],
             defaultEffort: nil,
@@ -85,23 +85,23 @@ extension ConversationViewModelTests {
         )
 
         XCTAssertTrue(didApply)
-        XCTAssertEqual(try fixture.dbConversation().provider, "claude")
+        XCTAssertEqual(try fixture.dbConversation().harness, "claude")
         XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .standard)
         XCTAssertEqual(fixture.viewModel.state.runtimeSpeedMode, .standard)
     }
 
-    func testPreStartupModelChangeForcesFastOffWhenCurrentProviderReportsNoSpeedSupport() throws {
+    func testPreStartupModelChangeForcesFastOffWhenCurrentHarnessReportsNoSpeedSupport() throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
         fixture.viewModel.state.runtimeSpeedMode = .fast
         try fixture.context.save()
 
-        let didApply = fixture.viewModel.applyPreStartupProviderModelChange(
-            providerID: "codex",
+        let didApply = fixture.viewModel.applyPreStartupHarnessModelChange(
+            harnessID: "codex",
             model: "gpt-5.5",
             effortOptions: [],
             defaultEffort: nil,
@@ -114,11 +114,11 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.viewModel.makeSpawnConfig().speedMode, .standard)
     }
 
-    func testModelChangeForcesFastOffWhenCurrentProviderNoLongerSupportsSpeed() async throws {
+    func testModelChangeForcesFastOffWhenCurrentHarnessNoLongerSupportsSpeed() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
         try fixture.context.save()
@@ -135,7 +135,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.state.runtimeSpeedMode = .standard
@@ -179,7 +179,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "codex"
+            harnessId: "codex"
         )
         try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
         try fixture.context.save()
@@ -222,7 +222,7 @@ extension ConversationViewModelTests {
     }
 
     func testEnsureStandardSpeedFailureUsesDisableFastModeError() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
         try fixture.context.save()
         fixture.viewModel.state.runtimeSpeedMode = .fast
@@ -237,7 +237,7 @@ extension ConversationViewModelTests {
     }
 
     func testSteerQueuedMessageRejectsSpeedIntent() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.turnState.beginTurn()
         fixture.viewModel.state.activeRuntimeActivityTurnId = "turn-1"
         try await fixture.viewModel.queueOrSend("Fast queued", requiredSpeedMode: .fast)

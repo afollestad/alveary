@@ -3,7 +3,7 @@ import Foundation
 
 /// The exact-retry ledger shared by every non-idempotent pull request tool.
 ///
-/// A provider may replay a call it never saw the result of. Posting to GitHub twice is visible to
+/// A harness may replay a call it never saw the result of. Posting to GitHub twice is visible to
 /// everyone on the pull request, so every tool that publishes something records what it did and
 /// replays that instead of acting again. The idempotent ones — resolve and unresolve — keep no
 /// ledger, because their end state is its own record.

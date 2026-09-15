@@ -25,7 +25,7 @@ extension SidebarViewTests {
         }
         let definition = ScheduledTask(
             title: "Scheduled review", prompt: "Review changes", destination: .newThreadPerRun,
-            recurrence: .daily(hour: 9, minute: 0), timeZoneIdentifier: "UTC", providerID: "codex"
+            recurrence: .daily(hour: 9, minute: 0), timeZoneIdentifier: "UTC", harnessID: "codex"
         )
         let run = ScheduledTaskRun(
             snapshotting: definition, occurrenceID: "accessibility-run", occurrenceAt: Date(), triggerKind: .scheduled

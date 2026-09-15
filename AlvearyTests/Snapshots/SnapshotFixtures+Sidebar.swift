@@ -32,8 +32,8 @@ func makeSidebarSnapshotFixture(includePinnedThread: Bool = false) async throws 
     let project = Project(path: "/tmp/alveary", name: "Alveary")
     let activeThread = AgentThread(name: "Refactor Chat Input", project: project)
     let archivedThread = AgentThread(name: "Audit Diff Watcher", archivedAt: Date(timeIntervalSince1970: 1_713_000_000), project: project)
-    let activeConversation = Conversation(id: "main", title: "Main", provider: "claude", thread: activeThread)
-    let archivedConversation = Conversation(id: "archive", title: "Main", provider: "claude", thread: archivedThread)
+    let activeConversation = Conversation(id: "main", title: "Main", harness: "claude", thread: activeThread)
+    let archivedConversation = Conversation(id: "archive", title: "Main", harness: "claude", thread: archivedThread)
     activeThread.conversations = [activeConversation]
     archivedThread.conversations = [archivedConversation]
     project.threads = [activeThread, archivedThread]
@@ -45,7 +45,7 @@ func makeSidebarSnapshotFixture(includePinnedThread: Bool = false) async throws 
             modifiedAt: Date(timeIntervalSince1970: 1_713_000_100),
             project: project
         )
-        let conversation = Conversation(id: "pinned", title: "Main", provider: "claude", thread: thread)
+        let conversation = Conversation(id: "pinned", title: "Main", harness: "claude", thread: thread)
         thread.conversations = [conversation]
         project.threads.append(thread)
         pinnedThread = thread
@@ -94,7 +94,7 @@ func makeMixedPinnedSidebarSnapshotFixture() async throws -> SnapshotMixedPinned
         modifiedAt: Date(timeIntervalSince1970: 1_713_000_200),
         project: pinnedProject
     )
-    let pinnedProjectConversation = Conversation(id: "pinned-project-main", title: "Main", provider: "claude", thread: pinnedProjectThread)
+    let pinnedProjectConversation = Conversation(id: "pinned-project-main", title: "Main", harness: "claude", thread: pinnedProjectThread)
     pinnedProjectThread.conversations = [pinnedProjectConversation]
     pinnedProject.threads = [pinnedProjectThread]
 
@@ -106,7 +106,7 @@ func makeMixedPinnedSidebarSnapshotFixture() async throws -> SnapshotMixedPinned
         modifiedAt: Date(timeIntervalSince1970: 1_713_000_100),
         project: regularProject
     )
-    let standalonePinnedConversation = Conversation(id: "standalone-pinned", title: "Main", provider: "claude", thread: standalonePinnedThread)
+    let standalonePinnedConversation = Conversation(id: "standalone-pinned", title: "Main", harness: "claude", thread: standalonePinnedThread)
     standalonePinnedThread.conversations = [standalonePinnedConversation]
     regularProject.threads = [standalonePinnedThread]
 
@@ -154,7 +154,7 @@ func makeTaskSidebarSnapshotFixture(
         let conversation = Conversation(
             id: "sidebar-task-\(index)",
             title: "Main",
-            provider: "claude",
+            harness: "claude",
             thread: task
         )
         task.conversations = [conversation]

@@ -8,11 +8,11 @@ extension AgentsManagerTests {
     func testAgentCLIKitCancelledButRunningRuntimeRequiresRespawnForOutbound() {
         let status = AgentCLIKit.AgentRuntimeStatus(
             conversationId: AgentCLIKit.AgentConversationID(rawValue: "agentclikit-cancelled-running-readiness"),
-            providerId: .claude,
+            harnessId: .claude,
             generation: 1,
             state: .cancelled,
             lastEventIndex: 1,
-            providerSessionId: nil,
+            harnessSessionId: nil,
             processIdentifier: 12_345,
             isProcessRunning: true
         )

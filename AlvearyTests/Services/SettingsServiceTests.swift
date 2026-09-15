@@ -82,7 +82,7 @@ final class SettingsServiceTests: XCTestCase {
         let container = try makeModelContainer()
         let context = ModelContext(container)
         let project = Project(path: "/tmp/\(UUID().uuidString)", name: "Fixture")
-        let conversation = Conversation(title: "Main", provider: "claude")
+        let conversation = Conversation(title: "Main", harness: "claude")
         let thread = AgentThread(name: "Primary", project: project, conversations: [conversation])
         project.threads.append(thread)
         context.insert(project)
@@ -237,8 +237,8 @@ final class SettingsServiceTests: XCTestCase {
 
         let service = UserDefaultsSettingsService(defaults: defaults)
 
-        XCTAssertEqual(service.current.defaultProvider, "codex")
-        XCTAssertEqual(service.current.lastSettingsPage, .agents)
+        XCTAssertEqual(service.current.defaultHarness, "codex")
+        XCTAssertEqual(service.current.lastSettingsPage, .harnesses)
         XCTAssertEqual(service.current.permissionMode, "on-request")
         XCTAssertEqual(service.current.effort, "turbo")
         XCTAssertEqual(service.current.theme, "system")
@@ -404,7 +404,7 @@ final class SettingsServiceTests: XCTestCase {
         let inMemoryService = InMemorySettingsService()
 
         userDefaultsService.update {
-            $0.defaultProvider = "codex"
+            $0.defaultHarness = "codex"
             $0.permissionMode = "invalid"
             $0.effort = "turbo"
             $0.theme = "sepia"
@@ -413,7 +413,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.notifications.soundName = "Bonk"
         }
         inMemoryService.update {
-            $0.defaultProvider = "codex"
+            $0.defaultHarness = "codex"
             $0.permissionMode = "invalid"
             $0.effort = "turbo"
             $0.theme = "sepia"
@@ -422,7 +422,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.notifications.soundName = "Bonk"
         }
 
-        XCTAssertEqual(userDefaultsService.current.defaultProvider, "codex")
+        XCTAssertEqual(userDefaultsService.current.defaultHarness, "codex")
         XCTAssertEqual(userDefaultsService.current.permissionMode, "on-request")
         XCTAssertEqual(userDefaultsService.current.effort, "turbo")
         XCTAssertEqual(userDefaultsService.current.theme, "system")
@@ -433,7 +433,7 @@ final class SettingsServiceTests: XCTestCase {
         )
         XCTAssertEqual(userDefaultsService.current.notifications.soundName, "Glass")
 
-        XCTAssertEqual(inMemoryService.current.defaultProvider, "codex")
+        XCTAssertEqual(inMemoryService.current.defaultHarness, "codex")
         XCTAssertEqual(inMemoryService.current.permissionMode, "on-request")
         XCTAssertEqual(inMemoryService.current.effort, "turbo")
         XCTAssertEqual(inMemoryService.current.theme, "system")

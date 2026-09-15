@@ -7,7 +7,7 @@ import XCTest
 extension AppStateTests {
     func testCompletesMatchingCommitMessageGenerationRequestExactlyOnce() throws {
         let fixture = try makeFixture(
-            primaryConversations: [Conversation(title: "Main", provider: "claude")]
+            primaryConversations: [Conversation(title: "Main", harness: "claude")]
         )
         let state = AppState()
         var completions: [Result<String, Error>] = []
@@ -31,7 +31,7 @@ extension AppStateTests {
 
     func testReplacingCommitMessageGenerationRequestFailsThePreviousOne() throws {
         let fixture = try makeFixture(
-            primaryConversations: [Conversation(title: "Main", provider: "claude")]
+            primaryConversations: [Conversation(title: "Main", harness: "claude")]
         )
         let state = AppState()
         var capturedError: Error?
@@ -61,7 +61,7 @@ extension AppStateTests {
     }
 
     func testCommitMessageGenerationSurvivesSelectionValidationForItsOwnConversation() throws {
-        let mainConversation = Conversation(title: "Main", provider: "claude", isMain: true)
+        let mainConversation = Conversation(title: "Main", harness: "claude", isMain: true)
         let fixture = try makeFixture(primaryConversations: [mainConversation])
         let state = AppState()
         state.selectedSidebarItem = .thread(fixture.primaryThread)
@@ -79,7 +79,7 @@ extension AppStateTests {
     }
 
     func testCommitMessageGenerationIsCancelledWhenSelectedThreadChanges() throws {
-        let mainConversation = Conversation(title: "Main", provider: "claude", isMain: true)
+        let mainConversation = Conversation(title: "Main", harness: "claude", isMain: true)
         let fixture = try makeFixture(primaryConversations: [mainConversation])
         let state = AppState()
         state.selectedSidebarItem = .thread(fixture.primaryThread)
@@ -107,8 +107,8 @@ extension AppStateTests {
     }
 
     func testCancelsCommitMessageGenerationRequestWhenSelectedConversationChanges() throws {
-        let mainConversation = Conversation(title: "Main", provider: "claude", isMain: true)
-        let sideConversation = Conversation(title: "Side", provider: "claude", isMain: false, displayOrder: 2)
+        let mainConversation = Conversation(title: "Main", harness: "claude", isMain: true)
+        let sideConversation = Conversation(title: "Side", harness: "claude", isMain: false, displayOrder: 2)
         let fixture = try makeFixture(primaryConversations: [mainConversation, sideConversation])
         let state = AppState()
         var capturedError: Error?
@@ -134,7 +134,7 @@ extension AppStateTests {
     }
 
     func testCancellationSwallowsALateSuccessOrErrorFromAStaleConversationTask() throws {
-        let mainConversation = Conversation(title: "Main", provider: "claude", isMain: true)
+        let mainConversation = Conversation(title: "Main", harness: "claude", isMain: true)
         let fixture = try makeFixture(primaryConversations: [mainConversation])
         let state = AppState()
         var completions: [Result<String, Error>] = []
@@ -162,8 +162,8 @@ extension AppStateTests {
     }
 
     func testSameThreadConversationChangeCancelsTheRequest() throws {
-        let mainConversation = Conversation(title: "Main", provider: "claude", isMain: true)
-        let sideConversation = Conversation(title: "Side", provider: "claude", isMain: false, displayOrder: 2)
+        let mainConversation = Conversation(title: "Main", harness: "claude", isMain: true)
+        let sideConversation = Conversation(title: "Side", harness: "claude", isMain: false, displayOrder: 2)
         let fixture = try makeFixture(primaryConversations: [mainConversation, sideConversation])
         let state = AppState()
         state.selectedSidebarItem = .thread(fixture.primaryThread)

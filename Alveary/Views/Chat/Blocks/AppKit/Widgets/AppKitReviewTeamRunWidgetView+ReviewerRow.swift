@@ -37,7 +37,7 @@ final class AppKitReviewTeamReviewerRowView: AppKitHostToolWidgetBubbleView {
             self?.setLayerFillColor(.secondaryLabelColor, alpha: hovered ? 0.08 : 0)
         }
         configureIdentity(model: model, role: role, typography: typography)
-        configureMonogram(provider: member.providerID, typography: typography)
+        configureMonogram(harness: member.harnessID, typography: typography)
         configureStatus(status, typography: typography)
         chevron.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
         chevron.symbolConfiguration = .init(pointSize: iconSize, weight: .medium)
@@ -47,7 +47,7 @@ final class AppKitReviewTeamReviewerRowView: AppKitHostToolWidgetBubbleView {
             addSubview(child)
         }
         let description = [
-            "\(role), requested model \(member.providerID.capitalized) \(model), \(status.label)", status.detail
+            "\(role), requested model \(member.harnessID.capitalized) \(model), \(status.label)", status.detail
         ].compactMap { $0 }.joined(separator: ". ")
         toolTip = description + ". Show prompts and responses."
         setAccessibilityLabel(description)
@@ -168,11 +168,11 @@ private extension AppKitReviewTeamReviewerRowView {
         identity.maximumNumberOfLines = 0
     }
 
-    func configureMonogram(provider: String, typography: TranscriptTypography) {
-        switch provider {
+    func configureMonogram(harness: String, typography: TranscriptTypography) {
+        switch harness {
         case "codex": monogramLabel.stringValue = "Cx"
         case "claude": monogramLabel.stringValue = "Cl"
-        default: monogramLabel.stringValue = String(provider.prefix(2)).uppercased()
+        default: monogramLabel.stringValue = String(harness.prefix(2)).uppercased()
         }
         monogramLabel.font = typography.nsFont(.caption, weight: .medium)
         monogramLabel.textColor = .secondaryLabelColor

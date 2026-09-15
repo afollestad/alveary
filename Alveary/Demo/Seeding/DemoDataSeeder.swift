@@ -6,7 +6,7 @@ import SwiftData
 ///
 /// Everything the UI shows is `@Query`-driven off `modelContainer.mainContext`, so seeding that
 /// context populates the sidebar, transcripts, scheduled tasks, and pull-request links at once.
-/// No provider runtime is involved: transcripts render purely from `ConversationEventRecord` rows.
+/// No harness runtime is involved: transcripts render purely from `ConversationEventRecord` rows.
 @MainActor
 enum DemoDataSeeder {
     static func seed(into context: ModelContext, attachmentsDirectory: URL) throws {
@@ -197,7 +197,7 @@ enum DemoDataSeeder {
         let conversation = makeConversation(
             id: DemoData.structuredLoggingConversation,
             thread: thread,
-            provider: "codex",
+            harness: "codex",
             into: context
         )
         seedStructuredLoggingTranscript(conversation, into: context)
@@ -342,7 +342,7 @@ enum DemoDataSeeder {
         id: String,
         thread: AgentThread,
         title: String? = nil,
-        provider: String = "claude",
+        harness: String = "claude",
         isMain: Bool = true,
         displayOrder: Int = 0,
         isUnread: Bool = false,
@@ -351,7 +351,7 @@ enum DemoDataSeeder {
         let conversation = Conversation(
             id: id,
             title: title ?? (isMain ? thread.name : nil),
-            provider: provider,
+            harness: harness,
             isMain: isMain,
             displayOrder: displayOrder,
             isUnread: isUnread,

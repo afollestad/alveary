@@ -69,7 +69,7 @@ extension ScheduledTaskSchedulerEngineTests {
         )
 
         let unrelatedProject = try insertUnrelatedProject(in: fixture)
-        let invalidReason = "The configured provider is unavailable."
+        let invalidReason = "The configured harness is unavailable."
         let saver = ScheduledTaskPauseStateSaver()
         let engine = makeInvalidPauseEngine(
             fixture: fixture,

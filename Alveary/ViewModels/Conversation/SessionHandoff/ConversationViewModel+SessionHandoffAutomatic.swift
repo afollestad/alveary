@@ -38,8 +38,8 @@ private extension ConversationViewModel {
             return
         }
 
-        let providerID = conversation.provider ?? settings.defaultProvider
-        let contextUsedTokens = ContextTokenAccounting(providerID: providerID).contextUsedTokens(
+        let harnessID = conversation.harness ?? settings.defaultHarness
+        let contextUsedTokens = ContextTokenAccounting(harnessID: harnessID).contextUsedTokens(
             input: payload.input,
             cacheRead: payload.cacheRead,
             cacheCreation: payload.cacheCreation

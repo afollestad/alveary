@@ -18,7 +18,7 @@ final class PullRequestAgenticThreadService {
             self == .addressFeedback
         }
 
-        /// Named up front rather than left to provider auto-naming: the sidebar row is meaningful
+        /// Named up front rather than left to harness auto-naming: the sidebar row is meaningful
         /// the moment the user lands on it.
         func threadName(for identifier: PullRequestIdentifier) -> String {
             switch self {
@@ -51,7 +51,7 @@ final class PullRequestAgenticThreadService {
     }
 
     enum StartError: LocalizedError, Equatable {
-        case noReadyProvider
+        case noReadyHarness
         case conversationMissing
         /// Addressing feedback edits and pushes, so it needs a checkout — and with no project for
         /// the repository and nothing to borrow, the ladder has nowhere to cut one. The one case
@@ -60,8 +60,8 @@ final class PullRequestAgenticThreadService {
 
         var errorDescription: String? {
             switch self {
-            case .noReadyProvider:
-                return "No agent is ready to start this thread. Check the Agents settings."
+            case .noReadyHarness:
+                return "No harness is ready to start this thread. Check the Harnesses settings."
             case .conversationMissing:
                 return "The thread could not be started."
             case .projectMissing(let repository):
@@ -95,7 +95,7 @@ final class PullRequestAgenticThreadService {
 
     /// The validated settings a spawned thread is seeded with.
     struct SeedSettings: Equatable {
-        let provider: String
+        let harness: String
         let model: String?
         let effort: String
         let permissionMode: String
@@ -112,7 +112,7 @@ final class PullRequestAgenticThreadService {
     let linkService: PullRequestLinkService
     private let pullRequestsService: any PullRequestsService
     let settingsService: any SettingsService
-    private let providerDiscovery: (any AgentProviderDiscoveryService)?
+    private let harnessDiscovery: (any AgentHarnessDiscoveryService)?
     private let startInitialPrompt: @MainActor (Conversation, String) -> Void
     let reviewTeamCoordinator: PullRequestReviewTeamCoordinator?
     let activity: PullRequestAgenticThreadActivity
@@ -128,7 +128,7 @@ final class PullRequestAgenticThreadService {
         settingsService: any SettingsService,
         worktreeManager: any WorktreeManager,
         taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService,
-        providerDiscovery: (any AgentProviderDiscoveryService)? = nil,
+        harnessDiscovery: (any AgentHarnessDiscoveryService)? = nil,
         directoryExists: @escaping @Sendable (String) -> Bool = { path in
             var isDirectory: ObjCBool = false
             let exists = FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
@@ -145,7 +145,7 @@ final class PullRequestAgenticThreadService {
         self.settingsService = settingsService
         self.worktreeManager = worktreeManager
         self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
-        self.providerDiscovery = providerDiscovery
+        self.harnessDiscovery = harnessDiscovery
         self.directoryExists = directoryExists
         self.currentBranch = currentBranch
         self.startInitialPrompt = startInitialPrompt
@@ -193,7 +193,7 @@ final class PullRequestAgenticThreadService {
             ? borrowedWorkspace(identifier: identifier, headRefName: trustedDetail?.headRefName)
             : nil
         // Ahead of `resolvedSeedSettings`, which is the one suspension here and can cost seconds
-        // on a cold provider-discovery cache: this refusal is a pure local read, and making the
+        // on a cold harness-discovery cache: this refusal is a pure local read, and making the
         // user watch a spinner before it lands would be a lie about what the click was doing.
         if kind.needsCheckout,
            borrowed == nil,
@@ -300,7 +300,7 @@ final class PullRequestAgenticThreadService {
         placement: TaskThreadSidebarPlacement
     ) -> TaskThreadSeed {
         TaskThreadSeed(
-            provider: seed.provider,
+            harness: seed.harness,
             permissionMode: seed.permissionMode,
             model: seed.model,
             effort: seed.effort,
@@ -352,30 +352,30 @@ final class PullRequestAgenticThreadService {
 
     private func resolvedSeedSettings(settings: AppSettings, kind: Kind) async throws -> SeedSettings {
         let resolution = await resolvedThreadDefaults(settings: settings)
-        let provider = try resolvedProvider(agent: kind.agentSettings(in: settings), resolution: resolution)
-        let options = await modelOptions(for: provider, resolution: resolution)
+        let harness = try resolvedHarness(agent: kind.agentSettings(in: settings), resolution: resolution)
+        let options = await modelOptions(for: harness, resolution: resolution)
         return Self.resolveSeedSettings(
             settings: settings,
             resolution: resolution,
-            provider: provider,
+            harness: harness,
             modelOptions: options,
             kind: kind
         )
     }
 
-    /// Degrade, never fail. A model, effort, or permission mode the provider stopped offering falls back to what a
+    /// Degrade, never fail. A model, effort, or permission mode the harness stopped offering falls back to what a
     /// typed thread would get, because refusing to start would leave the user with an error and no
     /// way to see why from the footer. Only "nothing can run at all" is an error, and that is
     /// caught before this runs.
     static func resolveSeedSettings(
         settings: AppSettings,
         resolution: ThreadDefaultResolution,
-        provider: String,
+        harness: String,
         modelOptions: [AgentModelOption],
         kind: Kind = .review
     ) -> SeedSettings {
         let agent = kind.agentSettings(in: settings)
-        let inheritsResolution = provider == resolution.providerID
+        let inheritsResolution = harness == resolution.harnessID
         let model = resolvedModel(
             agent: agent,
             resolution: resolution,
@@ -392,23 +392,23 @@ final class PullRequestAgenticThreadService {
         let permissionMode = resolvedPermissionMode(
             agent: agent,
             resolution: resolution,
-            provider: provider,
+            harness: harness,
             inheritsResolution: inheritsResolution
         )
-        return SeedSettings(provider: provider, model: model, effort: effort, permissionMode: permissionMode)
+        return SeedSettings(harness: harness, model: model, effort: effort, permissionMode: permissionMode)
     }
 
     private static func resolvedPermissionMode(
         agent: PullRequestAgentSettings,
         resolution: ThreadDefaultResolution,
-        provider: String,
+        harness: String,
         inheritsResolution: Bool
     ) -> String {
         if let requested = agent.permissionMode,
-           AppSettings.supportedPermissionModes(forProvider: provider).contains(requested) {
+           AppSettings.supportedPermissionModes(forHarness: harness).contains(requested) {
             return requested
         }
-        return inheritsResolution ? resolution.permissionMode : AppSettings.defaultPermissionMode(forProvider: provider)
+        return inheritsResolution ? resolution.permissionMode : AppSettings.defaultPermissionMode(forHarness: harness)
     }
 
     private static func resolvedModel(
@@ -437,7 +437,7 @@ final class PullRequestAgenticThreadService {
         guard let requested = agent.effort else {
             return AgentModelOptionSelection.normalizedEffort(inherited, options: options, selectedModel: model)
         }
-        // An empty supported list means the provider reports no effort catalog, which is not the
+        // An empty supported list means the harness reports no effort catalog, which is not the
         // same as rejecting the value.
         let supported = AgentModelOptionSelection.effortOptions(in: options, selectedModel: model)
         guard supported.isEmpty || supported.contains(where: { $0.value == requested }) else {
@@ -446,46 +446,46 @@ final class PullRequestAgenticThreadService {
         return requested
     }
 
-    /// The pinned provider only applies while it is actually ready; otherwise the thread follows
+    /// The pinned harness only applies while it is actually ready; otherwise the thread follows
     /// the Threads defaults, like every other setting here.
-    private func resolvedProvider(agent: PullRequestAgentSettings, resolution: ThreadDefaultResolution) throws -> String {
-        if let requested = agent.provider,
-           resolution.readyProviderIDs.contains(requested) {
+    private func resolvedHarness(agent: PullRequestAgentSettings, resolution: ThreadDefaultResolution) throws -> String {
+        if let requested = agent.harness,
+           resolution.readyHarnessIDs.contains(requested) {
             return requested
         }
-        guard let providerID = resolution.providerID else {
-            throw StartError.noReadyProvider
+        guard let harnessID = resolution.harnessID else {
+            throw StartError.noReadyHarness
         }
-        return providerID
+        return harnessID
     }
 
     private func resolvedThreadDefaults(settings: AppSettings) async -> ThreadDefaultResolution {
-        if let providerDiscovery {
-            return await ThreadDefaultResolver.resolve(settings: settings, providerDiscovery: providerDiscovery)
+        if let harnessDiscovery {
+            return await ThreadDefaultResolver.resolve(settings: settings, harnessDiscovery: harnessDiscovery)
         }
         return ThreadDefaultResolver.resolve(
             settings: settings,
-            providerOrdering: AppSettings.supportedProviderIDs,
-            providerStatuses: [:],
+            harnessOrdering: AppSettings.supportedHarnessIDs,
+            harnessStatuses: [:],
             allowStaticFallback: true
         )
     }
 
     /// Mirrors `ThreadHostToolService.modelOptions(for:resolution:)`: the resolution only carries
-    /// the default provider's catalog, so a pinned non-default provider asks discovery for its own.
+    /// the default harness's catalog, so a pinned non-default harness asks discovery for its own.
     private func modelOptions(
-        for provider: String,
+        for harness: String,
         resolution: ThreadDefaultResolution
     ) async -> [AgentModelOption] {
-        if provider == resolution.providerID, !resolution.modelOptions.isEmpty {
+        if harness == resolution.harnessID, !resolution.modelOptions.isEmpty {
             return resolution.modelOptions
         }
-        if let providerDiscovery, let providerID = AgentProviderID(rawValue: provider) {
-            let discovered = await providerDiscovery.modelOptions(for: providerID)
+        if let harnessDiscovery, let harnessID = AgentHarnessID(rawValue: harness) {
+            let discovered = await harnessDiscovery.modelOptions(for: harnessID)
             if !discovered.isEmpty {
                 return discovered
             }
         }
-        return ThreadDefaultResolver.modelOptions(for: provider, providerStatuses: [:])
+        return ThreadDefaultResolver.modelOptions(for: harness, harnessStatuses: [:])
     }
 }

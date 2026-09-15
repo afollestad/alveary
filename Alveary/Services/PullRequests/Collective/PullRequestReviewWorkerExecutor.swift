@@ -17,33 +17,33 @@ protocol PullRequestReviewWorkerExecuting: Sendable {
 
 enum PullRequestReviewWorkerError: Error, Equatable, LocalizedError {
     case invalidConfiguration(String)
-    case unsupportedProvider(String)
+    case unsupportedHarness(String)
     case executableUnavailable(String)
-    case missingCapabilities(providerID: String, flags: [String])
+    case missingCapabilities(harnessID: String, flags: [String])
     case unsafeCommand(String)
     case duplicateExecution(String)
     case outputTooLarge
-    case commandFailed(providerID: String, exitCode: Int32, message: String)
+    case commandFailed(harnessID: String, exitCode: Int32, message: String)
     case emptyOutput(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidConfiguration(let message), .unsafeCommand(let message):
             message
-        case .unsupportedProvider(let providerID):
-            "Unsupported review worker provider: \(providerID)"
+        case .unsupportedHarness(let harnessID):
+            "Unsupported review worker harness: \(harnessID)"
         case .executableUnavailable(let path):
             "The review worker executable is unavailable: \(path)"
-        case .missingCapabilities(let providerID, let flags):
-            "The \(providerID) CLI does not support required review worker flags: \(flags.joined(separator: ", "))"
+        case .missingCapabilities(let harnessID, let flags):
+            "The \(harnessID) CLI does not support required review worker flags: \(flags.joined(separator: ", "))"
         case .duplicateExecution(let executionID):
             "Review worker execution is already active: \(executionID)"
         case .outputTooLarge:
             "The review worker output exceeded its size limit."
-        case .commandFailed(let providerID, let exitCode, let message):
-            "The \(providerID) review worker exited with code \(exitCode). \(message)"
-        case .emptyOutput(let providerID):
-            "The \(providerID) review worker returned no output."
+        case .commandFailed(let harnessID, let exitCode, let message):
+            "The \(harnessID) review worker exited with code \(exitCode). \(message)"
+        case .emptyOutput(let harnessID):
+            "The \(harnessID) review worker returned no output."
         }
     }
 }
@@ -126,24 +126,24 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
 
     /// Recheck each launch: a CLI wrapper's target can change without changing the configured executable path.
     func preflight(_ configuration: ReviewWorkerConfiguration) async throws {
-        let providerID = try Self.validatedProviderID(configuration)
+        let harnessID = try Self.validatedHarnessID(configuration)
         guard configuration.executablePath.hasPrefix("/"),
               FileManager.default.isExecutableFile(atPath: configuration.executablePath) else {
             throw PullRequestReviewWorkerError.executableUnavailable(configuration.executablePath)
         }
 
-        let helpArguments = providerID == .codex ? ["exec", "--help"] : ["--help"]
+        let helpArguments = harnessID == .codex ? ["exec", "--help"] : ["--help"]
         let processKey = PullRequestReviewWorkerProcessKey(
             runID: Self.preflightRunID,
             generation: 0,
-            executionID: "\(configuration.providerID):\(configuration.executablePath)"
+            executionID: "\(configuration.harnessID):\(configuration.executablePath)"
         )
         let shellRunner = capabilityShellRunner
             ?? DefaultShellRunner(processTracker: processRegistry.tracker(for: processKey))
         let result = try await shellRunner.run(
             executable: configuration.executablePath,
             args: helpArguments,
-            environment: workerEnvironment(for: providerID),
+            environment: workerEnvironment(for: harnessID),
             environmentPolicy: .replace,
             processGroupPolicy: .create,
             timeout: .seconds(5),
@@ -157,11 +157,11 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
             throw PullRequestReviewWorkerError.executableUnavailable(configuration.executablePath)
         }
         let help = [result.stdout, result.stderr].joined(separator: "\n")
-        let requiredFlags = Self.requiredFlags(for: providerID)
+        let requiredFlags = Self.requiredFlags(for: harnessID)
         let missing = requiredFlags.filter { !help.contains($0) }
         guard missing.isEmpty else {
             throw PullRequestReviewWorkerError.missingCapabilities(
-                providerID: configuration.providerID,
+                harnessID: configuration.harnessID,
                 flags: missing
             )
         }
@@ -224,14 +224,14 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
     ) async throws -> String {
         try Task.checkCancellation()
         try await Task.detached { try packet.validate() }.value
-        let providerID = try Self.validatedProviderID(configuration)
-        let adapter = Self.adapter(for: providerID, executablePath: configuration.executablePath)
+        let harnessID = try Self.validatedHarnessID(configuration)
+        let adapter = Self.adapter(for: harnessID, executablePath: configuration.executablePath)
         let request = AgentCLIKit.AgentOneShotPromptRequest(
-            providerId: providerID,
+            harnessId: harnessID,
             workingDirectory: packet.directoryURL,
             prompt: prompt,
-            arguments: providerID == .claude ? Self.claudeArguments : [],
-            environment: workerEnvironment(for: providerID),
+            arguments: harnessID == .claude ? Self.claudeArguments : [],
+            environment: workerEnvironment(for: harnessID),
             model: configuration.launchModel,
             effort: configuration.effort,
             timeout: nil,
@@ -243,7 +243,7 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
             configuration: configuration,
             packet: packet,
             prompt: prompt,
-            providerID: providerID
+            harnessID: harnessID
         )
         let shellRunner = executionShellRunner ?? DefaultShellRunner(processTracker: processRegistry.tracker(for: processKey))
         let result: ShellResult
@@ -261,7 +261,7 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
                 standardInput: command.standardInput.map(ShellStandardInput.text) ?? .nullDevice
             )
         } catch let error as ShellError {
-            guard providerID == .codex, case .ioFailure(let failure) = error,
+            guard harnessID == .codex, case .ioFailure(let failure) = error,
                   ReviewWorkerCodexCompletion.canRecover(failure) else { throw error }
             result = failure.result
         }
@@ -278,17 +278,17 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
         from result: ShellResult,
         configuration: ReviewWorkerConfiguration,
         request: AgentCLIKit.AgentOneShotPromptRequest,
-        adapter: any AgentCLIKit.AgentProviderAdapter
+        adapter: any AgentCLIKit.AgentHarnessAdapter
     ) async throws -> String {
         guard !result.stdoutWasTruncated, !result.stderrWasTruncated else {
             throw PullRequestReviewWorkerError.outputTooLarge
         }
         guard result.succeeded else {
-            // Stdout is a provider event stream and may contain intermediate reasoning or tool content.
+            // Stdout is a harness event stream and may contain intermediate reasoning or tool content.
             let diagnostic = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            let message = diagnostic.isEmpty ? "No provider diagnostic was returned." : diagnostic
+            let message = diagnostic.isEmpty ? "No harness diagnostic was returned." : diagnostic
             throw PullRequestReviewWorkerError.commandFailed(
-                providerID: configuration.providerID,
+                harnessID: configuration.harnessID,
                 exitCode: result.exitCode,
                 message: ReviewTeamDiagnostics.persisted(message)
             )
@@ -300,14 +300,14 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
         )
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
-            throw PullRequestReviewWorkerError.emptyOutput(configuration.providerID)
+            throw PullRequestReviewWorkerError.emptyOutput(configuration.harnessID)
         }
         return text
     }
 
-    private static func validatedProviderID(
+    private static func validatedHarnessID(
         _ configuration: ReviewWorkerConfiguration
-    ) throws -> AgentCLIKit.AgentProviderID {
+    ) throws -> AgentCLIKit.AgentHarnessID {
         guard configuration.id == configuration.id.trimmingCharacters(in: .whitespacesAndNewlines),
               !configuration.id.isEmpty,
               configuration.modelOptionID == configuration.modelOptionID.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -321,24 +321,24 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
                 "Review workers require an id, exact model option, launch model, and effort."
             )
         }
-        guard let providerID = AgentCLIKit.AgentProviderID(rawValue: configuration.providerID) else {
-            throw PullRequestReviewWorkerError.unsupportedProvider(configuration.providerID)
+        guard let harnessID = AgentCLIKit.AgentHarnessID(rawValue: configuration.harnessID) else {
+            throw PullRequestReviewWorkerError.unsupportedHarness(configuration.harnessID)
         }
-        return providerID
+        return harnessID
     }
 
     private static func adapter(
-        for providerID: AgentCLIKit.AgentProviderID,
+        for harnessID: AgentCLIKit.AgentHarnessID,
         executablePath: String
-    ) -> any AgentCLIKit.AgentProviderAdapter {
-        switch providerID {
+    ) -> any AgentCLIKit.AgentHarnessAdapter {
+        switch harnessID {
         case .claude:
-            AgentCLIKit.ClaudeProviderAdapter(configuration: .init(
+            AgentCLIKit.ClaudeHarnessAdapter(configuration: .init(
                 executablePath: executablePath,
                 enableHooks: false
             ))
         case .codex:
-            AgentCLIKit.CodexProviderAdapter(configuration: .init(executablePath: executablePath))
+            AgentCLIKit.CodexHarnessAdapter(configuration: .init(executablePath: executablePath))
         }
     }
 
@@ -347,7 +347,7 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
         configuration: ReviewWorkerConfiguration,
         packet: ReviewPacketLease,
         prompt: String,
-        providerID: AgentCLIKit.AgentProviderID
+        harnessID: AgentCLIKit.AgentHarnessID
     ) throws -> AgentCLIKit.ShellCommand {
         var arguments = command.arguments
         guard command.executable == configuration.executablePath,
@@ -355,7 +355,7 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
               command.standardInput == prompt else {
             throw PullRequestReviewWorkerError.unsafeCommand("Review worker launch identity did not match its frozen configuration.")
         }
-        switch providerID {
+        switch harnessID {
         case .claude:
             try replaceOption("--permission-mode", with: "dontAsk", in: &arguments)
             guard arguments.contains("--safe-mode"),
@@ -414,8 +414,8 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
         return arguments[arguments.index(after: index)]
     }
 
-    private static func requiredFlags(for providerID: AgentCLIKit.AgentProviderID) -> [String] {
-        switch providerID {
+    private static func requiredFlags(for harnessID: AgentCLIKit.AgentHarnessID) -> [String] {
+        switch harnessID {
         case .claude:
             [
                 "--safe-mode",
@@ -442,15 +442,15 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
         }
     }
 
-    private func workerEnvironment(for providerID: AgentCLIKit.AgentProviderID) -> [String: String] {
-        let source = environmentBuilder.buildEnvironment(providerEnv: nil)
-        let providerKeys = providerID == .claude ? Self.claudeEnvironmentKeys : Self.codexEnvironmentKeys
+    private func workerEnvironment(for harnessID: AgentCLIKit.AgentHarnessID) -> [String: String] {
+        let source = environmentBuilder.buildEnvironment(harnessEnv: nil)
+        let harnessKeys = harnessID == .claude ? Self.claudeEnvironmentKeys : Self.codexEnvironmentKeys
         var result = source.filter { key, _ in
             Self.commonEnvironmentKeys.contains(key)
-                || providerKeys.contains(key)
+                || harnessKeys.contains(key)
         }
         let processEnvironment = ProcessInfo.processInfo.environment
-        for key in providerKeys where result[key] == nil {
+        for key in harnessKeys where result[key] == nil {
             result[key] = processEnvironment[key]
         }
         return result

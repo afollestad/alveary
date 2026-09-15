@@ -85,7 +85,7 @@ extension AgentsManagerTests {
             .toolApprovalRequested(replacement),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
 
         XCTAssertEqual(manager.status(for: conversationId), .waitingForUser)
@@ -164,7 +164,7 @@ extension AgentsManagerTests {
             .runtimeActivity(state: .active, turnId: "turn-1", outcome: .unknown),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
         XCTAssertNotEqual(manager.status(for: conversationId), .busy)
 
@@ -177,10 +177,10 @@ extension AgentsManagerTests {
     }
 }
 
-private struct AskUserQuestionPromptAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+private struct AskUserQuestionPromptAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let postResolutionScript: String
 
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -265,8 +265,8 @@ private struct AskUserQuestionPromptAgentCLIKitAdapter: AgentCLIKit.AgentProvide
     }
 }
 
-private struct ExitPlanModePromptAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+private struct ExitPlanModePromptAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]

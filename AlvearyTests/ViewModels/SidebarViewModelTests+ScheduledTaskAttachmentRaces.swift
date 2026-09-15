@@ -196,7 +196,7 @@ private func insertTerminalTargetRun(
         promptSnapshot: "Continue work.",
         destinationSnapshot: .existingThread,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "codex",
+        harnessIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .project,
@@ -224,7 +224,7 @@ private func attachSchedule(
         destination: .existingThread,
         recurrence: .daily(hour: 9, minute: 0),
         timeZoneIdentifier: "America/Chicago",
-        providerID: "codex",
+        harnessID: "codex",
         targetThread: thread
     )
     fixture.context.insert(definition)
@@ -254,7 +254,7 @@ private func insertPendingCleanupTarget(
         scheduledTaskRun: run
     )
     thread.conversations = [
-        Conversation(id: "pending-cleanup-target", provider: "codex", thread: thread)
+        Conversation(id: "pending-cleanup-target", harness: "codex", thread: thread)
     ]
     run.thread = thread
     fixture.context.insert(run)
@@ -282,7 +282,7 @@ private func makePendingCleanupRun(
         promptSnapshot: "Run scheduled work.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "codex",
+        harnessIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .privateWorkspace,
@@ -309,7 +309,7 @@ private func lateAttachmentEdit(targetThread: AgentThread) -> ScheduledTaskDefin
         destination: .existingThread,
         recurrence: .daily(hour: 9, minute: 0),
         timeZoneIdentifier: "America/Chicago",
-        providerID: "codex",
+        harnessID: "codex",
         model: nil,
         effort: "high",
         permissionMode: "default",

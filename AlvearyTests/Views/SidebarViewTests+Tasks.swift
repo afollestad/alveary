@@ -172,7 +172,7 @@ extension SidebarViewTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             createdAt: Date(timeIntervalSince1970: 100),
             targetThread: attachedTask
         )
@@ -350,7 +350,7 @@ extension SidebarViewTests {
             ownershipSourceProjectPath: workspace.sourceProjectPath
         )))
         let task = AgentThread(name: "Scheduled task", mode: .task, scheduledTaskRun: run)
-        let conversation = Conversation(id: "sidebar-pending-delete", provider: "codex", thread: task)
+        let conversation = Conversation(id: "sidebar-pending-delete", harness: "codex", thread: task)
         task.conversations = [conversation]
         run.thread = task
         fixture.context.insert(run)
@@ -450,7 +450,7 @@ private func makeSidebarTask(
     task.conversations = [Conversation(
         id: UUID().uuidString,
         title: "Main",
-        provider: "claude",
+        harness: "claude",
         thread: task
     )]
     return task
@@ -469,7 +469,7 @@ private func makeSidebarPendingCleanupRun() -> ScheduledTaskRun {
         promptSnapshot: "Run scheduled work.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "codex",
+        harnessIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .project,

@@ -5,8 +5,8 @@ import XCTest
 
 @MainActor
 func makeSettings(extraArgs: String? = nil) -> InMemorySettingsService {
-    let providerConfig = ProviderCustomConfig(extraArgs: extraArgs)
-    return InMemorySettingsService(current: AppSettings(providerConfigs: ["claude": providerConfig]))
+    let harnessConfig = HarnessCustomConfig(extraArgs: extraArgs)
+    return InMemorySettingsService(current: AppSettings(harnessConfigs: ["claude": harnessConfig]))
 }
 
 @MainActor
@@ -87,24 +87,24 @@ struct WaitTimeoutError: LocalizedError {
     }
 }
 
-actor StubProviderDetectionService: ProviderDetectionService {
+actor StubHarnessDetectionService: HarnessDetectionService {
     private let path: String?
 
     init(resolvedPath: String? = nil) {
         self.path = resolvedPath
     }
 
-    func resolvedPath(for providerId: String) -> String? {
+    func resolvedPath(for harnessId: String) -> String? {
         path
     }
 
-    func status(for providerId: String) -> ProviderStatus {
+    func status(for harnessId: String) -> HarnessStatus {
         .unchecked
     }
 
-    func checkAllProviders() async {}
+    func checkAllHarnesses() async {}
 
-    func checkProvider(_ providerId: String) async {}
+    func checkHarness(_ harnessId: String) async {}
 }
 
 @MainActor

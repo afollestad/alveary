@@ -38,7 +38,7 @@ extension PullRequestHostToolServiceTests {
         let result = await fixture.handle(PullRequestHostToolCatalog.reviewProposalToolName)
 
         XCTAssertFalse(result.isError, result.text)
-        // Providers persisting only the text must still be able to carry every comment forward.
+        // Harnesses persisting only the text must still be able to carry every comment forward.
         XCTAssertTrue(result.text.contains("First"), result.text)
         XCTAssertTrue(result.text.contains("Second"), result.text)
         XCTAssertTrue(result.text.contains("Sources/Alpha.swift:1"), result.text)

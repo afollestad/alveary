@@ -16,7 +16,7 @@ extension ScheduledTaskSchedulerEngineTests {
                 ownershipStrategy: .privateOwned
             )
         )
-        let conversation = Conversation(id: "reused-main", provider: "codex", thread: thread)
+        let conversation = Conversation(id: "reused-main", harness: "codex", thread: thread)
         thread.conversations = [conversation]
         fixture.context.insert(thread)
         let definition = try fixture.insertDefinition(nextOccurrenceAt: fixture.date(300))
@@ -52,7 +52,7 @@ extension ScheduledTaskSchedulerEngineTests {
         let fixture = try ScheduledTaskSchedulerFixture()
         let archived = AgentThread(name: "Archived rolling thread", mode: .task)
         archived.archivedAt = fixture.date(0)
-        let archivedConversation = Conversation(id: "archived-main", provider: "codex", thread: archived)
+        let archivedConversation = Conversation(id: "archived-main", harness: "codex", thread: archived)
         archived.conversations = [archivedConversation]
         fixture.context.insert(archived)
         let definition = try fixture.insertDefinition(nextOccurrenceAt: fixture.date(300))
@@ -82,7 +82,7 @@ extension ScheduledTaskSchedulerEngineTests {
                 ownershipStrategy: .privateOwned
             )
         )
-        let conversation = Conversation(id: "busy-reused-main", provider: "codex", thread: thread)
+        let conversation = Conversation(id: "busy-reused-main", harness: "codex", thread: thread)
         thread.conversations = [conversation]
         fixture.context.insert(thread)
         let definition = try fixture.insertDefinition(
@@ -114,8 +114,8 @@ extension ScheduledTaskSchedulerEngineTests {
                 ownershipStrategy: .privateOwned
             )
         )
-        let first = Conversation(id: "forked-main-a", provider: "codex", isMain: true, thread: thread)
-        let second = Conversation(id: "forked-main-b", provider: "codex", isMain: true, thread: thread)
+        let first = Conversation(id: "forked-main-a", harness: "codex", isMain: true, thread: thread)
+        let second = Conversation(id: "forked-main-b", harness: "codex", isMain: true, thread: thread)
         thread.conversations = [first, second]
         fixture.context.insert(thread)
         let definition = try fixture.insertDefinition(nextOccurrenceAt: fixture.date(300))

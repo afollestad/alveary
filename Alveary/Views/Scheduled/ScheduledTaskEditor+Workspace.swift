@@ -60,11 +60,11 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                 SettingsResponsiveControlRow(
                     "Thread",
                     // Names both self-heal triggers: this row is the only place the user can
-                    // see that a workspace or provider edit swaps the thread out from under
+                    // see that a workspace or harness edit swaps the thread out from under
                     // the schedule (`ScheduledTaskMutationService.preservesReuseLink`).
                     helpText: """
                         Every run posts here. Archiving or deleting it, or changing the \
-                        workspace or provider, makes the next run create a replacement.
+                        workspace or harness, makes the next run create a replacement.
                         """,
                     horizontalControlSizing: .selectedContent
                 ) {

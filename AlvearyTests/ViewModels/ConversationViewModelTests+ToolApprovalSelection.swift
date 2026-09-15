@@ -14,7 +14,7 @@ extension ConversationViewModelTests {
         )
         await fixture.agentsManager.recordToolApprovalSelection(
             .once,
-            providerId: "claude",
+            harnessId: "claude",
             conversationId: fixture.conversation.id,
             sessionId: approval.sessionId
         )

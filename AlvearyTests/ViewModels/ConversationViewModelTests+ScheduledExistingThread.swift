@@ -20,7 +20,7 @@ extension ConversationViewModelTests {
             destinationSnapshot: .existingThread,
             targetConversationIDSnapshot: fixture.conversation.id,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: fixture.conversation.provider ?? "claude",
+            harnessIDSnapshot: fixture.conversation.harness ?? "claude",
             effortSnapshot: fixture.thread.effort,
             permissionModeSnapshot: fixture.thread.permissionMode,
             workspaceKindSnapshot: .project,
@@ -67,7 +67,7 @@ extension ConversationViewModelTests {
         let suspendCalls = await fixture.agentsManager.suspendCalls()
         let spawnConfig = try XCTUnwrap(spawnCalls.first?.config)
         XCTAssertEqual(suspendCalls, [fixture.conversation.id])
-        XCTAssertEqual(spawnConfig.providerId, run.providerIDSnapshot)
+        XCTAssertEqual(spawnConfig.harnessId, run.harnessIDSnapshot)
         XCTAssertEqual(spawnConfig.model, run.modelSnapshot)
         XCTAssertEqual(spawnConfig.effort, run.effortSnapshot)
         XCTAssertEqual(spawnConfig.permissionMode, run.permissionModeSnapshot)
@@ -143,7 +143,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(spawnCalls.count, 1)
         XCTAssertTrue(suspendCalls.isEmpty)
         XCTAssertEqual(config.initialPrompt, "Start pinned work.")
-        XCTAssertEqual(config.providerId, run.providerIDSnapshot)
+        XCTAssertEqual(config.harnessId, run.harnessIDSnapshot)
         XCTAssertEqual(config.model, run.modelSnapshot)
         XCTAssertEqual(config.effort, run.effortSnapshot)
         XCTAssertEqual(config.permissionMode, run.permissionModeSnapshot)
@@ -157,11 +157,11 @@ extension ConversationViewModelTests {
         XCTAssertTrue(fixture.thread.hasCompletedInitialSetup)
     }
 
-    func testExistingScheduledTurnRecoversMissingProviderSessionWithLocalHistory() async throws {
+    func testExistingScheduledTurnRecoversMissingHarnessSessionWithLocalHistory() async throws {
         let ownershipService = RecoveryWorkspaceOwnershipService()
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
-            providerId: "codex",
+            harnessId: "codex",
             taskWorkspaceOwnershipService: ownershipService
         )
         fixture.thread.isPinned = true
@@ -262,7 +262,7 @@ private extension ConversationViewModelTests {
             destinationSnapshot: .existingThread,
             targetConversationIDSnapshot: fixture.conversation.id,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: fixture.conversation.provider ?? "claude",
+            harnessIDSnapshot: fixture.conversation.harness ?? "claude",
             modelSnapshot: fixture.thread.model,
             effortSnapshot: fixture.thread.effort,
             permissionModeSnapshot: "default",
@@ -382,7 +382,7 @@ private final class LoadedScheduledRecoveryFixture {
             destinationSnapshot: .existingThread,
             targetConversationIDSnapshot: fixture.conversation.id,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "claude",
+            harnessIDSnapshot: "claude",
             modelSnapshot: fixture.thread.model,
             effortSnapshot: fixture.thread.effort,
             permissionModeSnapshot: fixture.thread.permissionMode,

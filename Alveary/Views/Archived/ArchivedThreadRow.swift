@@ -60,5 +60,5 @@ struct ArchivedThreadRow: View, Equatable {
 
 func archivedThreadRestoreConfirmationMessage(title: String) -> String {
     "Restoring \"\(title)\" puts it back in the sidebar. Local transcript and worktree metadata stay in Alveary. "
-        + "The next run starts a fresh provider session, and Alveary attaches a restore summary to your next message."
+        + "The next run starts a fresh harness session, and Alveary attaches a restore summary to your next message."
 }

@@ -2,7 +2,7 @@
 import CryptoKit
 import Foundation
 
-struct StaticVoiceInputModelDescriptorProvider: VoiceInputModelDescriptorProviding {
+struct StaticVoiceInputModelDescriptorHarness: VoiceInputModelDescriptorProviding {
     let resolvedDescriptor: VoiceInputResolvedModelDescriptor
 
     func loadDescriptor() throws -> VoiceInputResolvedModelDescriptor {
@@ -70,7 +70,7 @@ actor VoiceInputModelDownloaderFake: VoiceInputModelDownloading {
     }
 }
 
-struct FixedVoiceInputDiskSpaceProvider: VoiceInputDiskSpaceProviding {
+struct FixedVoiceInputDiskSpaceHarness: VoiceInputDiskSpaceProviding {
     let capacity: Int64?
 
     func availableCapacity(at directory: URL) throws -> Int64? {
@@ -78,7 +78,7 @@ struct FixedVoiceInputDiskSpaceProvider: VoiceInputDiskSpaceProviding {
     }
 }
 
-struct FailingVoiceInputDiskSpaceProvider: VoiceInputDiskSpaceProviding {
+struct FailingVoiceInputDiskSpaceHarness: VoiceInputDiskSpaceProviding {
     let error: POSIXError
 
     func availableCapacity(at directory: URL) throws -> Int64? {

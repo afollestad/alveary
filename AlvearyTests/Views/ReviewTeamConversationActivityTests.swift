@@ -11,7 +11,7 @@ struct ReviewTeamConversationActivityTests {
         (.crossChecking, .busy), (.staging, .busy), (.awaitingDecision, .waitingForUser),
         (.staged, .stopped), (.completed, .stopped), (.cancelled, .stopped)
     ])
-    func `coordinator drives sidebar and tab activity without a provider turn`(
+    func `coordinator drives sidebar and tab activity without a harness turn`(
         phase: ReviewTeamRun.Phase, expected: ThreadStatus
     ) throws {
         let fixture = try ReviewCoordinatorFixture()
@@ -29,7 +29,7 @@ struct ReviewTeamConversationActivityTests {
     }
 
     @Test(arguments: [true, false])
-    func `composer and transcript use collective work independently of provider activity`(isWorking: Bool) throws {
+    func `composer and transcript use collective work independently of harness activity`(isWorking: Bool) throws {
         let fixture = try ConversationViewModelTestFixture()
         let view = ReviewTeamConversationTestFixture.chatView(fixture: fixture, isWorking: isWorking)
         let transcript = ChatTranscriptView(
@@ -123,7 +123,7 @@ struct ReviewTeamConversationActivityTests {
     }
 
     @Test
-    func `an interrupted provider turn cannot interrupt the live review team`() throws {
+    func `an interrupted harness turn cannot interrupt the live review team`() throws {
         let fixture = try ConversationViewModelTestFixture()
         let reviewFixture = try ReviewCoordinatorFixture()
         var run = try reviewFixture.makeRun(conversationID: fixture.viewModel.conversationID)
@@ -168,13 +168,13 @@ enum ReviewTeamConversationTestFixture {
             conversation: fixture.conversation,
             composerCapabilities: ComposerCapabilities(supportedPermissionModes: [], supportsMidTurnSteering: true),
             reasoningConfiguration: makeReasoningConfiguration(
-                providerOptions: [.init(value: "codex", title: "Codex")],
+                harnessOptions: [.init(value: "codex", title: "Codex")],
                 modelOptions: [.init(value: "gpt-5.6-sol", title: "GPT-5.6-Sol")],
                 effortOptions: [.init(value: "high", title: "High")],
-                selectedProvider: "codex", selectedModel: "gpt-5.6-sol", selectedEffort: "high"
+                selectedHarness: "codex", selectedModel: "gpt-5.6-sol", selectedEffort: "high"
             ),
             defaultEnterBehavior: .queue,
-            providerID: "codex",
+            harnessID: "codex",
             runtimeStatus: .neutral,
             isReviewTeamWorking: isWorking,
             onCancelReviewTeam: onCancel,

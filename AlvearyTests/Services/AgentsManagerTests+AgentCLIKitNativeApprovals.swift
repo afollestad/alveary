@@ -27,7 +27,7 @@ extension AgentsManagerTests {
         )
         let sessionApproval = try XCTUnwrap(firstApproval.sessionApprovalGrant(
             conversationId: conversationId,
-            providerId: "claude",
+            harnessId: "claude",
             scope: .exact
         ))
 
@@ -60,7 +60,7 @@ private func readSessionApprovalRequest(
     filePath: String
 ) -> AgentCLIKit.AgentSessionApprovalRequest {
     AgentCLIKit.AgentSessionApprovalRequest(
-        providerId: .claude,
+        harnessId: .claude,
         conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
         sessionId: "session-1",
         toolName: "Read",

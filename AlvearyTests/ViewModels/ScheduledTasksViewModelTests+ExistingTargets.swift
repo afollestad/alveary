@@ -25,7 +25,7 @@ extension ScheduledTasksViewModelTests {
         )
         let project = Project(path: "/tmp/pinned-target", name: "Pinned Project")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
-        let conversation = Conversation(id: "pinned-target-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "pinned-target-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         project.threads = [target]
         fixture.context.insert(project)
@@ -53,7 +53,7 @@ extension ScheduledTasksViewModelTests {
         let fixture = try ScheduledTasksViewModelFixture()
         let project = Project(path: "/tmp/scheduled-project", name: "Scheduled Project")
         let target = AgentThread(name: "Pinned target", isPinned: true, mode: .task)
-        let conversation = Conversation(id: "pinned-target-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "pinned-target-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         fixture.context.insert(project)
         fixture.context.insert(target)
@@ -94,7 +94,7 @@ extension ScheduledTasksViewModelTests {
             modifiedAt: Date(timeIntervalSince1970: 100),
             mode: .task
         )
-        let olderMain = Conversation(id: "older-main", provider: "claude", thread: older)
+        let olderMain = Conversation(id: "older-main", harness: "claude", thread: older)
         older.conversations = [olderMain]
         let newer = AgentThread(
             name: "Zulu",
@@ -102,7 +102,7 @@ extension ScheduledTasksViewModelTests {
             modifiedAt: Date(timeIntervalSince1970: 200),
             mode: .task
         )
-        let newerMain = Conversation(id: "newer-main", provider: "codex", thread: newer)
+        let newerMain = Conversation(id: "newer-main", harness: "codex", thread: newer)
         newer.conversations = [newerMain]
         fixture.context.insert(older)
         fixture.context.insert(newer)
@@ -116,10 +116,10 @@ extension ScheduledTasksViewModelTests {
     func testPinnedThreadOptionsStablyDisambiguateMatchingContextLabels() throws {
         let fixture = try ScheduledTasksViewModelFixture()
         let first = AgentThread(name: "Duplicate", isPinned: true, mode: .task)
-        let firstMain = Conversation(id: "task-one-main", provider: "codex", thread: first)
+        let firstMain = Conversation(id: "task-one-main", harness: "codex", thread: first)
         first.conversations = [firstMain]
         let second = AgentThread(name: "Duplicate", isPinned: true, mode: .task)
-        let secondMain = Conversation(id: "task-two-main", provider: "codex", thread: second)
+        let secondMain = Conversation(id: "task-two-main", harness: "codex", thread: second)
         second.conversations = [secondMain]
         fixture.context.insert(first)
         fixture.context.insert(second)
@@ -147,7 +147,7 @@ extension ScheduledTasksViewModelTests {
             promptSnapshot: "Run scheduled work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "America/Chicago",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "default",
             workspaceKindSnapshot: .privateWorkspace,
@@ -168,7 +168,7 @@ extension ScheduledTasksViewModelTests {
             mode: .task,
             scheduledTaskRun: run
         )
-        let conversation = Conversation(id: "pending-cleanup-target-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "pending-cleanup-target-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         run.thread = target
         fixture.context.insert(run)
@@ -189,7 +189,7 @@ extension ScheduledTasksViewModelTests {
             isForkBootstrapPending: true,
             mode: .task
         )
-        let conversation = Conversation(id: "pending-fork-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "pending-fork-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         fixture.context.insert(target)
         try fixture.context.save()
@@ -208,7 +208,7 @@ extension ScheduledTasksViewModelTests {
     func testThreadPresentationChangeRefreshesPinnedThreadLabel() async throws {
         let fixture = try ScheduledTasksViewModelFixture()
         let target = AgentThread(name: "Before rename", isPinned: true, mode: .task)
-        let conversation = Conversation(id: "rename-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "rename-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         fixture.context.insert(target)
         try fixture.context.save()
@@ -225,11 +225,11 @@ extension ScheduledTasksViewModelTests {
         XCTAssertEqual(fixture.viewModel.existingThreadTargets.first?.label, "After rename")
     }
 
-    func testExistingThreadRowUsesTargetMainConversationProvider() throws {
+    func testExistingThreadRowUsesTargetMainConversationHarness() throws {
         let fixture = try ScheduledTasksViewModelFixture()
-        let project = Project(path: "/tmp/provider-target", name: "Provider target")
+        let project = Project(path: "/tmp/provider-target", name: "Harness target")
         let target = AgentThread(name: "Target", isPinned: true, project: project)
-        let conversation = Conversation(id: "provider-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "provider-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         project.threads = [target]
         let definition = ScheduledTask(
@@ -239,7 +239,7 @@ extension ScheduledTasksViewModelTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "UTC",
-            providerID: "claude",
+            harnessID: "claude",
             targetThread: target
         )
         fixture.context.insert(project)
@@ -248,13 +248,13 @@ extension ScheduledTasksViewModelTests {
 
         fixture.viewModel.reload()
 
-        XCTAssertEqual(fixture.viewModel.tasks.first?.providerID, "codex")
+        XCTAssertEqual(fixture.viewModel.tasks.first?.harnessID, "codex")
     }
 
     func testExistingThreadOptionsOfferUnpinnedThreadsWithNoPinNote() throws {
         let fixture = try ScheduledTasksViewModelFixture()
         let target = AgentThread(name: "Release chat", mode: .task)
-        let conversation = Conversation(id: "unpinned-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "unpinned-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         fixture.context.insert(target)
         try fixture.context.save()
@@ -274,7 +274,7 @@ extension ScheduledTasksViewModelTests {
         let project = Project(path: "/tmp/absorbing-project", name: "Absorbing Project")
         project.isPinned = true
         let target = AgentThread(name: "Absorbed child", mode: .task, project: project)
-        let conversation = Conversation(id: "absorbed-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "absorbed-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         project.threads = [target]
         fixture.context.insert(project)
@@ -290,7 +290,7 @@ extension ScheduledTasksViewModelTests {
         let pinnedNeighbor = AgentThread(name: "Already pinned", isPinned: true, mode: .task)
         pinnedNeighbor.pinnedSortOrder = 0
         let target = AgentThread(name: "Release chat", mode: .task)
-        let conversation = Conversation(id: "unpinned-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "unpinned-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         fixture.context.insert(pinnedNeighbor)
         fixture.context.insert(target)
@@ -318,7 +318,7 @@ extension ScheduledTasksViewModelTests {
     func testConfirmingAnExistingThreadProposalTargetsTheThreadWithoutPinningIt() throws {
         let fixture = try ScheduledTasksViewModelFixture()
         let target = AgentThread(name: "Release chat", mode: .task)
-        let conversation = Conversation(id: "unpinned-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "unpinned-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         fixture.context.insert(target)
         try fixture.context.save()
@@ -331,7 +331,7 @@ extension ScheduledTasksViewModelTests {
             targetConversationID: conversation.id,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             model: nil,
             effort: "medium",
             permissionMode: "default",

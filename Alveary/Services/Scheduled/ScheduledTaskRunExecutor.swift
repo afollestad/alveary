@@ -29,7 +29,7 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
     private let cancellationHandlerAction: CancellationHandlerAction
     let now: DateProvider
     private var activeExecutions: [PersistentIdentifier: ActiveScheduledTaskExecution] = [:]
-    /// Stop may arrive during approval recovery, before this run owns any provider activity to cancel.
+    /// Stop may arrive during approval recovery, before this run owns any harness activity to cancel.
     private var preparingExecutionStopRequests: [PersistentIdentifier: Bool] = [:]
 
     init(
@@ -45,7 +45,7 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
             await viewModel.cancelAutomatedScheduledConversationActivity()
         },
         cancellationHandlerAction: @escaping CancellationHandlerAction = { execution in
-            execution.cancelProviderTasks()
+            execution.cancelHarnessTasks()
         },
         now: @escaping DateProvider = Date.init
     ) {
@@ -123,7 +123,7 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
             return
         }
         execution.isStopRequested = true
-        execution.cancelProviderTasks()
+        execution.cancelHarnessTasks()
         await execution.cancelConversationActivity()
     }
 }
@@ -136,7 +136,7 @@ private extension DefaultScheduledTaskRunExecutor {
         prompt: String
     ) async throws -> ScheduledTaskRunExecutionResult {
         do {
-            let providerResult = try await providerExecutionResult(
+            let harnessResult = try await harnessExecutionResult(
                 execution: execution,
                 outcomes: execution.lease.outcomes(),
                 baselineEpoch: baselineEpoch,
@@ -145,7 +145,7 @@ private extension DefaultScheduledTaskRunExecutor {
             let terminalRequest = ScheduledTaskTerminalPersistenceRequest(
                 runID: execution.runID,
                 conversationID: conversationID,
-                result: providerResult,
+                result: harnessResult,
                 finishedAt: now()
             )
             let persistedResult = try await finishRunDurably(
@@ -196,7 +196,7 @@ private extension DefaultScheduledTaskRunExecutor {
         }
     }
 
-    func providerExecutionResult(
+    func harnessExecutionResult(
         execution: ActiveScheduledTaskExecution,
         outcomes: AsyncStream<ConversationControllerOutcome>,
         baselineEpoch: UInt64?,
@@ -206,7 +206,7 @@ private extension DefaultScheduledTaskRunExecutor {
         let cancellationHandlerAction = self.cancellationHandlerAction
         let completion: ScheduledTaskRunExecutionResult = try await withTaskCancellationHandler {
             do {
-                try await startProviderTurn(
+                try await startHarnessTurn(
                     execution: execution,
                     viewModel: viewModel,
                     prompt: prompt
@@ -223,7 +223,7 @@ private extension DefaultScheduledTaskRunExecutor {
                 await execution.cancelConversationActivity()
                 return .interrupted
             }
-            let result = try await execution.runProviderOutcomeConsumer {
+            let result = try await execution.runHarnessOutcomeConsumer {
                 try await self.consumeOutcomes(
                     outcomes,
                     runID: execution.runID,
@@ -248,7 +248,7 @@ private extension DefaultScheduledTaskRunExecutor {
         return completion
     }
 
-    func startProviderTurn(
+    func startHarnessTurn(
         execution: ActiveScheduledTaskExecution,
         viewModel: ConversationViewModel,
         prompt: String
@@ -263,12 +263,12 @@ private extension DefaultScheduledTaskRunExecutor {
             try Task.checkCancellation()
             try await startAutomatedTurn(viewModel, prompt, markStarted)
         }
-        execution.registerProviderStart(task, token: token)
+        execution.registerHarnessStart(task, token: token)
         do {
             try await task.value
-            execution.clearProviderStart(token: token)
+            execution.clearHarnessStart(token: token)
         } catch {
-            execution.clearProviderStart(token: token)
+            execution.clearHarnessStart(token: token)
             throw error
         }
     }
@@ -448,7 +448,7 @@ private extension DefaultScheduledTaskRunExecutor {
     func finalizeExecutionDurably(_ execution: ActiveScheduledTaskExecution) async {
         await execution.sealConversationCancellation()
         while true {
-            // Parallel provider interactions can arrive while finalization is awaiting persistence
+            // Parallel harness interactions can arrive while finalization is awaiting persistence
             // or runtime teardown. Clear them again on every retry so a late prompt cannot retain
             // the controller and scheduled power indefinitely.
             await supersedeTerminalInteractionsAndDiscardRuntimeIfNeeded(
@@ -466,7 +466,7 @@ private extension DefaultScheduledTaskRunExecutor {
                 await supersedeTerminalInteractionsAndDiscardRuntimeIfNeeded(
                     execution.lease.viewModel
                 )
-                // A non-quiescent controller is still doing work, such as a provider follow-up turn or
+                // A non-quiescent controller is still doing work, such as a harness follow-up turn or
                 // live background tasks; only persistence failures are worth a banner.
                 if !(error is DeferredControllerFinalizationError) {
                     execution.lease.viewModel.lastTurnError = persistenceRetryMessage(for: error)

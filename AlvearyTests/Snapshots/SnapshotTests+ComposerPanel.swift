@@ -328,7 +328,7 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
         }
         return ChatComposerActionRowView.Configuration(
             reasoning: makeReasoningConfiguration(
-                providerOptions: [.init(value: "claude", title: "Claude Code")],
+                harnessOptions: [.init(value: "claude", title: "Claude Code")],
                 modelOptions: modelOptions,
                 effortOptions: effortOptions,
                 selectedModel: selectedModel,
@@ -350,7 +350,7 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
                 }
             ),
             supportedPermissionModes: ChatComposerPermissionPresentation.options(
-                providerID: "claude",
+                harnessID: "claude",
                 permissionModes: Self.permissionModes
             ),
             selectedPermissionMode: selectedPermissionMode,
@@ -432,7 +432,7 @@ private extension SnapshotTests {
             composerCapabilities: ComposerCapabilities(supportedPermissionModes: samplePermissionModes, supportsMidTurnSteering: true),
             reasoningConfiguration: makeReasoningConfiguration(),
             defaultEnterBehavior: .queue,
-            providerID: "claude",
+            harnessID: "claude",
             runtimeStatus: .neutral,
             contextWindowCache: fixture.contextWindowCache,
             workingDirectory: fixture.project.path,

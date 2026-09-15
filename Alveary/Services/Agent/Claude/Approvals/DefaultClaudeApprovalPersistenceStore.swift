@@ -1,12 +1,12 @@
 import Foundation
 import SwiftData
 
-/// SwiftData-backed approval persistence for provider session approvals.
+/// SwiftData-backed approval persistence for harness session approvals.
 ///
 /// Runtime hook transport and transient fallback decisions are owned by `AgentCLIKit`.
 /// This actor stores only Alveary-owned reusable approval rules and the last selected
-/// approval scope for each provider session. Missing or unavailable storage fails open
-/// to "not approved" so historical approval state never fabricates a provider decision.
+/// approval scope for each harness session. Missing or unavailable storage fails open
+/// to "not approved" so historical approval state never fabricates a harness decision.
 actor DefaultClaudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
     private static let sessionApprovalStoreName = "session-approvals.store"
 
@@ -18,7 +18,7 @@ actor DefaultClaudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
     /// When `supportDirectory` is omitted, the store continues to use the existing
     /// `Application Support/Alveary/ClaudeHooks` directory so approvals recorded by
     /// older Alveary builds remain available. Despite the historical path name, the
-    /// store now contains provider-scoped durable approvals for Claude and Codex.
+    /// store now contains harness-scoped durable approvals for Claude and Codex.
     init(supportDirectory: URL? = nil) {
         let supportDirectory = supportDirectory ?? Self.defaultSupportDirectory()
         self.supportDirectory = supportDirectory
@@ -33,7 +33,7 @@ actor DefaultClaudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
         return ModelContext(sessionApprovalContainer)
     }
 
-    /// Returns whether an existing stored approval matches any provider-scoped candidate.
+    /// Returns whether an existing stored approval matches any harness-scoped candidate.
     func allowsSessionApproval(matching candidates: [AgentSessionApprovalGrant]) -> Bool {
         guard let context = sessionApprovalContext() else {
             return false

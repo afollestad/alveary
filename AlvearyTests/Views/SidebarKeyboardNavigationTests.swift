@@ -439,7 +439,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
 
     func testSidebarThreadRenameCommitValueIgnoresEmptySubmission() {
         XCTAssertNil(sidebarThreadRenameCommitValue(
-            initialValue: "Generated Provider Title",
+            initialValue: "Generated Harness Title",
             submittedValue: "   "
         ))
     }
@@ -453,22 +453,22 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
 
     func testSidebarThreadRenameCommitValueIgnoresUnchangedNonDefaultName() {
         XCTAssertNil(sidebarThreadRenameCommitValue(
-            initialValue: "Generated Provider Title",
-            submittedValue: "Generated Provider Title"
+            initialValue: "Generated Harness Title",
+            submittedValue: "Generated Harness Title"
         ))
     }
 
     func testSidebarThreadRenameCommitValueIgnoresWhitespaceOnlyDifference() {
         XCTAssertNil(sidebarThreadRenameCommitValue(
-            initialValue: "Generated Provider Title",
-            submittedValue: "  Generated Provider Title  "
+            initialValue: "Generated Harness Title",
+            submittedValue: "  Generated Harness Title  "
         ))
     }
 
     func testSidebarThreadRenameCommitValueReturnsTrimmedChangedName() {
         XCTAssertEqual(
             sidebarThreadRenameCommitValue(
-                initialValue: "Generated Provider Title",
+                initialValue: "Generated Harness Title",
                 submittedValue: "  Manual Title  "
             ),
             "Manual Title"
@@ -490,7 +490,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         let conversation = Conversation(
             id: UUID().uuidString,
             title: "Main",
-            provider: "claude",
+            harness: "claude",
             thread: thread
         )
         thread.conversations = [conversation]

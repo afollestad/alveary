@@ -4,7 +4,7 @@ import SwiftData
 extension ConversationViewModel {
     /// Whether a hook failure belongs to the approval currently on screen.
     ///
-    /// A failure without a `sessionId` matches on the tool use alone: the provider could not
+    /// A failure without a `sessionId` matches on the tool use alone: the harness could not
     /// name the session, and refusing to match would leave the row pending forever.
     func toolApprovalFailure(
         _ failure: ToolApprovalFailure,

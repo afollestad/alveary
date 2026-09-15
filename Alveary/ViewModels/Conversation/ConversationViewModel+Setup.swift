@@ -57,7 +57,7 @@ extension ConversationViewModel {
             restoresConversationTitle: restoresConversationTitle,
             conversationTitle: restoresConversationTitle ? dbConversation.title : nil
         )
-        let previousAppShotTitleFallback = state.appShotProviderSessionTitleFallback
+        let previousAppShotTitleFallback = state.appShotHarnessSessionTitleFallback
         let localUserMessage = insertLocalUserMessage(
             outbound.visibleText,
             into: dbConversation,
@@ -73,7 +73,7 @@ extension ConversationViewModel {
             do {
                 try commitDraftMaterialization(materializedThread)
             } catch {
-                state.appShotProviderSessionTitleFallback = previousAppShotTitleFallback
+                state.appShotHarnessSessionTitleFallback = previousAppShotTitleFallback
                 rebuildChatItemsIfNeeded(from: conversationEventRecords(), forceFullRebuild: true)
                 throw error
             }
@@ -95,7 +95,7 @@ extension ConversationViewModel {
             attachments: outbound.attachments,
             fileAttachments: outbound.consumedFileAttachments,
             appShots: outbound.appShots,
-            providerMetadata: outbound.providerMetadata,
+            harnessMetadata: outbound.harnessMetadata,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
             insertedMessage: true,
             metadata: metadata
@@ -116,7 +116,7 @@ extension ConversationViewModel {
                 attachments: outbound.attachments,
                 fileAttachments: outbound.consumedFileAttachments,
                 appShots: outbound.appShots,
-                providerMetadata: outbound.providerMetadata,
+                harnessMetadata: outbound.harnessMetadata,
                 consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
                 insertedMessage: false,
                 metadata: nil
@@ -146,7 +146,7 @@ extension ConversationViewModel {
             attachments: attempt.attachments,
             fileAttachments: attempt.fileAttachments,
             appShots: attempt.appShots,
-            providerMetadata: attempt.providerMetadata
+            harnessMetadata: attempt.harnessMetadata
         )
         if state.lastTurnError == nil {
             state.lastTurnError = error.localizedDescription
@@ -186,8 +186,8 @@ extension ConversationViewModel {
         try validateAutomatedScheduledWorkspaceIfNeeded(
             isAutomatedScheduledTurn: config.isAutomatedScheduledTurn
         )
-        await providerSetup.prepareForSpawn(
-            providerId: config.providerId,
+        await harnessSetup.prepareForSpawn(
+            harnessId: config.harnessId,
             workingDirectory: config.workingDirectory,
             autoTrust: shouldAutoTrustWorkspace(
                 config.workingDirectory,
@@ -237,7 +237,7 @@ extension ConversationViewModel {
         initialGoal: String? = nil,
         attachments: [LocalImageAttachment] = [],
         appShots: [AppShotAttachment] = [],
-        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedAttachments: [LocalImageAttachment] = [],
         consumedFileAttachments: [LocalFileAttachment] = [],
         consumedAppShots: [AppShotAttachment] = [],
@@ -269,7 +269,7 @@ extension ConversationViewModel {
                 transportText: transportTextOverride,
                 attachments: attachments,
                 appShots: appShots,
-                providerMetadata: providerMetadata,
+                harnessMetadata: harnessMetadata,
                 consumedAttachments: consumedAttachments,
                 consumedFileAttachments: consumedFileAttachments,
                 consumedAppShots: consumedAppShots,
@@ -295,7 +295,7 @@ extension ConversationViewModel {
                         fileAttachments: consumedFileAttachments,
                         appShots: appShots,
                         initialGoal: initialGoal,
-                        providerMetadata: providerMetadata
+                        harnessMetadata: harnessMetadata
                     ),
                     stagedContextOverride: stagedContextOverride,
                     useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
@@ -316,7 +316,7 @@ extension ConversationViewModel {
                     transportText: transportTextOverride,
                     attachments: attachments,
                     appShots: appShots,
-                    providerMetadata: providerMetadata,
+                    harnessMetadata: harnessMetadata,
                     consumedFileAttachments: consumedFileAttachments
                 ),
                 stagedContextOverride: resolvedStagedContext.stagedContext ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
@@ -416,7 +416,7 @@ extension ConversationViewModel {
                     workingDirectory: workingDirectory,
                     initialPrompt: transportMessage,
                     initialPromptAttachments: payload.attachments,
-                    initialPromptMetadata: payload.providerMetadata,
+                    initialPromptMetadata: payload.harnessMetadata,
                     allowedDirectories: claudeAppShotDirectoriesIfNeeded(appShots: payload.appShots),
                     initialGoal: payload.initialGoal,
                     isAutomatedScheduledTurn: isAutomatedScheduledTurn,
@@ -483,5 +483,5 @@ private struct InitialSetupReservedPayload {
     let fileAttachments: [LocalFileAttachment]
     let appShots: [AppShotAttachment]
     let initialGoal: String?
-    let providerMetadata: [String: AgentCLIKit.JSONValue]
+    let harnessMetadata: [String: AgentCLIKit.JSONValue]
 }

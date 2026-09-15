@@ -48,7 +48,7 @@ actor DefaultExecutablePathResolver: ExecutablePathResolving {
     /// Successful resolutions only, for the life of the process — the app-scoped
     /// `AppComponent.executablePathResolver` is the only instance production uses.
     /// Probing costs a `/usr/bin/which` spawn and, on a miss, a login shell per
-    /// candidate shell, which every `gh` call and every provider re-check paid.
+    /// candidate shell, which every `gh` call and every harness re-check paid.
     private var cachedPaths: [String: String] = [:]
     /// In-flight probes, so simultaneous callers share one spawn instead of racing.
     /// The actor suspends at its first `await`, so a plain cache alone would not
@@ -95,7 +95,7 @@ actor DefaultExecutablePathResolver: ExecutablePathResolving {
             cachedPaths[candidate] = resolved
         }
         // Failures stay uncached: onboarding re-checks a dependency right after
-        // installing it, and the post-wake sweep re-checks every provider, so a
+        // installing it, and the post-wake sweep re-checks every harness, so a
         // cached negative would hide a binary that has since appeared.
         return resolved
     }

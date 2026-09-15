@@ -114,8 +114,8 @@ extension AgentsManagerTests {
     }
 }
 
-struct RestoredApprovalCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+struct RestoredApprovalCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]

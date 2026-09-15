@@ -1,3 +1,3 @@
 protocol AgentEnvironmentBuilder: Sendable {
-    func buildEnvironment(providerEnv: [String: String]?) -> [String: String]
+    func buildEnvironment(harnessEnv: [String: String]?) -> [String: String]
 }

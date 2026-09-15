@@ -4,16 +4,16 @@ import Foundation
 actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     let agentCLIKitServices: AgentCLIKitHostServices
     let sessionManager: SessionManager
-    let providerDetection: ProviderDetectionService
+    let harnessDetection: HarnessDetectionService
     let environmentBuilder: AgentEnvironmentBuilder
-    let providerRegistry: ProviderRegistry
+    let harnessRegistry: HarnessRegistry
     let settingsService: SettingsService
     let keepAwakeService: KeepAwakeService
     let notificationManager: NotificationManager
     let fileListManager: (any FileListManager)?
     let threadActivityRecorder: any ThreadActivityRecording
     let claudeApprovalPersistenceStore: any ClaudeApprovalPersistenceStore
-    let providerSessionBindingStore: any ProviderSessionBindingStore
+    let harnessSessionBindingStore: any HarnessSessionBindingStore
 
     var eventBuffers: [String: ManagedEventBuffer] = [:]
     var closingConversationIds: Set<String> = []
@@ -30,7 +30,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     var agentCLIKitGenerationByConversation: [String: Int] = [:]
     var agentCLIKitGenerationUUIDs: [String: [Int: UUID]] = [:]
     var agentCLIKitStatuses: [String: AgentCLIKit.AgentRuntimeStatus] = [:]
-    var recordedProviderSessionBindings: Set<ProviderSessionBinding> = []
+    var recordedHarnessSessionBindings: Set<HarnessSessionBinding> = []
     var hasInstalledAgentCLIKitLiveHookHandler = false
 
     let shutdownRequested = LockedState(false)
@@ -43,29 +43,29 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     init(
         agentCLIKitServices: AgentCLIKitHostServices,
         sessionManager: SessionManager,
-        providerDetection: ProviderDetectionService,
+        harnessDetection: HarnessDetectionService,
         environmentBuilder: AgentEnvironmentBuilder,
-        providerRegistry: ProviderRegistry,
+        harnessRegistry: HarnessRegistry,
         settingsService: SettingsService,
         keepAwakeService: KeepAwakeService,
         notificationManager: NotificationManager,
         fileListManager: (any FileListManager)? = nil,
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
         claudeApprovalPersistenceStore: any ClaudeApprovalPersistenceStore = DisabledClaudeApprovalPersistenceStore(),
-        providerSessionBindingStore: any ProviderSessionBindingStore = NoopProviderSessionBindingStore()
+        harnessSessionBindingStore: any HarnessSessionBindingStore = NoopHarnessSessionBindingStore()
     ) {
         self.agentCLIKitServices = agentCLIKitServices
         self.sessionManager = sessionManager
-        self.providerDetection = providerDetection
+        self.harnessDetection = harnessDetection
         self.environmentBuilder = environmentBuilder
-        self.providerRegistry = providerRegistry
+        self.harnessRegistry = harnessRegistry
         self.settingsService = settingsService
         self.keepAwakeService = keepAwakeService
         self.notificationManager = notificationManager
         self.fileListManager = fileListManager
         self.threadActivityRecorder = threadActivityRecorder
         self.claudeApprovalPersistenceStore = claudeApprovalPersistenceStore
-        self.providerSessionBindingStore = providerSessionBindingStore
+        self.harnessSessionBindingStore = harnessSessionBindingStore
     }
 
     @MainActor
@@ -204,7 +204,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
 
 struct CancelledInteractionResolution: Equatable {
     // AgentCLIKit can keep reporting a denied prompt/plan-exit interaction as running
-    // or waiting until the provider emits terminal fallout. Scope suppression to this
+    // or waiting until the harness emits terminal fallout. Scope suppression to this
     // interaction/generation so new user work can clear it normally.
     let toolUseId: String
     let agentGeneration: Int?

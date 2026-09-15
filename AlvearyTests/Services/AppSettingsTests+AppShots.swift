@@ -192,7 +192,7 @@ extension AppSettingsTests {
         XCTAssertNil(AppShotCaptureError.noTargetWindow.missingPermission)
         XCTAssertNil(AppShotCaptureError.noReliableScreenCaptureMatch.missingPermission)
         XCTAssertNil(AppShotCaptureError.screenshotEncodingFailed.missingPermission)
-        XCTAssertNil(AppShotCaptureError.unsupportedProvider("mock").missingPermission)
+        XCTAssertNil(AppShotCaptureError.unsupportedHarness("mock").missingPermission)
         XCTAssertNil(AppShotCaptureError.claudeScreenshotUnreadable("/tmp/appshot.png").missingPermission)
     }
 

@@ -76,7 +76,7 @@ private extension ScheduledTaskMutationServiceTests {
         conversationID: String
     ) throws -> AgentThread {
         let target = AgentThread(name: name, mode: .task)
-        target.conversations = [Conversation(id: conversationID, provider: "codex", thread: target)]
+        target.conversations = [Conversation(id: conversationID, harness: "codex", thread: target)]
         fixture.context.insert(target)
         try fixture.context.save()
         return target
@@ -89,7 +89,7 @@ private extension ScheduledTaskMutationServiceTests {
             destination: .existingThread,
             recurrence: .daily(hour: 8, minute: 0),
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             model: nil,
             effort: "medium",
             permissionMode: "default",

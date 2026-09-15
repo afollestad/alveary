@@ -18,7 +18,7 @@ extension ConversationViewModelTests {
                 stopReason: "end_turn",
                 durationMs: 100,
                 costUsd: 0.02,
-                providerModelId: "claude-sonnet-4-6",
+                harnessModelId: "claude-sonnet-4-6",
                 contextWindowSize: 200_000,
                 permissionDenials: []
             )
@@ -27,12 +27,12 @@ extension ConversationViewModelTests {
         let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
         let tokensRecord = try XCTUnwrap(persistedEvents.first { $0.type == "tokens" })
         XCTAssertEqual(tokensRecord.contextWindowSize, 200_000)
-        XCTAssertEqual(tokensRecord.providerModelId, "claude-sonnet-4-6")
+        XCTAssertEqual(tokensRecord.harnessModelId, "claude-sonnet-4-6")
 
         try await waitUntil("context window cache update is scheduled") {
             let updates = await fixture.contextWindowCache.updates
             return updates.contains {
-                $0.providerId == "claude" &&
+                $0.harnessId == "claude" &&
                     $0.selectedModel == "default" &&
                     $0.reportedModelId == "claude-sonnet-4-6" &&
                     $0.contextWindowSize == 200_000
@@ -42,7 +42,7 @@ extension ConversationViewModelTests {
 
     func testCodexTokenEventCachesContextWindowUsingSelectedModelWhenReportedModelIsUnavailable() async throws {
         let fixture = try ConversationViewModelTestFixture()
-        fixture.conversation.provider = "codex"
+        fixture.conversation.harness = "codex"
         fixture.thread.model = "gpt-5.5"
 
         fixture.viewModel.handleEvent(
@@ -55,7 +55,7 @@ extension ConversationViewModelTests {
                 stopReason: ConversationEvent.interimUsageStopReason,
                 durationMs: 0,
                 costUsd: 0,
-                providerModelId: nil,
+                harnessModelId: nil,
                 contextWindowSize: 200_000,
                 permissionDenials: []
             )
@@ -64,12 +64,12 @@ extension ConversationViewModelTests {
         let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
         let tokensRecord = try XCTUnwrap(persistedEvents.first { $0.type == "tokens" })
         XCTAssertEqual(tokensRecord.contextWindowSize, 200_000)
-        XCTAssertNil(tokensRecord.providerModelId)
+        XCTAssertNil(tokensRecord.harnessModelId)
 
         try await waitUntil("codex context window cache update is scheduled") {
             let updates = await fixture.contextWindowCache.updates
             return updates.contains {
-                $0.providerId == "codex" &&
+                $0.harnessId == "codex" &&
                     $0.selectedModel == "gpt-5.5" &&
                     $0.reportedModelId == nil &&
                     $0.contextWindowSize == 200_000

@@ -62,7 +62,7 @@ extension ChatComposerActionRowView {
     }
 
     struct ReasoningModelSelectionRequest: Equatable {
-        let providerID: String
+        let harnessID: String
         let modelID: String
     }
 

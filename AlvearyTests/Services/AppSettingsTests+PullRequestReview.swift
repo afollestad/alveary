@@ -15,7 +15,7 @@ extension AppSettingsTests {
         XCTAssertEqual(settings.pullRequestReviewMode, .singleAgent)
         XCTAssertEqual(settings.pullRequestReviewPeers, [])
         // Nil means "follow the Threads defaults" — not "no agent".
-        XCTAssertNil(settings.pullRequestReviewProvider)
+        XCTAssertNil(settings.pullRequestReviewHarness)
         XCTAssertNil(settings.pullRequestReviewModel)
         XCTAssertNil(settings.pullRequestReviewEffort)
         XCTAssertNil(settings.pullRequestReviewPermissionMode)
@@ -30,14 +30,14 @@ extension AppSettingsTests {
         var settings = AppSettings()
         settings.pullRequestReviewPrompt = "Review it carefully."
         settings.pullRequestAddressFeedbackPrompt = "Answer every thread."
-        settings.pullRequestReviewProvider = "codex"
+        settings.pullRequestReviewHarness = "codex"
         settings.pullRequestReviewModel = "gpt-5"
         settings.pullRequestReviewEffort = "high"
         settings.pullRequestReviewPermissionMode = "never"
         settings.pullRequestReviewMode = .reviewTeam
         settings.pullRequestReviewPeers = [
-            PullRequestReviewPeer(id: "peer-1", providerID: "claude", model: "opus", effort: "high"),
-            PullRequestReviewPeer(id: "peer-2", providerID: "codex", model: "gpt-5.5", effort: "xhigh")
+            PullRequestReviewPeer(id: "peer-1", harnessID: "claude", model: "opus", effort: "high"),
+            PullRequestReviewPeer(id: "peer-2", harnessID: "codex", model: "gpt-5.5", effort: "xhigh")
         ]
         settings.pullRequestOwnFooterActionKind = "submitReview"
         settings.pullRequestOthersFooterActionKind = "addressFeedback"
@@ -47,7 +47,7 @@ extension AppSettingsTests {
 
         XCTAssertEqual(decoded.pullRequestReviewPrompt, "Review it carefully.")
         XCTAssertEqual(decoded.pullRequestAddressFeedbackPrompt, "Answer every thread.")
-        XCTAssertEqual(decoded.pullRequestReviewProvider, "codex")
+        XCTAssertEqual(decoded.pullRequestReviewHarness, "codex")
         XCTAssertEqual(decoded.pullRequestReviewModel, "gpt-5")
         XCTAssertEqual(decoded.pullRequestReviewEffort, "high")
         XCTAssertEqual(decoded.pullRequestReviewPermissionMode, "never")
@@ -109,9 +109,9 @@ extension AppSettingsTests {
 
     func testFeedbackAndReviewAgentPinsRoundTripIndependently() throws {
         var settings = AppSettings()
-        settings.pullRequestReviewAgent = PullRequestAgentSettings(provider: "codex", model: "gpt-5.5", effort: "high")
+        settings.pullRequestReviewAgent = PullRequestAgentSettings(harness: "codex", model: "gpt-5.5", effort: "high")
         settings.pullRequestAddressFeedbackAgent = PullRequestAgentSettings(
-            provider: "claude", model: "sonnet", effort: "medium", permissionMode: "acceptEdits"
+            harness: "claude", model: "sonnet", effort: "medium", permissionMode: "acceptEdits"
         )
 
         let restored = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
@@ -123,7 +123,7 @@ extension AppSettingsTests {
     func testFeedbackNormalizationTrimsPinsAndDropsUnsupportedValues() {
         var settings = AppSettings()
         settings.pullRequestAddressFeedbackAgent = PullRequestAgentSettings(
-            provider: "unknown", model: " sonnet ", effort: " ", permissionMode: "plan"
+            harness: "unknown", model: " sonnet ", effort: " ", permissionMode: "plan"
         )
 
         XCTAssertEqual(settings.normalized().pullRequestAddressFeedbackAgent, PullRequestAgentSettings(model: "sonnet"))
@@ -237,13 +237,13 @@ extension AppSettingsTests {
 
     func testNormalizationCollapsesBlankAgentPinsToInherit() {
         var settings = AppSettings()
-        settings.pullRequestReviewProvider = "  "
+        settings.pullRequestReviewHarness = "  "
         settings.pullRequestReviewModel = ""
         settings.pullRequestReviewEffort = "\n"
         settings.pullRequestReviewPermissionMode = " \n "
 
         let normalized = settings.normalized()
-        XCTAssertNil(normalized.pullRequestReviewProvider)
+        XCTAssertNil(normalized.pullRequestReviewHarness)
         XCTAssertNil(normalized.pullRequestReviewModel)
         XCTAssertNil(normalized.pullRequestReviewEffort)
         XCTAssertNil(normalized.pullRequestReviewPermissionMode)
@@ -251,7 +251,7 @@ extension AppSettingsTests {
 
     func testNormalizationPreservesKnownReviewPermissionsAndDropsUnsupportedModes() {
         var settings = AppSettings()
-        settings.pullRequestReviewProvider = "codex"
+        settings.pullRequestReviewHarness = "codex"
         settings.pullRequestReviewPermissionMode = "bypassPermissions"
 
         XCTAssertEqual(settings.normalized().pullRequestReviewPermissionMode, "bypassPermissions")
@@ -262,15 +262,15 @@ extension AppSettingsTests {
         }
     }
 
-    func testNormalizationDropsAnUnsupportedReviewProvider() {
+    func testNormalizationDropsAnUnsupportedReviewHarness() {
         var settings = AppSettings()
-        settings.pullRequestReviewProvider = "nonexistent"
+        settings.pullRequestReviewHarness = "nonexistent"
         settings.pullRequestReviewModel = "some-model"
 
         let normalized = settings.normalized()
-        XCTAssertNil(normalized.pullRequestReviewProvider)
-        // Model and effort are validated at spawn time against live provider discovery, so a
-        // stored value survives normalization even when the provider does not.
+        XCTAssertNil(normalized.pullRequestReviewHarness)
+        // Model and effort are validated at spawn time against live harness discovery, so a
+        // stored value survives normalization even when the harness does not.
         XCTAssertEqual(normalized.pullRequestReviewModel, "some-model")
     }
 
@@ -307,12 +307,12 @@ extension AppSettingsTests {
 
     func testNormalizationTrimsPinnedAgentValues() {
         var settings = AppSettings()
-        settings.pullRequestReviewProvider = "  codex  "
+        settings.pullRequestReviewHarness = "  codex  "
         settings.pullRequestReviewEffort = " high "
         settings.pullRequestReviewPermissionMode = " never "
 
         let normalized = settings.normalized()
-        XCTAssertEqual(normalized.pullRequestReviewProvider, "codex")
+        XCTAssertEqual(normalized.pullRequestReviewHarness, "codex")
         XCTAssertEqual(normalized.pullRequestReviewEffort, "high")
         XCTAssertEqual(normalized.pullRequestReviewPermissionMode, "never")
     }

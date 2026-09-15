@@ -36,7 +36,7 @@ extension ScheduledTaskRunMaterializerTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        let conversation = Conversation(id: "private-target-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "private-target-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         fixture.context.insert(target)
         fixture.context.insert(conversation)

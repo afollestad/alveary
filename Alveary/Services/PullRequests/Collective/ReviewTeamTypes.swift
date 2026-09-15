@@ -1,14 +1,24 @@
 import CryptoKit
 import Foundation
 
-/// The requested launch configuration, frozen before any worker starts; provider output does not attest execution identity.
+/// The requested launch configuration, frozen before any worker starts; harness output does not attest execution identity.
 struct ReviewWorkerConfiguration: Codable, Equatable, Sendable, Identifiable {
     let id: String
-    let providerID: String
+    let harnessID: String
     let modelOptionID: String
     let launchModel: String
     let effort: String
     let executablePath: String
+
+    /// Keep the stored JSON format stable across the harness terminology rename.
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case harnessID = "providerID"
+        case modelOptionID
+        case launchModel
+        case effort
+        case executablePath
+    }
 }
 
 struct ReviewCandidate: Codable, Equatable, Sendable, Identifiable {
@@ -100,7 +110,7 @@ enum ReviewTeamDigest {
     }
 }
 
-/// Keeps provider diagnostics from inflating the persisted run envelope.
+/// Keeps harness diagnostics from inflating the persisted run envelope.
 enum ReviewTeamDiagnostics {
     static func persisted(_ error: Error) -> String {
         persisted(error.localizedDescription)

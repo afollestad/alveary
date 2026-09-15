@@ -384,7 +384,7 @@ extension ArchivedThreadsViewModelTests {
         task.conversations = conversationIDs.enumerated().map { index, id in
             Conversation(
                 id: "\(name)-\(id)",
-                provider: "codex",
+                harness: "codex",
                 isMain: index == 0,
                 displayOrder: index,
                 thread: task
@@ -409,7 +409,7 @@ extension ArchivedThreadsViewModelTests {
             project: project
         )
         thread.conversations = [
-            Conversation(id: "\(name)-main", provider: "codex", isMain: true, displayOrder: 0, thread: thread)
+            Conversation(id: "\(name)-main", harness: "codex", isMain: true, displayOrder: 0, thread: thread)
         ]
         fixture.context.insert(thread)
         try fixture.context.save()

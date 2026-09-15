@@ -72,7 +72,7 @@ final class AppMarkdownImageStoreTests: XCTestCase {
         XCTAssertEqual(loader.requests.value.count, 2)
     }
 
-    /// A failed direct fetch consults the fallback provider (signed GitHub
+    /// A failed direct fetch consults the fallback harness (signed GitHub
     /// attachment URLs) and retries under the *original* cache key, so the
     /// bytes persist for the plain source on future launches.
     func testFallbackURLProviderRescuesFailedRemoteLoad() async throws {

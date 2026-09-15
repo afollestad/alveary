@@ -42,7 +42,7 @@ extension ConversationViewModel {
 
     func destroyRuntimeAfterFailedInitialSetup(originalError: Error) async throws {
         // Initial-setup cancellation reaches this path from an already-cancelled task. Destructive
-        // teardown must run in its own uncancelled task so provider cleanup can finish and be joined.
+        // teardown must run in its own uncancelled task so harness cleanup can finish and be joined.
         do {
             try await destroyRuntimeIgnoringTaskCancellation()
         } catch let cleanupError {
@@ -82,10 +82,10 @@ extension ConversationViewModel {
                 refreshInputDraftEffectiveEmptyForAttachments()
             }
         }
-        // The runtime arms a turn when it installs the spawn's event buffer, before the provider
+        // The runtime arms a turn when it installs the spawn's event buffer, before the harness
         // process starts. A failed spawn emits no terminal event, so nothing else ever ends that
         // turn: the composer would stay busy forever, which also gates off the pre-startup
-        // provider switch. Runs after both branches so a late arm on a replacement state is
+        // harness switch. Runs after both branches so a late arm on a replacement state is
         // covered too.
         state.rollBackOptimisticTurn()
         state.clearStreamingText()

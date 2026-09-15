@@ -39,7 +39,7 @@ extension ConversationViewModelTests {
             isDraft: true,
             useWorktree: true,
             hasCompletedInitialSetup: false,
-            providerId: "codex",
+            harnessId: "codex",
             draftMaterializationSaver: { throw DraftMaterializationTestError.saveFailed }
         )
         let image = draftTestImageAttachment(label: "screen.png")
@@ -50,7 +50,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.state.stagedImageAttachments = [image]
         fixture.viewModel.state.stagedFileAttachments = [file]
         fixture.viewModel.state.stagedAppShots = [appShot]
-        fixture.viewModel.state.appShotProviderSessionTitleFallback = "Existing fallback"
+        fixture.viewModel.state.appShotHarnessSessionTitleFallback = "Existing fallback"
         let projectID = fixture.project.id
         fixture.project.name = "Preserved pending project name"
         let notificationRecorder = DraftMaterializationRecorder(
@@ -76,7 +76,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.state.stagedImageAttachments, [image])
         XCTAssertEqual(fixture.viewModel.state.stagedFileAttachments, [file])
         XCTAssertEqual(fixture.viewModel.state.stagedAppShots, [appShot])
-        XCTAssertEqual(fixture.viewModel.state.appShotProviderSessionTitleFallback, "Existing fallback")
+        XCTAssertEqual(fixture.viewModel.state.appShotHarnessSessionTitleFallback, "Existing fallback")
         XCTAssertTrue(notificationRecorder.recordedPayloads().isEmpty)
         XCTAssertNil(fixture.settingsService.current.lastOpenThreadID)
         XCTAssertNil(fixture.settingsService.current.lastOpenConversationID)
@@ -130,7 +130,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             isDraft: true,
             hasCompletedInitialSetup: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         let appShot = draftTestAppShotAttachment()
         fixture.viewModel.state.stagedAppShots = [appShot]
@@ -149,7 +149,7 @@ extension ConversationViewModelTests {
             isDraft: true,
             hasCompletedInitialSetup: false,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.setGoalModeArmed(true)
 

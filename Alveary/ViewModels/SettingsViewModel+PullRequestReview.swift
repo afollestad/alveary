@@ -1,9 +1,9 @@
 import AgentCLIKit
 import SwiftUI
 
-/// Review settings also seed the team lead. Each agent picker inherits Threads defaults until explicitly pinned.
+/// Review settings also seed the team lead. Each harness picker inherits Threads defaults until explicitly pinned.
 extension SettingsViewModel {
-    /// Distinct from `AppSettings.defaultModelValue`, which means "the provider's default
+    /// Distinct from `AppSettings.defaultModelValue`, which means "the harness's default
     /// model" — a narrower claim than "follow the Threads defaults".
     static let pullRequestReviewInheritValue = "alveary.inherit"
 
@@ -49,7 +49,7 @@ extension SettingsViewModel {
         peers: [PullRequestReviewPeer],
         settings draftSettings: AppSettings? = nil
     ) -> PullRequestReviewTeamSettingsStatus {
-        if providerDiscovery != nil, !hasLoadedProviderStatuses {
+        if harnessDiscovery != nil, !hasLoadedHarnessStatuses {
             return .checking
         }
         var settings = draftSettings ?? settingsService.current
@@ -57,8 +57,8 @@ extension SettingsViewModel {
         do {
             _ = try PullRequestReviewTeamResolver.resolve(
                 settings: settings,
-                providerStatuses: typedProviderStatuses,
-                providerOrdering: providerOrdering
+                harnessStatuses: typedHarnessStatuses,
+                harnessOrdering: harnessOrdering
             )
             return .ready
         } catch {
@@ -71,31 +71,31 @@ extension SettingsViewModel {
         var draft = settingsService.current
         guard draft.pullRequestReviewPeers.isEmpty else { return draft }
 
-        draft.pullRequestReviewProvider = "codex"
+        draft.pullRequestReviewHarness = "codex"
         draft.pullRequestReviewModel = "gpt-5.6-sol"
         draft.pullRequestReviewEffort = "high"
         if resolvedPullRequestReviewLead(settings: draft) == nil {
-            draft.pullRequestReviewProvider = "claude"
+            draft.pullRequestReviewHarness = "claude"
             draft.pullRequestReviewModel = "claude-opus-5"
         }
         draft.pullRequestReviewPeers = suggestedPullRequestReviewPeers()
         return draft
     }
 
-    func pullRequestReviewPeerProviderOptions(including providerID: String) -> [String] {
-        var values = threadDefaultProviderIDs
-        if !providerID.isEmpty, !values.contains(providerID) {
-            values.append(providerID)
+    func pullRequestReviewPeerHarnessOptions(including harnessID: String) -> [String] {
+        var values = threadDefaultHarnessIDs
+        if !harnessID.isEmpty, !values.contains(harnessID) {
+            values.append(harnessID)
         }
         return values
     }
 
     func pullRequestReviewPeerModelSelection(_ peer: PullRequestReviewPeer) -> String {
-        concreteModelOption(for: peer.model, providerID: peer.providerID)?.id ?? peer.model
+        concreteModelOption(for: peer.model, harnessID: peer.harnessID)?.id ?? peer.model
     }
 
     func pullRequestReviewPeerModelOptions(_ peer: PullRequestReviewPeer) -> [String] {
-        var values = concreteModelOptions(for: peer.providerID).map(\.id)
+        var values = concreteModelOptions(for: peer.harnessID).map(\.id)
         let selection = pullRequestReviewPeerModelSelection(peer)
         if !selection.isEmpty, !values.contains(selection) {
             values.append(selection)
@@ -103,12 +103,12 @@ extension SettingsViewModel {
         return values
     }
 
-    func pullRequestReviewPeerStoredModel(providerID: String, selection: String) -> String {
-        concreteModelOptions(for: providerID).first { $0.id == selection }?.model ?? selection
+    func pullRequestReviewPeerStoredModel(harnessID: String, selection: String) -> String {
+        concreteModelOptions(for: harnessID).first { $0.id == selection }?.model ?? selection
     }
 
     func pullRequestReviewPeerEffortOptions(_ peer: PullRequestReviewPeer) -> [String] {
-        let option = concreteModelOption(for: peer.model, providerID: peer.providerID)
+        let option = concreteModelOption(for: peer.model, harnessID: peer.harnessID)
         var values = option?.supportedEffortOptions.map(\.value) ?? []
         if !peer.effort.isEmpty, !values.contains(peer.effort) {
             values.append(peer.effort)
@@ -119,27 +119,27 @@ extension SettingsViewModel {
         return values
     }
 
-    func pullRequestReviewPeerModelLabel(_ value: String, providerID: String) -> String {
-        concreteModelOption(for: value, providerID: providerID)?.label
+    func pullRequestReviewPeerModelLabel(_ value: String, harnessID: String) -> String {
+        concreteModelOption(for: value, harnessID: harnessID)?.label
             ?? ChatComposerTextSupport.modelLabel(for: value)
     }
 
     func pullRequestReviewPeerEffortLabel(_ value: String, peer: PullRequestReviewPeer) -> String {
-        let option = concreteModelOption(for: peer.model, providerID: peer.providerID)
+        let option = concreteModelOption(for: peer.model, harnessID: peer.harnessID)
         return option?.supportedEffortOptions.first { $0.value == value }?.label
             ?? ChatComposerTextSupport.effortLabel(for: value)
     }
 
     func defaultPullRequestReviewPeer(
-        providerID: String,
+        harnessID: String,
         excluding peers: [PullRequestReviewPeer],
         settings draftSettings: AppSettings? = nil
     ) -> PullRequestReviewPeer? {
-        var excludedModels = Set(peers.filter { $0.providerID == providerID }.map(\.model))
-        if let lead = resolvedPullRequestReviewLead(settings: draftSettings), providerID == lead.providerID {
+        var excludedModels = Set(peers.filter { $0.harnessID == harnessID }.map(\.model))
+        if let lead = resolvedPullRequestReviewLead(settings: draftSettings), harnessID == lead.harnessID {
             excludedModels.insert(lead.launchModel)
         }
-        guard let option = concreteModelOptions(for: providerID).first(where: {
+        guard let option = concreteModelOptions(for: harnessID).first(where: {
             guard let model = $0.model else { return false }
             return !excludedModels.contains(model)
         }), let model = option.model else {
@@ -147,7 +147,7 @@ extension SettingsViewModel {
         }
         return PullRequestReviewPeer(
             id: UUID().uuidString,
-            providerID: providerID,
+            harnessID: harnessID,
             model: model,
             effort: option.defaultEffortOption?.value
                 ?? option.supportedEffortOptions.first?.value
@@ -159,37 +159,37 @@ extension SettingsViewModel {
         excluding peers: [PullRequestReviewPeer],
         settings draftSettings: AppSettings? = nil
     ) -> PullRequestReviewPeer? {
-        for providerID in threadDefaultProviderIDs {
-            if let peer = defaultPullRequestReviewPeer(providerID: providerID, excluding: peers, settings: draftSettings) {
+        for harnessID in threadDefaultHarnessIDs {
+            if let peer = defaultPullRequestReviewPeer(harnessID: harnessID, excluding: peers, settings: draftSettings) {
                 return peer
             }
         }
         return nil
     }
 
-    func pullRequestReviewPeerDefaultEffort(providerID: String, model: String) -> String {
-        let option = concreteModelOption(for: model, providerID: providerID)
+    func pullRequestReviewPeerDefaultEffort(harnessID: String, model: String) -> String {
+        let option = concreteModelOption(for: model, harnessID: harnessID)
         return option?.defaultEffortOption?.value
             ?? option?.supportedEffortOptions.first?.value
             ?? AppSettings.defaultEffortLevel
     }
 
-    var pullRequestReviewEffectiveProviderID: String { reviewAgentEditor.effectiveProviderID }
-    var pullRequestReviewProviderSelection: String { reviewAgentEditor.providerSelection }
-    var pullRequestReviewProviderOptions: [String] { reviewAgentEditor.providerOptions }
+    var pullRequestReviewEffectiveHarnessID: String { reviewAgentEditor.effectiveHarnessID }
+    var pullRequestReviewHarnessSelection: String { reviewAgentEditor.harnessSelection }
+    var pullRequestReviewHarnessOptions: [String] { reviewAgentEditor.harnessOptions }
     var pullRequestReviewModelSelection: String { reviewAgentEditor.modelSelection }
     var pullRequestReviewModelOptions: [String] { reviewAgentEditor.modelOptions }
     var pullRequestReviewEffortSelection: String { reviewAgentEditor.effortSelection }
-    var pullRequestReviewEffortOptions: [AgentProviderOption] { reviewAgentEditor.effortOptions }
+    var pullRequestReviewEffortOptions: [AgentHarnessOption] { reviewAgentEditor.effortOptions }
     var pullRequestReviewPermissionSelection: String { reviewAgentEditor.permissionSelection }
     var pullRequestReviewPermissionOptions: [String] { reviewAgentEditor.permissionOptions }
 
-    func setPullRequestReviewProvider(_ value: String) { reviewAgentEditor.setProvider(value) }
+    func setPullRequestReviewHarness(_ value: String) { reviewAgentEditor.setHarness(value) }
     func setPullRequestReviewModel(_ value: String) { reviewAgentEditor.setModel(value) }
     func setPullRequestReviewEffort(_ value: String) { reviewAgentEditor.setEffort(value) }
     func setPullRequestReviewPermission(_ value: String) { reviewAgentEditor.setPermission(value) }
 
-    func pullRequestReviewLabel(forProvider value: String) -> String { reviewAgentEditor.label(forProvider: value) }
+    func pullRequestReviewLabel(forHarness value: String) -> String { reviewAgentEditor.label(forHarness: value) }
     func pullRequestReviewLabel(forModel value: String) -> String { reviewAgentEditor.label(forModel: value) }
     func pullRequestReviewLabel(forEffort value: String) -> String { reviewAgentEditor.label(forEffort: value) }
     func pullRequestReviewLabel(forPermission value: String) -> String { reviewAgentEditor.label(forPermission: value) }
@@ -234,15 +234,15 @@ extension SettingsViewModel {
         return id
     }
 
-    private var typedProviderStatuses: [AgentProviderID: AgentProviderStatus] {
-        Dictionary(uniqueKeysWithValues: providerStatuses.compactMap { key, value in
-            AgentProviderID(rawValue: key).map { ($0, value) }
+    private var typedHarnessStatuses: [AgentHarnessID: AgentHarnessStatus] {
+        Dictionary(uniqueKeysWithValues: harnessStatuses.compactMap { key, value in
+            AgentHarnessID(rawValue: key).map { ($0, value) }
         })
     }
 
-    private func concreteModelOptions(for providerID: String) -> [AgentModelOption] {
-        guard let typedProviderID = AgentProviderID(rawValue: providerID),
-              let options = typedProviderStatuses[typedProviderID]?.modelOptions else {
+    private func concreteModelOptions(for harnessID: String) -> [AgentModelOption] {
+        guard let typedHarnessID = AgentHarnessID(rawValue: harnessID),
+              let options = typedHarnessStatuses[typedHarnessID]?.modelOptions else {
             return []
         }
         return options.filter { option in
@@ -254,8 +254,8 @@ extension SettingsViewModel {
         }
     }
 
-    private func concreteModelOption(for selection: String, providerID: String) -> AgentModelOption? {
-        let options = concreteModelOptions(for: providerID)
+    private func concreteModelOption(for selection: String, harnessID: String) -> AgentModelOption? {
+        let options = concreteModelOptions(for: harnessID)
         if let exact = options.first(where: { $0.id == selection || $0.model == selection }) {
             return exact
         }
@@ -265,17 +265,17 @@ extension SettingsViewModel {
     private func resolvedPullRequestReviewLead(settings draftSettings: AppSettings?) -> ReviewWorkerConfiguration? {
         try? PullRequestReviewTeamResolver.resolveLead(
             settings: draftSettings ?? settingsService.current,
-            providerStatuses: typedProviderStatuses
+            harnessStatuses: typedHarnessStatuses
         )
     }
 
     private func suggestedPullRequestReviewPeers() -> [PullRequestReviewPeer] {
         [
-            PullRequestReviewPeer(id: UUID().uuidString, providerID: "codex", model: "gpt-6-astra", effort: "max"),
-            PullRequestReviewPeer(id: UUID().uuidString, providerID: "claude", model: "claude-fable-5-1", effort: "max")
+            PullRequestReviewPeer(id: UUID().uuidString, harnessID: "codex", model: "gpt-6-astra", effort: "max"),
+            PullRequestReviewPeer(id: UUID().uuidString, harnessID: "claude", model: "claude-fable-5-1", effort: "max")
         ].filter { peer in
-            guard let status = providerStatuses[peer.providerID],
-                  settingsService.current.isProviderEnabled(peer.providerID),
+            guard let status = harnessStatuses[peer.harnessID],
+                  settingsService.current.isHarnessEnabled(peer.harnessID),
                   status.isEnabled, status.isInstalled, status.isSetupReady,
                   let executable = status.availability?.executablePath else { return false }
             return !executable.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

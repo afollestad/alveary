@@ -26,11 +26,11 @@ extension SnapshotTests {
         let toasts = [
             AppState.UnexpectedErrorToast(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID(),
-                message: "Provider archive sync failed."
+                message: "Harness archive sync failed."
             ),
             AppState.UnexpectedErrorToast(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000002") ?? UUID(),
-                message: "Could not restore Codex provider session session-2."
+                message: "Could not restore Codex harness session session-2."
             ),
             AppState.UnexpectedErrorToast(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000003") ?? UUID(),

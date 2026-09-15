@@ -26,7 +26,7 @@ extension ConversationViewModel {
         try await resolveExitPlanModeToolUseApproval(
             toolUseId: toolUseId,
             decision: .allow,
-            providerRestartConfig: restartConfig
+            harnessRestartConfig: restartConfig
         )
         finishPendingSessionSettingsApply(pending: pending, config: restartConfig)
     }
@@ -48,13 +48,13 @@ extension ConversationViewModel {
         let approval = state.pendingToolApproval?.request.toolUseId == toolUseId
             ? state.pendingToolApproval?.request
             : nil
-        let providerSnapshot = exitPlanModeRevisionProviderSnapshot()
+        let harnessSnapshot = exitPlanModeRevisionHarnessSnapshot()
         if let trimmedFollowUp,
            let approval {
             stagePendingExitPlanModeFollowUp(
                 message: Self.exitPlanModeRevisionFollowUpPrompt(feedback: trimmedFollowUp),
                 approval: approval,
-                providerSnapshot: providerSnapshot
+                harnessSnapshot: harnessSnapshot
             )
         }
 
@@ -64,7 +64,7 @@ extension ConversationViewModel {
                let approval {
                 stagePendingExitPlanModeRevisionGuidance(
                     approval: approval,
-                    providerSnapshot: providerSnapshot
+                    harnessSnapshot: harnessSnapshot
                 )
             }
             finishDeniedExitPlanModeApproval(toolUseId: toolUseId)
@@ -122,7 +122,7 @@ extension ConversationViewModel {
         state.pendingExitPlanModeRevisionGuidance = guidance
     }
 
-    /// The provider-facing text a drained queued message sends. Plan-revision guidance is the one
+    /// The harness-facing text a drained queued message sends. Plan-revision guidance is the one
     /// transport text that can go stale — plan mode may have ended while the message waited — so
     /// it is dropped once it no longer applies. Any other transport text — an app shot's hidden
     /// context, a relayed prompt's sender header — is exactly what the message was queued with,
@@ -158,7 +158,7 @@ extension ConversationViewModel {
         }
 
         // Denying or dismissing plan exit is terminal for this confirmation UI.
-        // The provider may still emit trailing denial tokens, but the composer
+        // The harness may still emit trailing denial tokens, but the composer
         // should return to its normal surface immediately.
         state.activeRuntimeActivityTurnId = nil
         state.isAutomaticSessionHandoffPending = false
@@ -174,58 +174,58 @@ extension ConversationViewModel {
 
     private func stagePendingExitPlanModeRevisionGuidance(
         approval: ToolApprovalRequest,
-        providerSnapshot: ExitPlanModeRevisionProviderSnapshot
+        harnessSnapshot: ExitPlanModeRevisionHarnessSnapshot
     ) {
-        guard ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(providerId: providerSnapshot.providerId) else {
+        guard ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(harnessId: harnessSnapshot.harnessId) else {
             state.pendingExitPlanModeRevisionGuidance = nil
             return
         }
         state.pendingExitPlanModeRevisionGuidance = PendingExitPlanModeRevisionGuidance(
             toolUseId: approval.toolUseId,
             sessionId: approval.sessionId,
-            providerId: providerSnapshot.providerId,
-            providerSessionId: providerSnapshot.providerSessionId
+            harnessId: harnessSnapshot.harnessId,
+            harnessSessionId: harnessSnapshot.harnessSessionId
         )
     }
 
     private func canUseExitPlanModeRevisionGuidance(_ guidance: PendingExitPlanModeRevisionGuidance) -> Bool {
         guard effectivePlanModeEnabled,
-              ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(providerId: guidance.providerId) else {
+              ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(harnessId: guidance.harnessId) else {
             return false
         }
-        let providerSnapshot = exitPlanModeRevisionProviderSnapshot()
-        guard providerSnapshot.providerId == guidance.providerId else {
+        let harnessSnapshot = exitPlanModeRevisionHarnessSnapshot()
+        guard harnessSnapshot.harnessId == guidance.harnessId else {
             return false
         }
-        if let expectedSessionId = guidance.providerSessionId,
-           let currentSessionId = providerSnapshot.providerSessionId,
+        if let expectedSessionId = guidance.harnessSessionId,
+           let currentSessionId = harnessSnapshot.harnessSessionId,
            currentSessionId != expectedSessionId {
             return false
         }
         return true
     }
 
-    func exitPlanModeRevisionProviderSnapshot() -> ExitPlanModeRevisionProviderSnapshot {
+    func exitPlanModeRevisionHarnessSnapshot() -> ExitPlanModeRevisionHarnessSnapshot {
         let dbConversation = dbConversation()
-        let providerId = state.liveSessionConfig?.providerId
-            ?? dbConversation?.provider
-            ?? settingsService.current.defaultProvider
-        let providerSessionId: String?
-        if dbConversation?.providerSessionProviderId == providerId {
-            providerSessionId = dbConversation?.providerSessionId
+        let harnessId = state.liveSessionConfig?.harnessId
+            ?? dbConversation?.harness
+            ?? settingsService.current.defaultHarness
+        let harnessSessionId: String?
+        if dbConversation?.harnessSessionHarnessId == harnessId {
+            harnessSessionId = dbConversation?.harnessSessionId
         } else {
-            providerSessionId = nil
+            harnessSessionId = nil
         }
-        return ExitPlanModeRevisionProviderSnapshot(
-            providerId: providerId,
-            providerSessionId: providerSessionId
+        return ExitPlanModeRevisionHarnessSnapshot(
+            harnessId: harnessId,
+            harnessSessionId: harnessSessionId
         )
     }
 }
 
-struct ExitPlanModeRevisionProviderSnapshot {
-    let providerId: String
-    let providerSessionId: String?
+struct ExitPlanModeRevisionHarnessSnapshot {
+    let harnessId: String
+    let harnessSessionId: String?
 }
 
 private extension String {

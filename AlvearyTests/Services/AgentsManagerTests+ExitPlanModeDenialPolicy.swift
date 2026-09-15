@@ -58,21 +58,21 @@ extension AgentsManagerTests {
     }
 
     func testLiveHookDecisionProviderUsesExitPlanDeniedResponseText() async throws {
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
         let recorder = ExitPlanModeLiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
         let hookRequest = exitPlanModeLiveHookRequest(conversationId: "conversation", toolUseId: "tool-1")
 
         let decisionTask = Task {
-            await provider.decision(for: hookRequest, interactionId: "tool-1")
+            await harness.decision(for: hookRequest, interactionId: "tool-1")
         }
         try await waitUntil("expected exit-plan live hook request to publish") {
             (await recorder.requests()).isEmpty == false
         }
 
-        let didResolve = await provider.resolve(
+        let didResolve = await harness.resolve(
             ClaudeToolApprovalResolution(
                 decision: .deny,
                 responseText: ExitPlanModeDenialPolicy.deniedResponseText
@@ -87,21 +87,21 @@ extension AgentsManagerTests {
     }
 
     func testLiveHookDecisionProviderUsesExitPlanDeniedResponseTextForPlanModeExitHook() async throws {
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
         let recorder = ExitPlanModeLiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
         let hookRequest = planModeExitLiveHookRequest(conversationId: "conversation", toolUseId: "tool-1")
 
         let decisionTask = Task {
-            await provider.decision(for: hookRequest, interactionId: "tool-1")
+            await harness.decision(for: hookRequest, interactionId: "tool-1")
         }
         try await waitUntil("expected plan-mode-exit live hook request to publish") {
             (await recorder.requests()).isEmpty == false
         }
 
-        let didResolve = await provider.resolve(
+        let didResolve = await harness.resolve(
             ClaudeToolApprovalResolution(
                 decision: .deny,
                 responseText: ExitPlanModeDenialPolicy.deniedResponseText
@@ -119,14 +119,14 @@ extension AgentsManagerTests {
     }
 
     func testLiveHookDecisionProviderKeepsGenericDeniedReasonForSiblingTools() async throws {
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
         let recorder = ExitPlanModeLiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
 
         let decisionTask = Task {
-            await provider.decision(
+            await harness.decision(
                 for: bashLiveHookRequest(conversationId: "conversation", toolUseId: "tool-1"),
                 interactionId: "tool-1"
             )
@@ -135,7 +135,7 @@ extension AgentsManagerTests {
             (await recorder.requests()).isEmpty == false
         }
 
-        let didResolve = await provider.resolve(
+        let didResolve = await harness.resolve(
             ClaudeToolApprovalResolution(
                 decision: .deny,
                 responseText: ExitPlanModeDenialPolicy.deniedResponseText
@@ -150,13 +150,13 @@ extension AgentsManagerTests {
     }
 
     func testLiveHookDecisionProviderUsesExitPlanDeniedResponseTextForFutureDecision() async throws {
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
         let recorder = ExitPlanModeLiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
         let key = ClaudeToolApprovalKey(sessionId: "session-1", toolUseId: "tool-2")
-        await provider.recordFutureResolution(
+        await harness.recordFutureResolution(
             ClaudeToolApprovalResolution(
                 decision: .deny,
                 responseText: ExitPlanModeDenialPolicy.deniedResponseText
@@ -164,7 +164,7 @@ extension AgentsManagerTests {
             for: key
         )
 
-        let decision = await provider.decision(
+        let decision = await harness.decision(
             for: exitPlanModeLiveHookRequest(conversationId: "conversation", toolUseId: "tool-2"),
             interactionId: "tool-2"
         )

@@ -215,7 +215,7 @@ extension ConversationViewModelTests {
     func testHiddenSessionHandoffFallsBackToLocalHistoryWhenCodexResumeHasNoRollout() async throws {
         let fixture = try ConversationViewModelTestFixture(
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         try await seedCodexNoRolloutHandoffFixture(
             fixture,
@@ -237,7 +237,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(hiddenPromptSends.isEmpty)
         XCTAssertNil(fixture.viewModel.lastTurnError)
         XCTAssertNil(fixture.viewModel.state.failedSessionHandoffMessage)
-        XCTAssertTrue(output.contains("The hidden session handoff agent could not resume the previous provider session."))
+        XCTAssertTrue(output.contains("The hidden session handoff agent could not resume the previous harness session."))
         XCTAssertTrue(output.contains("Restoring context from local history."))
         XCTAssertTrue(output.contains("User: Please continue the index.html review."))
         XCTAssertTrue(output.contains("Assistant: The page summary is partially written."))
@@ -254,7 +254,7 @@ extension ConversationViewModelTests {
     func testPlanModeLocalHistoryHandoffFallbackKeepsPlanModeContext() async throws {
         let fixture = try ConversationViewModelTestFixture(
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.state.runtimePlanModeEnabled = true
         try await seedCodexNoRolloutHandoffFixture(

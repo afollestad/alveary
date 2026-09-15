@@ -16,12 +16,12 @@ struct HostToolTranscriptDescriptor: Sendable {
     /// Correlation key linking a durable outcome marker to this call, derived from the tool result.
     let outcomeKey: @Sendable (_ toolOutput: String?) -> String?
 
-    /// Fully qualified provider name, such as `mcp__alveary_host__propose_scheduled_task`.
+    /// Fully qualified harness name, such as `mcp__alveary_host__propose_scheduled_task`.
     var qualifiedToolName: String {
         HostToolTranscriptCatalog.toolName(hostToolName)
     }
 
-    /// Providers disagree on how they report a host MCP tool: Claude qualifies it with
+    /// Harnesses disagree on how they report a host MCP tool: Claude qualifies it with
     /// the server prefix while Codex reports the bare host name, and both shapes reach
     /// the transcript, so a descriptor has to answer to either.
     func matches(toolName: String) -> Bool {
@@ -314,7 +314,7 @@ private extension ScheduledTaskWidgetParsing {
         }
     }
 
-    /// Providers surface a host tool's result differently: Claude emits
+    /// Harnesses surface a host tool's result differently: Claude emits
     /// `JSON.stringify(structuredContent)` while Codex emits the plain text fallback.
     /// Only an explicit error means failure — a result we cannot parse still opened a
     /// proposal, and the transcript resolves it by conversation instead.

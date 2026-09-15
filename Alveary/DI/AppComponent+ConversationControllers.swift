@@ -11,7 +11,7 @@ extension AppComponent {
             let settingsService = self.settingsService
             let worktreeManager = self.worktreeManager
             let taskWorkspaceOwnershipService = self.taskWorkspaceOwnershipService
-            let providerSetup = self.providerSetupService
+            let harnessSetup = self.harnessSetupService
             let contextWindowCache = self.contextWindowCache
             let attachmentStore = self.conversationAttachmentStore
             let threadActivityRecorder = self.threadActivityRecorder
@@ -25,7 +25,7 @@ extension AppComponent {
                     settingsService: settingsService,
                     worktreeManager: worktreeManager,
                     taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
-                    providerSetup: providerSetup,
+                    harnessSetup: harnessSetup,
                     contextWindowCache: contextWindowCache,
                     attachmentStore: attachmentStore,
                     threadActivityRecorder: threadActivityRecorder

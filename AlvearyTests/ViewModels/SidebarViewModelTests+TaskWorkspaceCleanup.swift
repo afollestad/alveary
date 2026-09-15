@@ -30,7 +30,7 @@ extension SidebarViewModelTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        task.conversations = [Conversation(id: "replacement-worktree-task", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "replacement-worktree-task", harness: "codex", thread: task)]
         fixture.context.insert(task)
         try fixture.context.save()
 
@@ -73,7 +73,7 @@ extension SidebarViewModelTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        task.conversations = [Conversation(id: "missing-worktree-task", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "missing-worktree-task", harness: "codex", thread: task)]
         fixture.context.insert(task)
         try fixture.context.save()
 
@@ -109,7 +109,7 @@ extension SidebarViewModelTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        task.conversations = [Conversation(id: "replacement-source-task", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "replacement-source-task", harness: "codex", thread: task)]
         fixture.context.insert(task)
         try fixture.context.save()
 
@@ -142,7 +142,7 @@ extension SidebarViewModelTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        task.conversations = [Conversation(id: "failed-git-cleanup-task", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "failed-git-cleanup-task", harness: "codex", thread: task)]
         fixture.context.insert(task)
         try fixture.context.save()
         await fixture.worktreeManager.setListResult([
@@ -410,7 +410,7 @@ private func makeSidebarScheduledRun(status: ScheduledTaskRunStatus) -> Schedule
         promptSnapshot: "Run scheduled work.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "codex",
+        harnessIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .privateWorkspace,
@@ -429,7 +429,7 @@ private func makeScheduledTaskShell(
         scheduledTaskRun: run
     )
     thread.conversations = [
-        Conversation(id: conversationID, provider: "codex", thread: thread)
+        Conversation(id: conversationID, harness: "codex", thread: thread)
     ]
     run.thread = thread
     return thread

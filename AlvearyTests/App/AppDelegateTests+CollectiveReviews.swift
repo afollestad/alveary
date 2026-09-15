@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 extension AppDelegateTests {
-    func testCollectiveReviewShutdownCompletesBeforeProviderShutdown() throws {
+    func testCollectiveReviewShutdownCompletesBeforeHarnessShutdown() throws {
         let fixture = try AppDelegateTestFixture()
         let recorder = AppDelegateShutdownOrderRecorder()
         fixture.agentsManager.setShutdownOrderRecorder(recorder)

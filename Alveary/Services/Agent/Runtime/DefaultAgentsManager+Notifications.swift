@@ -57,8 +57,8 @@ extension DefaultAgentsManager {
             return shouldNotifyPendingUserAction(conversationId: conversationId)
         }
 
-        markProviderErrorNotificationIfNeeded(for: event, conversationId: conversationId)
-        clearProviderErrorNotificationFlagAfterTerminalTokenIfNeeded(for: event, conversationId: conversationId)
+        markHarnessErrorNotificationIfNeeded(for: event, conversationId: conversationId)
+        clearHarnessErrorNotificationFlagAfterTerminalTokenIfNeeded(for: event, conversationId: conversationId)
 
         if isTerminalNotificationBoundary(event),
            eventBuffers[conversationId]?.defersScheduledTerminalNotifications == true {
@@ -98,25 +98,25 @@ extension DefaultAgentsManager {
               payload.isError,
               payload.permissionDenials.isEmpty,
               ConversationErrorDisplayPolicy.isGenericStopReason(payload.stopReason),
-              eventBuffers[conversationId]?.hasSentProviderErrorNotification == true else {
+              eventBuffers[conversationId]?.hasSentHarnessErrorNotification == true else {
             return false
         }
 
-        eventBuffers[conversationId]?.hasSentProviderErrorNotification = false
+        eventBuffers[conversationId]?.hasSentHarnessErrorNotification = false
         return true
     }
 
-    private func markProviderErrorNotificationIfNeeded(
+    private func markHarnessErrorNotificationIfNeeded(
         for event: ConversationEvent,
         conversationId: String
     ) {
         guard case .error = event else {
             return
         }
-        eventBuffers[conversationId]?.hasSentProviderErrorNotification = true
+        eventBuffers[conversationId]?.hasSentHarnessErrorNotification = true
     }
 
-    private func clearProviderErrorNotificationFlagAfterTerminalTokenIfNeeded(
+    private func clearHarnessErrorNotificationFlagAfterTerminalTokenIfNeeded(
         for event: ConversationEvent,
         conversationId: String
     ) {
@@ -124,7 +124,7 @@ extension DefaultAgentsManager {
               payload.completesTurn else {
             return
         }
-        eventBuffers[conversationId]?.hasSentProviderErrorNotification = false
+        eventBuffers[conversationId]?.hasSentHarnessErrorNotification = false
     }
 
     private func shouldSuppressResolvedPermissionDenialNotification(

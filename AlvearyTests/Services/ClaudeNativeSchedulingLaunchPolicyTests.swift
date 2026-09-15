@@ -5,11 +5,11 @@ import XCTest
 final class ClaudeNativeSchedulingLaunchPolicyTests: XCTestCase {
     func testEveryClaudeLaunchDisablesNativeScheduling() {
         let arguments = ClaudeNativeSchedulingLaunchPolicy.arguments(
-            providerID: "claude",
+            harnessID: "claude",
             configuredArguments: ["--verbose"]
         )
         let environment = ClaudeNativeSchedulingLaunchPolicy.environment(
-            providerID: "claude",
+            harnessID: "claude",
             baseEnvironment: ["PATH": "/usr/bin"]
         )
 
@@ -24,13 +24,13 @@ final class ClaudeNativeSchedulingLaunchPolicyTests: XCTestCase {
 
         XCTAssertEqual(
             ClaudeNativeSchedulingLaunchPolicy.arguments(
-                providerID: "codex",
+                harnessID: "codex",
                 configuredArguments: configuredArguments
             ),
             configuredArguments
         )
         XCTAssertEqual(
-            ClaudeNativeSchedulingLaunchPolicy.environment(providerID: "codex", baseEnvironment: baseEnvironment),
+            ClaudeNativeSchedulingLaunchPolicy.environment(harnessID: "codex", baseEnvironment: baseEnvironment),
             baseEnvironment
         )
     }
@@ -38,14 +38,14 @@ final class ClaudeNativeSchedulingLaunchPolicyTests: XCTestCase {
     func testClaudeLaunchPreservesExistingDisallowedTools() {
         XCTAssertEqual(
             ClaudeNativeSchedulingLaunchPolicy.arguments(
-                providerID: "claude",
+                harnessID: "claude",
                 configuredArguments: ["--disallowedTools", "Bash(git *)", "Edit", "--verbose"]
             ),
             ["--disallowedTools", "Bash(git *)", "Edit", "RemoteTrigger", "--verbose"]
         )
         XCTAssertEqual(
             ClaudeNativeSchedulingLaunchPolicy.arguments(
-                providerID: "claude",
+                harnessID: "claude",
                 configuredArguments: ["--disallowed-tools=Bash,Edit"]
             ),
             ["--disallowed-tools=Bash,Edit,RemoteTrigger"]
@@ -57,7 +57,7 @@ final class ClaudeNativeSchedulingLaunchPolicyTests: XCTestCase {
 
         XCTAssertEqual(
             ClaudeNativeSchedulingLaunchPolicy.arguments(
-                providerID: "claude",
+                harnessID: "claude",
                 configuredArguments: configuredArguments
             ),
             configuredArguments

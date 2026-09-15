@@ -42,7 +42,7 @@ extension ScheduledTaskHostToolServiceTests {
         let content = try XCTUnwrap(markers.first?.content)
         XCTAssertEqual(HostToolWidgetOutcomeMarker.outcome(fromContent: content), .rejected)
         // The superseded proposal's captured title rides along so a plain-text-fallback
-        // provider's widget can still name the task.
+        // harness's widget can still name the task.
         XCTAssertEqual(HostToolWidgetOutcomeMarker.title(fromContent: content), "Daily review")
     }
 
@@ -115,7 +115,7 @@ extension ScheduledTaskHostToolServiceTests {
             destination: .newThreadPerRun,
             recurrence: draft.recurrence,
             timeZoneIdentifier: draft.timeZoneIdentifier,
-            providerID: draft.providerID,
+            harnessID: draft.harnessID,
             model: draft.model,
             effort: draft.effort,
             permissionMode: draft.permissionMode,
@@ -166,7 +166,7 @@ extension ScheduledTaskHostToolServiceTests {
             destination: .newThreadPerRun,
             recurrence: draft.recurrence,
             timeZoneIdentifier: draft.timeZoneIdentifier,
-            providerID: draft.providerID,
+            harnessID: draft.harnessID,
             model: draft.model,
             effort: draft.effort,
             permissionMode: draft.permissionMode,
@@ -205,7 +205,7 @@ extension ScheduledTaskHostToolServiceTests {
         let processToken = UUID()
         let context = AgentCLIKit.AgentHostToolCallContext(
             conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationID),
-            providerId: .codex,
+            harnessId: .codex,
             processToken: processToken,
             requestId: "string:receipt-reopen"
         )
@@ -250,7 +250,7 @@ extension ScheduledTaskHostToolServiceTests {
             let modelContext = container.mainContext
             let project = Project(path: "/tmp/receipt-reopen-project", name: "Receipt Reopen")
             let thread = AgentThread(name: "Receipt source", mode: .project, project: project)
-            let conversation = Conversation(id: conversationID, provider: "codex", thread: thread)
+            let conversation = Conversation(id: conversationID, harness: "codex", thread: thread)
             thread.conversations = [conversation]
             project.threads = [thread]
             modelContext.insert(project)

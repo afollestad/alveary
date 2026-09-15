@@ -8,7 +8,7 @@ import SwiftData
 final class ScheduledTasksViewModel {
     @ObservationIgnored let modelContext: ModelContext
     @ObservationIgnored let mutationService: ScheduledTaskMutationService
-    @ObservationIgnored let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
+    @ObservationIgnored let harnessDiscovery: (any AgentCLIKit.AgentHarnessDiscoveryService)?
     @ObservationIgnored let settingsService: any SettingsService
     @ObservationIgnored let agentRegistry: AgentRegistry
     @ObservationIgnored let runNowAction: @MainActor (ScheduledTaskRunNowRequest) -> Bool
@@ -30,9 +30,9 @@ final class ScheduledTasksViewModel {
     private(set) var projects: [ScheduledTaskProjectOption] = []
     private(set) var existingThreadTargets: [ScheduledTaskThreadOption] = []
     private(set) var sectionOptions: [ScheduledTaskSectionOption] = []
-    var providerStatuses: [String: AgentCLIKit.AgentProviderStatus] = [:]
-    var providerOrdering: [String] = []
-    var isLoadingProviders = false
+    var harnessStatuses: [String: AgentCLIKit.AgentHarnessStatus] = [:]
+    var harnessOrdering: [String] = []
+    var isLoadingHarnesses = false
     var pendingRunNowDefinitionIDs = Set<String>()
     private(set) var activePaneTarget: ScheduledTaskPaneTarget?
     /// Thread that opened the active pane from its transcript; `nil` for screen-opened panes.
@@ -49,7 +49,7 @@ final class ScheduledTasksViewModel {
     init(
         modelContext: ModelContext,
         mutationService: ScheduledTaskMutationService,
-        providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
+        harnessDiscovery: (any AgentCLIKit.AgentHarnessDiscoveryService)? = nil,
         settingsService: any SettingsService,
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
         notificationCenter: NotificationCenter = .default,
@@ -59,7 +59,7 @@ final class ScheduledTasksViewModel {
     ) {
         self.modelContext = modelContext
         self.mutationService = mutationService
-        self.providerDiscovery = providerDiscovery
+        self.harnessDiscovery = harnessDiscovery
         self.settingsService = settingsService
         self.agentRegistry = agentRegistry
         self.notificationCenter = notificationCenter
@@ -91,7 +91,7 @@ final class ScheduledTasksViewModel {
     }
 
     func load() async {
-        await refreshProviders()
+        await refreshHarnesses()
         reload()
     }
 
@@ -335,12 +335,12 @@ final class ScheduledTasksViewModel {
         paneSessions[target] = session
     }
 
-    func normalizeActiveProviderDependentFields() {
+    func normalizeActiveHarnessDependentFields() {
         guard let target = activePaneTarget,
               var session = paneSessions[target] else {
             return
         }
-        normalizeProviderDependentFields(&session.draft)
+        normalizeHarnessDependentFields(&session.draft)
         paneSessions[target] = session
     }
 

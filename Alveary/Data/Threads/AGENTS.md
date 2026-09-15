@@ -6,30 +6,30 @@ These instructions cover `Alveary/Data/Threads/` — the `AgentThread` row, its 
 
 ### Naming
 
-- **`AgentThread.name` is the visible label; `hasCustomName` is manual-rename state.** Every manual rename flow sets `hasCustomName = true`. Seeding it `true` at creation is how a caller opts out of provider auto-titling — which is why a scheduled run's thread keeps its schedule's title.
-- **Provider metadata is the only automatic main title source**, and it applies only while `hasCustomName == false`, leaving the flag false so a later manual rename still wins. Do not auto-title locally from the first user message; Alveary keeps no second durable title source for the main flow.
+- **`AgentThread.name` is the visible label; `hasCustomName` is manual-rename state.** Every manual rename flow sets `hasCustomName = true`. Seeding it `true` at creation is how a caller opts out of harness auto-titling — which is why a scheduled run's thread keeps its schedule's title.
+- **Harness metadata is the only automatic main title source**, and it applies only while `hasCustomName == false`, leaving the flag false so a later manual rename still wins. Do not auto-title locally from the first user message; Alveary keeps no second durable title source for the main flow.
 - **Use `AgentSessionPreviewGenerator.preview(fromInitialPrompt:)` for preview-only needs** — secondary conversation auto-titles and pre-launch worktree slugs, the slugs falling back to the current thread name.
 - **A thread rename cascades into the main conversation's `title`.** There is deliberately no separate rename affordance for a sole conversation; the cascade covers it.
 - **Read the main conversation's default label from `Conversation.defaultDisplayName()`** (`AgentThread.untitledName`, `"New thread"`); never hard-code `"Main"`.
 
 ### Identity And Lifecycle
 
-- **`AgentThread.isDraft` marks the one process-local provisional new-thread row.** Its stored default stays `false` so pre-field stores migrate existing threads as real. A draft owns one persisted main conversation but no provider session, runtime, worktree, branch, setup completion, or visible events.
+- **`AgentThread.isDraft` marks the one process-local provisional new-thread row.** Its stored default stays `false` so pre-field stores migrate existing threads as real. A draft owns one persisted main conversation but no harness session, runtime, worktree, branch, setup completion, or visible events.
 - Keep execution mode independent of project placement. `workspaceSnapshot` owns the saved source and grants; `resolvedWorkspaceDescriptor` owns working directory and cleanup provenance. A source-backed thread can outlive its project, and an empty project can contain private Task workspaces.
     - Project deletion detaches Task children instead of cascading into their history.
 - **`AgentThread.pinnedSortOrder` shares one dense order with `Project`**, whose rules `Alveary/Data/AGENTS.md` owns.
 
-- Preserve `WorkspaceSnapshot.rootsExplicitlyManaged` across resumes and lifecycle changes. New workspaces pass `[actualWorkingDirectory] + grants` to the SDK; migrated grantless sessions preserve native provider roots until explicitly edited.
+- Preserve `WorkspaceSnapshot.rootsExplicitlyManaged` across resumes and lifecycle changes. New workspaces pass `[actualWorkingDirectory] + grants` to the SDK; migrated grantless sessions preserve native harness roots until explicitly edited.
 
 ### Picker State
 
 - **`AgentThread.model` is the per-thread model override**, mirroring the `permissionMode` and `effort` picker pattern with a different nil semantic.
-    - **`nil` means "provider default".** The dropdown's `"default"` value is a UI sentinel translated to `nil` before persisting — writing the literal makes the adapter pass `--model=default` to the CLI.
-    - **Seed from `AppSettings.defaultModel` at thread creation** (`SidebarViewModel.createThread` maps `"default"` and empty to `nil`); preserve any other non-empty string, since live provider model metadata changes independently of app releases.
+    - **`nil` means "harness default".** The dropdown's `"default"` value is a UI sentinel translated to `nil` before persisting — writing the literal makes the adapter pass `--model=default` to the CLI.
+    - **Seed from `AppSettings.defaultModel` at thread creation** (`SidebarViewModel.createThread` maps `"default"` and empty to `nil`); preserve any other non-empty string, since live harness model metadata changes independently of app releases.
     - **Build composer reasoning state from the live DB field.** `ConversationView.composerReasoningSelection` reads `conversation.thread?.model` so the dropdown survives view-model re-inits and forks; no parallel `ConversationState.selectedModel` cache.
 - **`AgentThread.effort` is model-scoped** — acceptable values *and* the preferred default depend on the thread's model.
-    - **`AgentModelOption.supportedEffortOptions` / `defaultEffortOption`** from `AgentProviderDiscoveryService` are the source of truth; no app-owned effort maps in `AppSettings`, which only trims and falls back empty persisted strings.
+    - **`AgentModelOption.supportedEffortOptions` / `defaultEffortOption`** from `AgentHarnessDiscoveryService` are the source of truth; no app-owned effort maps in `AppSettings`, which only trims and falls back empty persisted strings.
     - **Coerce in lockstep with model changes.** Reset unsupported values to the model-option default in the same save as the model write, so SwiftUI sees model and effort invalidate on one render tick and only **one** `reconfigureSession()` fork fires (`ConversationViewModel.applyModelChange`, `SettingsViewModel.defaultModel`).
     - **Seed new threads from Settings**, which owns applying model-option defaults when the default model changes.
-    - **Filter the composer dropdown before rendering.** `ConversationView` derives effort options from the selected `AgentModelOption` and passes them down; action-row presentation must not rediscover providers.
-- **`AgentThread.speedMode` is optional thread-scoped speed state.** Normalize `nil`, empty, and unknown to `AgentSpeedMode.standard`; persist `.fast` only when provider status reports speed support, and coerce a stale Fast back to Standard in the same save as provider and model normalization.
+    - **Filter the composer dropdown before rendering.** `ConversationView` derives effort options from the selected `AgentModelOption` and passes them down; action-row presentation must not rediscover harnesses.
+- **`AgentThread.speedMode` is optional thread-scoped speed state.** Normalize `nil`, empty, and unknown to `AgentSpeedMode.standard`; persist `.fast` only when harness status reports speed support, and coerce a stale Fast back to Standard in the same save as harness and model normalization.

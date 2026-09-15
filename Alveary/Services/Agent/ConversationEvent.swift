@@ -109,7 +109,7 @@ enum ConversationEvent: Sendable, Equatable {
     static let interimUsageStopReason = "usage_update"
 
     case sessionInit(sessionId: String?)
-    case providerSessionMetadataChanged(sessionId: String?, name: String?, preview: String?)
+    case harnessSessionMetadataChanged(sessionId: String?, name: String?, preview: String?)
     case permissionModeChanged(String)
     case collaborationModeChanged(Bool)
     case message(role: String, content: String, parentToolUseId: String?)
@@ -129,7 +129,7 @@ enum ConversationEvent: Sendable, Equatable {
         stopReason: String?,
         durationMs: Int,
         costUsd: Double?,
-        providerModelId: String? = nil,
+        harnessModelId: String? = nil,
         contextWindowSize: Int? = nil,
         permissionDenials: [PermissionDenialSummary],
         isTerminal: Bool = false
@@ -152,11 +152,11 @@ enum ConversationEvent: Sendable, Equatable {
     case notification(type: String, message: String?)
     case stop(message: String?)
     case error(message: String)
-    /// The provider refused the turn because its stored credential must be renewed.
+    /// The harness refused the turn because its stored credential must be renewed.
     ///
     /// Accompanies rather than replaces `.error`: this case drives a live, actionable banner and
     /// persists nothing, so the transcript history stays the error row a reader expects.
-    case providerAuthenticationRequired(message: String)
+    case harnessAuthenticationRequired(message: String)
 
     @MainActor
     // swiftlint:disable:next cyclomatic_complexity
@@ -202,10 +202,10 @@ enum ConversationEvent: Sendable, Equatable {
              .subAgentProgress,
              .subAgentCompleted,
              .runtimeActivity,
-             .providerSessionMetadataChanged,
+             .harnessSessionMetadataChanged,
              .collaborationModeChanged,
              .permissionModeChanged,
-             .providerAuthenticationRequired:
+             .harnessAuthenticationRequired:
             return nil
         }
     }
@@ -308,7 +308,7 @@ private extension ConversationEvent {
             stopReason,
             durationMs,
             costUsd,
-            providerModelId,
+            harnessModelId,
             contextWindowSize,
             _,
             _
@@ -327,7 +327,7 @@ private extension ConversationEvent {
             durationMs: durationMs,
             costUsd: costUsd ?? 0,
             costUsdReported: costUsd != nil,
-            providerModelId: providerModelId,
+            harnessModelId: harnessModelId,
             contextWindowSize: contextWindowSize,
             conversation: conversation
         )

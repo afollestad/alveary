@@ -7,7 +7,7 @@ struct ScheduledTaskPreflightSnapshot: Equatable, Sendable {
     let scheduledOccurrenceAt: Date
     let recurrence: ScheduledTaskRecurrence
     let timeZoneIdentifier: String
-    let providerID: String
+    let harnessID: String
     let model: String?
     let effort: String
     let permissionMode: String
@@ -37,7 +37,7 @@ struct ScheduledTaskPreflightSnapshot: Equatable, Sendable {
         scheduledOccurrenceAt: Date,
         recurrence: ScheduledTaskRecurrence,
         timeZoneIdentifier: String,
-        providerID: String,
+        harnessID: String,
         model: String?,
         effort: String,
         permissionMode: String,
@@ -56,7 +56,7 @@ struct ScheduledTaskPreflightSnapshot: Equatable, Sendable {
         self.scheduledOccurrenceAt = scheduledOccurrenceAt
         self.recurrence = recurrence
         self.timeZoneIdentifier = timeZoneIdentifier
-        self.providerID = providerID
+        self.harnessID = harnessID
         self.model = model
         self.effort = effort
         self.permissionMode = permissionMode
@@ -83,7 +83,7 @@ struct ScheduledTaskReusedTarget: Equatable, Sendable {
 struct ScheduledTaskTargetSnapshot: Equatable, Sendable {
     let conversationID: String
     let threadName: String
-    let providerID: String
+    let harnessID: String
     let model: String?
     let effort: String
     let permissionMode: String

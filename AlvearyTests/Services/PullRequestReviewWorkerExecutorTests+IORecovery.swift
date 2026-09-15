@@ -6,19 +6,19 @@ import XCTest
 extension PullRequestReviewWorkerExecutorTests {
     func testOnlyCodexExecutionRecoversACompleteTurnFromAnIODrainFailure() async throws {
         let stream = try ReviewWorkerIOTestSupport.codexStream(finalText: "{\"findings\":[]}")
-        for providerID in ["codex", "claude"] {
+        for harnessID in ["codex", "claude"] {
             let capabilities = ReviewWorkerIOTestShellRunner(outcomes: [.help])
             let execution = ReviewWorkerIOTestShellRunner(outcomes: [.ioFailure(stream)])
             let fixture = try await makeFixture(
-                providerID: providerID, script: "#!/bin/sh\nexit 99\n",
+                harnessID: harnessID, script: "#!/bin/sh\nexit 99\n",
                 capabilityShellRunner: capabilities, executionShellRunner: execution
             )
             do {
                 let output = try await executeIOFixture(fixture)
-                XCTAssertEqual(providerID, "codex", "Claude must retain the I/O failure.")
+                XCTAssertEqual(harnessID, "codex", "Claude must retain the I/O failure.")
                 XCTAssertEqual(output, "{\"findings\":[]}")
             } catch let error as ShellError {
-                XCTAssertEqual(providerID, "claude", "A completed Codex turn should be recoverable.")
+                XCTAssertEqual(harnessID, "claude", "A completed Codex turn should be recoverable.")
                 XCTAssertEqual(error, ReviewWorkerIOTestSupport.failure(executable: fixture.configuration.executablePath, stdout: stream))
             }
             let prompts = await execution.prompts
@@ -32,7 +32,7 @@ extension PullRequestReviewWorkerExecutorTests {
         let capabilities = ReviewWorkerIOTestShellRunner(outcomes: [.ioFailure(stream)])
         let execution = ReviewWorkerIOTestShellRunner(outcomes: [.ioFailure(stream)])
         let fixture = try await makeFixture(
-            providerID: "codex", script: "#!/bin/sh\nexit 99\n",
+            harnessID: "codex", script: "#!/bin/sh\nexit 99\n",
             capabilityShellRunner: capabilities, executionShellRunner: execution
         )
 
@@ -53,7 +53,7 @@ extension PullRequestReviewWorkerExecutorTests {
 
         """
         let fixture = try await makeFixture(
-            providerID: "codex", script: "#!/bin/sh\nexit 99\n",
+            harnessID: "codex", script: "#!/bin/sh\nexit 99\n",
             capabilityShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.help]),
             executionShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.ioFailure(stream)])
         )
@@ -68,7 +68,7 @@ extension PullRequestReviewWorkerExecutorTests {
 
     func testExecutionTimeoutRemainsAFailure() async throws {
         let fixture = try await makeFixture(
-            providerID: "codex", script: "#!/bin/sh\nexit 99\n",
+            harnessID: "codex", script: "#!/bin/sh\nexit 99\n",
             capabilityShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.help]),
             executionShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.timeout])
         )
@@ -84,7 +84,7 @@ extension PullRequestReviewWorkerExecutorTests {
     func testCancellationWinsOverARecoverableCompletedTurn() async throws {
         let stream = try ReviewWorkerIOTestSupport.codexStream(finalText: "{\"findings\":[]}")
         let fixture = try await makeFixture(
-            providerID: "codex", script: "#!/bin/sh\nexit 99\n",
+            harnessID: "codex", script: "#!/bin/sh\nexit 99\n",
             capabilityShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.help]),
             executionShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.cancelledIOFailure(stream)])
         )

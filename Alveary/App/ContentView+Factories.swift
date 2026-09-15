@@ -84,8 +84,8 @@ extension ContentView {
             gitHubCLI: dependencies.gitHubCLI,
             worktreeManager: dependencies.worktreeManager,
             settingsService: dependencies.settingsService,
-            providerDiscovery: dependencies.providerDiscovery,
-            providerSessionActions: dependencies.providerSessionActions,
+            harnessDiscovery: dependencies.harnessDiscovery,
+            harnessSessionActions: dependencies.harnessSessionActions,
             attachmentStore: dependencies.attachmentStore,
             taskWorkspaceOwnershipService: dependencies.taskWorkspaceOwnershipService,
             invalidateConversationController: { conversationID in
@@ -121,8 +121,8 @@ extension ContentView {
         let soundPreviewer = SettingsSoundPreviewer()
         return SettingsViewModel(
             settingsService: dependencies.settingsService,
-            providerDiscovery: dependencies.providerDiscovery,
-            invalidateProviderDiscoveryCache: { [cache = dependencies.providerDiscoveryCache] in
+            harnessDiscovery: dependencies.harnessDiscovery,
+            invalidateHarnessDiscoveryCache: { [cache = dependencies.harnessDiscoveryCache] in
                 await cache.invalidate()
             },
             agentRegistry: dependencies.agentRegistry,
@@ -145,7 +145,7 @@ extension ContentView {
         ScheduledTasksViewModel(
             modelContext: dependencies.modelContainer.mainContext,
             mutationService: dependencies.scheduledTaskMutationService,
-            providerDiscovery: dependencies.providerDiscovery,
+            harnessDiscovery: dependencies.harnessDiscovery,
             settingsService: dependencies.settingsService,
             agentRegistry: dependencies.agentRegistry,
             runNow: { request in
@@ -183,7 +183,7 @@ extension ContentView {
             presentToast: { message in
                 appState.presentUnexpectedError(message: message)
             },
-            warmAgentProviderDiscovery: { [cache = dependencies.providerDiscoveryCache] in
+            warmAgentHarnessDiscovery: { [cache = dependencies.harnessDiscoveryCache] in
                 Task { await cache.warm() }
             },
             agenticThreadStarter: { request in
@@ -203,7 +203,7 @@ extension ContentView {
                 try Task.checkCancellation()
                 _ = try await coordinator.preflight(settings: settings)
             },
-            refreshReviewTeamProviderDiscovery: { [cache = dependencies.providerDiscoveryCache] in
+            refreshReviewTeamHarnessDiscovery: { [cache = dependencies.harnessDiscoveryCache] in
                 await cache.refresh()
             },
             openGitSettings: { appState.openSettings(targetPage: .git) },

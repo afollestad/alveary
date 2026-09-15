@@ -111,11 +111,11 @@ struct ScheduledTaskEditorContent: View {
                 promptDraft.resetContent(to: prompt)
             }
         }
-        .onChange(of: draft.providerID) { _, _ in
-            viewModel.normalizeProviderDependentFields(&draft)
+        .onChange(of: draft.harnessID) { _, _ in
+            viewModel.normalizeHarnessDependentFields(&draft)
         }
         .onChange(of: draft.modelSelection) { _, _ in
-            viewModel.normalizeProviderDependentFields(&draft)
+            viewModel.normalizeHarnessDependentFields(&draft)
         }
         .onChange(of: viewModel.existingThreadTargets) { _, options in
             guard draft.destination == .existingThread,
@@ -132,9 +132,9 @@ struct ScheduledTaskEditorContent: View {
             }
             draft.sectionID = nil
         }
-        .onChange(of: viewModel.isLoadingProviders) { wasLoading, isLoading in
+        .onChange(of: viewModel.isLoadingHarnesses) { wasLoading, isLoading in
             guard surface == .modal, wasLoading, !isLoading else { return }
-            viewModel.normalizeProviderDependentFields(&draft)
+            viewModel.normalizeHarnessDependentFields(&draft)
         }
         .onExitCommand(perform: onClose)
     }

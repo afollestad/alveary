@@ -7,13 +7,13 @@ import XCTest
 extension SnapshotTests {
     func testSettingsScreenAgentsTab() {
         var settings = AppSettings()
-        settings.providerConfigs["claude"] = ProviderCustomConfig(
+        settings.harnessConfigs["claude"] = HarnessCustomConfig(
             extraArgs: "--verbose"
         )
 
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses(),
+            harnessDiscovery: SnapshotHarnessDiscoveryService.defaultStatuses(),
             globalAgentInstructionsService: StubInstructionsService(shared: "")
         )
 
@@ -32,15 +32,15 @@ extension SnapshotTests {
     func testSettingsAgentCardReadyState() async {
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(),
-            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses(),
+            harnessDiscovery: SnapshotHarnessDiscoveryService.defaultStatuses(),
             globalAgentInstructionsService: StubInstructionsService(shared: "")
         )
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
         assertMacSnapshot(
             SettingsAgentCard(
                 viewModel: viewModel,
-                providerID: "claude",
+                harnessID: "claude",
                 extraArgs: .constant("--verbose")
             )
             .padding(24),
@@ -86,13 +86,13 @@ extension SnapshotTests {
 
     func testSettingsScreenAgentsTabNarrowStacksSplitInputs() {
         var settings = AppSettings()
-        settings.providerConfigs["claude"] = ProviderCustomConfig(
+        settings.harnessConfigs["claude"] = HarnessCustomConfig(
             extraArgs: "--verbose"
         )
 
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses(),
+            harnessDiscovery: SnapshotHarnessDiscoveryService.defaultStatuses(),
             globalAgentInstructionsService: StubInstructionsService(shared: "")
         )
 

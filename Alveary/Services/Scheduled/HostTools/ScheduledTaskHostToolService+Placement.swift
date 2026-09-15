@@ -97,7 +97,7 @@ extension ScheduledTaskHostToolService {
             targetConversationID: targetConversationID,
             recurrence: recurrence,
             timeZoneIdentifier: currentTimeZone().identifier,
-            providerID: settings.providerID,
+            harnessID: settings.harnessID,
             model: settings.model,
             effort: settings.effort,
             permissionMode: settings.permissionMode,
@@ -112,7 +112,7 @@ extension ScheduledTaskHostToolService {
 extension ScheduledTaskHostToolService {
     /// One sentence naming what the request asked for, or `nil` when it inherited everything.
     ///
-    /// This is the disclosure a plain-text provider can relay: a create that pins a thread or
+    /// This is the disclosure a plain-text harness can relay: a create that pins a thread or
     /// reaches into another Project should be describable before the user opens the pane.
     static func placementSummary(
         for placement: ScheduledTaskProposalPlacement?,

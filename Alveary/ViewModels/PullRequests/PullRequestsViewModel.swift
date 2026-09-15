@@ -31,16 +31,16 @@ final class PullRequestsViewModel {
     /// App-level toast presentation, for failures a pane banner cannot carry because the pane may
     /// already be closed when one lands: attachment uploads and an agentic thread's deferred dispatch.
     let presentToast: @MainActor @Sendable (String) -> Void
-    /// Warms provider discovery on pane opens, before a footer click; the cache expires after a minute.
-    let warmAgentProviderDiscovery: @MainActor () -> Void
+    /// Warms harness discovery on pane opens, before a footer click; the cache expires after a minute.
+    let warmAgentHarnessDiscovery: @MainActor () -> Void
     /// Spawns a review or address-feedback task. The closure keeps tests and previews light;
     /// nil makes the footer's agentic options no-ops.
     let agenticThreadStarter: (@MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart)?
     let reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator?
-    /// Waits for the whole check's deadline, independently of provider discovery's cancellation support.
+    /// Waits for the whole check's deadline, independently of harness discovery's cancellation support.
     let reviewTeamValidationSleeper: PullRequestReviewTeamValidationSleeper
     /// Explicit recovery replaces abandoned discovery work without discarding the shared catalog.
-    let refreshReviewTeamProviderDiscovery: @MainActor @Sendable () async -> Void
+    let refreshReviewTeamHarnessDiscovery: @MainActor @Sendable () async -> Void
     let openGitSettings: @MainActor () -> Void
     /// Which agentic footer routes are running, app-scoped so a run survives the pane unmounting.
     /// Mirrored onto each pane session rather than read from a `body` — see `workingAgenticKinds`.
@@ -196,13 +196,13 @@ final class PullRequestsViewModel {
         attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)? = nil,
         attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
-        warmAgentProviderDiscovery: @escaping @MainActor () -> Void = {},
+        warmAgentHarnessDiscovery: @escaping @MainActor () -> Void = {},
         agenticThreadStarter: (@MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart)? = nil,
         reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator? = nil,
         reviewTeamValidationSleeper: @escaping PullRequestReviewTeamValidationSleeper = {
             try await Task.sleep(for: .seconds(30))
         },
-        refreshReviewTeamProviderDiscovery: @escaping @MainActor @Sendable () async -> Void = {},
+        refreshReviewTeamHarnessDiscovery: @escaping @MainActor @Sendable () async -> Void = {},
         openGitSettings: @escaping @MainActor () -> Void = {},
         agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
@@ -228,11 +228,11 @@ final class PullRequestsViewModel {
         self.attachmentImageSeeder = attachmentImageSeeder
         self.attachmentImageRepositoryRegistrar = attachmentImageRepositoryRegistrar
         self.presentToast = presentToast
-        self.warmAgentProviderDiscovery = warmAgentProviderDiscovery
+        self.warmAgentHarnessDiscovery = warmAgentHarnessDiscovery
         self.agenticThreadStarter = agenticThreadStarter
         self.reviewTeamSettingsValidator = reviewTeamSettingsValidator
         self.reviewTeamValidationSleeper = reviewTeamValidationSleeper
-        self.refreshReviewTeamProviderDiscovery = refreshReviewTeamProviderDiscovery
+        self.refreshReviewTeamHarnessDiscovery = refreshReviewTeamHarnessDiscovery
         self.openGitSettings = openGitSettings
         // Defaulted rather than optional: every read is a plain membership question, and an
         // absent tracker would make the footer's busy state silently untrackable in previews.
@@ -363,8 +363,8 @@ extension PullRequestsViewModel {
         // image URLs; register before its markdown can render.
         attachmentImageRepositoryRegistrar?(target.identifier.nameWithOwner)
         // Reading a pull request is the lead time the footer's agentic routes need: the probe runs
-        // while the user reads, so the click finds provider discovery already answered.
-        warmAgentProviderDiscovery()
+        // while the user reads, so the click finds harness discovery already answered.
+        warmAgentHarnessDiscovery()
         refreshPullRequestReviewConfigurationForPane()
         if let request = pendingPaneDismissals.first(where: { $0.target == target }) {
             deactivatedPaneDismissals.remove(request)

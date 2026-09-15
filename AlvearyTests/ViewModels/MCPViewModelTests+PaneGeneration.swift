@@ -92,7 +92,7 @@ extension MCPViewModelTests {
                 url: nil,
                 headers: nil,
                 env: nil,
-                providers: []
+                harnesses: []
             ),
             description: "Browser automation",
             headerPrompts: []

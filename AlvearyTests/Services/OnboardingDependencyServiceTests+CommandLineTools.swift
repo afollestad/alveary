@@ -105,7 +105,7 @@ extension OnboardingDependencyServiceTests {
     private func makeCommandLineToolsService(shell: CommandLineToolsShellFake) -> DefaultOnboardingDependencyService {
         DefaultOnboardingDependencyService(
             gitHubCLI: CommandLineToolsGitHubCLIStub(),
-            providerDetection: CommandLineToolsProviderDetectionStub(),
+            harnessDetection: CommandLineToolsHarnessDetectionStub(),
             agentRegistry: DefaultAgentRegistry(),
             shell: shell,
             executableResolver: CommandLineToolsResolverStub(),
@@ -227,11 +227,11 @@ private final class CommandLineToolsGitHubCLIStub: GitHubCLIService, @unchecked 
     func cancelAuthentication() {}
 }
 
-private actor CommandLineToolsProviderDetectionStub: ProviderDetectionService {
-    func resolvedPath(for providerId: String) -> String? { nil }
-    func status(for providerId: String) -> ProviderStatus { .missing }
-    func checkAllProviders() async {}
-    func checkProvider(_ providerId: String) async {}
+private actor CommandLineToolsHarnessDetectionStub: HarnessDetectionService {
+    func resolvedPath(for harnessId: String) -> String? { nil }
+    func status(for harnessId: String) -> HarnessStatus { .missing }
+    func checkAllHarnesses() async {}
+    func checkHarness(_ harnessId: String) async {}
 }
 
 private actor CommandLineToolsResolverStub: ExecutablePathResolving {

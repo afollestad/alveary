@@ -227,7 +227,7 @@ final class ScheduledTaskProposalQueueFixture {
             state: state,
             recurrence: .daily(hour: 8, minute: 0),
             timeZoneIdentifier: currentTimeZone.identifier,
-            providerID: "codex",
+            harnessID: "codex",
             effort: "medium",
             permissionMode: "on-request",
             nextOccurrenceAt: nextOccurrenceAt,
@@ -250,14 +250,14 @@ final class ScheduledTaskProposalQueueFixture {
     ) throws -> ScheduledTaskProposal {
         let conversation = sourceConversationID
             .flatMap { context.resolveConversation(conversationID: $0) }
-            ?? Conversation(id: sourceConversationID ?? "conversation-\(id)", provider: "codex")
+            ?? Conversation(id: sourceConversationID ?? "conversation-\(id)", harness: "codex")
         let proposal = ScheduledTaskProposal(
             id: "proposal-\(id)",
             deduplicationKey: "deduplication-\(id)",
             action: action,
             canonicalPayloadJSON: #"{"action":"proposal"}"#,
             canonicalPayloadHash: "hash-\(id)",
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: UUID(),
             sourceRequestID: "string:request-\(id)",
             definitionDraft: definitionDraft,
@@ -279,14 +279,14 @@ final class ScheduledTaskProposalQueueFixture {
         expectedRevision: Int? = nil,
         definitionDraft: ScheduledTaskProposalDefinitionDraft? = nil
     ) throws -> ScheduledTaskProposal {
-        let conversation = Conversation(id: "conversation-\(id)", provider: "codex")
+        let conversation = Conversation(id: "conversation-\(id)", harness: "codex")
         let proposal = ScheduledTaskProposal(
             id: "proposal-\(id)",
             deduplicationKey: "deduplication-\(id)",
             action: action,
             canonicalPayloadJSON: #"{"action":"proposal"}"#,
             canonicalPayloadHash: "hash-\(id)",
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: UUID(),
             sourceRequestID: "string:request-\(id)",
             targetDefinitionID: definition.id,
@@ -317,7 +317,7 @@ final class ScheduledTaskProposalQueueFixture {
             destination: .newThreadPerRun,
             recurrence: recurrence,
             timeZoneIdentifier: currentTimeZone.identifier,
-            providerID: "codex",
+            harnessID: "codex",
             model: nil,
             effort: "medium",
             permissionMode: "on-request",

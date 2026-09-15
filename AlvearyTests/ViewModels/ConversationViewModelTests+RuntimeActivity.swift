@@ -203,7 +203,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(errorRecords.map(\.content), ["Agent process crashed unexpectedly"])
     }
 
-    func testProviderErrorDeduplicatesAssistantFailureAndSuppressesGenericComposerError() throws {
+    func testHarnessErrorDeduplicatesAssistantFailureAndSuppressesGenericComposerError() throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let failureMessage = """

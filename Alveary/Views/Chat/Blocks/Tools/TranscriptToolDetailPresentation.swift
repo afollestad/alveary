@@ -169,7 +169,7 @@ enum WriteToolContent {
 
 /// Extracts markdown replacement previews from file-edit inputs. Known markdown
 /// mutations may carry a reconstructed full-document preview on `ToolEntry`; this
-/// fallback intentionally previews only the provider-supplied replacement snippets.
+/// fallback intentionally previews only the harness-supplied replacement snippets.
 enum FileEditToolContent {
     struct Preview: Equatable {
         let filePath: String

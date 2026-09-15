@@ -6,53 +6,53 @@ import XCTest
 /// `isSetupReady` is now auth-backed for Claude, so a signed-out CLI reaches this resolver as
 /// `.needsSetup`. These cover that it is refused rather than started and then failed on the first turn.
 final class ThreadDefaultResolverTests: XCTestCase {
-    func testSignedOutProviderIsNotReady() {
+    func testSignedOutHarnessIsNotReady() {
         let resolution = ThreadDefaultResolver.resolve(
             settings: AppSettings(),
-            providerOrdering: ["claude"],
-            providerStatuses: ["claude": Self.status(for: .claude, setup: .needsSetup)]
+            harnessOrdering: ["claude"],
+            harnessStatuses: ["claude": Self.status(for: .claude, setup: .needsSetup)]
         )
 
-        XCTAssertNil(resolution.providerID)
-        XCTAssertFalse(resolution.hasReadyProvider)
-        XCTAssertEqual(resolution.readyProviderIDs, [])
+        XCTAssertNil(resolution.harnessID)
+        XCTAssertFalse(resolution.hasReadyHarness)
+        XCTAssertEqual(resolution.readyHarnessIDs, [])
     }
 
-    func testSignedOutProviderFallsBackToAnotherReadyProvider() {
+    func testSignedOutHarnessFallsBackToAnotherReadyHarness() {
         var settings = AppSettings()
-        settings.defaultProvider = "claude"
+        settings.defaultHarness = "claude"
 
         let resolution = ThreadDefaultResolver.resolve(
             settings: settings,
-            providerOrdering: ["claude", "codex"],
-            providerStatuses: [
+            harnessOrdering: ["claude", "codex"],
+            harnessStatuses: [
                 "claude": Self.status(for: .claude, setup: .needsSetup),
                 "codex": Self.status(for: .codex, setup: .ready)
             ]
         )
 
-        XCTAssertEqual(resolution.providerID, "codex")
-        XCTAssertEqual(resolution.readyProviderIDs, ["codex"])
+        XCTAssertEqual(resolution.harnessID, "codex")
+        XCTAssertEqual(resolution.readyHarnessIDs, ["codex"])
     }
 
     /// An inconclusive probe reports `.ready`, so this is what an installed-and-working Claude looks
     /// like whether the probe answered or timed out.
-    func testReadyProviderResolves() {
+    func testReadyHarnessResolves() {
         let resolution = ThreadDefaultResolver.resolve(
             settings: AppSettings(),
-            providerOrdering: ["claude"],
-            providerStatuses: ["claude": Self.status(for: .claude, setup: .ready)]
+            harnessOrdering: ["claude"],
+            harnessStatuses: ["claude": Self.status(for: .claude, setup: .ready)]
         )
 
-        XCTAssertEqual(resolution.providerID, "claude")
-        XCTAssertEqual(resolution.readyProviderIDs, ["claude"])
+        XCTAssertEqual(resolution.harnessID, "claude")
+        XCTAssertEqual(resolution.readyHarnessIDs, ["claude"])
     }
 
     /// Before discovery reports statuses, the fallback options must be the real Claude catalog — the one-row
-    /// provider-default placeholder resolved nothing, so pre-discovery UI flashed raw model ids.
+    /// harness-default placeholder resolved nothing, so pre-discovery UI flashed raw model ids.
     func testEmptyStatusesFallBackToTheStaticClaudeCatalog() {
-        let claudeOptions = ThreadDefaultResolver.modelOptions(for: "claude", providerStatuses: [:])
-        let codexOptions = ThreadDefaultResolver.modelOptions(for: "codex", providerStatuses: [:])
+        let claudeOptions = ThreadDefaultResolver.modelOptions(for: "claude", harnessStatuses: [:])
+        let codexOptions = ThreadDefaultResolver.modelOptions(for: "codex", harnessStatuses: [:])
 
         XCTAssertEqual(claudeOptions.filter(\.isDefault).map(\.id), ["claude-sonnet-5"])
         XCTAssertEqual(codexOptions.map(\.id), ["default"])
@@ -62,33 +62,33 @@ final class ThreadDefaultResolverTests: XCTestCase {
     /// pinned model to the default sentinel because the placeholder options could not resolve it.
     func testStaticFallbackPreservesAStoredPinnedModel() {
         var settings = AppSettings()
-        settings.defaultProvider = "claude"
+        settings.defaultHarness = "claude"
         settings.defaultModel = "claude-opus-5"
 
         let resolution = ThreadDefaultResolver.resolve(
             settings: settings,
-            providerOrdering: ["claude"],
-            providerStatuses: [:],
+            harnessOrdering: ["claude"],
+            harnessStatuses: [:],
             allowStaticFallback: true
         )
 
-        XCTAssertEqual(resolution.providerID, "claude")
+        XCTAssertEqual(resolution.harnessID, "claude")
         XCTAssertEqual(resolution.storedThreadModel, "claude-opus-5")
     }
 
     private static func status(
-        for providerId: AgentCLIKit.AgentProviderID,
-        setup: AgentCLIKit.AgentProviderReadinessState
-    ) -> AgentCLIKit.AgentProviderStatus {
-        AgentCLIKit.AgentProviderStatus(
-            providerId: providerId,
-            definition: providerId == .claude
-                ? AgentCLIKit.ClaudeProviderDefinition.definition
-                : AgentCLIKit.CodexProviderDefinition.definition,
+        for harnessId: AgentCLIKit.AgentHarnessID,
+        setup: AgentCLIKit.AgentHarnessReadinessState
+    ) -> AgentCLIKit.AgentHarnessStatus {
+        AgentCLIKit.AgentHarnessStatus(
+            harnessId: harnessId,
+            definition: harnessId == .claude
+                ? AgentCLIKit.ClaudeHarnessDefinition.definition
+                : AgentCLIKit.CodexHarnessDefinition.definition,
             installation: .installed,
-            availability: AgentCLIKit.AgentProviderAvailability(
-                providerId: providerId,
-                executablePath: "/usr/local/bin/\(providerId.rawValue)"
+            availability: AgentCLIKit.AgentHarnessAvailability(
+                harnessId: harnessId,
+                executablePath: "/usr/local/bin/\(harnessId.rawValue)"
             ),
             setup: setup,
             modelOptions: []

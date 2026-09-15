@@ -246,7 +246,7 @@ final class AgentThreadModeTests: XCTestCase {
             promptSnapshot: "Run scheduled work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "default",
             workspaceKindSnapshot: .privateWorkspace,

@@ -4,7 +4,7 @@ import XCTest
 @testable import Alveary
 
 extension AgentCLIKitEventMapperTests {
-    func testMapsGenericProviderRuntimeActivity() {
+    func testMapsGenericHarnessRuntimeActivity() {
         let mapper = AgentCLIKitEventMapper()
         let active = mapper.conversationEvents(from: runtimeEnvelope(.activity(AgentActivityEvent(
             state: .active,
@@ -34,7 +34,7 @@ extension AgentCLIKitEventMapperTests {
                     turnId: "turn-1",
                     metadata: ["codex_turn_status": .string("completed")]
                 )),
-                providerId: .codex
+                harnessId: .codex
             )),
             [.runtimeActivity(state: .idle, turnId: "turn-1", outcome: .completed)]
         )
@@ -45,7 +45,7 @@ extension AgentCLIKitEventMapperTests {
                     turnId: "turn-2",
                     metadata: ["codex_turn_status": .string("failed")]
                 )),
-                providerId: .codex
+                harnessId: .codex
             )),
             [.runtimeActivity(state: .idle, turnId: "turn-2", outcome: .failed(message: "Codex turn failed."))]
         )
@@ -56,7 +56,7 @@ extension AgentCLIKitEventMapperTests {
                     turnId: "turn-3",
                     metadata: ["codex_turn_status": .string("canceled")]
                 )),
-                providerId: .codex
+                harnessId: .codex
             )),
             [.runtimeActivity(state: .idle, turnId: "turn-3", outcome: .interrupted)]
         )
@@ -66,7 +66,7 @@ extension AgentCLIKitEventMapperTests {
                     state: .idle,
                     metadata: ["codex_status": .string("systemError")]
                 )),
-                providerId: .codex
+                harnessId: .codex
             )),
             [
                 .runtimeActivity(
@@ -86,7 +86,7 @@ extension AgentCLIKitEventMapperTests {
                 message: "Codex App Server reported a thread system error.",
                 metadata: ["codex_status": .string("systemError")]
             )),
-            providerId: .codex
+            harnessId: .codex
         ))
 
         XCTAssertEqual(events, [.error(message: "Codex App Server reported a thread system error.")])
@@ -100,7 +100,7 @@ extension AgentCLIKitEventMapperTests {
                 message: "Codex App Server request ignored.",
                 metadata: ["codex_request_method": .string("unsupported")]
             )),
-            providerId: .codex
+            harnessId: .codex
         ))
 
         XCTAssertTrue(events.isEmpty)
@@ -114,7 +114,7 @@ extension AgentCLIKitEventMapperTests {
                 message: "Codex App Server reported a thread system error.",
                 metadata: ["codex_status": .string("systemError")]
             )),
-            providerId: .codex
+            harnessId: .codex
         ))
 
         XCTAssertTrue(events.isEmpty)
@@ -122,14 +122,14 @@ extension AgentCLIKitEventMapperTests {
 
     private func runtimeEnvelope(
         _ event: AgentCLIKit.AgentEvent,
-        providerId: AgentCLIKit.AgentProviderID = .claude
+        harnessId: AgentCLIKit.AgentHarnessID = .claude
     ) -> AgentCLIKit.AgentEventEnvelope {
         AgentCLIKit.AgentEventEnvelope(
             generation: 1,
             index: 0,
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: "conversation",
-            providerSessionId: nil,
+            harnessSessionId: nil,
             source: .stdout,
             event: event,
             createdAt: Date(timeIntervalSince1970: 0)

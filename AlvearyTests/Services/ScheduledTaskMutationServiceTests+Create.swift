@@ -27,7 +27,7 @@ extension ScheduledTaskMutationServiceTests {
                 destination: .newThreadPerRun,
                 recurrence: .interval(minutes: 5, anchor: Date(timeIntervalSince1970: 0)),
                 timeZoneIdentifier: "UTC",
-                providerID: "codex",
+                harnessID: "codex",
                 model: "gpt-5",
                 effort: "high",
                 permissionMode: "default",
@@ -60,7 +60,7 @@ extension ScheduledTaskMutationServiceTests {
                     destination: .newThreadPerRun,
                     recurrence: .daily(hour: 8, minute: 0),
                     timeZoneIdentifier: "UTC",
-                    providerID: "codex",
+                    harnessID: "codex",
                     model: nil,
                     effort: "medium",
                     permissionMode: "default",
@@ -86,7 +86,7 @@ extension ScheduledTaskMutationServiceTests {
                     destination: .newThreadPerRun,
                     recurrence: .daily(hour: 8, minute: 0),
                     timeZoneIdentifier: "UTC",
-                    providerID: "codex",
+                    harnessID: "codex",
                     model: nil,
                     effort: "medium",
                     permissionMode: "default",
@@ -122,7 +122,7 @@ extension ScheduledTaskMutationServiceTests {
                     destination: .newThreadPerRun,
                     recurrence: .daily(hour: 8, minute: 0),
                     timeZoneIdentifier: "UTC",
-                    providerID: "codex",
+                    harnessID: "codex",
                     model: nil,
                     effort: "medium",
                     permissionMode: "default",
@@ -147,7 +147,7 @@ extension ScheduledTaskMutationServiceTests {
             mode: .task
         )
         target.conversations = [
-            Conversation(id: "pending-fork-main", provider: "codex", thread: target)
+            Conversation(id: "pending-fork-main", harness: "codex", thread: target)
         ]
         fixture.context.insert(target)
         try fixture.context.save()
@@ -157,7 +157,7 @@ extension ScheduledTaskMutationServiceTests {
             destination: .existingThread,
             recurrence: .daily(hour: 8, minute: 0),
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             model: nil,
             effort: "medium",
             permissionMode: "default",

@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 extension ConversationViewModelTests {
     func testAutomaticSessionHandoffUsesCodexCachedInputAccounting() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
 
         fixture.viewModel.handleEvent(.tokens(
             input: 100,

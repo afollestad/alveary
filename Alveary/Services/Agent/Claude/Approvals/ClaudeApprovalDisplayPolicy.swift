@@ -3,7 +3,7 @@ import Foundation
 
 /// UI-facing approval policy for Claude tool rows rendered by Alveary.
 ///
-/// Provider-level hook matching and defer decisions live in `AgentCLIKit.ClaudeHookPolicy`.
+/// Harness-level hook matching and defer decisions live in `AgentCLIKit.ClaudeHookPolicy`.
 /// This type only adds Alveary display rules, such as hiding `AskUserQuestion` from the
 /// generic tool-approval UI and batching rows that belong to the same visible tool family.
 enum ClaudeApprovalDisplayPolicy {

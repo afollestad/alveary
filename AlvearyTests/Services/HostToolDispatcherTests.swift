@@ -86,7 +86,7 @@ final class HostToolDispatcherTests: XCTestCase {
     private static func context() -> AgentCLIKit.AgentHostToolCallContext {
         AgentCLIKit.AgentHostToolCallContext(
             conversationId: AgentCLIKit.AgentConversationID(rawValue: "conversation-1"),
-            providerId: .codex,
+            harnessId: .codex,
             processToken: UUID(),
             requestId: "request-1"
         )

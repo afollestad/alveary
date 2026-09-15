@@ -35,7 +35,7 @@ extension ScheduledTaskHostToolService {
         let resolution = try resolveProposal(
             request,
             sourceThread: source.thread,
-            sourceProviderID: context.providerId.rawValue
+            sourceHarnessID: context.harnessId.rawValue
         )
         let title = resolution.targetTitleSnapshot ?? "the scheduled task"
         let message = try apply(request, identity: identity, title: title)
@@ -53,7 +53,7 @@ extension ScheduledTaskHostToolService {
             createdAt: identity.createdAt
         )
         try persist(receipt, on: source.conversation)
-        // The durable marker is what lets a plain-text-fallback provider's widget read
+        // The durable marker is what lets a plain-text-fallback harness's widget read
         // as applied — its result JSON never reaches the transcript. Recorded after the
         // consuming save like every proposal outcome; the retry path replays the receipt
         // before reaching here, so an exact retry cannot write a second marker.

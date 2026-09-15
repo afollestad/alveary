@@ -11,9 +11,9 @@ final class ExitPlanModeDenialPolicyTests: XCTestCase {
     }
 
     func testRevisionTransportGuidanceIsClaudeOnly() {
-        XCTAssertTrue(ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(providerId: "claude"))
-        XCTAssertFalse(ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(providerId: "codex"))
-        XCTAssertFalse(ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(providerId: nil))
+        XCTAssertTrue(ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(harnessId: "claude"))
+        XCTAssertFalse(ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(harnessId: "codex"))
+        XCTAssertFalse(ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(harnessId: nil))
     }
 
     func testRevisionTransportTextWrapsVisibleFeedback() {

@@ -12,7 +12,7 @@ extension AppComponent {
                 linkService: pullRequestLinkService,
                 summaryHandoff: pullRequestSummaryHandoff,
                 settingsService: settingsService,
-                providerDiscovery: cachedAgentProviderDiscoveryService,
+                harnessDiscovery: cachedAgentHarnessDiscoveryService,
                 startInitialPrompt: { conversation, prompt in
                     self.startHeadlessInitialPrompt(conversation: conversation, prompt: prompt)
                 },
@@ -36,7 +36,7 @@ extension AppComponent {
                 modelContext: modelContainer.mainContext,
                 settingsService: settingsService,
                 agentsManager: agentsManager,
-                providerSessionActionService: providerSessionActionService,
+                harnessSessionActionService: harnessSessionActionService,
                 notificationManager: notificationManager,
                 taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
                 invalidateConversationController: { conversationID in

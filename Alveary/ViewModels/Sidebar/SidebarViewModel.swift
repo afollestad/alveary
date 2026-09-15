@@ -12,8 +12,8 @@ final class SidebarViewModel {
     private let gitHubCLI: GitHubCLIService
     let worktreeManager: WorktreeManager
     let settingsService: SettingsService
-    let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
-    let providerSessionActionService: any ProviderSessionActionService
+    let harnessDiscovery: (any AgentCLIKit.AgentHarnessDiscoveryService)?
+    let harnessSessionActionService: any HarnessSessionActionService
     let attachmentStore: any ConversationAttachmentStore
     let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     /// Shared implementation of thread creation and archiving. The sidebar owns the UI half
@@ -51,8 +51,8 @@ final class SidebarViewModel {
         gitHubCLI: GitHubCLIService,
         worktreeManager: WorktreeManager,
         settingsService: SettingsService,
-        providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
-        providerSessionActions: any ProviderSessionActionService = NoopProviderSessionActionService(),
+        harnessDiscovery: (any AgentCLIKit.AgentHarnessDiscoveryService)? = nil,
+        harnessSessionActions: any HarnessSessionActionService = NoopHarnessSessionActionService(),
         attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
         taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService = DefaultTaskWorkspaceOwnershipService(),
         invalidateConversationController: @escaping @MainActor (String) -> Void = { _ in },
@@ -74,15 +74,15 @@ final class SidebarViewModel {
         self.gitHubCLI = gitHubCLI
         self.worktreeManager = worktreeManager
         self.settingsService = settingsService
-        self.providerDiscovery = providerDiscovery
-        self.providerSessionActionService = providerSessionActions
+        self.harnessDiscovery = harnessDiscovery
+        self.harnessSessionActionService = harnessSessionActions
         self.attachmentStore = attachmentStore
         self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
         threadLifecycle = ThreadLifecycleService(
             modelContext: modelContext,
             settingsService: settingsService,
             agentsManager: agentsManager,
-            providerSessionActionService: providerSessionActions,
+            harnessSessionActionService: harnessSessionActions,
             notificationManager: notificationManager,
             taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
             invalidateConversationController: invalidateConversationController,
@@ -148,16 +148,16 @@ final class SidebarViewModel {
                     refreshThreadOrder(animated: true)
                 }
             )
-            presentProviderSessionActionDiagnostics(diagnostics)
+            presentHarnessSessionActionDiagnostics(diagnostics)
         } catch let error as ThreadArchiveCleanupError {
-            presentProviderSessionActionDiagnostics(error.diagnostics)
+            presentHarnessSessionActionDiagnostics(error.diagnostics)
             throw SidebarViewModelError.archiveCleanupFailed(error.underlying)
         }
     }
 
     func restoreThread(_ thread: AgentThread) async throws {
         let snapshot = try makeThreadArchiveSnapshot(thread)
-        let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
+        let harnessSessionResolution = await harnessSessionActionService.resolveSessions(matching: snapshot.harnessSessionAction)
         guard let dbThread = modelContext.resolveThread(id: snapshot.threadID),
               !dbThread.isDraft else {
             throw SidebarViewModelError.threadMissing
@@ -176,8 +176,8 @@ final class SidebarViewModel {
             throw error
         }
         notificationManager.refreshBadgeCount()
-        let diagnostics = await providerSessionActionService.unarchiveSessions(providerSessionResolution)
-        presentProviderSessionActionDiagnostics(diagnostics)
+        let diagnostics = await harnessSessionActionService.unarchiveSessions(harnessSessionResolution)
+        presentHarnessSessionActionDiagnostics(diagnostics)
     }
     func deleteThread(
         _ thread: AgentThread,
@@ -211,13 +211,13 @@ final class SidebarViewModel {
         invalidateConversationControllers(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
 
-        let providerSessionResolution = await deleteProviderSessionResolution(for: snapshot.providerSessionAction)
+        let harnessSessionResolution = await deleteHarnessSessionResolution(for: snapshot.harnessSessionAction)
         await beginConversationTeardowns(snapshot.conversationIDs)
 
         let teardownError = await conversationTeardownError(snapshot.conversationIDs)
         await removeConversationAttachmentDirectories(snapshot.conversationIDs)
-        let diagnostics = await providerSessionActionService.deleteSessions(providerSessionResolution)
-        presentProviderSessionActionDiagnostics(diagnostics)
+        let diagnostics = await harnessSessionActionService.deleteSessions(harnessSessionResolution)
+        presentHarnessSessionActionDiagnostics(diagnostics)
         if let teardownError {
             throw SidebarViewModelError.threadDeleteCleanupFailed(teardownError)
         }
@@ -236,13 +236,13 @@ final class SidebarViewModel {
         invalidateConversationControllers(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
 
-        let providerSessionResolution = await deleteProviderSessionResolution(for: snapshot.threadSnapshots)
+        let harnessSessionResolution = await deleteHarnessSessionResolution(for: snapshot.threadSnapshots)
         await beginConversationTeardowns(snapshot.conversationIDs)
 
         let teardownError = await conversationTeardownError(snapshot.conversationIDs)
         await removeConversationAttachmentDirectories(snapshot.conversationIDs)
-        let diagnostics = await providerSessionActionService.deleteSessions(providerSessionResolution)
-        presentProviderSessionActionDiagnostics(diagnostics)
+        let diagnostics = await harnessSessionActionService.deleteSessions(harnessSessionResolution)
+        presentHarnessSessionActionDiagnostics(diagnostics)
         if let teardownError {
             throw SidebarViewModelError.projectDeleteCleanupFailed(teardownError)
         }
@@ -329,7 +329,7 @@ extension SidebarViewModel {
         await threadLifecycle.beginConversationTeardowns(conversationIDs)
     }
 
-    func presentProviderSessionActionDiagnostics(_ diagnostics: [ProviderSessionActionDiagnostic]) {
+    func presentHarnessSessionActionDiagnostics(_ diagnostics: [HarnessSessionActionDiagnostic]) {
         for diagnostic in diagnostics {
             presentUnexpectedError(diagnostic.toastMessage)
         }

@@ -12,7 +12,7 @@ extension ChatItemGrouper {
         replaceOrAppendTranscriptItem(item)
     }
 
-    /// A hidden task misses progress notifications; refresh mutable run rows without replaying ordinary provider events.
+    /// A hidden task misses progress notifications; refresh mutable run rows without replaying ordinary harness events.
     func refreshCollectiveReviewRuns(in events: ArraySlice<ConversationEventRecord>) {
         for event in events where event.type == ConversationEventRecord.collectiveReviewRunType {
             guard collectiveReviewRunContentsByEventID[event.id] != event.content else { continue }

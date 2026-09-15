@@ -9,7 +9,7 @@ import XCTest
 /// leave it alone.
 @MainActor
 extension ConversationViewModelTests {
-    func testProviderErrorEventMarksTheConversationDurablyFailed() throws {
+    func testHarnessErrorEventMarksTheConversationDurablyFailed() throws {
         let fixture = try ConversationViewModelTestFixture()
         beginVisibleTurn(fixture)
 
@@ -88,7 +88,7 @@ extension ConversationViewModelTests {
 
     /// The invariant `ThreadStatus.folded` leans on: the flag is gone before the new turn can
     /// report anything, so a surviving flag always means no turn started since the failure.
-    func testNewVisibleTurnClearsDurableFailureBeforeTheProviderReplies() throws {
+    func testNewVisibleTurnClearsDurableFailureBeforeTheHarnessReplies() throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.conversation.lastTurnFailedAt = Date()
 
@@ -108,7 +108,7 @@ extension ConversationViewModelTests {
     }
 
     /// Locks the ordering: the clear runs before the dispatch, not with `markVisibleTurnStarted()`
-    /// after it. A send that never reaches the provider proves which side of the dispatch it is on,
+    /// after it. A send that never reaches the harness proves which side of the dispatch it is on,
     /// and the dispatch is what puts the runtime in `.busy` the fold would otherwise suppress.
     func testAttemptingASendClearsDurableFailureBeforeDispatching() async throws {
         let fixture = try ConversationViewModelTestFixture(sendError: .sendFailed)

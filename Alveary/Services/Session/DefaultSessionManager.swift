@@ -9,7 +9,7 @@ actor DefaultSessionManager: SessionManager {
         self.fileURL = supportDirectory.appendingPathComponent("session-map.json")
     }
 
-    func createEntry(conversationId: String, cwd: String, providerId: String) -> Bool {
+    func createEntry(conversationId: String, cwd: String, harnessId: String) -> Bool {
         ensureLoaded()
 
         let normalizedCWD = CanonicalPath.normalize(cwd)
@@ -17,7 +17,7 @@ actor DefaultSessionManager: SessionManager {
         let sessionId: String
 
         if let existing = entries[conversationId] {
-            shouldPreserveIdentity = existing.cwd == normalizedCWD && existing.providerId == providerId
+            shouldPreserveIdentity = existing.cwd == normalizedCWD && existing.harnessId == harnessId
             sessionId = shouldPreserveIdentity ? existing.appSessionId : UUID().uuidString
         } else {
             shouldPreserveIdentity = false
@@ -26,7 +26,7 @@ actor DefaultSessionManager: SessionManager {
 
         entries[conversationId] = SessionEntry(
             cwd: normalizedCWD,
-            providerId: providerId,
+            harnessId: harnessId,
             appSessionId: sessionId,
             launchSessionId: sessionId
         )
@@ -53,13 +53,13 @@ actor DefaultSessionManager: SessionManager {
         return entry.appSessionId
     }
 
-    func conversationId(forSessionId sessionId: String, cwd: String, providerId: String) -> String? {
+    func conversationId(forSessionId sessionId: String, cwd: String, harnessId: String) -> String? {
         ensureLoaded()
         let normalizedCWD = CanonicalPath.normalize(cwd)
         return entries.first { _, entry in
             (entry.appSessionId == sessionId || entry.launchSessionId == sessionId) &&
                 entry.cwd == normalizedCWD &&
-                entry.providerId == providerId
+                entry.harnessId == harnessId
         }?.key
     }
 

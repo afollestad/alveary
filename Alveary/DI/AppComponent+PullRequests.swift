@@ -24,7 +24,7 @@ extension AppComponent {
                 settingsService: settingsService,
                 worktreeManager: worktreeManager,
                 taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
-                providerDiscovery: cachedAgentProviderDiscoveryService,
+                harnessDiscovery: cachedAgentHarnessDiscoveryService,
                 currentBranch: { [gitService] path in
                     try? await gitService.currentBranch(in: path)
                 },

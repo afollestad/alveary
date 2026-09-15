@@ -26,8 +26,8 @@ extension ConversationViewModel {
 
     /// Records the sign-in notice and persists nothing; the `.error` the mapper emits alongside it is
     /// what lands in the transcript.
-    func shouldPersistProviderAuthenticationRequiredEvent(message: String) -> Bool {
-        state.providerAuthenticationFailure = normalizedTurnErrorMessage(message, fallback: "Agent turn failed")
+    func shouldPersistHarnessAuthenticationRequiredEvent(message: String) -> Bool {
+        state.harnessAuthenticationFailure = normalizedTurnErrorMessage(message, fallback: "Agent turn failed")
         return false
     }
 

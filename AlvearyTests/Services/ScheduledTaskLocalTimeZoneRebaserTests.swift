@@ -113,7 +113,7 @@ private struct LocalTimeZoneRebaserFixture {
             destination: .newThreadPerRun,
             recurrence: recurrence,
             timeZoneIdentifier: timeZoneIdentifier,
-            providerID: "codex",
+            harnessID: "codex",
             nextOccurrenceAt: nextOccurrenceAt
         )
         context.insert(definition)

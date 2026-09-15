@@ -9,7 +9,7 @@ import SwiftData
 /// `ScheduledTaskTargetDetachment` converts the definition when the thread goes away.
 extension ScheduledTaskMutationService {
     /// Whether an edit keeps a `.reusedThread` schedule's created-thread link. The link survives
-    /// only edits the existing thread can absorb: provider is fixed at conversation creation, and
+    /// only edits the existing thread can absorb: harness is fixed at conversation creation, and
     /// a workspace change must mint a fresh thread with the new configuration — the claim derives
     /// the run's workspace from the linked thread, so keeping the link would silently ignore the
     /// edit forever. Model, effort, and permission changes keep the link; materialization
@@ -17,7 +17,7 @@ extension ScheduledTaskMutationService {
     func preservesReuseLink(of definition: ScheduledTask, applying edit: ScheduledTaskDefinitionEdit) -> Bool {
         definition.decodedDestination == .reusedThread
             && edit.destination == .reusedThread
-            && edit.providerID == definition.providerID
+            && edit.harnessID == definition.harnessID
             && edit.workspaceKind == definition.workspaceKind
             && edit.workspaceStrategy == definition.workspaceStrategy
             && edit.project?.id == definition.project?.id

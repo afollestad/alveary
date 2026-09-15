@@ -133,29 +133,29 @@ struct ServiceTestAgentRegistry: AgentRegistry {
     }
 }
 
-actor MCPTestProviderDetectionService: ProviderDetectionService {
-    private var statuses: [String: ProviderStatus]
+actor MCPTestHarnessDetectionService: HarnessDetectionService {
+    private var statuses: [String: HarnessStatus]
     private var paths: [String: String]
     private var checkAllCountValue = 0
 
-    init(statuses: [String: ProviderStatus], paths: [String: String] = [:]) {
+    init(statuses: [String: HarnessStatus], paths: [String: String] = [:]) {
         self.statuses = statuses
         self.paths = paths
     }
 
-    func resolvedPath(for providerId: String) -> String? {
-        paths[providerId]
+    func resolvedPath(for harnessId: String) -> String? {
+        paths[harnessId]
     }
 
-    func status(for providerId: String) -> ProviderStatus {
-        statuses[providerId] ?? .unchecked
+    func status(for harnessId: String) -> HarnessStatus {
+        statuses[harnessId] ?? .unchecked
     }
 
-    func checkAllProviders() async {
+    func checkAllHarnesses() async {
         checkAllCountValue += 1
     }
 
-    func checkProvider(_ providerId: String) async {}
+    func checkHarness(_ harnessId: String) async {}
 
     func checkAllCount() -> Int {
         checkAllCountValue

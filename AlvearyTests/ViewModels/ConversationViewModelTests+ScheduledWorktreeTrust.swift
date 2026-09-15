@@ -20,7 +20,7 @@ extension ConversationViewModelTests {
             promptSnapshot: "Run it.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "claude",
+            harnessIDSnapshot: "claude",
             effortSnapshot: "high",
             permissionModeSnapshot: "acceptEdits",
             workspaceKindSnapshot: .project,
@@ -42,12 +42,12 @@ extension ConversationViewModelTests {
 
         try await fixture.viewModel.startAutomatedScheduledTurn("Run in the owned worktree.")
 
-        let setupCalls = await fixture.providerSetup.calls()
+        let setupCalls = await fixture.harnessSetup.calls()
         XCTAssertEqual(
             setupCalls,
             [
                 .init(
-                    providerId: "claude",
+                    harnessId: "claude",
                     workingDirectory: scheduledFixture.descriptor.primaryRoot,
                     autoTrust: true
                 )
@@ -57,12 +57,12 @@ extension ConversationViewModelTests {
         XCTAssertEqual(spawnCalls.count, 1)
     }
 
-    func testAutomatedScheduledOwnedWorktreeIsRevalidatedAfterProviderSetup() async throws {
+    func testAutomatedScheduledOwnedWorktreeIsRevalidatedAfterHarnessSetup() async throws {
         let scheduledFixture = try ScheduledWorktreeViewModelFixture()
         defer { scheduledFixture.removeFiles() }
         let fixture = scheduledFixture.fixture
         let worktreePath = scheduledFixture.worktree.path
-        await fixture.providerSetup.setPrepareForSpawnHook {
+        await fixture.harnessSetup.setPrepareForSpawnHook {
             try? FileManager.default.removeItem(atPath: worktreePath)
             try? FileManager.default.createDirectory(
                 atPath: worktreePath,
@@ -80,7 +80,7 @@ extension ConversationViewModelTests {
             )
         }
 
-        let setupCalls = await fixture.providerSetup.calls()
+        let setupCalls = await fixture.harnessSetup.calls()
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         XCTAssertEqual(setupCalls.count, 1)
         XCTAssertTrue(setupCalls[0].autoTrust)
@@ -116,7 +116,7 @@ private struct ScheduledWorktreeViewModelFixture {
         )
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
-            providerId: "claude",
+            harnessId: "claude",
             threadMode: .task,
             taskWorkspaceDescriptor: descriptor,
             taskWorkspaceOwnershipService: ownershipService
@@ -158,7 +158,7 @@ private struct ScheduledWorktreeViewModelFixture {
             promptSnapshot: "Run it.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "America/Chicago",
-            providerIDSnapshot: "claude",
+            harnessIDSnapshot: "claude",
             effortSnapshot: "high",
             permissionModeSnapshot: "acceptEdits",
             workspaceKindSnapshot: .project,

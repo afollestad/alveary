@@ -6,7 +6,7 @@ extension ConversationViewModel {
     ///
     /// Called on mount and after every resolution. The latter is what keeps unrelated approvals
     /// actionable: resolving one rehydrates the next rather than clearing the surface, so the
-    /// composer stays blocked until every open approval has been handled. Rows the provider's own
+    /// composer stays blocked until every open approval has been handled. Rows the harness's own
     /// session already answered are persisted resolved here instead of being shown again.
     func hydratePendingToolApprovalIfNeeded() {
         guard state.pendingToolApproval == nil,
@@ -62,13 +62,13 @@ extension ConversationViewModel {
     func resolveExitPlanModeToolUseApproval(
         toolUseId: String,
         decision: ClaudeToolApprovalDecision,
-        providerRestartConfig: AgentSpawnConfig? = nil
+        harnessRestartConfig: AgentSpawnConfig? = nil
     ) async throws {
         try await resolveToolUseApproval(
             toolUseId: toolUseId,
             decision: decision,
             responseText: decision == .deny ? ExitPlanModeDenialPolicy.deniedResponseText : nil,
-            providerRestartConfig: providerRestartConfig
+            harnessRestartConfig: harnessRestartConfig
         )
     }
 
@@ -156,9 +156,9 @@ extension ConversationViewModel {
     }
 
     func toolApprovalSelection(for approval: ToolApprovalRequest) async -> ToolApprovalSelection? {
-        let providerId = toolApprovalProviderId()
+        let harnessId = toolApprovalHarnessId()
         guard let storedSelection = await agentsManager.toolApprovalSelection(
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: conversation.id,
             sessionId: approval.sessionId
         ) else {
@@ -169,7 +169,7 @@ extension ConversationViewModel {
         if normalizedSelection != storedSelection {
             await agentsManager.recordToolApprovalSelection(
                 normalizedSelection,
-                providerId: providerId,
+                harnessId: harnessId,
                 conversationId: conversation.id,
                 sessionId: approval.sessionId
             )
@@ -178,13 +178,13 @@ extension ConversationViewModel {
     }
 
     func recordToolApprovalSelection(_ selection: ToolApprovalSelection, for approval: ToolApprovalRequest) {
-        let providerId = toolApprovalProviderId()
+        let harnessId = toolApprovalHarnessId()
         let conversationId = conversation.id
         let sessionId = approval.sessionId
         Task {
             await agentsManager.recordToolApprovalSelection(
                 selection,
-                providerId: providerId,
+                harnessId: harnessId,
                 conversationId: conversationId,
                 sessionId: sessionId
             )
@@ -195,7 +195,7 @@ extension ConversationViewModel {
 extension ConversationViewModel {
     /// Ends the local turn on a fallback `tool_deferred` stop, without treating it as a failure.
     ///
-    /// Deferral means the provider is waiting on us, so `lastTurnError` is deliberately cleared
+    /// Deferral means the harness is waiting on us, so `lastTurnError` is deliberately cleared
     /// rather than set — a banner here would report a stall as a fault. The controller's terminal
     /// boundary is *deferred* instead of completed, which is what keeps queued messages paused until
     /// the approval resumes and finishes the turn, and keeps the batch of delayed sibling approvals
@@ -213,11 +213,11 @@ extension ConversationViewModel {
         return true
     }
 
-    /// Takes a provider approval event and puts it on screen, unless it is already settled.
+    /// Takes a harness approval event and puts it on screen, unless it is already settled.
     ///
     /// A completed tool result is terminal for that approval, so a late or replayed event for the
     /// same tool must not recreate pending approval UI — the user would be asked to decide something
-    /// the provider has already acted on.
+    /// the harness has already acted on.
     func handleToolApprovalRequested(_ approval: ToolApprovalRequest) -> Bool {
         guard state.pendingToolApproval?.request != approval else {
             return false

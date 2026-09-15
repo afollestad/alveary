@@ -52,7 +52,7 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
         let sideConversation = Conversation(
             id: "side",
             title: "Side",
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: fixture.thread
@@ -76,7 +76,7 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
         let sideConversation = Conversation(
             id: "side",
             title: "Side",
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: fixture.thread
@@ -124,19 +124,19 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
     func testStaleTrustCheckCannotAutoTrustPreviousDraftProjectAfterReassignment() async throws {
         let originalPath = "/tmp/alveary-project"
         let replacementPath = "/tmp/reassigned-project"
-        let providerSetup = PausingThreadDetailProjectTrustService(pausedProjectPath: originalPath)
+        let harnessSetup = PausingThreadDetailProjectTrustService(pausedProjectPath: originalPath)
         var settings = AppSettings()
         settings.autoTrustProjects = true
         let fixture = try ThreadDetailProjectTrustFixture(
             isDraft: true,
             settings: settings,
-            providerSetup: providerSetup
+            harnessSetup: harnessSetup
         )
 
         let originalRefresh = Task { @MainActor in
             await fixture.view.refreshProjectTrustPrompt(for: fixture.conversation)
         }
-        await providerSetup.waitUntilStatusPaused()
+        await harnessSetup.waitUntilStatusPaused()
 
         let replacementProject = Project(path: replacementPath, name: "Reassigned")
         fixture.context.insert(replacementProject)
@@ -145,10 +145,10 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
         try fixture.context.save()
 
         await fixture.view.refreshProjectTrustPrompt(for: fixture.conversation)
-        await providerSetup.resumePausedStatus()
+        await harnessSetup.resumePausedStatus()
         await originalRefresh.value
 
-        let trustedProjectPaths = await providerSetup.recordedTrustedProjectPaths()
+        let trustedProjectPaths = await harnessSetup.recordedTrustedProjectPaths()
         XCTAssertEqual(trustedProjectPaths, [CanonicalPath.normalize(replacementPath)])
         XCTAssertNil(fixture.view.projectTrustPrompt)
         XCTAssertFalse(fixture.view.isCheckingProjectTrust)

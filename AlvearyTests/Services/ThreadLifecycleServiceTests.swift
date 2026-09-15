@@ -15,7 +15,7 @@ final class ThreadLifecycleServiceTests: XCTestCase {
         let thread = try fixture.viewModel.threadLifecycle.insertProjectThread(
             project: project,
             seed: ProjectThreadSeed(
-                provider: "codex",
+                harness: "codex",
                 permissionMode: "on-request",
                 model: "gpt-5",
                 effort: "high",
@@ -32,7 +32,7 @@ final class ThreadLifecycleServiceTests: XCTestCase {
         XCTAssertFalse(thread.isDraft)
         XCTAssertFalse(thread.isPinned)
         XCTAssertEqual(thread.project?.path, project.path)
-        XCTAssertEqual(thread.conversations.map(\.provider), ["codex"])
+        XCTAssertEqual(thread.conversations.map(\.harness), ["codex"])
         XCTAssertEqual(thread.conversations.map(\.isMain), [true])
     }
 
@@ -143,7 +143,7 @@ final class ThreadLifecycleServiceTests: XCTestCase {
 
         let thread = try fixture.viewModel.threadLifecycle.insertTaskThread(
             seed: TaskThreadSeed(
-                provider: "codex",
+                harness: "codex",
                 permissionMode: "on-request",
                 model: "gpt-5",
                 effort: "high",
@@ -157,7 +157,7 @@ final class ThreadLifecycleServiceTests: XCTestCase {
         XCTAssertNil(thread.project)
         XCTAssertFalse(thread.useWorktree)
         XCTAssertFalse(thread.isPinned)
-        XCTAssertEqual(thread.conversations.map(\.provider), ["codex"])
+        XCTAssertEqual(thread.conversations.map(\.harness), ["codex"])
         XCTAssertEqual(thread.conversations.map(\.isMain), [true])
 
         let workspace = try XCTUnwrap(thread.taskWorkspaceDescriptor)
@@ -257,7 +257,7 @@ final class ThreadLifecycleServiceTests: XCTestCase {
         placement: TaskThreadSidebarPlacement = .tasks
     ) -> TaskThreadSeed {
         TaskThreadSeed(
-            provider: "claude",
+            harness: "claude",
             permissionMode: "default",
             model: nil,
             effort: AppSettings.defaultEffortLevel,
@@ -278,7 +278,7 @@ final class ThreadLifecycleServiceTests: XCTestCase {
 
     private func makeSeed(name: String? = nil, pinned: Bool = false) -> ProjectThreadSeed {
         ProjectThreadSeed(
-            provider: "claude",
+            harness: "claude",
             permissionMode: "default",
             model: nil,
             effort: AppSettings.defaultEffortLevel,

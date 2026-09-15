@@ -8,7 +8,7 @@ extension ThreadHostToolService {
     /// Lists the user's active threads and their settings.
     ///
     /// Thread names are user content, so this is where Alveary hands conversation-derived titles
-    /// to the provider; the tool description restricts it to identifying a thread. It exposes no
+    /// to the harness; the tool description restricts it to identifying a thread. It exposes no
     /// transcript content, and unlistable threads are omitted entirely rather than reported as
     /// unavailable, so nothing leaks about archived or forked work.
     func listThreads(
@@ -100,7 +100,7 @@ private struct ThreadHostToolListing {
             "name": .string(thread.displayName()),
             "workspace": .string(workspaceSummary),
             "workspace_kind": .string(thread.effectiveMode.rawValue),
-            "provider": .string(conversation.provider ?? "unknown"),
+            "harness": .string(conversation.harness ?? "unknown"),
             "model": .string(thread.model ?? AppSettings.defaultModelValue),
             "effort": .string(thread.effort),
             "permission_mode": .string(thread.permissionMode),
@@ -127,7 +127,7 @@ private struct ThreadHostToolListing {
         var parts = [
             "id: \(conversation.id)",
             workspaceSummary,
-            conversation.provider ?? "unknown",
+            conversation.harness ?? "unknown",
             "model \(thread.model ?? AppSettings.defaultModelValue)",
             "effort \(thread.effort)",
             "permissions \(thread.permissionMode)",

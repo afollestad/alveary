@@ -9,7 +9,7 @@ extension ScheduledTaskSchedulerEngineTests {
         let fixture = try ScheduledTaskSchedulerFixture()
         let project = Project(path: "/tmp/shared-existing-target", name: "Shared target")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
-        let conversation = Conversation(id: "shared-target-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "shared-target-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         project.threads = [target]
         fixture.context.insert(project)
@@ -46,7 +46,7 @@ extension ScheduledTaskSchedulerEngineTests {
         let project = Project(path: "/tmp/existing-target", name: "Target Project")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
         try target.replaceAdditionalFolders([SourceFolderSnapshot(path: "/tmp/existing-grant")])
-        let conversation = Conversation(id: "existing-target-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "existing-target-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         project.threads = [target]
         fixture.context.insert(project)
@@ -234,7 +234,7 @@ private func insertExistingTarget(
 ) throws -> (definition: ScheduledTask, conversation: Conversation) {
     let project = Project(path: "/tmp/existing-target-\(suffix)", name: "Existing target")
     let thread = AgentThread(name: "Pinned target", isPinned: true, project: project)
-    let conversation = Conversation(id: "existing-target-\(suffix)", provider: "codex", thread: thread)
+    let conversation = Conversation(id: "existing-target-\(suffix)", harness: "codex", thread: thread)
     thread.conversations = [conversation]
     project.threads = [thread]
     fixture.context.insert(project)

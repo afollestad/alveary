@@ -388,7 +388,7 @@ actor DiffViewerMockAgentsManager: AgentsManager {
     }
 
     func toolApprovalSelection(
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async -> ToolApprovalSelection? {
@@ -397,7 +397,7 @@ actor DiffViewerMockAgentsManager: AgentsManager {
 
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async {}

@@ -95,7 +95,7 @@ extension PullRequestsViewModelTests {
         XCTAssertTrue(opened.value)
     }
 
-    func testReopeningAPaneRevalidatesAfterAnExternalProviderRepair() async {
+    func testReopeningAPaneRevalidatesAfterAnExternalHarnessRepair() async {
         let failures: [(Error, PullRequestReviewTeamValidationStatus)] = [
             (ReviewTeamError.invalidOutput("CLI needs repair"), .invalid("CLI needs repair")),
             (CancellationError(), .failed("Review team check was interrupted. Try again."))
@@ -103,21 +103,21 @@ extension PullRequestsViewModelTests {
         for (error, expectedStatus) in failures {
             let settingsService = InMemorySettingsService()
             settingsService.update { $0.pullRequestReviewMode = .reviewTeam }
-            let isProviderReady = FlagBox()
-            let canRepairProvider = FlagBox()
+            let isHarnessReady = FlagBox()
+            let canRepairHarness = FlagBox()
             var validationCalls = 0
             var refreshCalls = 0
             let pane = await openedReviewPane(
                 settingsService: settingsService,
                 reviewTeamSettingsValidator: { _ in
                     validationCalls += 1
-                    if !isProviderReady.value {
+                    if !isHarnessReady.value {
                         throw error
                     }
                 },
-                refreshReviewTeamProviderDiscovery: {
+                refreshReviewTeamHarnessDiscovery: {
                     refreshCalls += 1
-                    isProviderReady.value = canRepairProvider.value
+                    isHarnessReady.value = canRepairHarness.value
                 }
             )
             await pane.viewModel.reviewTeamValidationTask?.value
@@ -126,7 +126,7 @@ extension PullRequestsViewModelTests {
             let refreshesBeforeRepair = refreshCalls
             let savedSettings = settingsService.current
 
-            canRepairProvider.value = true
+            canRepairHarness.value = true
             pane.viewModel.requestDetails(pane.id, origin: .screen)
             await pane.viewModel.reviewTeamValidationTask?.value
 
@@ -153,7 +153,7 @@ extension PullRequestsViewModelTests {
                 return makeAgenticThreadStart(conversationID: "review-\(request.identifier.number)")
             },
             reviewTeamSettingsValidator: { _ in validationCalls += 1 },
-            refreshReviewTeamProviderDiscovery: { refreshCalls += 1 }
+            refreshReviewTeamHarnessDiscovery: { refreshCalls += 1 }
         )
         await viewModel.reviewTeamValidationTask?.value
 
@@ -199,7 +199,7 @@ extension PullRequestsViewModelTests {
                     await replacementGate.wait()
                 }
             },
-            refreshReviewTeamProviderDiscovery: { refreshCalls += 1 }
+            refreshReviewTeamHarnessDiscovery: { refreshCalls += 1 }
         )
         // A duplicate initial validation would be held at replacementGate; report it without awaiting that task.
         await waitFor { pane.session?.pullRequestReviewTeamValidationStatus == .valid }
@@ -231,7 +231,7 @@ extension PullRequestsViewModelTests {
         let pane = await openedReviewPane(
             settingsService: settingsService,
             reviewTeamSettingsValidator: { _ in events.append("validate") },
-            refreshReviewTeamProviderDiscovery: {
+            refreshReviewTeamHarnessDiscovery: {
                 events.append("refresh")
                 await refreshGate.wait()
             }

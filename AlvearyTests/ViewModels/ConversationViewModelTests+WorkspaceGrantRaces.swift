@@ -141,7 +141,7 @@ extension ConversationViewModelTests {
 private func attachGrantRaceReuseSchedule(_ fixture: ConversationViewModelTestFixture) throws -> ScheduledTask {
     let schedule = ScheduledTask(
         title: "Rolling schedule", prompt: "Check the project", destination: .reusedThread,
-        recurrence: .daily(hour: 9, minute: 0), timeZoneIdentifier: "UTC", providerID: "claude",
+        recurrence: .daily(hour: 9, minute: 0), timeZoneIdentifier: "UTC", harnessID: "claude",
         workspaceKind: .project, workspaceStrategy: .localCheckout, project: fixture.project,
         workspaceSnapshot: fixture.thread.workspaceSnapshot
     )

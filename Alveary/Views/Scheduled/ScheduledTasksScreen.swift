@@ -32,7 +32,7 @@ struct ScheduledTasksScreen: View {
             let visibleTasks = viewModel.tasks(for: selectedFilter)
             let errorMessage = viewModel.errorMessage
             let pendingRunNowIDs = viewModel.pendingRunNowDefinitionIDs
-            let providerNames = providerDisplayNames(for: visibleTasks)
+            let harnessNames = harnessDisplayNames(for: visibleTasks)
             let selectedDefinitionID = activeEditDefinitionID
             let suggestions = viewModel.firstTaskSuggestions
 
@@ -69,8 +69,8 @@ struct ScheduledTasksScreen: View {
                                     ForEach(visibleTasks) { task in
                                         ScheduledTaskCard(
                                             task: task,
-                                            providerName: providerNames[task.providerID]
-                                                ?? task.providerID.capitalized,
+                                            harnessName: harnessNames[task.harnessID]
+                                                ?? task.harnessID.capitalized,
                                             isRunNowPending: pendingRunNowIDs.contains(task.id),
                                             isSelected: task.id == selectedDefinitionID,
                                             onOpen: {
@@ -149,12 +149,12 @@ struct ScheduledTasksScreen: View {
         "scheduled-suggestion-\(suggestion.id)"
     }
 
-    /// One entry per distinct provider, resolved above the `GeometryReader` so the rows do
-    /// not each re-read `providerStatuses` on every frame. The call-site fallback repeats
-    /// `providerDisplayName`'s own last resort, so a miss cannot render differently.
-    private func providerDisplayNames(for tasks: [ScheduledTaskRowPresentation]) -> [String: String] {
-        Set(tasks.map(\.providerID)).reduce(into: [:]) { names, providerID in
-            names[providerID] = viewModel.providerDisplayName(for: providerID)
+    /// One entry per distinct harness, resolved above the `GeometryReader` so the rows do
+    /// not each re-read `harnessStatuses` on every frame. The call-site fallback repeats
+    /// `harnessDisplayName`'s own last resort, so a miss cannot render differently.
+    private func harnessDisplayNames(for tasks: [ScheduledTaskRowPresentation]) -> [String: String] {
+        Set(tasks.map(\.harnessID)).reduce(into: [:]) { names, harnessID in
+            names[harnessID] = viewModel.harnessDisplayName(for: harnessID)
         }
     }
 

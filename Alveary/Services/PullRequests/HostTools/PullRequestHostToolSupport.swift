@@ -292,7 +292,7 @@ enum PullRequestHostToolServiceError: LocalizedError, Equatable {
     case unsupportedTool
     case missingRequestIdentity
     case sourceConversationUnavailable
-    case sourceProviderMismatch
+    case sourceHarnessMismatch
     case automatedRunCannotClosePullRequest
     case pullRequestsDisabled
     case invalidPullRequestURL(String)
@@ -325,8 +325,8 @@ enum PullRequestHostToolServiceError: LocalizedError, Equatable {
             "Alveary could not verify this pull request request for safe retry handling."
         case .sourceConversationUnavailable:
             "Alveary pull request tools require an active, saved Project or Task conversation."
-        case .sourceProviderMismatch:
-            "The pull request request provider does not match its source conversation."
+        case .sourceHarnessMismatch:
+            "The pull request request harness does not match its source conversation."
         case .automatedRunCannotClosePullRequest:
             "Automated scheduled runs cannot close pull requests. Leave it open and tell the user " +
                 "why it should be closed."

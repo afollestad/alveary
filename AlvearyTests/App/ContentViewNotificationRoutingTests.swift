@@ -39,7 +39,7 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
         XCTAssertTrue(fixture.appState.selectedConversationIDs.isEmpty)
     }
 
-    func testOpenConversationAndActiveProviderIgnoreDraftThread() throws {
+    func testOpenConversationAndActiveHarnessIgnoreDraftThread() throws {
         let fixture = try RoutingTestFixture()
         let conversation = fixture.seedConversation(threadName: "Draft", archivedAt: nil, isDraft: true)
         let thread = try XCTUnwrap(conversation.thread)
@@ -121,9 +121,9 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
 
     func testActiveConversationProviderReturnsNilWhenNoThreadSelected() throws {
         let fixture = try RoutingTestFixture()
-        let provider = makeActiveConversationProvider(for: fixture.appState, modelContext: fixture.context)
+        let harness = makeActiveConversationProvider(for: fixture.appState, modelContext: fixture.context)
 
-        XCTAssertNil(provider())
+        XCTAssertNil(harness())
     }
 
     func testActiveConversationProviderReturnsSelectedConversationIdForThread() throws {
@@ -133,9 +133,9 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
         fixture.appState.selectedConversationIDs[thread.persistentModelID] = conversation.persistentModelID
         fixture.appState.selectedSidebarItem = .thread(thread)
 
-        let provider = makeActiveConversationProvider(for: fixture.appState, modelContext: fixture.context)
+        let harness = makeActiveConversationProvider(for: fixture.appState, modelContext: fixture.context)
 
-        XCTAssertEqual(provider(), conversation.id)
+        XCTAssertEqual(harness(), conversation.id)
     }
 
     func testActiveConversationProviderReleasesAppStateWeakly() throws {
@@ -147,11 +147,11 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
         strongAppState?.selectedConversationIDs[thread.persistentModelID] = conversation.persistentModelID
         strongAppState?.selectedSidebarItem = .thread(thread)
 
-        let provider = makeActiveConversationProvider(for: strongAppState!, modelContext: fixture.context)
-        XCTAssertEqual(provider(), conversation.id)
+        let harness = makeActiveConversationProvider(for: strongAppState!, modelContext: fixture.context)
+        XCTAssertEqual(harness(), conversation.id)
 
         strongAppState = nil
-        XCTAssertNil(provider())
+        XCTAssertNil(harness())
     }
 
     func testAppNavigationIsBlockedWhileVoiceModelModalIsPresented() {

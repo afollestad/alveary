@@ -82,7 +82,7 @@ struct TriggerSessionHandoffActionKey: FocusedValueKey {
 
 #if DEBUG
 /// Published by `ChatView` so the debug-only Developer menu can copy the
-/// generated provider transport body for staged app shots without sending.
+/// generated harness transport body for staged app shots without sending.
 struct CopyAppShotPreviewActionKey: FocusedValueKey {
     typealias Value = @MainActor () -> Void
 }

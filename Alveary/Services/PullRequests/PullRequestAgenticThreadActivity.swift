@@ -5,11 +5,11 @@ import Foundation
 /// The launcher marks preparation pending before preflight, attaches the created task, and arms a
 /// startup grace after dispatch. The first busy or waiting-for-user signal latches the route running;
 /// only a subsequent idle, neutral, stopped, or error signal ends it. An initial idle signal cannot
-/// end a task whose provider has not started yet. Grace expiry clears a dispatched turn that never starts.
+/// end a task whose harness has not started yet. Grace expiry clears a dispatched turn that never starts.
 ///
 /// Attach and grace expiry re-read the live signal because a notification may arrive before the
 /// conversation is attached. Collective work instead ends when its coordinator releases the route;
-/// unrelated provider-turn completion cannot end a team review.
+/// unrelated harness-turn completion cannot end a team review.
 @MainActor
 final class PullRequestAgenticThreadActivity {
     struct Key: Hashable {
@@ -41,7 +41,7 @@ final class PullRequestAgenticThreadActivity {
 
     private let notificationCenter: NotificationCenter
     /// How long a dispatched prompt has to produce a turn before its entry is dropped. Long by
-    /// default because it spans a provider process launch; an init parameter so tests need not sleep.
+    /// default because it spans a harness process launch; an init parameter so tests need not sleep.
     private let startupGrace: Duration
     /// The runtime's current signal for a conversation. A closure rather than `AgentsManager` so a
     /// test can drive it without a runtime, matching how this scope injects `directoryExists`.
@@ -142,7 +142,7 @@ final class PullRequestAgenticThreadActivity {
         remove(key)
     }
 
-    /// Collective work ends at the app-owned staging boundary, never at an unrelated provider turn.
+    /// Collective work ends at the app-owned staging boundary, never at an unrelated harness turn.
     func setCollectiveWorking(_ working: Bool, identifier: PullRequestIdentifier, conversationID: String) {
         let key = Key(identifier: identifier, kind: .review)
         guard working else {

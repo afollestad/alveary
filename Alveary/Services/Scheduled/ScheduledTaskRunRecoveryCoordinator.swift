@@ -76,7 +76,7 @@ final class ScheduledTaskRunRecoveryCoordinator {
     }
 
     /// Synchronously marks in-flight scheduled runs and flushes their shared conversation
-    /// controllers. Callers may terminate the returned provider processes only after this returns.
+    /// controllers. Callers may terminate the returned harness processes only after this returns.
     func prepareForTermination(at actionDate: Date) throws -> ScheduledTaskTerminationPreparation {
         try flushPreexistingContextChanges()
         let runs = try modelContext.fetch(FetchDescriptor<ScheduledTaskRun>()).filter { run in
@@ -288,7 +288,7 @@ private extension ScheduledTaskRunRecoveryCoordinator {
             thread.customSection = section
         }
         let conversation = Conversation(
-            provider: run.providerIDSnapshot,
+            harness: run.harnessIDSnapshot,
             isMain: true,
             displayOrder: 0,
             isUnread: true,

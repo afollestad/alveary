@@ -12,7 +12,7 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
         let request = try parser.parseCreate(arguments: [
             "project_path": .string("/tmp/project"),
             "name": .string("Release checklist"),
-            "provider": .string("codex"),
+            "harness": .string("codex"),
             "model": .string("gpt-5"),
             "effort": .string("high"),
             "permission_mode": .string("never"),
@@ -22,7 +22,7 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
 
         XCTAssertEqual(request.workspace, .project(path: "/tmp/project"))
         XCTAssertEqual(request.name, "Release checklist")
-        XCTAssertEqual(request.provider, "codex")
+        XCTAssertEqual(request.harness, "codex")
         XCTAssertEqual(request.model, "gpt-5")
         XCTAssertEqual(request.effort, "high")
         XCTAssertEqual(request.permissionMode, "never")
@@ -31,6 +31,12 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
     }
 
     func testCreateRejectsUnknownKeysAndWrongTypes() {
+        assertInvalid(["provider": .string("codex")], containing: "unsupported field(s): provider")
+        assertInvalid(
+            ["harness": .string("codex"), "provider": .string("claude")],
+            containing: "unsupported field(s): provider"
+        )
+        assertInvalid(["harness": .number(7)], containing: "arguments.harness must be a string.")
         assertInvalid(
             ["project_path": .string("/tmp/project"), "workspace": .string("private")],
             containing: "unsupported field(s): workspace"
@@ -129,10 +135,12 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
         let base: [String: AgentCLIKit.JSONValue] = [
             "project_path": .string("/tmp/project"),
             "name": .string("Release checklist"),
+            "harness": .string("claude"),
             "pinned": .bool(true)
         ]
         let reordered: [String: AgentCLIKit.JSONValue] = [
             "pinned": .bool(true),
+            "harness": .string("claude"),
             "name": .string("Release checklist"),
             "project_path": .string("/tmp/project")
         ]
@@ -144,7 +152,7 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
             base.merging(["name": .string("Other")]) { _, new in new },
             base.merging(["pinned": .bool(false)]) { _, new in new },
             base.merging(["initial_prompt": .string("Go")]) { _, new in new },
-            base.merging(["provider": .string("codex")]) { _, new in new }
+            base.merging(["harness": .string("codex")]) { _, new in new }
         ] {
             XCTAssertNotEqual(try parser.parseCreate(arguments: changed).canonicalPayloadHash, baseHash)
         }

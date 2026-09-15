@@ -42,7 +42,7 @@ final class GoalElapsedDisplayClock {
 
     private func synchronizeActive(_ snapshot: AgentGoalSnapshot, at currentTime: TimeInterval) -> Int {
         let currentState = state
-        // Providers do not expose a stable goal ID today, so the display clock
+        // Harnesses do not expose a stable goal ID today, so the display clock
         // uses objective plus terminal/no-goal transitions as its UI identity.
         let startsNewGoal = currentState == nil
             || currentState?.objective != snapshot.objective
@@ -53,8 +53,8 @@ final class GoalElapsedDisplayClock {
             elapsed = max(snapshot.elapsedSeconds ?? 0, 0)
         } else {
             let currentDisplayed = currentState.flatMap { displayedElapsed(at: currentTime, state: $0) }
-            if let providerElapsed = snapshot.elapsedSeconds {
-                elapsed = max(providerElapsed, currentDisplayed ?? providerElapsed, 0)
+            if let harnessElapsed = snapshot.elapsedSeconds {
+                elapsed = max(harnessElapsed, currentDisplayed ?? harnessElapsed, 0)
             } else {
                 elapsed = max(currentDisplayed ?? 0, 0)
             }

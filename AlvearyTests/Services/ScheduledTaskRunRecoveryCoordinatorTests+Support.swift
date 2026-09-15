@@ -191,7 +191,7 @@ func makeRecoveryScheduledTaskRun(
         promptSnapshot: "Run scheduled work.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "claude",
+        harnessIDSnapshot: "claude",
         effortSnapshot: "medium",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .privateWorkspace,

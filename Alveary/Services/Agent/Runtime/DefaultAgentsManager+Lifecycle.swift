@@ -86,12 +86,12 @@ extension DefaultAgentsManager {
         try await startFreshSessionWithAgentCLIKit(conversationId: conversationId, config: config)
     }
 
-    /// Removes Alveary's session binding and any reusable approvals tied to that provider session.
+    /// Removes Alveary's session binding and any reusable approvals tied to that harness session.
     func finalizeSessionRemoval(for conversationId: String) async {
         if await sessionManager.hasSession(for: conversationId) {
             let sessionId = await sessionManager.sessionId(for: conversationId)
             await claudeApprovalPersistenceStore.removeSessionApprovals(
-                providerId: "claude",
+                harnessId: "claude",
                 conversationId: conversationId,
                 sessionId: sessionId
             )
@@ -104,7 +104,7 @@ extension DefaultAgentsManager {
         pendingSessionRemovalIds.remove(conversationId)
     }
 
-    /// Updates Alveary's local session binding and clears durable approvals for the replaced provider session.
+    /// Updates Alveary's local session binding and clears durable approvals for the replaced harness session.
     func updateConversationSessionID(
         _ sessionId: String,
         conversationId: String
@@ -113,7 +113,7 @@ extension DefaultAgentsManager {
             let previousSessionId = await sessionManager.sessionId(for: conversationId)
             if previousSessionId != sessionId {
                 await claudeApprovalPersistenceStore.removeSessionApprovals(
-                    providerId: "claude",
+                    harnessId: "claude",
                     conversationId: conversationId,
                     sessionId: previousSessionId
                 )

@@ -8,7 +8,7 @@ extension ThreadDetailView {
 
         return [
             String(describing: context.threadID),
-            context.providerID,
+            context.harnessID,
             context.canonicalProjectPath,
             String(thread.hasCompletedInitialSetup)
         ].joined(separator: "|")
@@ -23,8 +23,8 @@ extension ThreadDetailView {
         }
 
         isCheckingProjectTrust = true
-        let isTrusted = await providerSetup.isTrustedProject(
-            providerId: context.providerID,
+        let isTrusted = await harnessSetup.isTrustedProject(
+            harnessId: context.harnessID,
             workingDirectory: context.canonicalProjectPath
         )
         guard !Task.isCancelled,
@@ -39,16 +39,16 @@ extension ThreadDetailView {
         }
 
         if settingsService.current.autoTrustProjects {
-            await providerSetup.trustProject(
-                providerId: context.providerID,
+            await harnessSetup.trustProject(
+                harnessId: context.harnessID,
                 workingDirectory: context.canonicalProjectPath
             )
             guard !Task.isCancelled,
                   isVisibleThreadContext(context) else {
                 return
             }
-            let isTrustedAfterWrite = await providerSetup.isTrustedProject(
-                providerId: context.providerID,
+            let isTrustedAfterWrite = await harnessSetup.isTrustedProject(
+                harnessId: context.harnessID,
                 workingDirectory: context.canonicalProjectPath
             )
             guard !Task.isCancelled,
@@ -77,8 +77,8 @@ extension ThreadDetailView {
         }
 
         isCheckingProjectTrust = true
-        await providerSetup.trustProject(
-            providerId: prompt.providerID,
+        await harnessSetup.trustProject(
+            harnessId: prompt.harnessID,
             workingDirectory: prompt.canonicalProjectPath
         )
         guard !Task.isCancelled,
@@ -86,8 +86,8 @@ extension ThreadDetailView {
             return
         }
 
-        let isTrusted = await providerSetup.isTrustedProject(
-            providerId: prompt.providerID,
+        let isTrusted = await harnessSetup.isTrustedProject(
+            harnessId: prompt.harnessID,
             workingDirectory: prompt.canonicalProjectPath
         )
         guard !Task.isCancelled,
@@ -144,7 +144,7 @@ extension ThreadDetailView {
             return
         }
 
-        let updates = await providerSetup.projectTrustUpdates()
+        let updates = await harnessSetup.projectTrustUpdates()
         for await _ in updates {
             guard !Task.isCancelled else {
                 return
@@ -161,13 +161,13 @@ extension ThreadDetailView {
             return nil
         }
 
-        let providerID = conversation.provider ?? settingsService.current.defaultProvider
+        let harnessID = conversation.harness ?? settingsService.current.defaultHarness
 
         return ProjectTrustPrompt(
             threadID: thread.persistentModelID,
             canonicalProjectPath: source.path,
             projectName: thread.project?.name ?? source.name,
-            providerID: providerID
+            harnessID: harnessID
         )
     }
 
@@ -194,8 +194,8 @@ extension ThreadDetailView {
     }
 
     func cachedProjectTrustStatus(for prompt: ProjectTrustPrompt) -> Bool? {
-        providerSetup.cachedProjectTrustStatus(
-            providerId: prompt.providerID,
+        harnessSetup.cachedProjectTrustStatus(
+            harnessId: prompt.harnessID,
             workingDirectory: prompt.canonicalProjectPath
         )
     }

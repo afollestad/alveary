@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// A created or reused task, available before linking and provider dispatch finish.
+/// A created or reused task, available before linking and harness dispatch finish.
 struct PullRequestAgenticThreadStart {
     /// The task's sole-main-conversation id, also used by host thread tools.
     let conversationID: String
@@ -122,7 +122,7 @@ extension PullRequestAgenticThreadService {
         acceptedLaunches[conversationID]?.dispatch
     }
 
-    /// Checkpoint the created identity before scheduling any network work or provider turn.
+    /// Checkpoint the created identity before scheduling any network work or harness turn.
     func preparedStart(
         destination target: PullRequestAgenticThreadDestination,
         identifier: PullRequestIdentifier, kind: Kind,

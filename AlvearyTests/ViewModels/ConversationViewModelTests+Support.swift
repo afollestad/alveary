@@ -100,7 +100,7 @@ actor MockAgentsManager: AgentsManager {
         let additionalApprovals: [ToolApprovalRequest]
         let sessionApproval: AgentSessionApprovalGrant?
         let config: AgentSpawnConfig
-        let requiresProviderRestart: Bool
+        let requiresHarnessRestart: Bool
 
         var decision: ClaudeToolApprovalDecision { resolution.decision }
         var updatedInput: String? { resolution.updatedInput }
@@ -122,7 +122,7 @@ actor MockAgentsManager: AgentsManager {
     private var failsDestroyWhenCurrentTaskIsCancelled = false
     private var pausesNextSpawn = false
     /// Runs inside `spawn` before it can fail, so a test can reproduce the runtime's ordering:
-    /// installing the spawn's event buffer arms the turn before the provider process starts.
+    /// installing the spawn's event buffer arms the turn before the harness process starts.
     private var spawnPrologue: (@MainActor @Sendable () -> Void)?
     private var spawnEntered = false
     private var spawnCancellationObserved = false
@@ -305,7 +305,7 @@ actor MockAgentsManager: AgentsManager {
                 additionalApprovals: request.additionalApprovals,
                 sessionApproval: request.sessionApproval,
                 config: request.config,
-                requiresProviderRestart: request.requiresProviderRestart
+                requiresHarnessRestart: request.requiresHarnessRestart
             )
         )
         await waitForApprovalResolutionIfNeeded()
@@ -317,12 +317,12 @@ actor MockAgentsManager: AgentsManager {
     }
 
     func toolApprovalSelection(
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) -> ToolApprovalSelection? {
         toolApprovalSelectionStorage[toolApprovalSelectionKey(
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: conversationId,
             sessionId: sessionId
         )]
@@ -330,12 +330,12 @@ actor MockAgentsManager: AgentsManager {
 
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) {
         toolApprovalSelectionStorage[toolApprovalSelectionKey(
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: conversationId,
             sessionId: sessionId
         )] = selection
@@ -612,8 +612,8 @@ actor MockAgentsManager: AgentsManager {
     func deferredDiscardCalls() -> [String] { recordedDeferredDiscardCalls }
     func refreshStatusCalls() -> [String] { recordedRefreshStatusCalls }
 
-    private func toolApprovalSelectionKey(providerId: String, conversationId: String, sessionId: String) -> String {
-        "\(providerId)|\(conversationId)|\(sessionId)"
+    private func toolApprovalSelectionKey(harnessId: String, conversationId: String, sessionId: String) -> String {
+        "\(harnessId)|\(conversationId)|\(sessionId)"
     }
 
     private func recordSubscriptionTermination() {

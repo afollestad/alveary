@@ -5,7 +5,7 @@ import Foundation
 
 actor PathResolvingLaunchRecorder {
     struct Launch: Equatable, Sendable {
-        let resumedProviderSessionID: String?
+        let resumedHarnessSessionID: String?
         let forksSession: Bool
     }
 
@@ -16,7 +16,7 @@ actor PathResolvingLaunchRecorder {
         spawnConfig: AgentCLIKit.AgentSpawnConfig
     ) {
         launches.append(Launch(
-            resumedProviderSessionID: resumedSession?.providerSessionId.rawValue,
+            resumedHarnessSessionID: resumedSession?.harnessSessionId.rawValue,
             forksSession: spawnConfig.forkSession
         ))
     }
@@ -26,10 +26,10 @@ actor PathResolvingLaunchRecorder {
     }
 }
 
-struct PathResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+struct PathResolvingAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let executableName: String
     let launchRecorder: PathResolvingLaunchRecorder?
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -82,23 +82,23 @@ actor AgentInteractionResolutionRecorder {
     }
 }
 
-struct ResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let providerId: AgentCLIKit.AgentProviderID
+struct ResolvingAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let harnessId: AgentCLIKit.AgentHarnessID
     let resolutionRecorder: AgentInteractionResolutionRecorder?
 
     init(
-        providerId: AgentCLIKit.AgentProviderID = .claude,
+        harnessId: AgentCLIKit.AgentHarnessID = .claude,
         resolutionRecorder: AgentInteractionResolutionRecorder? = nil
     ) {
-        self.providerId = providerId
+        self.harnessId = harnessId
         self.resolutionRecorder = resolutionRecorder
     }
 
-    var definition: AgentCLIKit.AgentProviderDefinition {
-        AgentCLIKit.AgentProviderDefinition(
-            id: providerId,
-            displayName: providerId.rawValue.capitalized,
-            executableNames: [providerId.rawValue]
+    var definition: AgentCLIKit.AgentHarnessDefinition {
+        AgentCLIKit.AgentHarnessDefinition(
+            id: harnessId,
+            displayName: harnessId.rawValue.capitalized,
+            executableNames: [harnessId.rawValue]
         )
     }
 
@@ -146,8 +146,8 @@ struct ResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     }
 }
 
-struct SteeringEchoAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+struct SteeringEchoAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -211,14 +211,14 @@ actor GoalStartingAgentCLIKitRecorder {
     }
 }
 
-struct GoalStartingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+struct GoalStartingAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let recorder: GoalStartingAgentCLIKitRecorder
 
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .codex,
         displayName: "Codex",
         executableNames: ["codex"],
-        capabilities: AgentCLIKit.AgentProviderCapabilities(
+        capabilities: AgentCLIKit.AgentHarnessCapabilities(
             supportsGoalMode: true,
             supportsExistingSessionGoalStart: true
         )
@@ -243,15 +243,15 @@ struct GoalStartingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
         Data()
     }
 
-    func startGoal(_ objective: String, context: AgentCLIKit.AgentProviderGoalStartContext) async throws {
+    func startGoal(_ objective: String, context: AgentCLIKit.AgentHarnessGoalStartContext) async throws {
         await recorder.record(objective: objective, conversationId: context.conversationId.rawValue)
     }
 }
 
 /// Echoes `tasks:<count>`, `done:<task>`, and `active:<turn>` sentinels back as events and ends the
 /// host turn after each, so a turn can finish while background tasks stay live.
-struct BackgroundTaskAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+struct BackgroundTaskAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]

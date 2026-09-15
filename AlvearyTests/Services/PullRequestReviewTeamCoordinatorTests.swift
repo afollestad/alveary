@@ -75,7 +75,7 @@ struct PullRequestReviewTeamCoordinatorTests {
         var failed = try fixture.makeRun()
         failed.phase = .failed
         try fixture.coordinator.persist(failed)
-        let other = Conversation(id: "newer-run", provider: "codex", thread: fixture.conversation.thread)
+        let other = Conversation(id: "newer-run", harness: "codex", thread: fixture.conversation.thread)
         fixture.container.mainContext.insert(other)
         let unfinished = try fixture.makeRun(conversationID: other.id)
         try fixture.coordinator.persist(unfinished)
@@ -103,7 +103,7 @@ struct PullRequestReviewTeamCoordinatorTests {
     @Test(arguments: ["Edited\n\nSummary", "", nil])
     func `staging receipt prevents recreation and repairs superseded outcomes once`(body: String?) async throws {
         let fixture = try ReviewCoordinatorFixture()
-        let owner = Conversation(id: "old-owner", provider: "codex", thread: fixture.conversation.thread)
+        let owner = Conversation(id: "old-owner", harness: "codex", thread: fixture.conversation.thread)
         fixture.container.mainContext.insert(owner)
         var run = try fixture.makeRun(prior: PullRequestCollectiveReviewStagingSnapshot(
             proposalOwnerConversationID: owner.id, proposalID: "old-proposal", proposalContentHash: "old-content",

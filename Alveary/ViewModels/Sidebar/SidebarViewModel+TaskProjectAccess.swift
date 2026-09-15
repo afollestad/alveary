@@ -44,7 +44,7 @@ extension SidebarViewModel {
         guard let workspace = thread.resolvedWorkspaceDescriptor else {
             throw SidebarViewModelError.threadMissingTaskWorkspace
         }
-        // Each conversation launches its own provider process, so a multi-conversation Task would
+        // Each conversation launches its own harness process, so a multi-conversation Task would
         // need every one restarted. Refuse instead, matching composer-driven grant editing.
         guard thread.conversations.count == 1 else {
             throw SidebarViewModelError.taskProjectAccessUnavailable(
@@ -77,9 +77,9 @@ extension SidebarViewModel {
 
     /// Adds a project's folder to a Task's workspace grants.
     ///
-    /// The Task stays a Task — it keeps its own workspace, its provider session, and its Task-mode
+    /// The Task stays a Task — it keeps its own workspace, its harness session, and its Task-mode
     /// behavior — but it now renders as one of the project's children and can reach that folder.
-    /// Because the working directory is untouched, the provider resumes its existing session, so
+    /// Because the working directory is untouched, the harness resumes its existing session, so
     /// history survives; the runtime is only suspended so the next turn relaunches with the new root.
     func moveTaskIntoProject(
         _ threadID: PersistentIdentifier,
@@ -127,7 +127,7 @@ extension SidebarViewModel {
         refreshThreadOrder(animated: true)
 
         // A live process was launched without the new root, so retire it non-destructively. Suspend
-        // preserves the provider session and binding, letting the next turn resume with history.
+        // preserves the harness session and binding, letting the next turn resume with history.
         for conversationID in conversationIDs {
             await agentsManager.suspendRuntime(conversationId: conversationID)
         }

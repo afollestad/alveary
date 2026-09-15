@@ -5,13 +5,13 @@ struct ContentViewDependencies {
     let settingsService: SettingsService
     let shellRunner: ShellRunner
     let gitHubCLI: GitHubCLIService
-    let providerDetection: any ProviderDetectionService
+    let harnessDetection: any HarnessDetectionService
     /// The cached decorator, so thread creation and the composer do not each re-probe.
-    let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
-    /// The same object, concrete, for the Agents settings screen's invalidation.
-    let providerDiscoveryCache: CachingAgentProviderDiscoveryService
+    let harnessDiscovery: any AgentCLIKit.AgentHarnessDiscoveryService
+    /// The same object, concrete, for the Harnesses settings screen's invalidation.
+    let harnessDiscoveryCache: CachingAgentHarnessDiscoveryService
     let agentRegistry: AgentRegistry
-    let providerRegistry: ProviderRegistry
+    let harnessRegistry: HarnessRegistry
     let skillsService: SkillsService
     let globalAgentInstructionsService: GlobalAgentInstructionsService
     let mcpService: MCPService
@@ -26,9 +26,9 @@ struct ContentViewDependencies {
     let scheduledTaskMutationService: ScheduledTaskMutationService
     let scheduledTaskSchedulerCoordinator: ScheduledTaskSchedulerCoordinator
     let scheduledTaskLifecycleCoordinator: ScheduledTaskLifecycleCoordinator
-    let providerSessionActions: any ProviderSessionActionService
-    let providerSetup: ProviderSetupService
-    let providerSignIn: ProviderSignInService
+    let harnessSessionActions: any HarnessSessionActionService
+    let harnessSetup: HarnessSetupService
+    let harnessSignIn: HarnessSignInService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
@@ -64,11 +64,11 @@ struct ContentViewDependencies {
             settingsService: component.settingsService,
             shellRunner: component.shellRunner,
             gitHubCLI: component.gitHubCLIService,
-            providerDetection: component.providerDetectionService,
-            providerDiscovery: component.cachedAgentProviderDiscoveryService,
-            providerDiscoveryCache: component.cachedAgentProviderDiscoveryService,
+            harnessDetection: component.harnessDetectionService,
+            harnessDiscovery: component.cachedAgentHarnessDiscoveryService,
+            harnessDiscoveryCache: component.cachedAgentHarnessDiscoveryService,
             agentRegistry: component.agentRegistry,
-            providerRegistry: component.providerRegistry,
+            harnessRegistry: component.harnessRegistry,
             skillsService: component.skillsService,
             globalAgentInstructionsService: component.globalAgentInstructionsService,
             mcpService: component.mcpService,
@@ -83,9 +83,9 @@ struct ContentViewDependencies {
             scheduledTaskMutationService: component.scheduledTaskMutationService,
             scheduledTaskSchedulerCoordinator: component.scheduledTaskSchedulerCoordinator,
             scheduledTaskLifecycleCoordinator: component.scheduledTaskLifecycleCoordinator,
-            providerSessionActions: component.providerSessionActionService,
-            providerSetup: component.providerSetupService,
-            providerSignIn: component.providerSignInService,
+            harnessSessionActions: component.harnessSessionActionService,
+            harnessSetup: component.harnessSetupService,
+            harnessSignIn: component.harnessSignInService,
             contextWindowCache: component.contextWindowCache,
             fileListManager: component.fileListManager,
             notificationManager: component.notificationManager,

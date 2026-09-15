@@ -16,7 +16,7 @@ final class ThreadHostToolService {
     /// back to a fetch per link; required in the initializer so a construction site must choose.
     let summaryHandoff: PullRequestSummaryHandoff
     let settingsService: SettingsService
-    let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
+    let harnessDiscovery: (any AgentCLIKit.AgentHarnessDiscoveryService)?
     /// Starts a created thread's first turn headlessly. Fire-and-forget: `create_thread` reports
     /// dispatch, never the turn's outcome.
     let startInitialPrompt: @MainActor (Conversation, String) -> Void
@@ -36,7 +36,7 @@ final class ThreadHostToolService {
         linkService: PullRequestLinkService,
         summaryHandoff: PullRequestSummaryHandoff,
         settingsService: SettingsService,
-        providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
+        harnessDiscovery: (any AgentCLIKit.AgentHarnessDiscoveryService)? = nil,
         startInitialPrompt: @escaping @MainActor (Conversation, String) -> Void = { _, _ in },
         deliverPrompt: @escaping @MainActor (Conversation, OutboundMessageText) async throws -> RelayedPromptDelivery,
         requestParser: ThreadHostToolRequestParser = ThreadHostToolRequestParser(),
@@ -52,7 +52,7 @@ final class ThreadHostToolService {
         self.linkService = linkService
         self.summaryHandoff = summaryHandoff
         self.settingsService = settingsService
-        self.providerDiscovery = providerDiscovery
+        self.harnessDiscovery = harnessDiscovery
         self.startInitialPrompt = startInitialPrompt
         self.deliverPrompt = deliverPrompt
         self.requestParser = requestParser
@@ -180,8 +180,8 @@ final class ThreadHostToolService {
         let source: HostToolCallSource
         do {
             source = try HostToolSourceResolver.resolveSource(context: context, in: modelContext)
-        } catch HostToolSourceError.sourceProviderMismatch {
-            throw ThreadHostToolServiceError.sourceProviderMismatch
+        } catch HostToolSourceError.sourceHarnessMismatch {
+            throw ThreadHostToolServiceError.sourceHarnessMismatch
         } catch {
             throw ThreadHostToolServiceError.sourceConversationUnavailable
         }
@@ -227,7 +227,7 @@ final class ThreadHostToolService {
         }
     }
 
-    /// The rows go into the text as well as `structuredContent`: a plain-text-fallback provider
+    /// The rows go into the text as well as `structuredContent`: a plain-text-fallback harness
     /// sees only the text, and the transcript's Output section shows the same string.
     func listText(header: String, rows: [String]) -> String {
         rows.isEmpty ? "\(header)." : "\(header):\n\(rows.joined(separator: "\n"))"

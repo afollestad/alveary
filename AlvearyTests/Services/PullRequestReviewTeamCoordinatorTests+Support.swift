@@ -23,7 +23,7 @@ final class ReviewCoordinatorFixture {
                                        configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = container.mainContext
         let thread = AgentThread(name: "Review team")
-        conversation = Conversation(id: UUID().uuidString, provider: "codex", thread: thread)
+        conversation = Conversation(id: UUID().uuidString, harness: "codex", thread: thread)
         context.insert(thread)
         context.insert(conversation)
         try context.save()
@@ -41,7 +41,7 @@ final class ReviewCoordinatorFixture {
             modelContext: context, service: service, worker: workerOverride?(worker) ?? worker, packets: packets,
             staging: PullRequestCollectiveReviewStagingService(modelContext: context, service: service, commitSave: commitSave),
             activity: PullRequestAgenticThreadActivity(currentSignal: { _ in .neutral }),
-            resolver: PullRequestReviewTeamResolver(providerDiscovery: RecordingProviderDiscoveryService(statuses: [:])),
+            resolver: PullRequestReviewTeamResolver(harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [:])),
             cancellationStore: ReviewTeamCancellationStore(rootDirectory: packetRoot.appendingPathComponent("cancellations")),
             notificationManager: notificationManager,
             historyStore: historyStore,
@@ -177,14 +177,14 @@ actor ReviewCoordinatorWorker: PullRequestReviewWorkerExecuting {
                 id: "finding-1", sourceCandidateIDs: candidates.map(\.id), path: "File0.swift", line: 1, side: "RIGHT", body: "A concrete problem."
             )]))
         case "votes":
-            if failedVoters.contains(configuration.id) { throw ReviewTeamError.invalidOutput("Provider timed out after 300 seconds") }
+            if failedVoters.contains(configuration.id) { throw ReviewTeamError.invalidOutput("Harness timed out after 300 seconds") }
             return try json(ReviewVoteReport(votes: [ReviewTeamVote(
                 voterID: "untrusted", findingID: "finding-1", decision: .agree,
                 priority: configuration.id == "lead" ? 0 : 2, rationale: "Verified against the diff."
             )]))
         default:
             await gate?.wait()
-            if failedInspectors.contains(configuration.id) { throw ReviewTeamError.invalidOutput("Provider failed") }
+            if failedInspectors.contains(configuration.id) { throw ReviewTeamError.invalidOutput("Harness failed") }
             if let leadInspectionResponse, configuration.id == "lead" {
                 return response(leadInspectionResponse)
             }

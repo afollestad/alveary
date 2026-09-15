@@ -19,7 +19,7 @@ extension AgentCLIKitEventMapperTests {
                 parentToolUseId: "parent-1",
                 callerAgent: "root"
             )),
-            providerId: .codex
+            harnessId: .codex
         ))
 
         XCTAssertEqual(events.count, 1)
@@ -67,7 +67,7 @@ extension AgentCLIKitEventMapperTests {
             taskType: "collabAgentToolCall",
             lastToolName: "spawnAgent",
             metadata: ["codex_collab_tool": .string("spawnAgent")]
-        )), providerId: .codex))
+        )), harnessId: .codex))
 
         XCTAssertTrue(events.isEmpty)
     }
@@ -99,7 +99,7 @@ extension AgentCLIKitEventMapperTests {
                 lastToolName: "waitAgent",
                 metadata: ["codex_collab_tool": .string("waitAgent")]
             )),
-            providerId: .codex
+            harnessId: .codex
         ))
         let closeEvents = AgentCLIKitEventMapper().conversationEvents(from: envelope(
             .task(AgentTaskEvent(
@@ -111,7 +111,7 @@ extension AgentCLIKitEventMapperTests {
                 status: "completed",
                 metadata: ["codex_collab_tool": .string("closeAgent")]
             )),
-            providerId: .codex
+            harnessId: .codex
         ))
 
         XCTAssertTrue(waitEvents.isEmpty)
@@ -130,7 +130,7 @@ extension AgentCLIKitEventMapperTests {
                 totalTokens: 300,
                 durationMs: 400
             )),
-            providerId: .codex
+            harnessId: .codex
         ))
 
         XCTAssertEqual(events, [

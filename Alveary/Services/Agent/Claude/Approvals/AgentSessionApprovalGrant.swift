@@ -1,4 +1,4 @@
-/// Supported matching modes for reusable provider session approvals.
+/// Supported matching modes for reusable harness session approvals.
 enum AgentSessionApprovalRuleKind: String, Sendable, Equatable, Hashable {
     /// Match a single normalized Bash command exactly.
     case bashExact
@@ -8,9 +8,9 @@ enum AgentSessionApprovalRuleKind: String, Sendable, Equatable, Hashable {
     case filePathExact
 }
 
-/// Durable reusable approval grant selected by the user for one provider session.
+/// Durable reusable approval grant selected by the user for one harness session.
 struct AgentSessionApprovalGrant: Sendable, Equatable, Hashable {
-    let providerId: String
+    let harnessId: String
     let conversationId: String
     let sessionId: String
     let matchKind: AgentSessionApprovalRuleKind

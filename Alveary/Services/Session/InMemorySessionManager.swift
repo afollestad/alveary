@@ -3,14 +3,14 @@ import Foundation
 actor InMemorySessionManager: SessionManager {
     private var entries: [String: SessionEntry] = [:]
 
-    func createEntry(conversationId: String, cwd: String, providerId: String) -> Bool {
+    func createEntry(conversationId: String, cwd: String, harnessId: String) -> Bool {
         let normalizedCWD = CanonicalPath.normalize(cwd)
         if let existing = entries[conversationId] {
-            let shouldPreserveIdentity = existing.cwd == normalizedCWD && existing.providerId == providerId
+            let shouldPreserveIdentity = existing.cwd == normalizedCWD && existing.harnessId == harnessId
             let sessionId = shouldPreserveIdentity ? existing.appSessionId : UUID().uuidString
             entries[conversationId] = SessionEntry(
                 cwd: normalizedCWD,
-                providerId: providerId,
+                harnessId: harnessId,
                 appSessionId: sessionId,
                 launchSessionId: sessionId
             )
@@ -20,7 +20,7 @@ actor InMemorySessionManager: SessionManager {
         let sessionId = UUID().uuidString
         entries[conversationId] = SessionEntry(
             cwd: normalizedCWD,
-            providerId: providerId,
+            harnessId: harnessId,
             appSessionId: sessionId,
             launchSessionId: sessionId
         )
@@ -42,12 +42,12 @@ actor InMemorySessionManager: SessionManager {
         return entry.appSessionId
     }
 
-    func conversationId(forSessionId sessionId: String, cwd: String, providerId: String) -> String? {
+    func conversationId(forSessionId sessionId: String, cwd: String, harnessId: String) -> String? {
         let normalizedCWD = CanonicalPath.normalize(cwd)
         return entries.first { _, entry in
             (entry.appSessionId == sessionId || entry.launchSessionId == sessionId) &&
                 entry.cwd == normalizedCWD &&
-                entry.providerId == providerId
+                entry.harnessId == harnessId
         }?.key
     }
 

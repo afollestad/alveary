@@ -39,7 +39,7 @@ extension ConversationViewModel {
         }
 
         let settingsContext = spawnSettingsContext(settingsSource: settingsSource)
-        let providerId = settingsContext.liveConfig?.providerId ?? dbConversation.provider ?? settingsService.current.defaultProvider
+        let harnessId = settingsContext.liveConfig?.harnessId ?? dbConversation.harness ?? settingsService.current.defaultHarness
         let workingDirectory = overrideWorkingDirectory
             ?? settingsContext.liveConfig?.workingDirectory
             ?? dbConversation.thread?.primaryWorkingDirectory
@@ -67,13 +67,13 @@ extension ConversationViewModel {
         )
 
         return AgentSpawnConfig(
-            providerId: providerId,
+            harnessId: harnessId,
             workingDirectory: workingDirectory,
             permissionMode: nonPlanPermissionMode(permissionModeOverride ?? dbConversation.thread?.permissionMode),
             planModeEnabled: planModeOverride ?? dbConversation.thread?.planModeEnabled ?? false,
             model: modelAndEffort.model,
             effort: modelAndEffort.effort,
-            reasoningSummaryMode: providerId == "codex" ? .concise : nil,
+            reasoningSummaryMode: harnessId == "codex" ? .concise : nil,
             speedMode: speedModeOverride ?? dbConversation.thread?.normalizedSpeedMode ?? .standard,
             initialPrompt: initialPrompt,
             initialPromptAttachments: initialPromptAttachments,
@@ -332,7 +332,7 @@ extension ConversationViewModel {
         guard shouldStageSessionSettingChange else {
             return false
         }
-        // Active turns and deferred approvals keep their current provider settings;
+        // Active turns and deferred approvals keep their current harness settings;
         // the persisted settings are staged into the next turn's spawn config.
         refreshPendingSessionSettingsChange(from: dbThread, invalidatesContextWindow: invalidatesContextWindow)
         return true

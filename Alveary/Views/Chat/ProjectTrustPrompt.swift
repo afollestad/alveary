@@ -7,7 +7,7 @@ struct ProjectTrustPrompt: Equatable {
     let threadID: PersistentIdentifier
     let canonicalProjectPath: String
     let projectName: String
-    let providerID: String
+    let harnessID: String
 
     var displayProjectPath: String {
         CanonicalPath.abbreviateHomeDirectory(canonicalProjectPath)
@@ -29,7 +29,7 @@ struct ProjectTrustPromptView: View {
                 Text("Trust this project?")
                     .font(.title3.weight(.semibold))
 
-                Text("This provider needs the project marked as trusted before the thread can start.")
+                Text("This harness needs the project marked as trusted before the thread can start.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

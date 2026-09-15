@@ -97,7 +97,7 @@ private extension PullRequestReviewProposalWidgetParsing {
         return comments.count
     }
 
-    /// Providers surface a host tool's result differently: Claude emits
+    /// Harnesses surface a host tool's result differently: Claude emits
     /// `JSON.stringify(structuredContent)` while Codex emits the plain text fallback. Only an
     /// explicit error means failure — a result that will not parse still opened a proposal, which
     /// the transcript then resolves by conversation rather than by an id it never received.

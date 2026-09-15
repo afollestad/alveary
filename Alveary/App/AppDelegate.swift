@@ -81,13 +81,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
-            // Both fan out subprocesses per provider, and neither reads the other's result, so
+            // Both fan out subprocesses per harness, and neither reads the other's result, so
             // running them in series only widens the window in which the session's first New
             // Thread still pays for discovery. Scheduled activation stays behind both.
-            let providerDetection = dependencies.providerDetection
-            let providerDiscoveryCache = dependencies.providerDiscoveryCache
-            async let detection: Void = providerDetection.checkAllProviders()
-            async let discoveryWarm: Void = providerDiscoveryCache.warm()
+            let harnessDetection = dependencies.harnessDetection
+            let harnessDiscoveryCache = dependencies.harnessDiscoveryCache
+            async let detection: Void = harnessDetection.checkAllHarnesses()
+            async let discoveryWarm: Void = harnessDiscoveryCache.warm()
             _ = await (detection, discoveryWarm)
             guard !Task.isCancelled else {
                 return
@@ -269,8 +269,8 @@ private extension AppDelegate {
 
     func scheduleWakeRefresh() {
         wakeRefreshTask?.cancel()
-        let providerDetection = dependencies.providerDetection
-        let providerDiscoveryCache = dependencies.providerDiscoveryCache
+        let harnessDetection = dependencies.harnessDetection
+        let harnessDiscoveryCache = dependencies.harnessDiscoveryCache
         let delay = dependencies.wakeRefreshDelay
         wakeRefreshTask = Task {
             try? await Task.sleep(for: delay)
@@ -278,19 +278,19 @@ private extension AppDelegate {
                 return
             }
 
-            await providerDetection.checkAllProviders()
+            await harnessDetection.checkAllHarnesses()
             // A machine can sleep for hours; the snapshot from before it did says nothing about
             // what is installed now.
-            await providerDiscoveryCache.invalidate()
+            await harnessDiscoveryCache.invalidate()
             guard !Task.isCancelled else {
                 return
             }
             dependencies.reconcileScheduledTasks()
             // Re-probed rather than left to the next thread creation, which would otherwise pay
             // the whole fan-out on its click — the same reason launch warms it. Behind
-            // reconciliation on purpose: the probe spawns subprocesses per provider, and a
+            // reconciliation on purpose: the probe spawns subprocesses per harness, and a
             // scheduled deadline has to rearm on wake without waiting for them.
-            await providerDiscoveryCache.warm()
+            await harnessDiscoveryCache.warm()
         }
     }
 
@@ -325,7 +325,7 @@ private extension AppDelegate {
             guard let conversationId = await dependencies.sessionManager.conversationId(
                 forSessionId: candidate.sessionId,
                 cwd: candidate.cwd,
-                providerId: "claude"
+                harnessId: "claude"
             ) else {
                 continue
             }

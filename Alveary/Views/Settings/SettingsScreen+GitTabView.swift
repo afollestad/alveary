@@ -3,7 +3,7 @@ import SwiftUI
 
 struct GitSettingsTabView: View {
     let gitHubCLI: GitHubCLIService
-    /// The agentic agent pickers read provider discovery through the view model, the way
+    /// The harness pickers read harness discovery through the view model, the way
     /// the Threads tab's defaults do.
     let viewModel: SettingsViewModel
     @Binding var branchPrefix: String
@@ -174,8 +174,8 @@ struct GitSettingsTabView: View {
         .task {
             viewModel.refreshSidebarSectionOptions()
             await refreshGitHubState()
-            // The agent pickers below need the same provider catalog the Threads tab loads.
-            await viewModel.refreshProviderStatusesIfNeeded()
+            // The harness pickers below need the same harness catalog the Threads tab loads.
+            await viewModel.refreshHarnessStatusesIfNeeded()
         }
         .sheet(isPresented: $isReviewTeamEditorPresented) {
             PullRequestReviewTeamEditorSheet(
@@ -206,7 +206,7 @@ private extension GitSettingsTabView {
 
                     Button("Manage", action: presentReviewTeamEditor)
                         .secondaryActionButtonStyle()
-                        .disabled(viewModel.isCheckingThreadDefaultProviders)
+                        .disabled(viewModel.isCheckingThreadDefaultHarnesses)
                 }
             }
         }
@@ -380,7 +380,7 @@ private enum GitSettingsHelp {
     static let pullRequestReviewMode =
         "Single uses the lead agent. Team runs the lead and saved peers independently, then proposes only feedback a strict majority supports."
     static let pullRequestReviewTeam =
-        "One saved team of 2–5 distinct agent and concrete-model pairs. Settings changes apply to the next review."
+        "One saved team of 2–5 distinct harness and concrete-model pairs. Settings changes apply to the next review."
     static let pullRequestAddressFeedbackPrompt =
         "Instructions the agent follows when addressing feedback on a pull request — one started by "
         + "\"Address feedback\" in a pull request's footer, or any thread you ask to address feedback. "

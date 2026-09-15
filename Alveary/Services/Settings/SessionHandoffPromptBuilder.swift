@@ -49,7 +49,7 @@ User steering prompt:
         isPlanModeHandoff: Bool = false
     ) -> String {
         let fallbackContext = """
-        The hidden session handoff agent could not resume the previous provider session. Continue from this local transcript summary instead.
+        The hidden session handoff agent could not resume the previous harness session. Continue from this local transcript summary instead.
 
         \(restoreContext)
         """

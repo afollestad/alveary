@@ -31,15 +31,15 @@ extension ChatComposerReasoningMenuLayoutTests {
     }
 
     func modelGroup(
-        providerID: String,
+        harnessID: String,
         title: String,
         models: [(String, String)]
     ) -> ChatComposerActionRowView.ReasoningModelGroup {
         .init(
-            providerID: providerID,
-            providerTitle: title,
+            harnessID: harnessID,
+            harnessTitle: title,
             options: models.map {
-                .init(providerID: providerID, value: $0.0, title: $0.1)
+                .init(harnessID: harnessID, value: $0.0, title: $0.1)
             }
         )
     }
@@ -49,21 +49,21 @@ extension ChatComposerReasoningMenuLayoutTests {
 func makeGroupedReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
     [
         .init(
-            providerID: "claude",
-            providerTitle: "Claude Code",
-            options: [.init(providerID: "claude", value: "sonnet", title: "Sonnet")]
+            harnessID: "claude",
+            harnessTitle: "Claude Code",
+            options: [.init(harnessID: "claude", value: "sonnet", title: "Sonnet")]
         ),
         .init(
-            providerID: "codex",
-            providerTitle: "Codex",
-            options: [.init(providerID: "codex", value: "gpt-5.5", title: "GPT-5.5")]
+            harnessID: "codex",
+            harnessTitle: "Codex",
+            options: [.init(harnessID: "codex", value: "gpt-5.5", title: "GPT-5.5")]
         )
     ]
 }
 
 @MainActor
 func makeGroupedReasoningConfiguration(
-    selectedProviderID: String = "claude",
+    selectedHarnessID: String = "claude",
     selectedModelID: String = "sonnet",
     selectedEffort: String = "medium",
     selectedSpeedMode: AgentSpeedMode = .standard,
@@ -75,8 +75,8 @@ func makeGroupedReasoningConfiguration(
 ) -> ChatComposerActionRowView.ReasoningConfiguration {
     let groups = makeGroupedReasoningModelGroups()
     return makeReasoningConfiguration(
-        providerOptions: groups.map {
-            .init(value: $0.providerID, title: $0.providerTitle ?? $0.providerID.capitalized)
+        harnessOptions: groups.map {
+            .init(value: $0.harnessID, title: $0.harnessTitle ?? $0.harnessID.capitalized)
         },
         modelGroups: groups,
         effortOptions: [
@@ -84,7 +84,7 @@ func makeGroupedReasoningConfiguration(
             .init(value: "medium", title: "Medium"),
             .init(value: "high", title: "High")
         ],
-        selectedProvider: selectedProviderID,
+        selectedHarness: selectedHarnessID,
         selectedModel: selectedModelID,
         selectedEffort: selectedEffort,
         selectedSpeedMode: selectedSpeedMode,
@@ -105,7 +105,7 @@ func makeGroupedReasoningMenu(
         configuration: makeGroupedReasoningConfiguration(onModelChange: { request in
             onModelSelected(request)
             let selection = makeGroupedReasoningConfiguration(
-                selectedProviderID: request.providerID,
+                selectedHarnessID: request.harnessID,
                 selectedModelID: request.modelID
             ).selection
             return .applied(selection: selection)

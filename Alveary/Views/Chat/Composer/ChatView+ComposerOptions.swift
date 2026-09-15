@@ -34,12 +34,12 @@ extension ChatView {
         )
     }
 
-    /// Mirrors the reasoning menu exactly: every ready provider's models before initial setup, the active provider's after.
+    /// Mirrors the reasoning menu exactly: every ready harness's models before initial setup, the active harness's after.
     private var localCommandModelOptions: [ComposerModelCommandOption] {
         reasoningConfiguration.modelGroups.flatMap { group in
             group.options.map { option in
                 ComposerModelCommandOption(
-                    providerID: option.providerID,
+                    harnessID: option.harnessID,
                     value: option.value,
                     shortName: option.shortName,
                     title: option.title
@@ -49,7 +49,7 @@ extension ChatView {
     }
 
     var passthroughSlashCommands: [ComposerPassthroughSlashCommand] {
-        guard providerID == "claude",
+        guard harnessID == "claude",
               !viewModel.state.hasActiveSessionHandoff else {
             return []
         }
@@ -59,7 +59,7 @@ extension ChatView {
                 command: "compact",
                 subtitle: "Compact context",
                 detailText: "Claude",
-                uri: "alveary://provider-commands/claude/compact",
+                uri: "alveary://harness-commands/claude/compact",
                 argumentHint: "Optional compact instructions"
             )
         ]
@@ -173,7 +173,7 @@ extension ChatView {
 
     var goalModeToggleDisabledTooltip: String? {
         if !composerCapabilities.supportsGoalMode {
-            return composerCapabilities.goalModeDisabledTooltip ?? "Goal mode is not supported by this agent."
+            return composerCapabilities.goalModeDisabledTooltip ?? "Goal mode is not supported by this harness."
         }
         if let tooltip = composerCapabilities.goalModeDisabledTooltip {
             return tooltip
@@ -186,7 +186,7 @@ extension ChatView {
         }
         if viewModel.hasVisibleUserMessageHistory,
            !composerCapabilities.supportsExistingSessionGoalStart {
-            return "This agent can only start Goal mode before the first visible user message."
+            return "This harness can only start Goal mode before the first visible user message."
         }
         if composerPresentation.areControlsDisabled {
             return "Goal mode is unavailable right now."

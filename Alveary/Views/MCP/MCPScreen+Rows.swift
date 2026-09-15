@@ -54,8 +54,8 @@ struct MCPServerRow: View, Equatable {
                     // bundle and the binary name — visible in a half-width grid column.
                     .truncationMode(.middle)
 
-                if !server.providers.isEmpty {
-                    Text("Agents: \(server.providers.joined(separator: ", "))")
+                if !server.harnesses.isEmpty {
+                    Text("Harnesses: \(server.harnesses.joined(separator: ", "))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

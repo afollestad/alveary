@@ -17,7 +17,7 @@ extension ScheduledTaskLifecycleCoordinatorTests {
             publishChange: { publishedChangeCount += 1 }
         )
 
-        await coordinator.activateAfterProviderRefresh()
+        await coordinator.activateAfterHarnessRefresh()
 
         XCTAssertEqual(order, ["load", "recover", "rebase", "publish", "resume", "due"])
         XCTAssertEqual(publishedChangeCount, 1)
@@ -34,7 +34,7 @@ extension ScheduledTaskLifecycleCoordinatorTests {
             order: { order.append($0) },
             publishChange: { publishedChangeCount += 1 }
         )
-        await coordinator.activateAfterProviderRefresh()
+        await coordinator.activateAfterHarnessRefresh()
         order.removeAll()
         publishedChangeCount = 0
 

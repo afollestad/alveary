@@ -274,7 +274,7 @@ private extension GlobalAgentInstructionsServiceTests {
             installCommand: nil,
             signInCommand: nil,
             docUrl: nil,
-            provider: nil,
+            harness: nil,
             skillsDirectory: nil,
             instructionsPath: instructionsPath,
             mcp: nil

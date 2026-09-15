@@ -72,7 +72,7 @@ final class ConversationUsageSummaryTests: XCTestCase {
         let summary = try XCTUnwrap(ConversationUsageSummary.derive(
             from: events,
             cachedContextWindowSize: nil,
-            accounting: ContextTokenAccounting(providerID: "codex")
+            accounting: ContextTokenAccounting(harnessID: "codex")
         ))
 
         XCTAssertEqual(summary.contextUsedTokens, 62_419)

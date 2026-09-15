@@ -111,7 +111,7 @@ enum ReviewTeamRunPresentation {
     }
 
     static func requestedModel(_ member: ReviewWorkerConfiguration) -> String {
-        "\(member.providerID) · \(member.launchModel) · \(member.effort)"
+        "\(member.harnessID) · \(member.launchModel) · \(member.effort)"
     }
 
     static func decision(_ finding: ReviewCanonicalFinding, in run: ReviewTeamRun) -> String {
@@ -220,7 +220,7 @@ private struct ReviewTeamRunOverview: View {
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
             }
             Text("""
-                Models above are the requested launch configuration, not provider-verified attribution. \
+                Models above are the requested launch configuration, not harness-verified attribution. \
                 History records app-issued inputs and final responses, not the launch environment or private reasoning streams.
                 """)
                 .font(.caption).foregroundStyle(.secondary)

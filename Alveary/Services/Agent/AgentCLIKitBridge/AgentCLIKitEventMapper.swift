@@ -30,17 +30,17 @@ struct AgentCLIKitEventMapper: Sendable {
         case .contextCompaction(let event):
             return contextCompactionEvents(from: event)
         case .sessionMetadata(let event):
-            return [.providerSessionMetadataChanged(
-                sessionId: event.providerSessionId?.rawValue,
+            return [.harnessSessionMetadataChanged(
+                sessionId: event.harnessSessionId?.rawValue,
                 name: event.name,
                 preview: event.preview
             )]
         case .sessionContinuity(let event):
-            return [.sessionInit(sessionId: event.providerSessionId?.rawValue)]
+            return [.sessionInit(sessionId: event.harnessSessionId?.rawValue)]
         case .interaction(let event):
-            return interactionEvents(from: event, providerSessionId: envelope.providerSessionId?.rawValue)
+            return interactionEvents(from: event, harnessSessionId: envelope.harnessSessionId?.rawValue)
         case .lifecycle(let event):
-            return lifecycleEvents(from: event, providerId: envelope.providerId)
+            return lifecycleEvents(from: event, harnessId: envelope.harnessId)
         case .diagnostic(let event):
             return diagnosticEvents(from: event)
         case .rateLimit(let event):
@@ -161,7 +161,7 @@ struct AgentCLIKitEventMapper: Sendable {
             stopReason: stopReason,
             durationMs: event.durationMs ?? 0,
             costUsd: event.costUSD,
-            providerModelId: event.model,
+            harnessModelId: event.model,
             contextWindowSize: event.contextWindow,
             permissionDenials: permissionDenials,
             isTerminal: event.isTerminal || Self.isTerminalStopReason(stopReason)
@@ -302,13 +302,13 @@ struct AgentCLIKitEventMapper: Sendable {
 
     private func interactionEvents(
         from event: AgentCLIKit.AgentInteractionEvent,
-        providerSessionId: String?
+        harnessSessionId: String?
     ) -> [ConversationEvent] {
         let toolName = event.metadata.stringValue("tool_name") ?? toolName(for: event.kind)
         let toolInput = event.metadata["tool_input"].map(Self.serialized) ?? "{}"
         let approvalIdentityToolInput = event.metadata["approval_identity_tool_input"].map(Self.serialized)
         let request = ToolApprovalRequest(
-            sessionId: event.metadata.stringValue("session_id") ?? providerSessionId ?? "",
+            sessionId: event.metadata.stringValue("session_id") ?? harnessSessionId ?? "",
             toolUseId: event.id.rawValue,
             toolName: toolName,
             toolInput: toolInput,
@@ -341,20 +341,20 @@ struct AgentCLIKitEventMapper: Sendable {
 
     private func lifecycleEvents(
         from event: AgentCLIKit.AgentLifecycleEvent,
-        providerId: AgentCLIKit.AgentProviderID
+        harnessId: AgentCLIKit.AgentHarnessID
     ) -> [ConversationEvent] {
         switch event.state {
         case .cancelled:
             return [.stop(message: event.message ?? ConversationInterruption.displayMessage)]
         case .failed:
             let fallback = event.exitCode.map {
-                ConversationProviderExit.failureMessage(providerId: providerId, exitCode: $0)
+                ConversationHarnessExit.failureMessage(harnessId: harnessId, exitCode: $0)
             }
             return [.error(message: event.message ?? fallback ?? "Agent process failed")]
         case .exited:
             // Only an exit code distinguishes a process ending from a decoder-level exit.
             let exitMessage = event.exitCode.map {
-                ConversationProviderExit.displayMessage(providerId: providerId, exitCode: $0)
+                ConversationHarnessExit.displayMessage(harnessId: harnessId, exitCode: $0)
             }
             return [.stop(message: event.message ?? exitMessage)]
         case .starting, .running:
@@ -391,7 +391,7 @@ struct AgentCLIKitEventMapper: Sendable {
         guard event.state == .idle else {
             return .unknown
         }
-        guard envelope.providerId == .codex else {
+        guard envelope.harnessId == .codex else {
             return .completed
         }
 
@@ -418,7 +418,7 @@ private extension AgentCLIKitEventMapper {
         _ event: AgentCLIKit.AgentTaskEvent,
         envelope: AgentCLIKit.AgentEventEnvelope
     ) -> Bool {
-        envelope.providerId == .codex && event.taskType == "collabAgentToolCall"
+        envelope.harnessId == .codex && event.taskType == "collabAgentToolCall"
     }
 }
 

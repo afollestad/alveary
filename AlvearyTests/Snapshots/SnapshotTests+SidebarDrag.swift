@@ -132,7 +132,7 @@ extension SnapshotTests {
         let conversation = Conversation(
             id: "sidebar-drag-second-thread",
             title: "Main",
-            provider: "claude",
+            harness: "claude",
             thread: thread
         )
         thread.conversations = [conversation]

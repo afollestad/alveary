@@ -62,7 +62,7 @@ enum PullRequestListWidgetParsing {
         let requestedFilter = HostToolWidgetJSON.string(arguments["filter"])
             .flatMap(PullRequestHostToolListFilter.init(rawValue:))
         let receipt = HostToolWidgetJSON.object(from: output).map(Receipt.init(object:))
-        // Providers disagree about which half of the result they persist, and this card is
+        // Harnesses disagree about which half of the result they persist, and this card is
         // useless without rows, so the tool's own text fallback is parsed when the structured
         // content never arrives. `HostToolTranscriptCatalogTests+PullRequestList` runs the real
         // tool and parses its actual output, pinning the two sides of that format together.
@@ -80,7 +80,7 @@ enum PullRequestListWidgetParsing {
     }
 }
 
-/// Reads the rows out of `list_involved_prs`' plain-text fallback, for providers that persist it
+/// Reads the rows out of `list_involved_prs`' plain-text fallback, for harnesses that persist it
 /// instead of the structured content. The shapes come from
 /// `PullRequestHostToolService+Listing.swift`, which owns them.
 private struct TextFallback {

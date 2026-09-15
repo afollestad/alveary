@@ -14,9 +14,9 @@ struct MiddlePane: View, Equatable {
     let agentsManager: any AgentsManager
     let conversationControllerRegistry: any ConversationControllerRegistry
     let settingsService: SettingsService
-    let providerRegistry: ProviderRegistry
-    let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
-    let providerSetup: ProviderSetupService
+    let harnessRegistry: HarnessRegistry
+    let harnessDiscovery: any AgentCLIKit.AgentHarnessDiscoveryService
+    let harnessSetup: HarnessSetupService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
@@ -113,9 +113,9 @@ struct MiddlePane: View, Equatable {
                 agentsManager: agentsManager,
                 conversationControllerRegistry: conversationControllerRegistry,
                 settingsService: settingsService,
-                providerRegistry: providerRegistry,
-                providerDiscovery: providerDiscovery,
-                providerSetup: providerSetup,
+                harnessRegistry: harnessRegistry,
+                harnessDiscovery: harnessDiscovery,
+                harnessSetup: harnessSetup,
                 contextWindowCache: contextWindowCache,
                 fileListManager: fileListManager,
                 notificationManager: notificationManager,

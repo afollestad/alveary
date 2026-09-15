@@ -168,7 +168,7 @@ private enum CollectiveReviewSnapshotFixture {
         [
             ReviewWorkerConfiguration(
                 id: "lead",
-                providerID: "codex",
+                harnessID: "codex",
                 modelOptionID: leadModel,
                 launchModel: leadModel,
                 effort: "high",
@@ -176,7 +176,7 @@ private enum CollectiveReviewSnapshotFixture {
             ),
             ReviewWorkerConfiguration(
                 id: "peer-1",
-                providerID: "claude",
+                harnessID: "claude",
                 modelOptionID: claudeModel,
                 launchModel: claudeModel,
                 effort: "high",
@@ -184,7 +184,7 @@ private enum CollectiveReviewSnapshotFixture {
             ),
             ReviewWorkerConfiguration(
                 id: "peer-2",
-                providerID: "codex",
+                harnessID: "codex",
                 modelOptionID: "o3",
                 launchModel: "o3",
                 effort: "medium",
@@ -243,10 +243,10 @@ private enum CollectiveReviewSnapshotFixture {
             ("peer-3", "claude", "claude-sonnet-4-6"),
             ("peer-4", "codex", "gpt-5.6-terra")
         ]
-        let reviewers = models.map { id, provider, model in
+        let reviewers = models.map { id, harness, model in
             ReviewWorkerConfiguration(
-                id: id, providerID: provider, modelOptionID: model, launchModel: model,
-                effort: "high", executablePath: "/fake/\(provider)"
+                id: id, harnessID: harness, modelOptionID: model, launchModel: model,
+                effort: "high", executablePath: "/fake/\(harness)"
             )
         }
         var run = makeRun(

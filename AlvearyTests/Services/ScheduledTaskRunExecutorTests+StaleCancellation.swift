@@ -215,7 +215,7 @@ extension ScheduledTaskRunExecutorTests {
             notificationManager: makeNotificationManager(fixture: fixture),
             cancellationHandlerAction: { execution in
                 await cleanupGate.waitForRelease()
-                execution.cancelProviderTasks()
+                execution.cancelHarnessTasks()
                 await execution.cancelConversationActivity()
                 cleanupGate.recordCompletion()
             }
@@ -236,7 +236,7 @@ extension ScheduledTaskRunExecutorTests {
             controllerRegistry: registry,
             notificationManager: makeNotificationManager(fixture: fixture),
             cancellationHandlerAction: { execution in
-                execution.cancelProviderTasks()
+                execution.cancelHarnessTasks()
                 joinObserver.recordEntry()
                 await execution.cancelConversationActivity()
                 joinObserver.recordCompletion()

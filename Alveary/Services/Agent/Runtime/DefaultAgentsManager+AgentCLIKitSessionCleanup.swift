@@ -5,9 +5,9 @@ extension DefaultAgentsManager {
     func tearDownAgentCLIKitRuntime(conversationId: String, removeSession: Bool) async {
         let services = agentCLIKitServices
         let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
-        let runtimeStatusProviderId = await services.runtime.status(conversationId: runtimeConversationId)?.providerId
-        let activeProviderId = agentCLIKitStatuses[conversationId]?.providerId
-            ?? runtimeStatusProviderId
+        let runtimeStatusHarnessId = await services.runtime.status(conversationId: runtimeConversationId)?.harnessId
+        let activeHarnessId = agentCLIKitStatuses[conversationId]?.harnessId
+            ?? runtimeStatusHarnessId
         agentCLIKitEventTasks.removeValue(forKey: conversationId)?.cancel()
         agentCLIKitStatusTasks.removeValue(forKey: conversationId)?.cancel()
         eventBuffers[conversationId]?.allowsReplay = false
@@ -19,7 +19,7 @@ extension DefaultAgentsManager {
             do {
                 try await removeAgentCLIKitSessionRecord(
                     conversationId: runtimeConversationId,
-                    activeProviderId: activeProviderId,
+                    activeHarnessId: activeHarnessId,
                     services: services
                 )
             } catch {
@@ -44,32 +44,32 @@ extension DefaultAgentsManager {
 
     func removeAgentCLIKitSessionRecord(
         conversationId: AgentCLIKit.AgentConversationID,
-        activeProviderId: AgentCLIKit.AgentProviderID?,
+        activeHarnessId: AgentCLIKit.AgentHarnessID?,
         services: AgentCLIKitHostServices
     ) async throws {
-        if let activeProviderId {
+        if let activeHarnessId {
             try await removeAgentCLIKitSessionApprovals(
                 conversationId: conversationId,
-                providerId: activeProviderId,
+                harnessId: activeHarnessId,
                 services: services
             )
             try await services.sessionStore.remove(
                 conversationId: conversationId,
-                providerId: activeProviderId
+                harnessId: activeHarnessId
             )
             return
         }
 
-        let providerIds = await services.providerRegistry.allDefinitions().map(\.id)
-        for providerId in providerIds {
+        let harnessIds = await services.harnessRegistry.allDefinitions().map(\.id)
+        for harnessId in harnessIds {
             try await removeAgentCLIKitSessionApprovals(
                 conversationId: conversationId,
-                providerId: providerId,
+                harnessId: harnessId,
                 services: services
             )
             try await services.sessionStore.remove(
                 conversationId: conversationId,
-                providerId: providerId
+                harnessId: harnessId
             )
         }
     }
@@ -77,19 +77,19 @@ extension DefaultAgentsManager {
     /// Removes reusable approvals for the `AgentCLIKit` session record before the record is deleted.
     func removeAgentCLIKitSessionApprovals(
         conversationId: AgentCLIKit.AgentConversationID,
-        providerId: AgentCLIKit.AgentProviderID,
+        harnessId: AgentCLIKit.AgentHarnessID,
         services: AgentCLIKitHostServices
     ) async throws {
         guard let record = try await services.sessionStore.record(
             conversationId: conversationId,
-            providerId: providerId
+            harnessId: harnessId
         ) else {
             return
         }
         await services.claudeApprovalPolicyStore.removeSessionApprovals(
-            providerId: record.providerId,
+            harnessId: record.harnessId,
             conversationId: record.conversationId,
-            sessionId: record.providerSessionId
+            sessionId: record.harnessSessionId
         )
     }
 }

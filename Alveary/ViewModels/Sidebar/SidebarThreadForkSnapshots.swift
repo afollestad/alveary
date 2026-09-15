@@ -10,10 +10,10 @@ struct ThreadForkSourceSnapshot {
     let projectRemoteName: String?
     let isGitRepository: Bool
     let sourceConversationID: String
-    let sourceProviderID: String
-    let sourceProviderSessionID: String?
-    let sourceProviderSessionProviderID: String?
-    let sourceProviderSessionWorkingDirectory: String?
+    let sourceHarnessID: String
+    let sourceHarnessSessionID: String?
+    let sourceHarnessSessionHarnessID: String?
+    let sourceHarnessSessionWorkingDirectory: String?
     let sourceWorkingDirectory: String
     let threadConversationIDs: [String]
     let threadName: String
@@ -28,15 +28,15 @@ struct ThreadForkSourceSnapshot {
         threadConversationIDs.isEmpty ? [sourceConversationID] : threadConversationIDs
     }
 
-    var providerSessionActionSnapshot: ProviderSessionActionSnapshot {
-        ProviderSessionActionSnapshot(
+    var harnessSessionActionSnapshot: HarnessSessionActionSnapshot {
+        HarnessSessionActionSnapshot(
             conversations: [
-                ProviderSessionConversationSnapshot(
+                HarnessSessionConversationSnapshot(
                     conversationID: sourceConversationID,
-                    providerID: sourceProviderID,
-                    providerSessionID: sourceProviderSessionID,
-                    providerSessionProviderID: sourceProviderSessionProviderID,
-                    providerSessionWorkingDirectory: sourceProviderSessionWorkingDirectory
+                    harnessID: sourceHarnessID,
+                    harnessSessionID: sourceHarnessSessionID,
+                    harnessSessionHarnessID: sourceHarnessSessionHarnessID,
+                    harnessSessionWorkingDirectory: sourceHarnessSessionWorkingDirectory
                 )
             ],
             workingDirectory: URL(fileURLWithPath: sourceWorkingDirectory, isDirectory: true)
@@ -61,12 +61,12 @@ struct ThreadForkTargetSnapshot {
     let worktree: ForkCreatedWorktree?
     let spawnConfig: AgentSpawnConfig
 
-    var providerSessionActionSnapshot: ProviderSessionActionSnapshot {
-        ProviderSessionActionSnapshot(
+    var harnessSessionActionSnapshot: HarnessSessionActionSnapshot {
+        HarnessSessionActionSnapshot(
             conversations: [
-                ProviderSessionConversationSnapshot(
+                HarnessSessionConversationSnapshot(
                     conversationID: conversationID,
-                    providerID: spawnConfig.providerId
+                    harnessID: spawnConfig.harnessId
                 )
             ],
             workingDirectory: URL(fileURLWithPath: spawnConfig.workingDirectory, isDirectory: true)

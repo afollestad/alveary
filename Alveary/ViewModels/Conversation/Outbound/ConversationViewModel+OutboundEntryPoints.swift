@@ -4,7 +4,7 @@ extension ConversationViewModel {
     func setupAndStart(_ message: String, supportsLocalImageInput: Bool = true) async throws {
         try ensureOrdinaryScheduledOutboundAvailable()
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-        try await ensureAppShotProviderPrerequisites(appShots: state.stagedAppShots)
+        try await ensureAppShotHarnessPrerequisites(appShots: state.stagedAppShots)
         try await withOrdinaryOutboundReservation {
             try await deliverNormalUserMessage(message, supportsLocalImageInput: supportsLocalImageInput)
         }
@@ -21,7 +21,7 @@ extension ConversationViewModel {
         }
 
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-        try await ensureAppShotProviderPrerequisites(appShots: state.stagedAppShots)
+        try await ensureAppShotHarnessPrerequisites(appShots: state.stagedAppShots)
         try await withOrdinaryOutboundReservation {
             try await deliverNormalUserMessage(
                 message,
@@ -134,14 +134,14 @@ extension ConversationViewModel {
             try await applyPendingSessionSettingsBeforeNextOutboundTurn()
             let appShots = state.retryableFailedMessageAppShots[id] ?? []
             let fileAttachments = state.retryableFailedMessageFileAttachments[id] ?? []
-            try await ensureAppShotProviderPrerequisites(appShots: appShots)
+            try await ensureAppShotHarnessPrerequisites(appShots: appShots)
             try await withOrdinaryOutboundReservation {
                 try await deliverMessageReserved(
                     message,
                     transportTextOverride: state.retryableFailedMessageTransportTexts[id],
                     attachments: state.retryableFailedMessageAttachments[id] ?? [],
                     appShots: appShots,
-                    providerMetadata: state.retryableFailedMessageProviderMetadata[id] ?? [:],
+                    harnessMetadata: state.retryableFailedMessageHarnessMetadata[id] ?? [:],
                     consumedFileAttachments: fileAttachments,
                     stagedContextOverride: state.retryableFailedMessageStagedContexts[id],
                     existingLocalUserMessageID: id
@@ -196,7 +196,7 @@ private extension ConversationViewModel {
             fallbackText: fallbackText(visibleText:fileAttachments:)
         ).resolvingAppShots(
             state.stagedAppShots,
-            providerID: conversation.provider ?? settingsService.current.defaultProvider
+            harnessID: conversation.harness ?? settingsService.current.defaultHarness
         )
     }
 
@@ -214,14 +214,14 @@ private extension ConversationViewModel {
             fallbackText: fallbackText(visibleText:fileAttachments:)
         ).resolvingAppShots(
             state.stagedAppShots,
-            providerID: conversation.provider ?? settingsService.current.defaultProvider
+            harnessID: conversation.harness ?? settingsService.current.defaultHarness
         )
         try await deliverMessageReserved(
             outbound.visibleText,
             transportTextOverride: outbound.transportText,
             attachments: outbound.attachments,
             appShots: outbound.appShots,
-            providerMetadata: outbound.providerMetadata,
+            harnessMetadata: outbound.harnessMetadata,
             consumedAttachments: outbound.consumedAttachments,
             consumedFileAttachments: outbound.consumedFileAttachments,
             consumedAppShots: outbound.consumedAppShots,
@@ -245,7 +245,7 @@ private extension ConversationViewModel {
             attachments: outbound.attachments,
             fileAttachments: outbound.consumedFileAttachments,
             appShots: outbound.appShots,
-            providerMetadata: outbound.providerMetadata,
+            harnessMetadata: outbound.harnessMetadata,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
             relayedFrom: outbound.relayedFrom
         )
@@ -268,7 +268,7 @@ private extension ConversationViewModel {
                 requiredSpeedMode: requiredSpeedMode
             )
             try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-            try await ensureAppShotProviderPrerequisites(appShots: outbound.appShots)
+            try await ensureAppShotHarnessPrerequisites(appShots: outbound.appShots)
         } catch {
             restoreExitPlanModeRevisionGuidanceIfNeeded(outbound.consumedExitPlanModeRevisionGuidance)
             throw error
@@ -279,7 +279,7 @@ private extension ConversationViewModel {
                 transportTextOverride: outbound.transportText,
                 attachments: outbound.attachments,
                 appShots: outbound.appShots,
-                providerMetadata: outbound.providerMetadata,
+                harnessMetadata: outbound.harnessMetadata,
                 consumedAttachments: outbound.consumedAttachments,
                 consumedFileAttachments: outbound.consumedFileAttachments,
                 consumedAppShots: outbound.consumedAppShots,
@@ -325,7 +325,7 @@ private extension ConversationViewModel {
                 requiredSpeedMode: nil
             )
             try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-            try await ensureAppShotProviderPrerequisites(appShots: outbound.appShots)
+            try await ensureAppShotHarnessPrerequisites(appShots: outbound.appShots)
             try ensureCanSendBeforePausedQueuedMessages()
         } catch {
             restoreExitPlanModeRevisionGuidanceIfNeeded(outbound.consumedExitPlanModeRevisionGuidance)
@@ -339,7 +339,7 @@ private extension ConversationViewModel {
                 transportTextOverride: outbound.transportText,
                 attachments: outbound.attachments,
                 appShots: outbound.appShots,
-                providerMetadata: outbound.providerMetadata,
+                harnessMetadata: outbound.harnessMetadata,
                 consumedAttachments: outbound.consumedAttachments,
                 consumedFileAttachments: outbound.consumedFileAttachments,
                 consumedAppShots: outbound.consumedAppShots,

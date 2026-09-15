@@ -248,8 +248,8 @@ struct ReviewTeamRunWidgetTests {
 
     private func testReviewers() -> [PullRequestReviewProposalRecord.Reviewer] {
         [
-            PullRequestReviewProposalRecord.Reviewer(id: "lead", providerID: "codex", modelOptionID: "gpt-5"),
-            PullRequestReviewProposalRecord.Reviewer(id: "peer", providerID: "claude", modelOptionID: "sonnet")
+            PullRequestReviewProposalRecord.Reviewer(id: "lead", harnessID: "codex", modelOptionID: "gpt-5"),
+            PullRequestReviewProposalRecord.Reviewer(id: "peer", harnessID: "claude", modelOptionID: "sonnet")
         ]
     }
 
@@ -257,7 +257,7 @@ struct ReviewTeamRunWidgetTests {
         var team = [
             ReviewWorkerConfiguration(
                 id: "lead",
-                providerID: "codex",
+                harnessID: "codex",
                 modelOptionID: "gpt-5",
                 launchModel: "gpt-5",
                 effort: "high",
@@ -265,7 +265,7 @@ struct ReviewTeamRunWidgetTests {
             ),
             ReviewWorkerConfiguration(
                 id: "peer",
-                providerID: "claude",
+                harnessID: "claude",
                 modelOptionID: "sonnet",
                 launchModel: "sonnet",
                 effort: "high",
@@ -274,7 +274,7 @@ struct ReviewTeamRunWidgetTests {
         ]
         if teamSize == 3 {
             team.append(ReviewWorkerConfiguration(
-                id: "peer-2", providerID: "codex", modelOptionID: "gpt-6-astra", launchModel: "gpt-6-astra",
+                id: "peer-2", harnessID: "codex", modelOptionID: "gpt-6-astra", launchModel: "gpt-6-astra",
                 effort: "max", executablePath: "/fake/codex"
             ))
         }

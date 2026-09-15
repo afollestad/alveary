@@ -44,9 +44,9 @@ enum GlobalAgentInstructionsError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unknownAgent(let id):
-            return "Unknown agent \"\(id)\"."
+            return "Unknown harness \"\(id)\"."
         case .unsupportedAgent(let id):
-            return "Agent \"\(id)\" has no global instructions file."
+            return "Harness \"\(id)\" has no global instructions file."
         }
     }
 }

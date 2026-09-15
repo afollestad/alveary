@@ -39,7 +39,7 @@ struct PullRequestReviewVotePresentation: Hashable, Sendable {
             Self.reviewer(
                 id: reviewer.id,
                 title: reviewer.id == "lead" ? "Lead reviewer" : "Reviewer \(index + 1)",
-                model: "Requested model: \(reviewer.providerID) · \(reviewer.modelOptionID)",
+                model: "Requested model: \(reviewer.harnessID) · \(reviewer.modelOptionID)",
                 vote: votesByReviewer[reviewer.id]
             )
         } + votes.filter { !reviewerIDs.contains($0.voterID) }.map { vote in

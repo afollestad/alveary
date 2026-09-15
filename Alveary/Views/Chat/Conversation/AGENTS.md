@@ -5,7 +5,7 @@ These instructions cover `Alveary/Views/Chat/Conversation/` — `ConversationVie
 ### Lifecycle
 
 - **`ConversationView` activates its lease from `.task` and deactivates from `.onDisappear`.** Never construct a view-owned `ConversationViewModel` or start subscriptions from `init`.
-- **Revalidate the selection after every `await` in project-derived async work.** Capture the request key or path before suspending and recheck it before updating provider state, cache entries, trust state, files, or diff routing, so draft project reassignment preserves conversation view identity.
+- **Revalidate the selection after every `await` in project-derived async work.** Capture the request key or path before suspending and recheck it before updating harness state, cache entries, trust state, files, or diff routing, so draft project reassignment preserves conversation view identity.
 - **App-shot trigger observation and capture routing are app-root work.** Keep only the debug transport-preview action here, and pair `ConversationState` mount tracking with view-lifecycle activation so a root-routed storage failure can choose between a visible `lastTurnError` and app-level feedback.
 
 ### Session Settings
@@ -14,10 +14,10 @@ These instructions cover `Alveary/Views/Chat/Conversation/` — `ConversationVie
 
 - **`apply*Change` handlers stay on `ConversationViewModel` companions.** `ConversationView`'s `applyComposerReasoning*` methods only forward to them; do not inline the bodies back into the view, or they stop being testable against `MockAgentsManager` (`ConversationViewModelTests+Settings.swift`).
 - **Call a handler directly from `Picker` `set:` — no outer `Task { await ... }`.** Its synchronous prologue must run on the click's own cycle; an outer `Task` defers a MainActor cycle and briefly paints the stale selection.
-- **Use the right write gate.** Model, effort, and permission use `canApplySettingsChange`; provider and worktree are pre-startup only. Send-in-flight, setup, handoff steering, reconfiguration, and project-trust blocks reject writes either way.
+- **Use the right write gate.** Model, effort, and permission use `canApplySettingsChange`; harness and worktree are pre-startup only. Send-in-flight, setup, handoff steering, reconfiguration, and project-trust blocks reject writes either way.
 - **Gate the fork on `shouldReconfigureOnSettingChange()`, never `agentsManager.isRunning(conversationId:)`.** Claude's `-p --input-format stream-json` process can exit between turns, so `isRunning` silently drops the fork; `reconfigureSession` already handles a dead process.
 - **Do not add a `!isReconfiguringSession` check at the handler layer.** `reconfigureSession` already returns `.nextTurnRequired` on a concurrent attempt, and `.progressOnly(.reconfiguringSession)` disables the pickers meanwhile.
-- **Derive the context-window summary in `ConversationUsageSummary`, not in composer controls**, passing provider and accounting context so Codex cached-input and Claude cache-read rows count.
+- **Derive the context-window summary in `ConversationUsageSummary`, not in composer controls**, passing harness and accounting context so Codex cached-input and Claude cache-read rows count.
 
 ### Transcript Data Flow
 

@@ -2,20 +2,20 @@ import Foundation
 
 enum ClaudeNativeSchedulingLaunchPolicy {
     static func arguments(
-        providerID: String,
+        harnessID: String,
         configuredArguments: [String]
     ) -> [String] {
-        guard providerID == "claude" else {
+        guard harnessID == "claude" else {
             return configuredArguments
         }
         return argumentsDisallowingRemoteTrigger(configuredArguments)
     }
 
     static func environment(
-        providerID: String,
+        harnessID: String,
         baseEnvironment: [String: String]
     ) -> [String: String] {
-        guard providerID == "claude" else {
+        guard harnessID == "claude" else {
             return baseEnvironment
         }
         var environment = baseEnvironment

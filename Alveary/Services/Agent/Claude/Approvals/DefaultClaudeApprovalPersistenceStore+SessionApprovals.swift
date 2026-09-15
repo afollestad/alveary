@@ -14,7 +14,7 @@ extension DefaultClaudeApprovalPersistenceStore {
         }
 
         let rule = AgentSessionApprovalRule(
-            providerId: approval.providerId,
+            harnessId: approval.harnessId,
             conversationId: approval.conversationId,
             sessionId: approval.sessionId,
             matchKind: approval.matchKind.rawValue,
@@ -47,9 +47,9 @@ extension DefaultClaudeApprovalPersistenceStore {
         try? context.save()
     }
 
-    /// Returns the user's last selected approval scope for a provider session.
+    /// Returns the user's last selected approval scope for a harness session.
     func toolApprovalSelection(
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) -> ToolApprovalSelection? {
@@ -59,7 +59,7 @@ extension DefaultClaudeApprovalPersistenceStore {
 
         let records = (try? context.fetch(
             Self.sessionApprovalSelectionsDescriptor(
-                providerId: providerId,
+                harnessId: harnessId,
                 conversationId: conversationId,
                 sessionId: sessionId,
                 sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
@@ -71,10 +71,10 @@ extension DefaultClaudeApprovalPersistenceStore {
         return ToolApprovalSelection(rawValue: record.selection)
     }
 
-    /// Records the user's last selected approval scope for a provider session.
+    /// Records the user's last selected approval scope for a harness session.
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) {
@@ -84,7 +84,7 @@ extension DefaultClaudeApprovalPersistenceStore {
 
         let existingRecords = (try? context.fetch(
             Self.sessionApprovalSelectionsDescriptor(
-                providerId: providerId,
+                harnessId: harnessId,
                 conversationId: conversationId,
                 sessionId: sessionId
             )
@@ -98,7 +98,7 @@ extension DefaultClaudeApprovalPersistenceStore {
         } else {
             context.insert(
                 AgentSessionApprovalSelection(
-                    providerId: providerId,
+                    harnessId: harnessId,
                     conversationId: conversationId,
                     sessionId: sessionId,
                     selection: selection.rawValue
@@ -108,15 +108,15 @@ extension DefaultClaudeApprovalPersistenceStore {
         try? context.save()
     }
 
-    /// Removes reusable approvals and saved scope selection for a provider session.
-    func removeSessionApprovals(providerId: String, conversationId: String, sessionId: String) {
+    /// Removes reusable approvals and saved scope selection for a harness session.
+    func removeSessionApprovals(harnessId: String, conversationId: String, sessionId: String) {
         guard let context = sessionApprovalContext() else {
             return
         }
 
         let existingRules = (try? context.fetch(
             Self.sessionApprovalRulesDescriptor(
-                providerId: providerId,
+                harnessId: harnessId,
                 conversationId: conversationId,
                 sessionId: sessionId
             )
@@ -127,7 +127,7 @@ extension DefaultClaudeApprovalPersistenceStore {
 
         let existingSelections = (try? context.fetch(
             Self.sessionApprovalSelectionsDescriptor(
-                providerId: providerId,
+                harnessId: harnessId,
                 conversationId: conversationId,
                 sessionId: sessionId
             )

@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct ReviewStartWidgetTests {
     @Test(arguments: [false, true])
-    func `started and existing reviews open their destination in both provider formats`(structured: Bool) throws {
+    func `started and existing reviews open their destination in both harness formats`(structured: Bool) throws {
         for existing in [false, true] {
             let message = existing
                 ? "Review already exists in the thread \"Review acme/app#12\" (id: review-1)."

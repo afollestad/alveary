@@ -7,8 +7,8 @@ enum AgentError: LocalizedError, Sendable, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .cliNotInstalled(let provider):
-            return "\(provider) CLI is not installed"
+        case .cliNotInstalled(let harness):
+            return "\(harness) CLI is not installed"
         case .spawnFailed(let message):
             return message
         case .stdinClosed:

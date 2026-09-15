@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testNoninitialStartCleansUpProviderThatFinishesSpawningAfterCancellation() async throws {
+    func testNoninitialStartCleansUpHarnessThatFinishesSpawningAfterCancellation() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: false
@@ -23,7 +23,7 @@ extension ConversationViewModelTests {
 
         do {
             try await start.value
-            XCTFail("Expected the cancelled provider start to throw")
+            XCTFail("Expected the cancelled harness start to throw")
         } catch {
             XCTAssertTrue(error is CancellationError)
         }

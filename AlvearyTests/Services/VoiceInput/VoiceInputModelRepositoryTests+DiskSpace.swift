@@ -11,7 +11,7 @@ extension VoiceInputModelRepositoryTests {
             .appendingPathExtension("part")
         let preflight = VoiceInputModelDiskSpacePreflight(
             fileManager: .default,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: temporaryMargin + 600)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: temporaryMargin + 600)
         )
 
         XCTAssertNoThrow(try preflight.validate(
@@ -29,7 +29,7 @@ extension VoiceInputModelRepositoryTests {
             .appendingPathExtension("part")
         let preflight = VoiceInputModelDiskSpacePreflight(
             fileManager: .default,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: temporaryMargin)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: temporaryMargin)
         )
         XCTAssertNoThrow(try preflight.validate(
             artifacts: [valid.model],
@@ -61,7 +61,7 @@ extension VoiceInputModelRepositoryTests {
         let invalid = try makeCompletedArtifact(data: Data("wrong".utf8), expectedData: Data("valid".utf8))
         let preflight = VoiceInputModelDiskSpacePreflight(
             fileManager: .default,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: temporaryMargin)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: temporaryMargin)
         )
 
         XCTAssertNoThrow(try preflight.validate(
@@ -93,7 +93,7 @@ extension VoiceInputModelRepositoryTests {
         try Data(repeating: 1, count: 800).write(to: partialURL)
         let preflight = VoiceInputModelDiskSpacePreflight(
             fileManager: .default,
-            diskSpaceProvider: ReclaimingVoiceInputDiskSpaceProvider(
+            diskSpaceProvider: ReclaimingVoiceInputDiskSpaceHarness(
                 reclaimedFile: partialURL,
                 capacityBeforeReclamation: temporaryMargin - 1,
                 reclaimedBytes: 1
@@ -116,7 +116,7 @@ extension VoiceInputModelRepositoryTests {
         let invalidURL = artifact.repository.appendingPathComponent(artifact.model.path)
         let preflight = VoiceInputModelDiskSpacePreflight(
             fileManager: .default,
-            diskSpaceProvider: ReclaimingVoiceInputDiskSpaceProvider(
+            diskSpaceProvider: ReclaimingVoiceInputDiskSpaceHarness(
                 reclaimedFile: invalidURL,
                 capacityBeforeReclamation: temporaryMargin,
                 reclaimedBytes: artifact.model.size
@@ -191,7 +191,7 @@ extension VoiceInputModelRepositoryTests {
         try Data(repeating: 1, count: 400).write(to: partialURL.appendingPathComponent("junk"))
         let preflight = VoiceInputModelDiskSpacePreflight(
             fileManager: .default,
-            diskSpaceProvider: ReclaimingEntriesDiskSpaceProvider(
+            diskSpaceProvider: ReclaimingEntriesDiskSpaceHarness(
                 reclaimedEntries: [artifactURL, partialURL],
                 capacityBeforeReclamation: temporaryMargin,
                 reclaimedBytes: model.size
@@ -218,7 +218,7 @@ extension VoiceInputModelRepositoryTests {
         try FileManager.default.createSymbolicLink(at: repository, withDestinationURL: external)
         let preflight = VoiceInputModelDiskSpacePreflight(
             fileManager: .default,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: temporaryMargin + model.size)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: temporaryMargin + model.size)
         )
 
         XCTAssertNoThrow(try preflight.validate(
@@ -243,7 +243,7 @@ extension VoiceInputModelRepositoryTests {
         try FileManager.default.createSymbolicLink(at: linkedParent, withDestinationURL: external)
         let preflight = VoiceInputModelDiskSpacePreflight(
             fileManager: .default,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: temporaryMargin + model.size)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: temporaryMargin + model.size)
         )
 
         XCTAssertNoThrow(try preflight.validate(
@@ -321,7 +321,7 @@ extension VoiceInputModelRepositoryTests {
     ) throws {
         let preflight = VoiceInputModelDiskSpacePreflight(
             fileManager: .default,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: temporaryMargin + 600)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: temporaryMargin + 600)
         )
         XCTAssertThrowsError(try preflight.validate(
             artifacts: [artifact.model],
@@ -337,7 +337,7 @@ extension VoiceInputModelRepositoryTests {
     ) throws {
         let preflight = VoiceInputModelDiskSpacePreflight(
             fileManager: .default,
-            diskSpaceProvider: FixedVoiceInputDiskSpaceProvider(capacity: Int64.max)
+            diskSpaceProvider: FixedVoiceInputDiskSpaceHarness(capacity: Int64.max)
         )
         XCTAssertThrowsError(try preflight.validate(
             artifacts: artifacts,
@@ -357,7 +357,7 @@ private struct PartialArtifactFixture {
     let repository: URL
 }
 
-private struct ReclaimingVoiceInputDiskSpaceProvider: VoiceInputDiskSpaceProviding {
+private struct ReclaimingVoiceInputDiskSpaceHarness: VoiceInputDiskSpaceProviding {
     let reclaimedFile: URL
     let capacityBeforeReclamation: Int64
     let reclaimedBytes: Int64
@@ -370,7 +370,7 @@ private struct ReclaimingVoiceInputDiskSpaceProvider: VoiceInputDiskSpaceProvidi
     }
 }
 
-private struct ReclaimingEntriesDiskSpaceProvider: VoiceInputDiskSpaceProviding {
+private struct ReclaimingEntriesDiskSpaceHarness: VoiceInputDiskSpaceProviding {
     let reclaimedEntries: [URL]
     let capacityBeforeReclamation: Int64
     let reclaimedBytes: Int64

@@ -7,7 +7,7 @@ import XCTest
 extension ChatComposerReasoningMenuLayoutTests {
     func testScrollingModelListUnderStationaryPointerMovesHoverToRowUnderIt() throws {
         let groups = [modelGroup(
-            providerID: "claude",
+            harnessID: "claude",
             title: "Claude",
             models: (0 ..< 20).map { ("model-\($0)", "Model \($0)") }
         )]
@@ -39,7 +39,7 @@ extension ChatComposerReasoningMenuLayoutTests {
 
     func testKeyboardFocusScrollClearsStrandedHover() throws {
         let groups = [modelGroup(
-            providerID: "claude",
+            harnessID: "claude",
             title: "Claude",
             models: (0 ..< 30).map { ("model-\($0)", "Model \($0)") }
         )]

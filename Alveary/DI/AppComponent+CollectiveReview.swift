@@ -42,7 +42,7 @@ extension AppComponent {
                 modelContext: modelContainer.mainContext, service: pullRequestsService,
                 worker: pullRequestReviewWorkerExecutor, packets: reviewPacketStore,
                 staging: collectiveReviewStagingService, activity: pullRequestAgenticThreadActivity,
-                resolver: PullRequestReviewTeamResolver(providerDiscovery: cachedAgentProviderDiscoveryService),
+                resolver: PullRequestReviewTeamResolver(harnessDiscovery: cachedAgentHarnessDiscoveryService),
                 cancellationStore: ReviewTeamCancellationStore(
                     rootDirectory: storageProfile.appSupportDirectory.appendingPathComponent("ReviewCancellations")
                 ),

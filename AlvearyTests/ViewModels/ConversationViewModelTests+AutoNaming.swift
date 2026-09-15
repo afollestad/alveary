@@ -44,12 +44,12 @@ extension ConversationViewModelTests {
         XCTAssertTrue(try fixture.dbThread().hasCustomName)
     }
 
-    func testSecondaryConversationAutoTitleUsesProviderPreviewGenerator() throws {
+    func testSecondaryConversationAutoTitleUsesHarnessPreviewGenerator() throws {
         let fixture = try ConversationViewModelTestFixture(threadName: "Existing Thread")
         let thread = try fixture.dbThread()
         let conversation = Conversation(
             title: nil,
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: thread
@@ -68,10 +68,10 @@ extension ConversationViewModelTests {
     }
 
     func testConversationDisplayNameUsesStableDisplayOrderFallbacks() {
-        let main = Conversation(title: nil, provider: "claude", isMain: true, displayOrder: 0)
-        let second = Conversation(title: nil, provider: "claude", isMain: false, displayOrder: 1)
-        let third = Conversation(title: nil, provider: "claude", isMain: false, displayOrder: 2)
-        let custom = Conversation(title: "Planning", provider: "claude", isMain: false, displayOrder: 2)
+        let main = Conversation(title: nil, harness: "claude", isMain: true, displayOrder: 0)
+        let second = Conversation(title: nil, harness: "claude", isMain: false, displayOrder: 1)
+        let third = Conversation(title: nil, harness: "claude", isMain: false, displayOrder: 2)
+        let custom = Conversation(title: "Planning", harness: "claude", isMain: false, displayOrder: 2)
 
         XCTAssertEqual(main.displayName(), AgentThread.untitledName)
         XCTAssertEqual(second.displayName(), "Conversation (2)")
@@ -80,8 +80,8 @@ extension ConversationViewModelTests {
     }
 
     func testConversationDisplayNameTrimsCustomTitleAndFallsBackForBlankTitle() {
-        let blank = Conversation(title: "   ", provider: "claude", isMain: false, displayOrder: 1)
-        let custom = Conversation(title: "  Planning  ", provider: "claude", isMain: false, displayOrder: 1)
+        let blank = Conversation(title: "   ", harness: "claude", isMain: false, displayOrder: 1)
+        let custom = Conversation(title: "  Planning  ", harness: "claude", isMain: false, displayOrder: 1)
 
         XCTAssertNil(blank.customTitle)
         XCTAssertEqual(blank.displayName(), "Conversation (2)")
@@ -90,8 +90,8 @@ extension ConversationViewModelTests {
     }
 
     func testConversationPersistedTitleKeepsDerivedFallbackUnpersistedUntilUserOverridesIt() {
-        let untitled = Conversation(title: nil, provider: "claude", isMain: false, displayOrder: 2)
-        let renamed = Conversation(title: "Planning", provider: "claude", isMain: false, displayOrder: 2)
+        let untitled = Conversation(title: nil, harness: "claude", isMain: false, displayOrder: 2)
+        let renamed = Conversation(title: "Planning", harness: "claude", isMain: false, displayOrder: 2)
 
         XCTAssertNil(untitled.persistedTitle(from: "Conversation (3)"))
         XCTAssertEqual(untitled.persistedTitle(from: "  Investigate auth race  "), "Investigate auth race")
@@ -100,25 +100,25 @@ extension ConversationViewModelTests {
     }
 
     func testShouldFollowThreadRenameCascadesForUntitledAndMatchingTitlesOnly() {
-        let untitledFreshConversation = Conversation(title: nil, provider: "claude", isMain: true, displayOrder: 0)
+        let untitledFreshConversation = Conversation(title: nil, harness: "claude", isMain: true, displayOrder: 0)
         XCTAssertTrue(
             untitledFreshConversation.shouldFollowThreadRename(previousThreadDisplayName: AgentThread.untitledName),
             "Fresh main conversation should follow its thread's first rename"
         )
 
-        let syncedConversation = Conversation(title: "Investigate auth race", provider: "claude", isMain: true, displayOrder: 0)
+        let syncedConversation = Conversation(title: "Investigate auth race", harness: "claude", isMain: true, displayOrder: 0)
         XCTAssertTrue(
             syncedConversation.shouldFollowThreadRename(previousThreadDisplayName: "Investigate auth race"),
             "A conversation whose custom title still matches the thread's previous name should stay in sync"
         )
 
-        let divergedConversation = Conversation(title: "Planning", provider: "claude", isMain: true, displayOrder: 0)
+        let divergedConversation = Conversation(title: "Planning", harness: "claude", isMain: true, displayOrder: 0)
         XCTAssertFalse(
             divergedConversation.shouldFollowThreadRename(previousThreadDisplayName: "Investigate auth race"),
             "A conversation the user has intentionally renamed should not follow the thread rename"
         )
 
-        let legacyUntitledConversation = Conversation(title: nil, provider: "claude", isMain: true, displayOrder: 0)
+        let legacyUntitledConversation = Conversation(title: nil, harness: "claude", isMain: true, displayOrder: 0)
         XCTAssertTrue(
             legacyUntitledConversation.shouldFollowThreadRename(previousThreadDisplayName: "Investigate auth race"),
             "A main conversation with no custom title should still follow renames, even when the thread's previous display name diverged"

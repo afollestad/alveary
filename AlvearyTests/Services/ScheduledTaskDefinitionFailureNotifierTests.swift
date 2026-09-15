@@ -11,13 +11,13 @@ final class ScheduledDefinitionFailureNotifierTests: XCTestCase {
         let request = notifier.makeNotificationRequest(
             definitionID: "definition-7",
             title: "Nightly audit",
-            reason: "Provider unavailable.",
+            reason: "Harness unavailable.",
             playSound: true
         )
 
         XCTAssertEqual(request.identifier, "scheduled-task-definition:definition-7")
         XCTAssertEqual(request.content.title, "Scheduled task needs attention")
-        XCTAssertEqual(request.content.body, "\"Nightly audit\" was paused: Provider unavailable.")
+        XCTAssertEqual(request.content.body, "\"Nightly audit\" was paused: Harness unavailable.")
         XCTAssertEqual(
             request.content.userInfo[NotificationUserInfoKey.scheduledTaskDefinitionId] as? String,
             "definition-7"

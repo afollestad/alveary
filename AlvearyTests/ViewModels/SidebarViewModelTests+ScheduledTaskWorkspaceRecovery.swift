@@ -47,7 +47,7 @@ extension SidebarViewModelTests {
             promptSnapshot: "Run scheduled work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "America/Chicago",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "default",
             workspaceKindSnapshot: .project,
@@ -68,7 +68,7 @@ extension SidebarViewModelTests {
             scheduledTaskRun: run
         )
         thread.taskWorkspaceDescriptor = workspace
-        thread.conversations = [Conversation(id: "scheduled-project-main", provider: "codex", thread: thread)]
+        thread.conversations = [Conversation(id: "scheduled-project-main", harness: "codex", thread: thread)]
         project.threads = [thread]
         run.thread = thread
         fixture.context.insert(project)
@@ -234,7 +234,7 @@ extension SidebarViewModelTests {
             scheduledTaskRun: run
         )
         task.conversations = [
-            Conversation(id: "retained-private-workspace", provider: "codex", thread: task)
+            Conversation(id: "retained-private-workspace", harness: "codex", thread: task)
         ]
         run.thread = task
         fixture.context.insert(run)
@@ -262,7 +262,7 @@ private func makeRecoveredWorktreeTask(
         mode: .task,
         taskWorkspaceDescriptor: workspace
     )
-    task.conversations = [Conversation(id: conversationID, provider: "codex", thread: task)]
+    task.conversations = [Conversation(id: conversationID, harness: "codex", thread: task)]
     return task
 }
 
@@ -279,7 +279,7 @@ private func makeRecoveredScheduledRun(status: ScheduledTaskRunStatus) -> Schedu
         promptSnapshot: "Run scheduled work.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "codex",
+        harnessIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .privateWorkspace,

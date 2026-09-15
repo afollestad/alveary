@@ -3,7 +3,7 @@ import XCTest
 
 @testable import Alveary
 
-/// Failed provider denial clears the follow-up that was staged before resolution.
+/// Failed harness denial clears the follow-up that was staged before resolution.
 @MainActor
 extension ConversationViewModelTests {
     func testCustomDenyFollowUpClearsWhenApprovalFails() async throws {
@@ -21,7 +21,7 @@ extension ConversationViewModelTests {
             try await fixture.viewModel.denyExitPlanMode(toolUseId: approval.toolUseId, followUp: "Revise it.")
         }
         do {
-            try await waitUntil("denial reached the paused provider resolution") {
+            try await waitUntil("denial reached the paused harness resolution") {
                 await fixture.agentsManager.isApprovalResolutionPaused()
             }
             let followUp = try XCTUnwrap(fixture.viewModel.state.pendingExitPlanModeFollowUp)

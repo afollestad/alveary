@@ -3,7 +3,7 @@ import Foundation
 /// Work a conversation is doing that no runtime `ActivitySignal` reports.
 ///
 /// The sibling of `ConversationDecisionAttention`, and its opposite verdict. Both cover a
-/// conversation whose provider turn already ended, so `DefaultAgentsManager` reports idle for
+/// conversation whose harness turn already ended, so `DefaultAgentsManager` reports idle for
 /// either: a proposal card waiting on the user is a decision, while the same proposal already
 /// inside GitHub is the app working on the user's behalf. Folding the second as `.waitingForUser`
 /// is what left a thread's row telling the user it was their turn for a whole submit.

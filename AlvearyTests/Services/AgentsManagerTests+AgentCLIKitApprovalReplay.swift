@@ -302,17 +302,17 @@ private func approvalReplayEnvelope(
     AgentCLIKit.AgentEventEnvelope(
         generation: 1,
         index: index,
-        providerId: .claude,
+        harnessId: .claude,
         conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
-        providerSessionId: nil,
+        harnessSessionId: nil,
         source: source,
         event: event
     )
 }
 
-private struct PlanFileReplayAdapter: AgentCLIKit.AgentProviderAdapter {
+private struct PlanFileReplayAdapter: AgentCLIKit.AgentHarnessAdapter {
     let counter = AgentCLIKitLaunchCounter()
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]

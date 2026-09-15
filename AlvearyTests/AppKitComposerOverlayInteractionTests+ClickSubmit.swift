@@ -284,7 +284,7 @@ func makeClickSubmitChatView(
             selectedModel: AppSettings.defaultModelValue
         ),
         defaultEnterBehavior: .queue,
-        providerID: "claude",
+        harnessID: "claude",
         runtimeStatus: .neutral,
         contextWindowCache: fixture.contextWindowCache,
         workingDirectory: fixture.project.path,

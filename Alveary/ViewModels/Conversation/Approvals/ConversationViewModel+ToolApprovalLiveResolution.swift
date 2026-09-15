@@ -12,7 +12,7 @@ extension ConversationViewModel {
         resolution: ClaudeToolApprovalResolution,
         sessionApproval: AgentSessionApprovalGrant?,
         config: AgentSpawnConfig,
-        requiresProviderRestart: Bool = false
+        requiresHarnessRestart: Bool = false
     ) async throws -> ToolApprovalLiveResolutionResult {
         let additionalApprovals = relatedDeferredToolApprovals(for: pendingApproval.request)
         let sessionApprovalEffective = try await agentsManager.resolveToolApproval(
@@ -23,7 +23,7 @@ extension ConversationViewModel {
                 additionalApprovals: additionalApprovals,
                 sessionApproval: sessionApproval,
                 config: config,
-                requiresProviderRestart: requiresProviderRestart
+                requiresHarnessRestart: requiresHarnessRestart
             )
         )
         return ToolApprovalLiveResolutionResult(
@@ -32,13 +32,13 @@ extension ConversationViewModel {
         )
     }
 
-    /// Ends the local turn after a *live* denial, without waiting for the provider to confirm it.
+    /// Ends the local turn after a *live* denial, without waiting for the harness to confirm it.
     ///
     /// Claude should emit a terminal permission-denial result once the hook returns, but the UI must
     /// not stay locked in an active turn if that trailing token is delayed or dropped. Ending early
     /// is safe in the other direction too: later terminal tokens still process normally.
     ///
-    /// Denial is the only decision that ends the turn here. A live *allow* continues the provider's
+    /// Denial is the only decision that ends the turn here. A live *allow* continues the harness's
     /// turn, so `turnState` stays active until a real terminal event arrives.
     func finishLiveDeniedToolApprovalIfNeeded(
         isResolvingLiveHookApproval: Bool,
@@ -130,7 +130,7 @@ extension ConversationViewModel {
     /// Terminalizes any still-open approval rows for a tool whose result has now arrived.
     ///
     /// A completed tool result is proof the approval was answered, wherever that happened — another
-    /// window, a previous launch, or the provider's own session state. Closing the rows stops restore
+    /// window, a previous launch, or the harness's own session state. Closing the rows stops restore
     /// from rehydrating them; `handleToolApprovalRequested` reads the same fact independently, so a
     /// late duplicate event is rejected whether or not this has run yet.
     func resolveUnresolvedToolApprovalsCompletedByToolResult(toolUseId: String) {

@@ -117,11 +117,11 @@ final class ToolApprovalRequestTests: XCTestCase {
         XCTAssertEqual(
             approval.sessionApprovalGrant(
                 conversationId: "conversation-1",
-                providerId: "claude",
+                harnessId: "claude",
                 scope: .exact
             ),
             AgentSessionApprovalGrant(
-                providerId: "claude",
+                harnessId: "claude",
                 conversationId: "conversation-1",
                 sessionId: "session-1",
                 matchKind: .bashExact,
@@ -131,11 +131,11 @@ final class ToolApprovalRequestTests: XCTestCase {
         XCTAssertEqual(
             approval.sessionApprovalGrant(
                 conversationId: "conversation-1",
-                providerId: "claude",
+                harnessId: "claude",
                 scope: .group
             ),
             AgentSessionApprovalGrant(
-                providerId: "claude",
+                harnessId: "claude",
                 conversationId: "conversation-1",
                 sessionId: "session-1",
                 matchKind: .bashCommandGroup,
@@ -157,11 +157,11 @@ final class ToolApprovalRequestTests: XCTestCase {
         XCTAssertEqual(
             approval.sessionApprovalGrant(
                 conversationId: "conversation-1",
-                providerId: "codex",
+                harnessId: "codex",
                 scope: .group
             ),
             AgentSessionApprovalGrant(
-                providerId: "codex",
+                harnessId: "codex",
                 conversationId: "conversation-1",
                 sessionId: "session-1",
                 matchKind: .bashCommandGroup,
@@ -215,7 +215,7 @@ final class ToolApprovalRequestTests: XCTestCase {
         XCTAssertEqual(
             approval.sessionApprovalGrant(
                 conversationId: "conversation-1",
-                providerId: "claude",
+                harnessId: "claude",
                 scope: .group
             )?.matchValue,
             "rtk git"

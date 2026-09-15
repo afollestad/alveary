@@ -74,7 +74,7 @@ private extension Conversation {
         )
     }
 
-    /// Drops receipts from an earlier provider process or past the retention window, keeps the
+    /// Drops receipts from an earlier harness process or past the retention window, keeps the
     /// newest of any duplicated key, and caps the ledger.
     static func maintainedThreadHostToolReceipts(
         _ receipts: [ThreadHostToolReceipt],

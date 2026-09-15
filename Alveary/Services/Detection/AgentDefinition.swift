@@ -21,7 +21,7 @@ struct AgentDefinition: Sendable, Equatable {
     /// a live terminal tab rather than capturing its output.
     let signInCommand: String?
     let docUrl: String?
-    let provider: ProviderDefinition?
+    let harness: HarnessDefinition?
     let skillsDirectory: String?
     /// Tilde-relative path of the agent's global instructions file, such as `~/.claude/CLAUDE.md`.
     let instructionsPath: String?

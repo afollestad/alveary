@@ -9,8 +9,8 @@ extension ScheduledTaskSchedulerCoordinatorTests {
         let fixture = try ScheduledTaskCoordinatorFixture()
         let project = Project(path: "/tmp/pre-execution-target", name: "Target")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
-        let main = Conversation(id: "pre-execution-main", provider: "codex", thread: target)
-        let sibling = Conversation(id: "pre-execution-sibling", provider: "codex", isMain: false, thread: target)
+        let main = Conversation(id: "pre-execution-main", harness: "codex", thread: target)
+        let sibling = Conversation(id: "pre-execution-sibling", harness: "codex", isMain: false, thread: target)
         target.conversations = [main, sibling]
         project.threads = [target]
         let run = ScheduledTaskRun(
@@ -24,7 +24,7 @@ extension ScheduledTaskSchedulerCoordinatorTests {
             destinationSnapshot: .existingThread,
             targetConversationIDSnapshot: main.id,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "acceptEdits",
             workspaceKindSnapshot: .project,
@@ -57,7 +57,7 @@ extension ScheduledTaskSchedulerCoordinatorTests {
         let fixture = try ScheduledTaskCoordinatorFixture()
         let project = Project(path: "/tmp/run-now-target", name: "Run now target")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
-        let conversation = Conversation(id: "run-now-target-main", provider: "codex", thread: target)
+        let conversation = Conversation(id: "run-now-target-main", harness: "codex", thread: target)
         target.conversations = [conversation]
         project.threads = [target]
         fixture.context.insert(project)

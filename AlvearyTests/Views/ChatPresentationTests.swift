@@ -161,7 +161,7 @@ final class ChatPresentationTests: XCTestCase {
             project: project
         )
 
-        let presentation = ChatThreadPresentation(thread: thread, providerID: "claude")
+        let presentation = ChatThreadPresentation(thread: thread, harnessID: "claude")
 
         XCTAssertEqual(presentation.selectedModel, "opus")
         XCTAssertEqual(presentation.selectedEffort, "high")
@@ -180,7 +180,7 @@ final class ChatPresentationTests: XCTestCase {
 
         let presentation = ChatThreadPresentation(
             thread: thread,
-            providerID: "claude",
+            harnessID: "claude",
             runtimePermissionMode: "plan"
         )
 
@@ -197,7 +197,7 @@ final class ChatPresentationTests: XCTestCase {
 
         let presentation = ChatThreadPresentation(
             thread: thread,
-            providerID: "claude",
+            harnessID: "claude",
             runtimePermissionMode: "acceptEdits",
             runtimePlanModeEnabled: false
         )
@@ -214,7 +214,7 @@ final class ChatPresentationTests: XCTestCase {
 
         let presentation = ChatThreadPresentation(
             thread: thread,
-            providerID: "claude",
+            harnessID: "claude",
             runtimePermissionMode: "plan",
             pendingPermissionMode: "acceptEdits"
         )
@@ -231,7 +231,7 @@ final class ChatPresentationTests: XCTestCase {
 
         let presentation = ChatThreadPresentation(
             thread: thread,
-            providerID: "claude",
+            harnessID: "claude",
             runtimePlanModeEnabled: true,
             pendingPlanModeEnabled: false
         )
@@ -250,7 +250,7 @@ final class ChatPresentationTests: XCTestCase {
             project: project
         )
 
-        let presentation = ChatThreadPresentation(thread: thread, providerID: "claude")
+        let presentation = ChatThreadPresentation(thread: thread, harnessID: "claude")
 
         XCTAssertEqual(presentation.selectedModel, AppSettings.defaultModelValue)
         XCTAssertTrue(presentation.selectedUseWorktree)
@@ -273,7 +273,7 @@ final class ChatPresentationTests: XCTestCase {
             )
         )
 
-        let presentation = ChatThreadPresentation(thread: thread, providerID: "claude")
+        let presentation = ChatThreadPresentation(thread: thread, harnessID: "claude")
 
         XCTAssertFalse(presentation.showWorktreePicker)
     }
@@ -291,7 +291,7 @@ final class ChatPresentationTests: XCTestCase {
         thread.modeRawValue = "future-mode"
         run.thread = thread
 
-        let presentation = ChatThreadPresentation(thread: thread, providerID: "claude")
+        let presentation = ChatThreadPresentation(thread: thread, harnessID: "claude")
 
         XCTAssertEqual(presentation.mode, .project)
         XCTAssertFalse(presentation.showWorktreePicker)
@@ -310,7 +310,7 @@ final class ChatPresentationTests: XCTestCase {
         thread.modeRawValue = "future-mode"
         run.thread = thread
 
-        let presentation = ChatThreadPresentation(thread: thread, providerID: "claude")
+        let presentation = ChatThreadPresentation(thread: thread, harnessID: "claude")
 
         XCTAssertEqual(presentation.mode, .task)
         XCTAssertFalse(presentation.showWorktreePicker)
@@ -329,7 +329,7 @@ private func makeChatPresentationScheduledRun(workspaceKind: ScheduledTaskWorksp
         promptSnapshot: "Run scheduled work.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "UTC",
-        providerIDSnapshot: "codex",
+        harnessIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: workspaceKind,

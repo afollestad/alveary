@@ -16,7 +16,7 @@ struct ThreadHostToolRequestParser {
             "primary_folder_path",
             "granted_roots",
             "name",
-            "provider",
+            "harness",
             "model",
             "effort",
             "permission_mode",
@@ -31,7 +31,7 @@ struct ThreadHostToolRequestParser {
             primaryFolderPath: try object.optionalNonEmptyString("primary_folder_path"),
             grantedRoots: try grantedRoots(in: object),
             name: try object.optionalNonEmptyString("name"),
-            provider: try object.optionalNonEmptyString("provider"),
+            harness: try object.optionalNonEmptyString("harness"),
             model: try object.optionalNonEmptyString("model"),
             effort: try object.optionalNonEmptyString("effort"),
             permissionMode: try object.optionalNonEmptyString("permission_mode"),
@@ -42,7 +42,7 @@ struct ThreadHostToolRequestParser {
         return ThreadHostToolParsedCreateRequest(
             workspace: try workspace(for: fields, in: object.path),
             name: fields.name,
-            provider: fields.provider,
+            harness: fields.harness,
             model: fields.model,
             effort: fields.effort,
             permissionMode: fields.permissionMode,
@@ -146,7 +146,7 @@ private struct ThreadHostToolCreateFields {
     let primaryFolderPath: String?
     let grantedRoots: [String]?
     let name: String?
-    let provider: String?
+    let harness: String?
     let model: String?
     let effort: String?
     let permissionMode: String?
@@ -254,7 +254,7 @@ private extension ThreadHostToolRequestParser {
             "project_id": fields.projectID,
             "primary_folder_path": fields.primaryFolderPath,
             "name": fields.name,
-            "provider": fields.provider,
+            "harness": fields.harness,
             "model": fields.model,
             "effort": fields.effort,
             "permission_mode": fields.permissionMode,

@@ -6,7 +6,7 @@ extension DefaultAgentsManager {
         _ event: ConversationEvent,
         conversationId: String,
         generation: UUID,
-        providerId: String,
+        harnessId: String,
         runtimeEventIndex: Int? = nil,
         allowAfterDeferredStop: Bool = false
     ) async {
@@ -28,7 +28,7 @@ extension DefaultAgentsManager {
         managedBuffer.observedEventCount += 1
 
         await handleConversationLifecycleEvent(event, conversationId: conversationId)
-        await handleRuntimeStatusEvent(event, conversationId: conversationId, providerId: providerId)
+        await handleRuntimeStatusEvent(event, conversationId: conversationId, harnessId: harnessId)
         noteTerminalRuntimeEventIfNeeded(event, conversationId: conversationId, runtimeEventIndex: runtimeEventIndex)
         let preTerminalActivityVisibility = managedBuffer.currentTurnActivityVisibility
         let notificationActivityVisibility = notificationActivityVisibility(
@@ -123,7 +123,7 @@ extension DefaultAgentsManager {
         managedBuffer: ManagedEventBuffer
     ) -> ConversationEvent {
         guard case .stop(let message) = event,
-              ConversationProviderExit.isDisplayMessage(message),
+              ConversationHarnessExit.isDisplayMessage(message),
               managedBuffer.hasDeferredToolStop else {
             return event
         }
@@ -133,7 +133,7 @@ extension DefaultAgentsManager {
     private func handleRuntimeStatusEvent(
         _ event: ConversationEvent,
         conversationId: String,
-        providerId: String
+        harnessId: String
     ) async {
         switch event {
         case .tokens:
@@ -160,7 +160,7 @@ extension DefaultAgentsManager {
                 state,
                 outcome: outcome,
                 conversationId: conversationId,
-                providerId: providerId
+                harnessId: harnessId
             )
         default:
             break
@@ -192,7 +192,7 @@ extension DefaultAgentsManager {
         _ state: ConversationRuntimeActivityState,
         outcome: ConversationRuntimeActivityOutcome,
         conversationId: String,
-        providerId: String
+        harnessId: String
     ) {
         // Cancelled interactions stay idle; activity from the cancelled turn must
         // not reopen busy or error state. Do not clear the marker here — only new
@@ -215,11 +215,11 @@ extension DefaultAgentsManager {
         }
         switch state {
         case .active:
-            eventBuffers[conversationId]?.hasSentProviderErrorNotification = false
+            eventBuffers[conversationId]?.hasSentHarnessErrorNotification = false
             // Claude reports `.active` only for turns it starts itself, to consume a background task
             // notification; those must notify like user turns. Codex reports it for every turn,
             // hidden host turns included, so the host-chosen visibility stands there.
-            if providerId == "claude" {
+            if harnessId == "claude" {
                 markCurrentTurnActivityVisibility(.visible, conversationId: conversationId)
             }
             // Pending approvals own the waiting state; parallel tool activity must
@@ -320,7 +320,7 @@ extension DefaultAgentsManager {
             return
         }
 
-        // AgentCLIKit owns deferred-stop teardown: it closes stdin so the provider can flush its
+        // AgentCLIKit owns deferred-stop teardown: it closes stdin so the harness can flush its
         // deferred-tool session records before exiting, then force kills after a grace period.
         // Killing from here raced those writes and broke deferred-approval resumes.
         eventBuffers[conversationId]?.hasDeferredToolStop = true
@@ -335,7 +335,7 @@ extension DefaultAgentsManager {
         let sessionId: String?
         switch event {
         case .sessionInit(let value),
-             .providerSessionMetadataChanged(let value, _, _):
+             .harnessSessionMetadataChanged(let value, _, _):
             sessionId = value
         default:
             sessionId = nil

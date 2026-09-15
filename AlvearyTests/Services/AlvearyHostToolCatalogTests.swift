@@ -21,7 +21,7 @@ final class AlvearyHostToolCatalogTests: XCTestCase {
         )
     }
 
-    func testNameMatchingAcceptsBothProviderShapes() {
+    func testNameMatchingAcceptsBothHarnessShapes() {
         XCTAssertTrue(AlvearyHostToolCatalog.matches(reportedName: "list_threads", hostToolName: "list_threads"))
         XCTAssertTrue(
             AlvearyHostToolCatalog.matches(
@@ -45,7 +45,34 @@ final class AlvearyHostToolCatalogTests: XCTestCase {
         )
     }
 
-    /// The preamble is the first thing a provider reads, and it used to say the server only acted
+    func testThreadSettingsSchemasUseHarnessWithoutAProviderAlias() throws {
+        let create = try XCTUnwrap(AlvearyHostToolCatalog.tools.first { $0.name == "create_thread" })
+        let list = try XCTUnwrap(AlvearyHostToolCatalog.tools.first { $0.name == "list_threads" })
+        guard case let .object(input) = create.inputSchema,
+              case let .object(inputProperties)? = input["properties"],
+              case let .object(output)? = create.outputSchema,
+              case let .object(outputProperties)? = output["properties"],
+              case let .object(listOutput)? = list.outputSchema,
+              case let .object(listProperties)? = listOutput["properties"],
+              case let .object(threads)? = listProperties["threads"],
+              case let .object(thread)? = threads["items"],
+              case let .object(threadProperties)? = thread["properties"] else {
+            return XCTFail("Expected object schemas for thread settings")
+        }
+
+        XCTAssertEqual(input["additionalProperties"], .bool(false))
+        for properties in [inputProperties, outputProperties, threadProperties] {
+            XCTAssertNotNil(properties["harness"])
+            XCTAssertNil(properties["provider"])
+        }
+        guard case let .array(required)? = thread["required"] else {
+            return XCTFail("Expected required fields for listed threads")
+        }
+        XCTAssertTrue(required.contains(.string("harness")))
+        XCTAssertFalse(required.contains(.string("provider")))
+    }
+
+    /// The preamble is the first thing a harness reads, and it used to say the server only acted
     /// on Alveary — which made reaching for `gh` or a web search look like the right call for a
     /// GitHub question. It has to name the substitutes it is ruling out.
     func testThePreambleRulesOutTheToolsItActuallyCompetesWith() throws {

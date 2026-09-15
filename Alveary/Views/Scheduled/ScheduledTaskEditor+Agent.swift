@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Groups the whole agent configuration; "Harness" names only its runtime choice.
 struct ScheduledTaskEditorAgentSection: View {
     let viewModel: ScheduledTasksViewModel
     @Binding var draft: ScheduledTaskEditorDraft
@@ -7,12 +8,12 @@ struct ScheduledTaskEditorAgentSection: View {
     var body: some View {
         SettingsFormSection("Agent") {
             SettingsFormRow {
-                SettingsResponsiveControlRow("Provider", horizontalControlSizing: .selectedContent) {
+                SettingsResponsiveControlRow("Harness", horizontalControlSizing: .selectedContent) {
                     ScheduledTaskMenuPicker(
-                        accessibilityLabel: "Provider",
-                        selection: $draft.providerID,
-                        options: viewModel.providerIDs(including: draft.providerID).map {
-                            .init(value: $0, label: viewModel.providerDisplayName(for: $0))
+                        accessibilityLabel: "Harness",
+                        selection: $draft.harnessID,
+                        options: viewModel.harnessIDs(including: draft.harnessID).map {
+                            .init(value: $0, label: viewModel.harnessDisplayName(for: $0))
                         }
                     )
                 }
@@ -24,7 +25,7 @@ struct ScheduledTaskEditorAgentSection: View {
                         accessibilityLabel: "Model",
                         selection: $draft.modelSelection,
                         options: viewModel.modelPickerOptions(
-                            for: draft.providerID,
+                            for: draft.harnessID,
                             including: draft.modelSelection
                         ).map { .init(value: $0.value, label: $0.label) }
                     )
@@ -32,7 +33,7 @@ struct ScheduledTaskEditorAgentSection: View {
             }
 
             let effortOptions = viewModel.effortOptions(
-                for: draft.providerID,
+                for: draft.harnessID,
                 modelSelection: draft.modelSelection
             )
             if !effortOptions.isEmpty {
@@ -53,7 +54,7 @@ struct ScheduledTaskEditorAgentSection: View {
                         accessibilityLabel: "Permissions",
                         selection: $draft.permissionMode,
                         options: viewModel.permissionModeOptions(
-                            for: draft.providerID,
+                            for: draft.harnessID,
                             including: draft.permissionMode
                         ).map { .init(value: $0.value, label: $0.label) }
                     )

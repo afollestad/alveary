@@ -22,7 +22,7 @@ final class MCPServiceTests: XCTestCase {
             url: "https://mcp.context7.com/mcp",
             headers: ["X-API-KEY": "secret"],
             env: nil,
-            providers: []
+            harnesses: []
         )
 
         try await fixture.service.addServer(server, for: ["claude"])
@@ -37,7 +37,7 @@ final class MCPServiceTests: XCTestCase {
         XCTAssertNotNil(root["projects"])
     }
 
-    func testLoadAllDeduplicatesProvidersByServerName() async throws {
+    func testLoadAllDeduplicatesHarnessesByServerName() async throws {
         let fixture = try MCPServiceFixture()
         defer { fixture.cleanup() }
         try await fixture.claudeStore.writeMCPServers([
@@ -60,7 +60,7 @@ final class MCPServiceTests: XCTestCase {
 
         XCTAssertEqual(servers.count, 1)
         XCTAssertEqual(servers.first?.name, "filesystem")
-        XCTAssertEqual(servers.first?.providers, ["claude", "codex"])
+        XCTAssertEqual(servers.first?.harnesses, ["claude", "codex"])
     }
 
     func testLoadRecommendedPreservesHeaderPromptsAndExcludesInstalledServers() async throws {
@@ -99,7 +99,7 @@ final class MCPServiceTests: XCTestCase {
         defer { fixture.cleanup() }
 
         let available = await fixture.service.availableAgents()
-        let checkAllCount = await fixture.providerDetection.checkAllCount()
+        let checkAllCount = await fixture.harnessDetection.checkAllCount()
 
         XCTAssertEqual(checkAllCount, 1)
         XCTAssertEqual(available.count, 2)
@@ -116,10 +116,10 @@ private struct MCPServiceFixture {
     let codexIntegration: MCPIntegrationDefinition
     let claudeStore: AgentCLIKit.ClaudeConfigStore
     let codexStore: AgentCLIKit.CodexConfigStore
-    let providerDetection: MCPTestProviderDetectionService
+    let harnessDetection: MCPTestHarnessDetectionService
     let service: DefaultMCPService
 
-    init(statuses: [String: ProviderStatus] = [
+    init(statuses: [String: HarnessStatus] = [
         "claude": .connected(path: "/usr/local/bin/claude", version: "1.0.0"),
         "codex": .connected(path: "/usr/local/bin/codex", version: "1.0.0")
     ]) throws {
@@ -129,7 +129,7 @@ private struct MCPServiceFixture {
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true, attributes: nil)
         claudeStore = AgentCLIKit.ClaudeConfigStore(homeDirectoryURL: homeDirectory)
         codexStore = AgentCLIKit.CodexConfigStore(fileURL: codexConfigURL)
-        providerDetection = MCPTestProviderDetectionService(statuses: statuses)
+        harnessDetection = MCPTestHarnessDetectionService(statuses: statuses)
         codexIntegration = MCPIntegrationDefinition(
             configPath: codexConfigURL.path,
             serversKeyPath: ["mcp_servers"],
@@ -143,7 +143,7 @@ private struct MCPServiceFixture {
         service = DefaultMCPService(
             claudeConfigStore: claudeStore,
             codexConfigStore: codexStore,
-            providerDetection: providerDetection,
+            harnessDetection: harnessDetection,
             agentRegistry: registry,
             bundle: Bundle(for: MCPServiceTests.self)
         )
@@ -162,7 +162,7 @@ private struct MCPServiceFixture {
                     installCommand: nil,
                     signInCommand: nil,
                     docUrl: nil,
-                    provider: nil,
+                    harness: nil,
                     skillsDirectory: nil,
                     instructionsPath: nil,
                     mcp: MCPIntegrationDefinition(
@@ -179,7 +179,7 @@ private struct MCPServiceFixture {
                     installCommand: nil,
                     signInCommand: nil,
                     docUrl: nil,
-                    provider: nil,
+                    harness: nil,
                     skillsDirectory: nil,
                     instructionsPath: nil,
                     mcp: codexIntegration

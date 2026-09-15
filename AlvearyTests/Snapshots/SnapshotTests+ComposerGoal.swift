@@ -74,7 +74,7 @@ extension SnapshotTests {
                         onDismiss: {}
                     )),
                     .inlineBanner(.init(
-                        message: "Continuing from the last provider session.",
+                        message: "Continuing from the last harness session.",
                         severity: .info,
                         actionTitle: nil,
                         onAction: nil,
@@ -142,7 +142,7 @@ extension SnapshotTests {
     private func activeGoalItem() -> AppKitChatComposerTopContentView.Item {
         .goalStatus(.init(
             snapshot: AgentGoalSnapshot(
-                objective: "Finish Goal mode across Codex and Claude without duplicating the first provider turn.",
+                objective: "Finish Goal mode across Codex and Claude without duplicating the first harness turn.",
                 status: .active,
                 availableActions: [.pause, .delete],
                 elapsedSeconds: 75,
@@ -160,7 +160,7 @@ extension SnapshotTests {
     private func terminalGoalItem() -> AppKitChatComposerTopContentView.Item {
         .goalStatus(.init(
             snapshot: AgentGoalSnapshot(
-                objective: "Finish Goal mode across Codex and Claude without duplicating the first provider turn.",
+                objective: "Finish Goal mode across Codex and Claude without duplicating the first harness turn.",
                 status: .achieved,
                 elapsedSeconds: 420,
                 turnCount: 8,
@@ -180,7 +180,7 @@ extension SnapshotTests {
     ) -> AppKitChatComposerTopContentView.Item {
         .goalStatus(.init(
             snapshot: AgentGoalSnapshot(
-                objective: "Resolve the remaining test blockers without inventing missing provider behavior.",
+                objective: "Resolve the remaining test blockers without inventing missing harness behavior.",
                 status: .blocked,
                 elapsedSeconds: 420,
                 turnCount: 8,

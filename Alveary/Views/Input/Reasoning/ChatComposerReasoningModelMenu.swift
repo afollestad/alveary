@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 final class ComposerReasoningModelListView: NSView {
     private var groups: [ChatComposerActionRowView.ReasoningModelGroup]
-    private var selectedProviderID: String
+    private var selectedHarnessID: String
     private var selectedModelID: String
     private let onModelSelected: (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void
     private let onCancel: () -> Void
@@ -22,7 +22,7 @@ final class ComposerReasoningModelListView: NSView {
     /// Where keyboard focus should land when the list is revealed programmatically, so arrow keys
     /// start from the current model rather than the top of the list.
     var preferredFocusRow: ComposerReasoningMenuRowView? {
-        let selectedIdentity = "\(selectedProviderID):\(selectedModelID)"
+        let selectedIdentity = "\(selectedHarnessID):\(selectedModelID)"
         if let selectedRow = rowsByIdentity[selectedIdentity], selectedRow.acceptsFirstResponder {
             return selectedRow
         }
@@ -31,13 +31,13 @@ final class ComposerReasoningModelListView: NSView {
 
     init(
         groups: [ChatComposerActionRowView.ReasoningModelGroup],
-        selectedProviderID: String,
+        selectedHarnessID: String,
         selectedModelID: String,
         onModelSelected: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.groups = groups
-        self.selectedProviderID = selectedProviderID
+        self.selectedHarnessID = selectedHarnessID
         self.selectedModelID = selectedModelID
         self.onModelSelected = onModelSelected
         self.onCancel = onCancel
@@ -53,13 +53,13 @@ final class ComposerReasoningModelListView: NSView {
 
     func update(
         groups: [ChatComposerActionRowView.ReasoningModelGroup],
-        selectedProviderID: String,
+        selectedHarnessID: String,
         selectedModelID: String
     ) {
         let nextStructure = Structure(groups: groups)
         let structureChanged = structure != nextStructure
         self.groups = groups
-        self.selectedProviderID = selectedProviderID
+        self.selectedHarnessID = selectedHarnessID
         self.selectedModelID = selectedModelID
         structure = nextStructure
 
@@ -84,7 +84,7 @@ final class ComposerReasoningModelListView: NSView {
     }
 
     #if DEBUG
-    var debugShowsProviderHeaders: Bool { structure.showsProviderHeaders }
+    var debugShowsHarnessHeaders: Bool { structure.showsHarnessHeaders }
     var debugScrollOrigin: NSPoint { scrollView.contentView.bounds.origin }
     var debugDocumentHeight: CGFloat { documentView.frame.height }
     var debugModelRowIdentities: [String] { structure.options.map(\.identity) }
@@ -122,8 +122,8 @@ final class ComposerReasoningModelListView: NSView {
         }
 
         for (groupIndex, group) in visibleGroups.enumerated() {
-            if structure.showsProviderHeaders {
-                append(ComposerReasoningHeaderView(title: group.providerTitle ?? group.providerID.capitalized))
+            if structure.showsHarnessHeaders {
+                append(ComposerReasoningHeaderView(title: group.harnessTitle ?? group.harnessID.capitalized))
             }
 
             for option in group.options {
@@ -133,7 +133,7 @@ final class ComposerReasoningModelListView: NSView {
                 append(row)
             }
 
-            if structure.showsProviderHeaders, groupIndex < visibleGroups.count - 1 {
+            if structure.showsHarnessHeaders, groupIndex < visibleGroups.count - 1 {
                 append(AppKitComposerPopoverDividerView())
             }
         }
@@ -150,7 +150,7 @@ final class ComposerReasoningModelListView: NSView {
         row: ComposerReasoningMenuRowView,
         option: ChatComposerActionRowView.ReasoningModelOption
     ) {
-        let isSelected = option.providerID == selectedProviderID && option.value == selectedModelID
+        let isSelected = option.harnessID == selectedHarnessID && option.value == selectedModelID
         row.configure(.init(
             title: option.title,
             iconName: nil,
@@ -161,7 +161,7 @@ final class ComposerReasoningModelListView: NSView {
             showsFocusBackground: true,
             activatesWithRightArrow: false,
             action: { [weak self] in
-                self?.onModelSelected(.init(providerID: option.providerID, modelID: option.value))
+                self?.onModelSelected(.init(harnessID: option.harnessID, modelID: option.value))
             },
             cancelAction: onCancel
         ))
@@ -170,13 +170,13 @@ final class ComposerReasoningModelListView: NSView {
     private func accessibilityLabel(
         for option: ChatComposerActionRowView.ReasoningModelOption
     ) -> String {
-        guard structure.showsProviderHeaders,
-              let group = structure.visibleGroups.first(where: { $0.providerID == option.providerID }) else {
+        guard structure.showsHarnessHeaders,
+              let group = structure.visibleGroups.first(where: { $0.harnessID == option.harnessID }) else {
             return option.title
         }
-        let trimmedTitle = group.providerTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let providerTitle = trimmedTitle.flatMap { $0.isEmpty ? nil : $0 } ?? group.providerID.capitalized
-        return "\(providerTitle), \(option.title)"
+        let trimmedTitle = group.harnessTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let harnessTitle = trimmedTitle.flatMap { $0.isEmpty ? nil : $0 } ?? group.harnessID.capitalized
+        return "\(harnessTitle), \(option.title)"
     }
 
     private func append(_ view: NSView) {
@@ -194,7 +194,7 @@ final class ComposerReasoningModelListView: NSView {
         )
 
         var nextY = ComposerReasoningMenuMetrics.modelMenuTopInset(
-            showsProviderHeaders: structure.showsProviderHeaders
+            showsHarnessHeaders: structure.showsHarnessHeaders
         )
         for arrangedView in arrangedViews {
             let layout = layoutMetrics(for: arrangedView)
@@ -245,7 +245,7 @@ private extension ComposerReasoningModelListView {
             visibleGroups = groups.filter { !$0.options.isEmpty }
         }
 
-        var showsProviderHeaders: Bool { visibleGroups.count > 1 }
+        var showsHarnessHeaders: Bool { visibleGroups.count > 1 }
         var options: [ChatComposerActionRowView.ReasoningModelOption] { visibleGroups.flatMap(\.options) }
     }
 

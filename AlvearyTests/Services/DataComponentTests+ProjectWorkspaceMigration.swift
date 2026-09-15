@@ -25,7 +25,7 @@ extension DataComponentTests {
             XCTAssertEqual(thread.sourceFolder?.path, "/missing/source")
             XCTAssertEqual(thread.workspaceSnapshot?.grants.map(\.path), ["/missing/grant"])
             XCTAssertEqual(thread.workspaceSnapshot?.rootsExplicitlyManaged, true)
-            XCTAssertEqual(thread.conversations.first?.providerSessionId, "saved-session")
+            XCTAssertEqual(thread.conversations.first?.harnessSessionId, "saved-session")
             XCTAssertEqual(thread.conversations.first?.events.first?.content, "Keep this history")
             XCTAssertEqual(thread.linkedPullRequestsJSON, "saved-links")
             XCTAssertEqual(schedule.workspaceSnapshot?.grants.map(\.path), ["/missing/schedule-grant"])
@@ -89,7 +89,7 @@ extension DataComponentTests {
         try Data("interrupted database copy".utf8).write(to: url)
         let container = try ProjectWorkspaceStoreUpgrade.open(at: url)
         XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<ConversationEventRecord>()), 1)
-        XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<Conversation>()).first?.providerSessionId, "saved-session")
+        XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<Conversation>()).first?.harnessSessionId, "saved-session")
     }
 
     func testMigrationDoesNotFollowAChangedSymlink() throws {

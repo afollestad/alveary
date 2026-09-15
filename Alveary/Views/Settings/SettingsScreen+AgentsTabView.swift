@@ -3,19 +3,19 @@ import SwiftUI
 
 struct AgentsSettingsTabView: View {
     let viewModel: SettingsViewModel
-    let providerIDs: [String]
-    let providerExtraArgsBinding: (String) -> Binding<String>
+    let harnessIDs: [String]
+    let harnessExtraArgsBinding: (String) -> Binding<String>
 
     @State private var gridColumnCount = 2
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
             LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 16) {
-                ForEach(providerIDs, id: \.self) { providerID in
+                ForEach(harnessIDs, id: \.self) { harnessID in
                     SettingsAgentCard(
                         viewModel: viewModel,
-                        providerID: providerID,
-                        extraArgs: providerExtraArgsBinding(providerID)
+                        harnessID: harnessID,
+                        extraArgs: harnessExtraArgsBinding(harnessID)
                     )
                 }
             }
@@ -28,7 +28,7 @@ struct AgentsSettingsTabView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task {
-            await viewModel.refreshProviderStatuses()
+            await viewModel.refreshHarnessStatuses()
         }
     }
 

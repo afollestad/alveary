@@ -33,7 +33,7 @@ extension AppComponent {
     var scheduledTaskPreflightValidator: DefaultScheduledTaskPreflightValidator {
         return shared {
             DefaultScheduledTaskPreflightValidator(
-                providerDiscovery: cachedAgentProviderDiscoveryService,
+                harnessDiscovery: cachedAgentHarnessDiscoveryService,
                 workspaceOwnershipService: taskWorkspaceOwnershipService,
                 worktreeManager: worktreeManager
             )
@@ -43,7 +43,7 @@ extension AppComponent {
     var scheduledTaskRecoveryReadinessValidator: ScheduledTaskRecoveryReadinessValidator {
         return shared {
             ScheduledTaskRecoveryReadinessValidator(
-                providerDiscovery: cachedAgentProviderDiscoveryService,
+                harnessDiscovery: cachedAgentHarnessDiscoveryService,
                 workspaceOwnershipService: taskWorkspaceOwnershipService,
                 worktreeManager: worktreeManager,
                 targetIsReady: { conversationID in

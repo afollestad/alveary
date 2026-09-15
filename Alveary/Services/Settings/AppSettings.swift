@@ -8,20 +8,28 @@ enum PullRequestReviewMode: String, Codable, CaseIterable, Equatable, Hashable, 
 
 struct PullRequestReviewPeer: Codable, Equatable, Identifiable, Sendable {
     let id: String
-    var providerID: String
+    var harnessID: String
     var model: String
     var effort: String
+
+    /// Keep the stored JSON format stable across the harness terminology rename.
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case harnessID = "providerID"
+        case model
+        case effort
+    }
 }
 
 struct AppSettings: Codable, Sendable, Equatable {
     static let currentSettingsSchemaVersion = 1
-    static let supportedProviderIDs = ["claude", "codex"]
-    static let supportedPermissionModesByProvider = [
+    static let supportedHarnessIDs = ["claude", "codex"]
+    static let supportedPermissionModesByHarness = [
         "claude": ["default", "acceptEdits", "auto", "bypassPermissions"],
         "codex": ["untrusted", "on-request", "never"]
     ]
     static let supportedPermissionModes = ["default", "acceptEdits", "auto", "bypassPermissions", "untrusted", "on-request", "never"]
-    static let defaultPermissionModeByProvider = [
+    static let defaultPermissionModeByHarness = [
         "claude": "default",
         "codex": "on-request"
     ]
@@ -45,12 +53,12 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let fallbackVoiceInputShortcut = PhysicalKeyboardShortcut.controlCommandShiftSpace
     var settingsSchemaVersion = Self.currentSettingsSchemaVersion
     var hasCompletedOnboarding = false
-    var lastSettingsPage = SettingsPage.agents
-    var defaultProvider = "claude"
+    var lastSettingsPage = SettingsPage.harnesses
+    var defaultHarness = "claude"
     var defaultModel = Self.defaultModelValue
     var permissionMode = "default"
     var effort = Self.defaultEffortLevel
-    var disabledProviderIDs: Set<String> = []
+    var disabledHarnessIDs: Set<String> = []
     var defaultThreadCleanupAction = ThreadCleanupAction.archive
     var defaultEnterBehavior = Self.defaultEnterBehavior
     var reopenLastThreadAndConversationOnLaunch = true
@@ -99,12 +107,12 @@ struct AppSettings: Codable, Sendable, Equatable {
     var pullRequestReviewMode = PullRequestReviewMode.singleAgent
     var pullRequestReviewPeers: [PullRequestReviewPeer] = []
     /// Review pins also configure the team lead; nil follows the Threads defaults.
-    var pullRequestReviewProvider: String?
+    var pullRequestReviewHarness: String?
     var pullRequestReviewModel: String?
     var pullRequestReviewEffort: String?
     /// Used by single-agent reviews only; team workers always run read-only.
     var pullRequestReviewPermissionMode: String?
-    var pullRequestAddressFeedbackProvider: String?
+    var pullRequestAddressFeedbackHarness: String?
     var pullRequestAddressFeedbackModel: String?
     var pullRequestAddressFeedbackEffort: String?
     var pullRequestAddressFeedbackPermissionMode: String?
@@ -119,7 +127,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var gitCommitIncludeUnstagedChanges = true
     var worktreesBaseDirectory = "~/Documents/worktrees"
     var lastAddProjectParentFolder: String?
-    var providerConfigs: [String: ProviderCustomConfig] = [:]
+    var harnessConfigs: [String: HarnessCustomConfig] = [:]
     var lastActiveProjectID: String?
     /// Legacy selection, retained until it resolves to an unambiguous membership.
     var lastActiveProjectPath: String?
@@ -144,7 +152,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     func normalized() -> AppSettings {
         var copy = self
 
-        copy.normalizeProviderDefaults()
+        copy.normalizeHarnessDefaults()
         copy.normalizeThreadDefaults()
         copy.turnAwake = copy.turnAwake.normalized()
         copy.normalizeAppearanceDefaults()
@@ -153,7 +161,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         copy.normalizeVoiceInputShortcut()
         copy.normalizeContextManagement()
         copy.normalizeNotificationDefaults()
-        copy.normalizeProviderConfigs()
+        copy.normalizeHarnessConfigs()
         copy.normalizeGitDefaults()
         copy.normalizeWorktreesBaseDirectory()
         copy.normalizeLastActiveProjectPath()
@@ -181,42 +189,42 @@ struct AppSettings: Codable, Sendable, Equatable {
         return effort
     }
 
-    static func supportedPermissionModes(forProvider providerID: String) -> [String] {
-        supportedPermissionModesByProvider[providerID] ?? []
+    static func supportedPermissionModes(forHarness harnessID: String) -> [String] {
+        supportedPermissionModesByHarness[harnessID] ?? []
     }
 
-    static func defaultPermissionMode(forProvider providerID: String) -> String {
-        defaultPermissionModeByProvider[providerID] ?? "default"
+    static func defaultPermissionMode(forHarness harnessID: String) -> String {
+        defaultPermissionModeByHarness[harnessID] ?? "default"
     }
 
-    func isProviderEnabled(_ providerID: String) -> Bool {
-        Self.supportedProviderIDs.contains(providerID) && !disabledProviderIDs.contains(providerID)
+    func isHarnessEnabled(_ harnessID: String) -> Bool {
+        Self.supportedHarnessIDs.contains(harnessID) && !disabledHarnessIDs.contains(harnessID)
     }
 
-    mutating func setProvider(_ providerID: String, enabled: Bool) {
-        guard Self.supportedProviderIDs.contains(providerID) else {
+    mutating func setHarness(_ harnessID: String, enabled: Bool) {
+        guard Self.supportedHarnessIDs.contains(harnessID) else {
             return
         }
         if enabled {
-            disabledProviderIDs.remove(providerID)
+            disabledHarnessIDs.remove(harnessID)
         } else {
-            disabledProviderIDs.insert(providerID)
+            disabledHarnessIDs.insert(harnessID)
         }
     }
 
-    private mutating func normalizeProviderDefaults() {
-        disabledProviderIDs = Set(disabledProviderIDs.filter(Self.supportedProviderIDs.contains))
-        if disabledProviderIDs.count >= Self.supportedProviderIDs.count,
-           let fallbackProvider = Self.supportedProviderIDs.first {
-            disabledProviderIDs.remove(fallbackProvider)
+    private mutating func normalizeHarnessDefaults() {
+        disabledHarnessIDs = Set(disabledHarnessIDs.filter(Self.supportedHarnessIDs.contains))
+        if disabledHarnessIDs.count >= Self.supportedHarnessIDs.count,
+           let fallbackHarness = Self.supportedHarnessIDs.first {
+            disabledHarnessIDs.remove(fallbackHarness)
         }
 
-        if !Self.supportedProviderIDs.contains(defaultProvider) {
-            defaultProvider = Self.supportedProviderIDs[0]
+        if !Self.supportedHarnessIDs.contains(defaultHarness) {
+            defaultHarness = Self.supportedHarnessIDs[0]
         }
-        if !isProviderEnabled(defaultProvider),
-           let fallbackProvider = Self.supportedProviderIDs.first(where: { isProviderEnabled($0) }) {
-            defaultProvider = fallbackProvider
+        if !isHarnessEnabled(defaultHarness),
+           let fallbackHarness = Self.supportedHarnessIDs.first(where: { isHarnessEnabled($0) }) {
+            defaultHarness = fallbackHarness
         }
 
         defaultModel = defaultModel.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -224,8 +232,8 @@ struct AppSettings: Codable, Sendable, Equatable {
             defaultModel = Self.defaultModelValue
         }
 
-        if !Self.supportedPermissionModes(forProvider: defaultProvider).contains(permissionMode) {
-            permissionMode = Self.defaultPermissionMode(forProvider: defaultProvider)
+        if !Self.supportedPermissionModes(forHarness: defaultHarness).contains(permissionMode) {
+            permissionMode = Self.defaultPermissionMode(forHarness: defaultHarness)
         }
         effort = Self.normalizedEffortLevel(effort)
     }
@@ -289,8 +297,8 @@ struct AppSettings: Codable, Sendable, Equatable {
         }
     }
 
-    private mutating func normalizeProviderConfigs() {
-        providerConfigs = providerConfigs.reduce(into: [:]) { partialResult, entry in
+    private mutating func normalizeHarnessConfigs() {
+        harnessConfigs = harnessConfigs.reduce(into: [:]) { partialResult, entry in
             if let normalized = entry.value.normalized() {
                 partialResult[entry.key] = normalized
             }
@@ -313,8 +321,8 @@ struct AppSettings: Codable, Sendable, Equatable {
         normalizePullRequestAgentDefaults()
     }
 
-    /// Drop unknown provider and permission values; creation validates compatibility with the
-    /// resolved provider, which may differ from an unavailable pin. Section existence needs SwiftData.
+    /// Drop unknown harness and permission values; creation validates compatibility with the
+    /// resolved harness, which may differ from an unavailable pin. Section existence needs SwiftData.
     private mutating func normalizePullRequestAgentDefaults() {
         pullRequestReviewAgent = Self.normalizedPullRequestAgent(pullRequestReviewAgent)
         pullRequestAddressFeedbackAgent = Self.normalizedPullRequestAgent(pullRequestAddressFeedbackAgent)
@@ -324,8 +332,8 @@ struct AppSettings: Codable, Sendable, Equatable {
 
     private static func normalizedPullRequestAgent(_ value: PullRequestAgentSettings) -> PullRequestAgentSettings {
         var result = value
-        result.provider = normalizedOptionalSetting(value.provider)
-            .flatMap { Self.supportedProviderIDs.contains($0) ? $0 : nil }
+        result.harness = normalizedOptionalSetting(value.harness)
+            .flatMap { Self.supportedHarnessIDs.contains($0) ? $0 : nil }
         result.model = normalizedOptionalSetting(value.model)
         result.effort = normalizedOptionalSetting(value.effort)
         result.permissionMode = normalizedOptionalSetting(value.permissionMode)

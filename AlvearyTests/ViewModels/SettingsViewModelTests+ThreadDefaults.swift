@@ -5,12 +5,12 @@ import XCTest
 
 @MainActor
 extension SettingsViewModelTests {
-    func testThreadDefaultProvidersOnlyIncludeInstalledSetupReadyProviders() async {
+    func testThreadDefaultHarnessesOnlyIncludeInstalledSetupReadyHarnesses() async {
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(),
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
-                .codex: Self.providerStatus(
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
+                .codex: Self.harnessStatus(
                     for: .codex,
                     setup: .needsSetup,
                     modelOptions: AgentModelOptionTestFixtures.codexModelOptions
@@ -18,59 +18,59 @@ extension SettingsViewModelTests {
             ])
         )
 
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
-        XCTAssertEqual(viewModel.threadDefaultProviderIDs, ["claude"])
-        XCTAssertEqual(viewModel.threadDefaultProviderSelection, "claude")
+        XCTAssertEqual(viewModel.threadDefaultHarnessIDs, ["claude"])
+        XCTAssertEqual(viewModel.threadDefaultHarnessSelection, "claude")
     }
 
-    func testThreadDefaultProvidersExcludeDisabledProvidersEvenWhenStatusIsReady() async {
+    func testThreadDefaultHarnessesExcludeDisabledHarnessesEvenWhenStatusIsReady() async {
         var settings = AppSettings()
-        settings.disabledProviderIDs = ["claude"]
+        settings.disabledHarnessIDs = ["claude"]
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
-                .codex: Self.providerStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
+                .codex: Self.harnessStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
             ])
         )
 
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
-        XCTAssertEqual(viewModel.threadDefaultProviderIDs, ["codex"])
-        XCTAssertEqual(viewModel.threadDefaultProviderSelection, "codex")
+        XCTAssertEqual(viewModel.threadDefaultHarnessIDs, ["codex"])
+        XCTAssertEqual(viewModel.threadDefaultHarnessSelection, "codex")
     }
 
-    func testThreadDefaultProvidersExcludeProviderStatusDisabledProviders() async {
+    func testThreadDefaultHarnessesExcludeHarnessStatusDisabledHarnesses() async {
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(),
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(
                     for: .claude,
                     isEnabled: false,
                     modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
                 ),
-                .codex: Self.providerStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
+                .codex: Self.harnessStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
             ])
         )
 
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
-        XCTAssertEqual(viewModel.threadDefaultProviderIDs, ["codex"])
-        XCTAssertEqual(viewModel.threadDefaultProviderSelection, "codex")
+        XCTAssertEqual(viewModel.threadDefaultHarnessIDs, ["codex"])
+        XCTAssertEqual(viewModel.threadDefaultHarnessSelection, "codex")
     }
 
-    func testThreadDefaultRefreshPersistsFallbackWhenStoredProviderIsMissing() async {
+    func testThreadDefaultRefreshPersistsFallbackWhenStoredHarnessIsMissing() async {
         var settings = AppSettings()
-        settings.defaultProvider = "codex"
+        settings.defaultHarness = "codex"
         settings.defaultModel = "gpt-5.4-mini"
         settings.permissionMode = "never"
         let service = InMemorySettingsService(current: settings)
         let viewModel = SettingsViewModel(
             settingsService: service,
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
-                .codex: Self.providerStatus(
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
+                .codex: Self.harnessStatus(
                     for: .codex,
                     installation: .missing,
                     modelOptions: AgentModelOptionTestFixtures.codexModelOptions
@@ -78,44 +78,44 @@ extension SettingsViewModelTests {
             ])
         )
 
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
-        XCTAssertEqual(viewModel.threadDefaultProviderIDs, ["claude"])
-        XCTAssertEqual(service.current.defaultProvider, "claude")
+        XCTAssertEqual(viewModel.threadDefaultHarnessIDs, ["claude"])
+        XCTAssertEqual(service.current.defaultHarness, "claude")
         XCTAssertEqual(service.current.defaultModel, AppSettings.defaultModelValue)
         XCTAssertEqual(service.current.permissionMode, "default")
     }
 
-    func testThreadDefaultRefreshCoercesStaleModelForReadyProvider() async {
+    func testThreadDefaultRefreshCoercesStaleModelForReadyHarness() async {
         var settings = AppSettings()
-        settings.defaultProvider = "claude"
+        settings.defaultHarness = "claude"
         settings.defaultModel = "not-a-real-model"
         let service = InMemorySettingsService(current: settings)
         let viewModel = SettingsViewModel(
             settingsService: service,
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
             ])
         )
 
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
-        XCTAssertEqual(service.current.defaultProvider, "claude")
+        XCTAssertEqual(service.current.defaultHarness, "claude")
         XCTAssertEqual(service.current.defaultModel, AppSettings.defaultModelValue)
         XCTAssertEqual(viewModel.threadDefaultModelSelection, "sonnet")
     }
 
-    func testThreadDefaultProvidersEmptyWhenNoProviderIsReady() async {
+    func testThreadDefaultHarnessesEmptyWhenNoHarnessIsReady() async {
         let service = InMemorySettingsService()
         let viewModel = SettingsViewModel(
             settingsService: service,
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(
                     for: .claude,
                     installation: .missing,
                     modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
                 ),
-                .codex: Self.providerStatus(
+                .codex: Self.harnessStatus(
                     for: .codex,
                     setup: .needsSetup,
                     modelOptions: AgentModelOptionTestFixtures.codexModelOptions
@@ -123,11 +123,11 @@ extension SettingsViewModelTests {
             ])
         )
 
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
-        XCTAssertFalse(viewModel.isCheckingThreadDefaultProviders)
-        XCTAssertFalse(viewModel.hasReadyThreadDefaultProvider)
-        XCTAssertTrue(viewModel.threadDefaultProviderIDs.isEmpty)
-        XCTAssertEqual(service.current.defaultProvider, "claude")
+        XCTAssertFalse(viewModel.isCheckingThreadDefaultHarnesses)
+        XCTAssertFalse(viewModel.hasReadyThreadDefaultHarness)
+        XCTAssertTrue(viewModel.threadDefaultHarnessIDs.isEmpty)
+        XCTAssertEqual(service.current.defaultHarness, "claude")
     }
 }

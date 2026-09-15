@@ -4,7 +4,7 @@ extension ScheduledTaskHostToolService {
     func resolveProposal(
         _ request: ScheduledTaskProposalRequest,
         sourceThread: AgentThread,
-        sourceProviderID: String,
+        sourceHarnessID: String,
         resolveNewFolder: (String) throws -> SourceFolderSnapshot = { SourceFolderSnapshot(path: $0) }
     ) throws -> ScheduledTaskHostToolProposalResolution {
         switch request {
@@ -17,7 +17,7 @@ extension ScheduledTaskHostToolService {
                     thread: sourceThread,
                     settings: ScheduledTaskProposalAgentSettings(
                         sourceThread: sourceThread,
-                        providerID: sourceProviderID
+                        harnessID: sourceHarnessID
                     )
                 ),
                 resolveNewFolder: resolveNewFolder
@@ -80,7 +80,7 @@ extension ScheduledTaskHostToolService {
             destination: placement?.requestedNewThreadFlavor?.destination ?? .reusedThread,
             recurrence: schedule.recurrence,
             timeZoneIdentifier: currentTimeZone().identifier,
-            providerID: source.settings.providerID,
+            harnessID: source.settings.harnessID,
             model: source.settings.model,
             effort: source.settings.effort,
             permissionMode: source.settings.permissionMode,
@@ -295,7 +295,7 @@ extension ScheduledTaskHostToolService {
                 : nil,
             recurrence: context.recurrence,
             timeZoneIdentifier: context.timeZoneIdentifier,
-            providerID: context.settings.providerID,
+            harnessID: context.settings.harnessID,
             model: context.settings.model,
             effort: context.settings.effort,
             permissionMode: context.settings.permissionMode,
@@ -388,8 +388,8 @@ extension ScheduledTaskHostToolService {
         let source: HostToolCallSource
         do {
             source = try HostToolSourceResolver.resolveSource(context: context, in: modelContext)
-        } catch HostToolSourceError.sourceProviderMismatch {
-            throw ScheduledTaskHostToolServiceError.sourceProviderMismatch
+        } catch HostToolSourceError.sourceHarnessMismatch {
+            throw ScheduledTaskHostToolServiceError.sourceHarnessMismatch
         } catch {
             throw ScheduledTaskHostToolServiceError.sourceConversationUnavailable
         }

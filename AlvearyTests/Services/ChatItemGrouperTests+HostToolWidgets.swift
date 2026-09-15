@@ -25,7 +25,7 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(content.proposedTitle, "Daily hello")
     }
 
-    /// Guards against drift from the real provider payload: this is the verbatim
+    /// Guards against drift from the real harness payload: this is the verbatim
     /// tool name and serialized input Claude Code emits for a create proposal.
     func testRealWorldProposalPayloadRoutesToAWidget() {
         let grouper = ChatItemGrouper()
@@ -92,7 +92,7 @@ extension ChatItemGrouperTests {
 
     /// Without a proposal id in the result, the marker resolves the newest unresolved
     /// proposal widget — the grouper is per-conversation and holds one at a time.
-    func testOutcomeMarkerResolvesAKeylessWidgetForProvidersWithoutStructuredOutput() {
+    func testOutcomeMarkerResolvesAKeylessWidgetForHarnessesWithoutStructuredOutput() {
         let grouper = ChatItemGrouper()
         let result = proposalResult()
         result.toolOutput = "Opened a scheduling proposal for confirmation."
@@ -105,7 +105,7 @@ extension ChatItemGrouperTests {
     }
 
     /// An immediate action writes its marker between the call and the result, and a
-    /// plain-text-fallback provider gives neither event a correlation key. The keyless
+    /// plain-text-fallback harness gives neither event a correlation key. The keyless
     /// marker must adopt the still-running widget, and the result patch must not drop
     /// the outcome it attached.
     func testKeylessMarkerBetweenCallAndResultResolvesAnImmediateAction() throws {

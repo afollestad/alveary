@@ -78,7 +78,7 @@ extension ConversationViewModel {
                 attachments: outbound.attachments,
                 fileAttachments: outbound.consumedFileAttachments,
                 appShots: outbound.appShots,
-                providerMetadata: outbound.providerMetadata,
+                harnessMetadata: outbound.harnessMetadata,
                 stagedContextOverride: stagedContextOverride,
                 useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                 existingLocalUserMessageID: existingLocalUserMessageID,
@@ -104,7 +104,7 @@ extension ConversationViewModel {
                 attachments: outbound.attachments,
                 fileAttachments: outbound.consumedFileAttachments,
                 appShots: outbound.appShots,
-                providerMetadata: outbound.providerMetadata,
+                harnessMetadata: outbound.harnessMetadata,
                 stagedContextOverride: resolvedContext.stagedContext,
                 useCurrentStagedContextWhenOverrideNil: recoveryContext == nil ? useCurrentStagedContextWhenOverrideNil : false,
                 existingLocalUserMessageID: existingLocalUserMessageID,
@@ -122,7 +122,7 @@ extension ConversationViewModel {
         respawnSettingsSource: SessionSettingsConfigSource,
         hostToolExposure: HostToolExposure
     ) async throws -> String? {
-        if isNonresumableProviderSessionError(error) {
+        if isNonresumableHarnessSessionError(error) {
             return try await recoverNonresumableSessionForOutboundIfNeeded(
                 error,
                 config: makeSpawnConfig(

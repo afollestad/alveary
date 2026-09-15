@@ -7,9 +7,9 @@ import XCTest
 @MainActor
 extension AgentsManagerTests {
     func testAgentCLIKitLiveHookDecisionProviderPublishesAndResolvesRequest() async throws {
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
         let recorder = LiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
         let hookRequest = AgentCLIKit.ClaudeHookRequest(
@@ -24,7 +24,7 @@ extension AgentsManagerTests {
         )
 
         let decisionTask = Task {
-            await provider.decision(for: hookRequest, interactionId: "tool-1")
+            await harness.decision(for: hookRequest, interactionId: "tool-1")
         }
         try await waitUntil("expected live hook request to publish") {
             (await recorder.requests()).isEmpty == false
@@ -32,7 +32,7 @@ extension AgentsManagerTests {
 
         let publishedRequests = await recorder.requests()
         let published = try XCTUnwrap(publishedRequests.first)
-        let didResolve = await provider.resolve(
+        let didResolve = await harness.resolve(
             ClaudeToolApprovalResolution(decision: .allow),
             for: ClaudeToolApprovalKey(sessionId: "session-1", toolUseId: "tool-1")
         )
@@ -48,14 +48,14 @@ extension AgentsManagerTests {
 
     func testAgentCLIKitLiveHookDecisionProviderDelaysPublishForToolCallOrdering() async throws {
         let sleepRecorder = LiveHookSleepRecorder()
-        let provider = AgentCLIKitLiveHookDecisionProvider(
+        let harness = AgentCLIKitLiveHookDecisionProvider(
             publishDelay: .milliseconds(50),
             sleep: { duration in
                 await sleepRecorder.record(duration)
             }
         )
         let recorder = LiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
         let hookRequest = AgentCLIKit.ClaudeHookRequest(
@@ -70,7 +70,7 @@ extension AgentsManagerTests {
         )
 
         let decisionTask = Task {
-            await provider.decision(for: hookRequest, interactionId: "tool-1")
+            await harness.decision(for: hookRequest, interactionId: "tool-1")
         }
         try await waitUntil("expected live hook publish delay to be used") {
             !(await sleepRecorder.durations()).isEmpty
@@ -80,7 +80,7 @@ extension AgentsManagerTests {
         }
 
         let durations = await sleepRecorder.durations()
-        let didResolve = await provider.resolve(
+        let didResolve = await harness.resolve(
             ClaudeToolApprovalResolution(decision: .allow),
             for: ClaudeToolApprovalKey(sessionId: "session-1", toolUseId: "tool-1")
         )
@@ -92,9 +92,9 @@ extension AgentsManagerTests {
     }
 
     func testAgentCLIKitLiveHookDecisionProviderPublishesApprovalIdentityMetadata() async throws {
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
         let recorder = LiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
         let hookRequest = AgentCLIKit.ClaudeHookRequest(
@@ -110,7 +110,7 @@ extension AgentsManagerTests {
         )
 
         let decisionTask = Task {
-            await provider.decision(for: hookRequest, interactionId: "tool-1")
+            await harness.decision(for: hookRequest, interactionId: "tool-1")
         }
         try await waitUntil("expected live hook request to publish") {
             (await recorder.requests()).isEmpty == false
@@ -118,7 +118,7 @@ extension AgentsManagerTests {
 
         let publishedRequests = await recorder.requests()
         let published = try XCTUnwrap(publishedRequests.first)
-        _ = await provider.resolve(
+        _ = await harness.resolve(
             ClaudeToolApprovalResolution(decision: .allow),
             for: ClaudeToolApprovalKey(sessionId: "session-1", toolUseId: "tool-1")
         )
@@ -130,13 +130,13 @@ extension AgentsManagerTests {
     }
 
     func testAgentCLIKitLiveHookDecisionProviderResolvesFutureSiblingWithoutPublishing() async throws {
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
         let recorder = LiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
         let key = ClaudeToolApprovalKey(sessionId: "session-1", toolUseId: "tool-2")
-        await provider.recordFutureResolution(
+        await harness.recordFutureResolution(
             ClaudeToolApprovalResolution(decision: .allow),
             for: key
         )
@@ -151,7 +151,7 @@ extension AgentsManagerTests {
             ])
         )
 
-        let decision = await provider.decision(for: hookRequest, interactionId: "tool-2")
+        let decision = await harness.decision(for: hookRequest, interactionId: "tool-2")
         let publishedRequests = await recorder.requests()
 
         XCTAssertEqual(decision.approval, .allow)
@@ -159,21 +159,21 @@ extension AgentsManagerTests {
     }
 
     func testAgentCLIKitLiveHookDecisionProviderDiscardsFutureSiblingForConversation() async throws {
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
         let recorder = LiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
         let key = ClaudeToolApprovalKey(sessionId: "session-1", toolUseId: "tool-2")
-        await provider.recordFutureResolution(
+        await harness.recordFutureResolution(
             ClaudeToolApprovalResolution(decision: .allow),
             for: key,
             conversationId: "conversation"
         )
-        await provider.discardDecisions(conversationId: "conversation")
+        await harness.discardDecisions(conversationId: "conversation")
 
         let decisionTask = Task {
-            await provider.decision(
+            await harness.decision(
                 for: liveHookRequest(conversationId: "conversation", toolUseId: "tool-2"),
                 interactionId: "tool-2"
             )
@@ -182,7 +182,7 @@ extension AgentsManagerTests {
         try await waitUntil("expected discarded future hook to publish") {
             (await recorder.requests()).isEmpty == false
         }
-        let didResolve = await provider.resolve(
+        let didResolve = await harness.resolve(
             ClaudeToolApprovalResolution(decision: .deny),
             for: key
         )
@@ -194,23 +194,23 @@ extension AgentsManagerTests {
 
     func testAgentCLIKitLiveHookDecisionProviderResolvesPendingFutureSiblingWithoutPublishing() async throws {
         let sleepGate = LiveHookSleepGate()
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { duration in
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { duration in
             try await sleepGate.sleep(duration)
         })
         let recorder = LiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
         let key = ClaudeToolApprovalKey(sessionId: "session-1", toolUseId: "tool-2")
 
         let decisionTask = Task {
-            await provider.decision(
+            await harness.decision(
                 for: liveHookRequest(conversationId: "conversation", toolUseId: "tool-2"),
                 interactionId: "tool-2"
             )
         }
         await sleepGate.waitForSleep()
-        await provider.recordFutureResolution(
+        await harness.recordFutureResolution(
             ClaudeToolApprovalResolution(decision: .allow),
             for: key
         )
@@ -224,13 +224,13 @@ extension AgentsManagerTests {
     }
 
     func testAgentCLIKitLiveHookDecisionProviderResolveMissDoesNotRecordFutureDecision() async throws {
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
         let recorder = LiveHookRequestRecorder()
-        await provider.setDeferredToolRequestHandler { request in
+        await harness.setDeferredToolRequestHandler { request in
             await recorder.append(request)
         }
         let key = ClaudeToolApprovalKey(sessionId: "session-1", toolUseId: "tool-2")
-        let didResolveHeldRequest = await provider.resolve(
+        let didResolveHeldRequest = await harness.resolve(
             ClaudeToolApprovalResolution(decision: .allow),
             for: key
         )
@@ -246,12 +246,12 @@ extension AgentsManagerTests {
         )
 
         let decisionTask = Task {
-            await provider.decision(for: hookRequest, interactionId: "tool-2")
+            await harness.decision(for: hookRequest, interactionId: "tool-2")
         }
         try await waitUntil("expected unresolved future hook to publish") {
             (await recorder.requests()).isEmpty == false
         }
-        let didResolvePublishedRequest = await provider.resolve(
+        let didResolvePublishedRequest = await harness.resolve(
             ClaudeToolApprovalResolution(decision: .deny),
             for: key
         )
@@ -313,9 +313,9 @@ extension AgentsManagerTests {
     }
 
     func testAgentCLIKitLiveHookDecisionProviderCanResolveInsidePublishHandler() async {
-        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
-        await provider.setDeferredToolRequestHandler { request in
-            _ = await provider.resolve(
+        let harness = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        await harness.setDeferredToolRequestHandler { request in
+            _ = await harness.resolve(
                 ClaudeToolApprovalResolution(decision: .allow),
                 for: ClaudeToolApprovalKey(
                     sessionId: request.request.sessionId,
@@ -334,7 +334,7 @@ extension AgentsManagerTests {
             ])
         )
 
-        let decision = await provider.decision(for: hookRequest, interactionId: "tool-1")
+        let decision = await harness.decision(for: hookRequest, interactionId: "tool-1")
 
         XCTAssertEqual(decision.approval, .allow)
     }

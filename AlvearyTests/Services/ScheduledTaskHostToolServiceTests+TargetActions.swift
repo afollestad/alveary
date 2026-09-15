@@ -15,7 +15,7 @@ extension ScheduledTaskHostToolServiceTests {
             prompt: "Old prompt",
             revision: 7,
             recurrence: .weekly(weekday: 2, hour: 9, minute: 0),
-            providerID: "claude",
+            harnessID: "claude",
             model: "target-model",
             effort: "medium",
             permissionMode: "acceptEdits",
@@ -54,7 +54,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(draft.prompt, "Old prompt")
         XCTAssertEqual(draft.recurrence, .monthly(day: 31, hour: 10, minute: 30))
         XCTAssertEqual(draft.timeZoneIdentifier, "Etc/UTC")
-        XCTAssertEqual(draft.providerID, "claude")
+        XCTAssertEqual(draft.harnessID, "claude")
         XCTAssertEqual(draft.model, "target-model")
         XCTAssertEqual(draft.permissionMode, "acceptEdits")
         XCTAssertEqual(draft.grantedRoots, [CanonicalPath.normalize("/tmp/target-grant")])
@@ -137,7 +137,7 @@ extension ScheduledTaskHostToolServiceTests {
             XCTAssertEqual(target.state, expectedState, action.rawValue)
             XCTAssertEqual(target.revision, 6, action.rawValue)
 
-            // The marker is what resolves the transcript widget on providers whose tool
+            // The marker is what resolves the transcript widget on harnesses whose tool
             // result is a plain-text fallback.
             let markers = try outcomeMarkers(in: fixture.modelContext)
             XCTAssertEqual(markers.count, 1, action.rawValue)

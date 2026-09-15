@@ -221,7 +221,7 @@ extension ConversationViewModelTests {
         })
     }
 
-    func testDismissPromptSuppressesProviderFallbackBeforeResolutionReturns() async throws {
+    func testDismissPromptSuppressesHarnessFallbackBeforeResolutionReturns() async throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
         let promptInput = #"{"questions":[{"question":"Pick one","options":[{"label":"A","description":"First"}]}]}"#
         let seededPrompt = try seedOverlayPromptApproval(in: fixture, promptInput: promptInput)
@@ -234,7 +234,7 @@ extension ConversationViewModelTests {
             try await fixture.viewModel.dismissPrompt(promptId: "prompt-1")
         }
         defer { dismissTask.cancel() }
-        try await waitUntil("expected dismiss to pause during provider resolution") {
+        try await waitUntil("expected dismiss to pause during harness resolution") {
             await fixture.agentsManager.isApprovalResolutionPaused()
         }
 

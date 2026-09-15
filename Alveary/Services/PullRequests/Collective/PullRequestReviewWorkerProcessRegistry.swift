@@ -7,7 +7,7 @@ struct PullRequestReviewWorkerProcessKey: Hashable, Sendable {
     let executionID: String
 }
 
-/// Owns the provider processes that do not belong to `AgentsManager` or a runtime conversation.
+/// Owns the harness processes that do not belong to `AgentsManager` or a runtime conversation.
 final class PullRequestReviewWorkerProcessRegistry: @unchecked Sendable {
     private struct Entry {
         let key: PullRequestReviewWorkerProcessKey

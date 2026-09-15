@@ -16,9 +16,9 @@ extension AgentCLIKitEventMapper {
         }
         // Both events, in this order: the banner state should be set before the transcript row lands,
         // and the error row is what the persisted history keeps.
-        if event.code == .providerAuthenticationRequired {
+        if event.code == .harnessAuthenticationRequired {
             return [
-                .providerAuthenticationRequired(message: event.message),
+                .harnessAuthenticationRequired(message: event.message),
                 .error(message: event.message)
             ]
         }

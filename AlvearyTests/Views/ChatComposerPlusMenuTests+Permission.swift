@@ -62,7 +62,7 @@ extension ChatComposerPlusMenuTests {
 
     func testPermissionPresentationUsesDisplayNamesForClaudeRowsAndButton() {
         let options = ChatComposerPermissionPresentation.options(
-            providerID: "claude",
+            harnessID: "claude",
             permissionModes: [
                 PermissionModeOption(
                     value: "default",
@@ -107,7 +107,7 @@ extension ChatComposerPlusMenuTests {
 
     func testClaudeBypassPermissionsUsesWarningTreatmentInPermissionMenu() throws {
         let options = ChatComposerPermissionPresentation.options(
-            providerID: "claude",
+            harnessID: "claude",
             permissionModes: [
                 PermissionModeOption(value: "bypassPermissions", label: "Bypass permissions", description: "")
             ]

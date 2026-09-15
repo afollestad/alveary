@@ -2,7 +2,7 @@ import AgentCLIKit
 import Foundation
 
 struct DefaultScheduledTaskPreflightValidator: Sendable {
-    typealias ProviderStatusLoader = @Sendable (AgentProviderID, URL?) async -> AgentProviderStatus?
+    typealias HarnessStatusLoader = @Sendable (AgentHarnessID, URL?) async -> AgentHarnessStatus?
     typealias RootCanonicalizer = @Sendable ([String], String?) throws -> [String]
     typealias DirectoryAccessChecker = @Sendable (String, Bool) -> Bool
     typealias DirectoryIdentityLoader = @Sendable (String) throws -> TaskWorkspaceFileSystemIdentity
@@ -13,7 +13,7 @@ struct DefaultScheduledTaskPreflightValidator: Sendable {
         TaskWorkspaceFileSystemIdentity
     ) async throws -> Void
 
-    private let loadProviderStatus: ProviderStatusLoader
+    private let loadHarnessStatus: HarnessStatusLoader
     private let canonicalizeRoots: RootCanonicalizer
     private let checkDirectoryAccess: DirectoryAccessChecker
     private let loadDirectoryIdentity: DirectoryIdentityLoader
@@ -35,14 +35,14 @@ struct DefaultScheduledTaskPreflightValidator: Sendable {
     }
 
     init(
-        providerDiscovery: any AgentProviderDiscoveryService,
+        harnessDiscovery: any AgentHarnessDiscoveryService,
         workspaceOwnershipService: any TaskWorkspaceOwnershipService,
         worktreeManager: any WorktreeManager,
         fileManager: FileManager = .default
     ) {
         let fileManagerBox = ScheduledTaskFileManagerBox(fileManager)
-        self.loadProviderStatus = { providerID, projectURL in
-            await providerDiscovery.providerStatuses(projectURL: projectURL)[providerID]
+        self.loadHarnessStatus = { harnessID, projectURL in
+            await harnessDiscovery.harnessStatuses(projectURL: projectURL)[harnessID]
         }
         self.canonicalizeRoots = { roots, primaryRoot in
             try workspaceOwnershipService.canonicalizeGrants(
@@ -71,13 +71,13 @@ struct DefaultScheduledTaskPreflightValidator: Sendable {
     }
 
     init(
-        loadProviderStatus: @escaping ProviderStatusLoader,
+        loadHarnessStatus: @escaping HarnessStatusLoader,
         canonicalizeRoots: @escaping RootCanonicalizer,
         checkDirectoryAccess: @escaping DirectoryAccessChecker,
         loadDirectoryIdentity: @escaping DirectoryIdentityLoader,
         checkWorktreeFeasibility: @escaping WorktreeFeasibilityChecker
     ) {
-        self.loadProviderStatus = loadProviderStatus
+        self.loadHarnessStatus = loadHarnessStatus
         self.canonicalizeRoots = canonicalizeRoots
         self.checkDirectoryAccess = checkDirectoryAccess
         self.loadDirectoryIdentity = loadDirectoryIdentity
@@ -110,15 +110,15 @@ struct DefaultScheduledTaskPreflightValidator: Sendable {
                 }
             }
 
-            guard let providerID = AgentProviderID(rawValue: snapshot.providerID) else {
-                throw ScheduledTaskPreflightValidationError.unsupportedProvider(snapshot.providerID)
+            guard let harnessID = AgentHarnessID(rawValue: snapshot.harnessID) else {
+                throw ScheduledTaskPreflightValidationError.unsupportedHarness(snapshot.harnessID)
             }
             let projectURL = projectPath.map { URL(fileURLWithPath: $0, isDirectory: true) }
-            guard let status = await loadProviderStatus(providerID, projectURL),
+            guard let status = await loadHarnessStatus(harnessID, projectURL),
                   status.isReadyInProject else {
-                throw ScheduledTaskPreflightValidationError.providerUnavailable(snapshot.providerID)
+                throw ScheduledTaskPreflightValidationError.harnessUnavailable(snapshot.harnessID)
             }
-            try validateProviderSettings(snapshot, status: status)
+            try validateHarnessSettings(snapshot, status: status)
             let revalidatedProjectPath = try validateWorkspace(snapshot)
             let revalidatedIdentities = try captureWorkspaceIdentities(
                 snapshot,
@@ -201,11 +201,11 @@ private extension DefaultScheduledTaskPreflightValidator {
         }
     }
 
-    func validateProviderSettings(
+    func validateHarnessSettings(
         _ snapshot: ScheduledTaskPreflightSnapshot,
-        status: AgentProviderStatus
+        status: AgentHarnessStatus
     ) throws {
-        let supportedPermissionModes = AppSettings.supportedPermissionModes(forProvider: snapshot.providerID)
+        let supportedPermissionModes = AppSettings.supportedPermissionModes(forHarness: snapshot.harnessID)
         guard supportedPermissionModes.contains(snapshot.permissionMode) else {
             throw ScheduledTaskPreflightValidationError.unsupportedPermissionMode(snapshot.permissionMode)
         }
@@ -227,8 +227,8 @@ private extension DefaultScheduledTaskPreflightValidator {
 }
 
 private enum ScheduledTaskPreflightValidationError: LocalizedError {
-    case unsupportedProvider(String)
-    case providerUnavailable(String)
+    case unsupportedHarness(String)
+    case harnessUnavailable(String)
     case unexpectedProjectWorkspace
     case missingProjectWorkspace
     case invalidProjectWorkspace(String)
@@ -243,10 +243,10 @@ private enum ScheduledTaskPreflightValidationError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unsupportedProvider(let providerID):
-            return "The scheduled task provider is unsupported: \(providerID)."
-        case .providerUnavailable(let providerID):
-            return "The scheduled task provider is not ready: \(providerID)."
+        case .unsupportedHarness(let harnessID):
+            return "The scheduled task harness is unsupported: \(harnessID)."
+        case .harnessUnavailable(let harnessID):
+            return "The scheduled task harness is not ready: \(harnessID)."
         case .unexpectedProjectWorkspace:
             return "A private scheduled task cannot retain a Project workspace."
         case .missingProjectWorkspace:

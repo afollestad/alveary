@@ -81,7 +81,7 @@ extension SidebarViewModelTests {
         try await waitUntil("expected the scheduled executor to become active") {
             fixture.run.status == .running
         }
-        fixture.finishProviderTurn()
+        fixture.finishHarnessTurn()
         try await waitUntil("expected the scheduled result to persist before suspension") {
             fixture.run.status == .success
         }
@@ -121,7 +121,7 @@ extension SidebarViewModelTests {
         try await waitUntil("expected the scheduled executor to become active") {
             fixture.run.status == .running
         }
-        fixture.finishProviderTurn()
+        fixture.finishHarnessTurn()
         try await waitUntil("expected the scheduled result to persist before suspension") {
             fixture.run.status == .success
         }
@@ -305,7 +305,7 @@ private final class SidebarActiveScheduledExecutionFixture {
         return try await execution.value
     }
 
-    func finishProviderTurn() {
+    func finishHarnessTurn() {
         conversationFixture.viewModel.state.endTurn()
     }
 }
@@ -444,7 +444,7 @@ private func makeActiveScheduledRun(projectPath: String, thread: AgentThread) ->
         promptSnapshot: "Run scheduled work.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "codex",
+        harnessIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .project,

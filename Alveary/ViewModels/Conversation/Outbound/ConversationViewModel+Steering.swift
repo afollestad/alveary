@@ -6,7 +6,7 @@ extension ConversationViewModel {
         guard !state.isNormalSteeringBlockedBySessionHandoff else {
             throw AgentError.spawnFailed("Session handoff is in progress")
         }
-        guard providerCanSteerCurrentTurn else {
+        guard harnessCanSteerCurrentTurn else {
             throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
         }
 
@@ -19,9 +19,9 @@ extension ConversationViewModel {
             fallbackText: fallbackText(visibleText:fileAttachments:)
         ).resolvingAppShots(
             state.stagedAppShots,
-            providerID: conversation.provider ?? settingsService.current.defaultProvider
+            harnessID: conversation.harness ?? settingsService.current.defaultHarness
         )
-        try await ensureAppShotProviderPrerequisites(appShots: outbound.appShots)
+        try await ensureAppShotHarnessPrerequisites(appShots: outbound.appShots)
 
         try await withOrdinaryOutboundReservation {
             guard let dbConversation = dbConversation() else {
@@ -43,7 +43,7 @@ private extension ConversationViewModel {
                 outbound.transportText ?? outbound.visibleText,
                 steeringInputID: localMessage.id,
                 attachments: outbound.attachments,
-                providerMetadata: outbound.providerMetadata
+                harnessMetadata: outbound.harnessMetadata
             )
             markVisibleTurnStarted()
             state.turnState.beginTurn()
@@ -59,7 +59,7 @@ private extension ConversationViewModel {
                 attachments: outbound.attachments,
                 fileAttachments: outbound.consumedFileAttachments,
                 appShots: outbound.appShots,
-                providerMetadata: outbound.providerMetadata
+                harnessMetadata: outbound.harnessMetadata
             )
             state.lastTurnError = "Steer failed: \(error.localizedDescription)"
             throw error

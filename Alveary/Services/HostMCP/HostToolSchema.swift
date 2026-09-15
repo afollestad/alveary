@@ -4,7 +4,7 @@ import Foundation
 /// JSON Schema builders shared by every `alveary_host` feature catalog.
 ///
 /// Host tool schemas are always strict: an object root with `additionalProperties: false`,
-/// so a provider cannot smuggle unadvertised fields past a handler's own validation.
+/// so a harness cannot smuggle unadvertised fields past a handler's own validation.
 enum HostToolSchema {
     static func strictObject(
         properties: [String: AgentCLIKit.JSONValue],

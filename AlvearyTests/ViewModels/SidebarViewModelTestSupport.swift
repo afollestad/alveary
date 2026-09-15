@@ -1,5 +1,5 @@
 import enum AgentCLIKit.JSONValue
-import protocol AgentCLIKit.AgentProviderDiscoveryService
+import protocol AgentCLIKit.AgentHarnessDiscoveryService
 import Foundation
 import SwiftData
 
@@ -14,7 +14,7 @@ struct SidebarTestFixture {
     let agentsManager: SidebarMockAgentsManager
     let worktreeManager: SidebarMockWorktreeManager
     let settingsService: InMemorySettingsService
-    let providerSessionActions: RecordingProviderSessionActionService
+    let harnessSessionActions: RecordingHarnessSessionActionService
     let attachmentStore: RecordingConversationAttachmentStore
     let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     let unexpectedErrors: RecordingUnexpectedErrors
@@ -27,8 +27,8 @@ struct SidebarTestFixture {
         defaultEffort: String = AppSettings.defaultEffortLevel,
         defaultModel: String = AppSettings.defaultModelValue,
         createWorktreeByDefault: Bool = false,
-        providerDiscovery: (any AgentProviderDiscoveryService)? = nil,
-        providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService(),
+        harnessDiscovery: (any AgentHarnessDiscoveryService)? = nil,
+        harnessSessionActions: RecordingHarnessSessionActionService = RecordingHarnessSessionActionService(),
         attachmentStore: RecordingConversationAttachmentStore = RecordingConversationAttachmentStore(),
         taskWorkspaceOwnershipService: (any TaskWorkspaceOwnershipService)? = nil,
         modelConfiguration: ModelConfiguration? = nil,
@@ -57,7 +57,7 @@ struct SidebarTestFixture {
         settings.defaultModel = defaultModel
         settings.createWorktreeByDefault = createWorktreeByDefault
         settingsService = InMemorySettingsService(current: settings)
-        self.providerSessionActions = providerSessionActions
+        self.harnessSessionActions = harnessSessionActions
         self.attachmentStore = attachmentStore
         self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService ?? makeSidebarTaskWorkspaceService()
         self.unexpectedErrors = unexpectedErrors
@@ -70,8 +70,8 @@ struct SidebarTestFixture {
             gitHubCLI: gitHubCLI,
             worktreeManager: worktreeManager,
             settingsService: settingsService,
-            providerDiscovery: providerDiscovery,
-            providerSessionActions: providerSessionActions,
+            harnessDiscovery: harnessDiscovery,
+            harnessSessionActions: harnessSessionActions,
             attachmentStore: attachmentStore,
             taskWorkspaceOwnershipService: self.taskWorkspaceOwnershipService,
             invalidateConversationController: invalidateConversationController,
@@ -137,10 +137,10 @@ struct SidebarTestFixture {
         useWorktree: Bool = false,
         isDraft: Bool = false,
         archivedAt: Date? = nil,
-        provider: String = "claude",
-        providerSessionId: String? = nil,
-        providerSessionProviderId: String? = nil,
-        providerSessionWorkingDirectory: String? = nil,
+        harness: String = "claude",
+        harnessSessionId: String? = nil,
+        harnessSessionHarnessId: String? = nil,
+        harnessSessionWorkingDirectory: String? = nil,
         modifiedAt: Date? = nil
     ) throws -> AgentThread {
         let project = Project(path: projectPath, name: projectName)
@@ -160,10 +160,10 @@ struct SidebarTestFixture {
             Conversation(
                 id: id,
                 title: id,
-                provider: provider,
-                providerSessionId: providerSessionId,
-                providerSessionProviderId: providerSessionProviderId,
-                providerSessionWorkingDirectory: providerSessionWorkingDirectory,
+                harness: harness,
+                harnessSessionId: harnessSessionId,
+                harnessSessionHarnessId: harnessSessionHarnessId,
+                harnessSessionWorkingDirectory: harnessSessionWorkingDirectory,
                 isMain: index == 0,
                 displayOrder: index,
                 thread: thread
@@ -292,7 +292,7 @@ actor SidebarMockAgentsManager: AgentsManager {
     }
 
     func toolApprovalSelection(
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async -> ToolApprovalSelection? {
@@ -301,7 +301,7 @@ actor SidebarMockAgentsManager: AgentsManager {
 
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async {}

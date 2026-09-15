@@ -5,7 +5,7 @@ import XCTest
 
 /// The drain keeps whatever transport text a message was queued with unless it is plan-revision
 /// guidance that went stale. Before this, only plan guidance survived the wait: an app shot's
-/// hidden context, or any other provider-only text, reached the provider as the visible text.
+/// hidden context, or any other harness-only text, reached the harness as the visible text.
 @MainActor
 extension ConversationViewModelTests {
     func testDrainedQueuedMessageKeepsTransportTextThatIsNotPlanGuidance() async throws {

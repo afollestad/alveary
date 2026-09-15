@@ -363,7 +363,7 @@ private func makePendingBranchCleanupRun() -> ScheduledTaskRun {
         promptSnapshot: "Run scheduled work.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "codex",
+        harnessIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .privateWorkspace,
@@ -382,7 +382,7 @@ private func makePendingBranchCleanupTask(
         scheduledTaskRun: run
     )
     thread.conversations = [
-        Conversation(id: conversationID, provider: "codex", thread: thread)
+        Conversation(id: conversationID, harness: "codex", thread: thread)
     ]
     run.thread = thread
     return thread

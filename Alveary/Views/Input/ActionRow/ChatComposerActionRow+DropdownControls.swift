@@ -40,7 +40,7 @@ extension ChatComposerActionRowView {
             }
         }
         applyModeChipConfiguration(configuration)
-        // Keep open popovers tied to the persisted provider/model/effort and
+        // Keep open popovers tied to the persisted harness/model/effort and
         // permission state, including async reconfigure rollback updates.
         permissionMenuController?.update(
             options: configuration.supportedPermissionModes,
@@ -73,24 +73,24 @@ extension ChatComposerActionRowView {
         if let option = configuration.supportedPermissionModes.first(where: { $0.value == configuration.selectedPermissionMode }) {
             return option
         }
-        let providerID = configuration.reasoning.selection.providerID
+        let harnessID = configuration.reasoning.selection.harnessID
         return PermissionOptionPresentation(
             value: configuration.selectedPermissionMode,
             title: ChatComposerTextSupport.permissionModeLabel(for: configuration.selectedPermissionMode),
             description: "",
             symbolName: ChatComposerPermissionPresentation.symbolName(
-                providerID: providerID,
+                harnessID: harnessID,
                 value: configuration.selectedPermissionMode
             ),
             isWarning: ChatComposerPermissionPresentation.isWarning(
-                providerID: providerID,
+                harnessID: harnessID,
                 value: configuration.selectedPermissionMode
             )
         )
     }
 
     func permissionOverrideTooltip(for configuration: Configuration) -> String? {
-        guard configuration.reasoning.selection.providerID == "claude",
+        guard configuration.reasoning.selection.harnessID == "claude",
               configuration.isPlanModeEnabled,
               configuration.selectedPermissionMode == "bypassPermissions" else {
             return nil

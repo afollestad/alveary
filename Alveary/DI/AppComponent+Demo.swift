@@ -62,12 +62,12 @@ extension AppComponent {
     /// Demo mode must not spawn `claude auth status`: the result would be the developer's own
     /// sign-in state, so a signed-out machine would put an orange badge and a `claude auth login`
     /// diagnostic into demo screenshots.
-    var demoClaudeProviderSetup: AgentCLIKit.ClaudeProviderSetup? {
+    var demoClaudeHarnessSetup: AgentCLIKit.ClaudeHarnessSetup? {
         #if DEBUG
         guard storageProfile.isDemo else {
             return nil
         }
-        return AgentCLIKit.ClaudeProviderSetup(configStore: agentCLIKitClaudeConfigStore)
+        return AgentCLIKit.ClaudeHarnessSetup(configStore: agentCLIKitClaudeConfigStore)
         #else
         return nil
         #endif

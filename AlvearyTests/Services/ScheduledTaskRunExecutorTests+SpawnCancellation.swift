@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskRunExecutorTests {
-    func testStopDuringProviderSpawnDestroysLateCancelledLaunch() async throws {
+    func testStopDuringHarnessSpawnDestroysLateCancelledLaunch() async throws {
         let scheduledFixture = try ScheduledConversationViewModelFixture()
         defer { scheduledFixture.removeFiles() }
         let fixture = scheduledFixture.fixture

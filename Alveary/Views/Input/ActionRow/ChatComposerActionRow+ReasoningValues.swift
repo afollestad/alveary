@@ -2,8 +2,8 @@ import Foundation
 
 extension ChatComposerActionRowView {
     struct ReasoningSelection: Equatable {
-        let providerID: String
-        let providerTitle: String
+        let harnessID: String
+        let harnessTitle: String
         let modelID: String
         let modelTitle: String
         let effortValue: String
@@ -23,28 +23,28 @@ extension ChatComposerActionRowView {
     }
 
     struct ReasoningModelOption: Equatable {
-        let providerID: String
+        let harnessID: String
         let value: String
         let title: String
-        /// Provider-supplied alias the `/model` command accepts as typed input.
+        /// Harness-supplied alias the `/model` command accepts as typed input.
         let shortName: String
 
-        init(providerID: String, value: String, title: String, shortName: String? = nil) {
-            self.providerID = providerID
+        init(harnessID: String, value: String, title: String, shortName: String? = nil) {
+            self.harnessID = harnessID
             self.value = value
             self.title = title
             self.shortName = shortName ?? value
         }
 
         var identity: String {
-            // Model IDs such as `default` can appear under multiple providers.
-            "\(providerID):\(value)"
+            // Model IDs such as `default` can appear under multiple harnesses.
+            "\(harnessID):\(value)"
         }
     }
 
     struct ReasoningModelGroup: Equatable {
-        let providerID: String
-        let providerTitle: String?
+        let harnessID: String
+        let harnessTitle: String?
         let options: [ReasoningModelOption]
     }
 }

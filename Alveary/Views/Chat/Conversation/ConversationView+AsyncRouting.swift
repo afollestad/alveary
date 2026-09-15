@@ -3,101 +3,101 @@ import Foundation
 import SwiftData
 
 extension ConversationView {
-    var composerProviderStatusTaskID: String {
-        Self.composerProviderStatusCacheKey(
-            projectURL: providerDiscoveryProjectURL,
-            activeProviderID: activeProviderID,
+    var composerHarnessStatusTaskID: String {
+        Self.composerHarnessStatusCacheKey(
+            projectURL: harnessDiscoveryProjectURL,
+            activeHarnessID: activeHarnessID,
             settings: settingsService.current
         )
     }
 
-    func refreshComposerProviderStatuses() async {
-        let projectURL = providerDiscoveryProjectURL
-        let request = ConversationAsyncRouting.ProviderStatusRequest(
-            key: Self.composerProviderStatusCacheKey(
+    func refreshComposerHarnessStatuses() async {
+        let projectURL = harnessDiscoveryProjectURL
+        let request = ConversationAsyncRouting.HarnessStatusRequest(
+            key: Self.composerHarnessStatusCacheKey(
                 projectURL: projectURL,
-                activeProviderID: activeProviderID,
+                activeHarnessID: activeHarnessID,
                 settings: settingsService.current
             ),
             projectURL: projectURL
         )
         // Thread switches create a fresh `ConversationView`; seed it from the
         // last successful discovery result so model-scoped effort labels do not
-        // temporarily disappear while async provider discovery warms back up.
+        // temporarily disappear while async harness discovery warms back up.
         //
         // Keyed on the *new* request key, not the mount: `init`'s seed belongs to the key this
         // view was built with, so a draft project reassignment must re-seed here or honestly
         // report not-loaded. Clearing the flag unconditionally emptied the model list and put
         // Goal mode back to "Checking..." on every mount, defeating that seeding.
-        if let seeded = ConversationAsyncRouting.seededProviderStatusSnapshot(for: request) {
-            composerProviderOrdering = seeded.ordering
-            composerProviderStatuses = seeded.statuses
-            hasLoadedComposerProviderStatuses = true
+        if let seeded = ConversationAsyncRouting.seededHarnessStatusSnapshot(for: request) {
+            composerHarnessOrdering = seeded.ordering
+            composerHarnessStatuses = seeded.statuses
+            hasLoadedComposerHarnessStatuses = true
         } else {
-            hasLoadedComposerProviderStatuses = false
+            hasLoadedComposerHarnessStatuses = false
         }
 
-        guard let result = await ConversationAsyncRouting.loadProviderStatuses(
+        guard let result = await ConversationAsyncRouting.loadHarnessStatuses(
             request: request,
-            providerDiscovery: providerDiscovery,
-            currentRequestKey: { composerProviderStatusTaskID }
+            harnessDiscovery: harnessDiscovery,
+            currentRequestKey: { composerHarnessStatusTaskID }
         ) else {
             return
         }
 
-        ConversationAsyncRouting.applyProviderStatusResult(result) { snapshot in
-            composerProviderOrdering = snapshot.ordering
-            composerProviderStatuses = snapshot.statuses
-            hasLoadedComposerProviderStatuses = true
+        ConversationAsyncRouting.applyHarnessStatusResult(result) { snapshot in
+            composerHarnessOrdering = snapshot.ordering
+            composerHarnessStatuses = snapshot.statuses
+            hasLoadedComposerHarnessStatuses = true
         }
     }
 }
 
 enum ConversationAsyncRouting {
-    struct ProviderStatusRequest {
+    struct HarnessStatusRequest {
         let key: String
         let projectURL: URL?
     }
 
-    struct ProviderStatusResult {
+    struct HarnessStatusResult {
         let requestKey: String
-        let snapshot: ComposerProviderStatusSnapshot
+        let snapshot: ComposerHarnessStatusSnapshot
     }
 
     @MainActor
-    static func loadProviderStatuses(
-        request: ProviderStatusRequest,
-        providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService,
+    static func loadHarnessStatuses(
+        request: HarnessStatusRequest,
+        harnessDiscovery: any AgentCLIKit.AgentHarnessDiscoveryService,
         currentRequestKey: @escaping @MainActor () -> String
-    ) async -> ProviderStatusResult? {
-        async let ordering = providerDiscovery.stableProviderOrdering()
-        async let statuses = providerDiscovery.providerStatuses(projectURL: request.projectURL)
+    ) async -> HarnessStatusResult? {
+        async let ordering = harnessDiscovery.stableHarnessOrdering()
+        async let statuses = harnessDiscovery.harnessStatuses(projectURL: request.projectURL)
         let (resolvedOrdering, resolvedStatuses) = await (ordering, statuses)
-        let snapshot = ComposerProviderStatusSnapshot(ordering: resolvedOrdering, statuses: resolvedStatuses)
+        let snapshot = ComposerHarnessStatusSnapshot(ordering: resolvedOrdering, statuses: resolvedStatuses)
 
         // Draft project reassignment preserves this view's identity. A discovery
         // started for the previous project must not update state or seed its cache.
         guard !Task.isCancelled, currentRequestKey() == request.key else {
             return nil
         }
-        return ProviderStatusResult(requestKey: request.key, snapshot: snapshot)
+        return HarnessStatusResult(requestKey: request.key, snapshot: snapshot)
     }
 
     /// The snapshot a refresh may keep showing while its own probe runs, or `nil` when this key
     /// has never resolved. Exists as a static so `ConversationViewAsyncRoutingTests` can reach the
     /// lookup without hosting the view.
     @MainActor
-    static func seededProviderStatusSnapshot(for request: ProviderStatusRequest) -> ComposerProviderStatusSnapshot? {
-        ComposerProviderStatusCache.snapshot(for: request.key)
+    static func seededHarnessStatusSnapshot(for request: HarnessStatusRequest) -> ComposerHarnessStatusSnapshot? {
+        ComposerHarnessStatusCache.snapshot(for: request.key)
     }
 
     @MainActor
-    static func applyProviderStatusResult(
-        _ result: ProviderStatusResult,
-        updateState: (ComposerProviderStatusSnapshot) -> Void
+    static func applyHarnessStatusResult(
+        _ result: HarnessStatusResult,
+        updateState: (ComposerHarnessStatusSnapshot) -> Void
     ) {
         updateState(result.snapshot)
-        ComposerProviderStatusCache.store(result.snapshot, for: result.requestKey)
+        ComposerHarnessStatusCache.store(result.snapshot, for: result.requestKey)
     }
 
 }

@@ -39,7 +39,7 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
         XCTAssertFalse(try encoded(result).contains("SECRET PROMPT CONTENT"))
     }
 
-    func testCreateBindsProviderSettingsAndProjectWorkspaceFromSource() async throws {
+    func testCreateBindsHarnessSettingsAndProjectWorkspaceFromSource() async throws {
         let notificationCenter = NotificationCenter()
         let notificationBox = ScheduledTaskProposalNotificationBox()
         let observer = notificationCenter.addObserver(
@@ -63,7 +63,7 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
         XCTAssertFalse(result.isError)
         let proposal = try XCTUnwrap(try fixture.modelContext.fetch(FetchDescriptor<ScheduledTaskProposal>()).first)
         let draft = try XCTUnwrap(proposal.definitionDraft)
-        XCTAssertEqual(draft.providerID, "codex")
+        XCTAssertEqual(draft.harnessID, "codex")
         XCTAssertEqual(draft.model, "source-model")
         XCTAssertEqual(draft.effort, "high")
         XCTAssertEqual(draft.permissionMode, "workspace-write")
@@ -254,7 +254,7 @@ final class ScheduledTaskHostToolFixture {
             project: sourceProject
         )
         thread = sourceThread
-        let sourceConversation = Conversation(id: "source-conversation", provider: "codex", thread: sourceThread)
+        let sourceConversation = Conversation(id: "source-conversation", harness: "codex", thread: sourceThread)
         conversation = sourceConversation
         sourceThread.conversations = [sourceConversation]
         if let sourceProject {
@@ -320,11 +320,11 @@ final class ScheduledTaskHostToolFixture {
 
     func agentContext(
         requestID: String? = "string:request",
-        providerID: AgentCLIKit.AgentProviderID = .codex
+        harnessID: AgentCLIKit.AgentHarnessID = .codex
     ) -> AgentCLIKit.AgentHostToolCallContext {
         AgentCLIKit.AgentHostToolCallContext(
             conversationId: AgentCLIKit.AgentConversationID(rawValue: conversation.id),
-            providerId: providerID,
+            harnessId: harnessID,
             processToken: processToken,
             requestId: requestID
         )
@@ -337,7 +337,7 @@ final class ScheduledTaskHostToolFixture {
         prompt: String = "Definition prompt",
         revision: Int = 1,
         recurrence: ScheduledTaskRecurrence = .daily(hour: 9, minute: 0),
-        providerID: String = "codex",
+        harnessID: String = "codex",
         model: String? = nil,
         effort: String = "medium",
         permissionMode: String = "default",
@@ -351,7 +351,7 @@ final class ScheduledTaskHostToolFixture {
             revision: revision,
             recurrence: recurrence,
             timeZoneIdentifier: "Etc/UTC",
-            providerID: providerID,
+            harnessID: harnessID,
             model: model,
             effort: effort,
             permissionMode: permissionMode,

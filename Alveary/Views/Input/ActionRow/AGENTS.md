@@ -8,7 +8,7 @@ These instructions cover `Alveary/Views/Input/ActionRow/` — the settings and a
 
 - **`ChatComposerActionRow` owns the row; `ChatComposerActionRowView` owns its native AppKit rendering.** Keep renderer-neutral decisions in `ComposerPresentation` and take option lists from the caller.
 - **Keep presentation pure and effect-free.** Labels, disabled states, placeholders, action copy, busy return behavior, effort options, and trust blocking all compute from caller-owned inputs; no draft mutation, persistence, settings writes, tasks, or service calls in presentation types.
-- **Menus are presentation-only.** File picking, BlockInputKit insertion, plan-mode mutation, the Task Workspace directory picker (`AppKitChatComposerPanelView`), and its validation, persistence, and reconfiguration (`ConversationViewModel`) all stay callbacks. Provider and model options arrive from `AgentProviderDiscoveryService` through the caller — the row must not discover providers, refresh models, or read provider config.
+- **Menus are presentation-only.** File picking, BlockInputKit insertion, plan-mode mutation, the Task Workspace directory picker (`AppKitChatComposerPanelView`), and its validation, persistence, and reconfiguration (`ConversationViewModel`) all stay callbacks. Harness and model options arrive from `AgentHarnessDiscoveryService` through the caller — the row must not discover harnesses, refresh models, or read harness config.
 
 ### Rendering
 

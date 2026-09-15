@@ -20,15 +20,15 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertTrue(AppSettings().showsMenuBarIcon)
     }
 
-    func testDefaultLastSettingsPageIsAgents() {
-        XCTAssertEqual(AppSettings().lastSettingsPage, .agents)
+    func testDefaultLastSettingsPageIsHarnesses() {
+        XCTAssertEqual(AppSettings().lastSettingsPage, .harnesses)
     }
 
     func testSettingsPagesAreInVisibleAlphabeticalOrder() {
         XCTAssertEqual(
             AppSettings.SettingsPage.allCases.map(\.rawValue),
             [
-                "agents", "interface", "appShots", "git", "handoff",
+                "interface", "appShots", "git", "handoff", "agents",
                 "menuBar", "notifications", "terminal", "threads", "appUpdates"
             ]
         )
@@ -147,17 +147,23 @@ final class AppSettingsTests: XCTestCase {
     }
 
     func testDecodePreservesLastSettingsPage() throws {
-        let json = Data(#"{"lastSettingsPage":"git"}"#.utf8)
-        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+        let cases: [(String, AppSettings.SettingsPage)] = [("git", .git), ("agents", .harnesses)]
+        for (storedValue, expectedPage) in cases {
+            let json = try JSONEncoder().encode(["lastSettingsPage": storedValue])
+            let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+            XCTAssertEqual(settings.lastSettingsPage, expectedPage)
 
-        XCTAssertEqual(settings.lastSettingsPage, .git)
+            let encoded = try JSONEncoder().encode(settings)
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            XCTAssertEqual(object["lastSettingsPage"] as? String, storedValue)
+        }
     }
 
     func testDecodeDefaultsLastSettingsPageWhenFieldIsInvalid() throws {
         let json = Data(#"{"lastSettingsPage":"advanced","theme":"dark"}"#.utf8)
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)
 
-        XCTAssertEqual(settings.lastSettingsPage, .agents)
+        XCTAssertEqual(settings.lastSettingsPage, .harnesses)
         XCTAssertEqual(settings.theme, "dark")
     }
 
@@ -281,7 +287,7 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.branchPrefix, "")
     }
 
-    func testNormalizedDropsProviderConfigWithOnlyLegacyFields() throws {
+    func testNormalizedDropsHarnessConfigWithOnlyLegacyFields() throws {
         let json = Data(
             #"""
             {
@@ -304,8 +310,8 @@ final class AppSettingsTests: XCTestCase {
         )
         let settings = try JSONDecoder().decode(AppSettings.self, from: json).normalized()
 
-        XCTAssertNil(settings.providerConfigs["claude"])
-        XCTAssertEqual(settings.providerConfigs["other"], ProviderCustomConfig(extraArgs: "--verbose"))
+        XCTAssertNil(settings.harnessConfigs["claude"])
+        XCTAssertEqual(settings.harnessConfigs["other"], HarnessCustomConfig(extraArgs: "--verbose"))
     }
 
     func testNormalizedPreservesDynamicDefaultModelID() {
@@ -329,41 +335,41 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.normalized().lastSettingsPage, .terminal)
     }
 
-    func testSetProviderTogglesSupportedProviderEnablement() {
+    func testSetHarnessTogglesSupportedHarnessEnablement() {
         var settings = AppSettings()
 
-        settings.setProvider("codex", enabled: false)
+        settings.setHarness("codex", enabled: false)
 
-        XCTAssertFalse(settings.isProviderEnabled("codex"))
+        XCTAssertFalse(settings.isHarnessEnabled("codex"))
 
-        settings.setProvider("codex", enabled: true)
-        settings.setProvider("unknown", enabled: false)
+        settings.setHarness("codex", enabled: true)
+        settings.setHarness("unknown", enabled: false)
 
-        XCTAssertTrue(settings.isProviderEnabled("codex"))
-        XCTAssertFalse(settings.disabledProviderIDs.contains("unknown"))
+        XCTAssertTrue(settings.isHarnessEnabled("codex"))
+        XCTAssertFalse(settings.disabledHarnessIDs.contains("unknown"))
     }
 
-    func testNormalizedFallsBackWhenDefaultProviderIsDisabled() {
+    func testNormalizedFallsBackWhenDefaultHarnessIsDisabled() {
         var settings = AppSettings()
-        settings.defaultProvider = "codex"
-        settings.disabledProviderIDs = ["codex"]
+        settings.defaultHarness = "codex"
+        settings.disabledHarnessIDs = ["codex"]
 
         let normalized = settings.normalized()
 
-        XCTAssertEqual(normalized.defaultProvider, "claude")
-        XCTAssertTrue(normalized.isProviderEnabled("claude"))
-        XCTAssertFalse(normalized.isProviderEnabled("codex"))
+        XCTAssertEqual(normalized.defaultHarness, "claude")
+        XCTAssertTrue(normalized.isHarnessEnabled("claude"))
+        XCTAssertFalse(normalized.isHarnessEnabled("codex"))
     }
 
-    func testNormalizedKeepsAtLeastOneProviderEnabled() {
+    func testNormalizedKeepsAtLeastOneHarnessEnabled() {
         var settings = AppSettings()
-        settings.disabledProviderIDs = ["claude", "codex", "unknown"]
+        settings.disabledHarnessIDs = ["claude", "codex", "unknown"]
 
         let normalized = settings.normalized()
 
-        XCTAssertTrue(normalized.isProviderEnabled("claude"))
-        XCTAssertFalse(normalized.isProviderEnabled("codex"))
-        XCTAssertFalse(normalized.disabledProviderIDs.contains("unknown"))
+        XCTAssertTrue(normalized.isHarnessEnabled("claude"))
+        XCTAssertFalse(normalized.isHarnessEnabled("codex"))
+        XCTAssertFalse(normalized.disabledHarnessIDs.contains("unknown"))
     }
 
     func testNormalizedClampsMaxTerminalSessionsToSupportedRange() {

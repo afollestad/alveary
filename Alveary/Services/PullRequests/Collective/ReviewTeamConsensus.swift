@@ -7,7 +7,7 @@ enum ReviewTeamConsensus {
 
     static func requiredVotes(teamSize: Int) -> Int { teamSize / 2 + 1 }
 
-    /// Normalize framing only during validation so execution history retains the exact provider response.
+    /// Normalize framing only during validation so execution history retains the exact harness response.
     static func decode<T: Decodable>(_ type: T.Type, from text: String) throws -> T {
         guard text.utf8.count <= maximumOutputBytes else {
             throw ReviewTeamError.invalidOutput("The reviewer response exceeded the size limit.")

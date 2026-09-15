@@ -80,7 +80,7 @@ final class ScheduledTasksSnapshotFixture {
             primaryRoot: "/tmp/alveary-snapshot-reuse",
             ownershipStrategy: .projectLocal
         )
-        thread.conversations = [Conversation(id: "reused-snapshot-main", provider: "claude", thread: thread)]
+        thread.conversations = [Conversation(id: "reused-snapshot-main", harness: "claude", thread: thread)]
         let task = ScheduledTask(
             id: "reused-snapshot",
             title: "Triage overnight failures",
@@ -89,7 +89,7 @@ final class ScheduledTasksSnapshotFixture {
             state: .active,
             recurrence: .daily(hour: 8, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "claude",
+            harnessID: "claude",
             workspaceKind: .privateWorkspace,
             workspaceStrategy: .worktree,
             nextOccurrenceAt: Date(timeIntervalSince1970: 1_800_028_800),
@@ -111,7 +111,7 @@ final class ScheduledTasksSnapshotFixture {
             state: .paused,
             recurrence: .interval(minutes: 60, anchor: Date(timeIntervalSince1970: 1_799_900_000)),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "claude",
+            harnessID: "claude",
             workspaceKind: .privateWorkspace,
             nextOccurrenceAt: Date(timeIntervalSince1970: 1_800_003_600),
             pauseReason: """
@@ -133,7 +133,7 @@ final class ScheduledTasksSnapshotFixture {
             state: .active,
             recurrence: .weekdays(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             model: nil,
             effort: "medium",
             permissionMode: "on-request",
@@ -154,7 +154,7 @@ final class ScheduledTasksSnapshotFixture {
             state: .paused,
             recurrence: .weekly(weekday: 6, hour: 15, minute: 30),
             timeZoneIdentifier: "America/Los_Angeles",
-            providerID: "claude",
+            harnessID: "claude",
             workspaceKind: .privateWorkspace,
             workspaceStrategy: .worktree,
             grantedRoots: ["/tmp/release-assets"],
@@ -173,7 +173,7 @@ final class ScheduledTasksSnapshotFixture {
             state: .completed,
             recurrence: .once(Date(timeIntervalSince1970: 1_799_900_000)),
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             workspaceKind: .privateWorkspace,
             modifiedAt: Date(timeIntervalSince1970: 100)
         )

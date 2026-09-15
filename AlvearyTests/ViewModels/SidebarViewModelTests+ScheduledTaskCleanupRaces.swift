@@ -27,7 +27,7 @@ extension SidebarViewModelTests {
             mode: .task,
             taskWorkspaceDescriptor: workspace
         )
-        task.conversations = [Conversation(id: "task-worktree-list-race", provider: "codex", thread: task)]
+        task.conversations = [Conversation(id: "task-worktree-list-race", harness: "codex", thread: task)]
         fixture.context.insert(task)
         try fixture.context.save()
 
@@ -234,7 +234,7 @@ private func insertPendingCleanupRaceTask(
         mode: .task,
         scheduledTaskRun: run
     )
-    task.conversations = [Conversation(id: "pending-worktree-list-race", provider: "codex", thread: task)]
+    task.conversations = [Conversation(id: "pending-worktree-list-race", harness: "codex", thread: task)]
     fixture.context.insert(run)
     fixture.context.insert(task)
     try fixture.context.save()
@@ -254,7 +254,7 @@ private func makeCleanupRaceRun() -> ScheduledTaskRun {
         promptSnapshot: "Run scheduled work.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "codex",
+        harnessIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .project,

@@ -67,7 +67,7 @@ enum ComposerReasoningMenuMetrics {
     static let rowHeight: CGFloat = 32
     static let controlsHeight: CGFloat = rowHeight
     static let modelListBottomInset: CGFloat = 8
-    static let providerHeaderTopInset: CGFloat = 0
+    static let harnessHeaderTopInset: CGFloat = 0
     static let headerlessModelMenuTopInset: CGFloat = 8
     static let headerInset: CGFloat = 18
     // Headers bottom-align within their own rows; this spacing is the visual
@@ -135,18 +135,18 @@ enum ComposerReasoningMenuMetrics {
     static func modelDocumentHeight(groups: [ChatComposerActionRowView.ReasoningModelGroup]) -> CGFloat {
         let visibleGroups = groups.filter { !$0.options.isEmpty }
         let modelCount = max(1, visibleGroups.flatMap(\.options).count)
-        let showsProviderHeaders = visibleGroups.count > 1
-        let headerCount = showsProviderHeaders ? visibleGroups.count : 0
-        let dividerCount = showsProviderHeaders ? max(0, visibleGroups.count - 1) : 0
-        return modelMenuTopInset(showsProviderHeaders: showsProviderHeaders) +
+        let showsHarnessHeaders = visibleGroups.count > 1
+        let headerCount = showsHarnessHeaders ? visibleGroups.count : 0
+        let dividerCount = showsHarnessHeaders ? max(0, visibleGroups.count - 1) : 0
+        return modelMenuTopInset(showsHarnessHeaders: showsHarnessHeaders) +
             modelListBottomInset +
             rowHeight * CGFloat(modelCount) +
             (headerHeight + headerBottomSpacing) * CGFloat(headerCount) +
             (AppKitComposerPopoverDividerView.height + dividerSpacing * 2) * CGFloat(dividerCount)
     }
 
-    static func modelMenuTopInset(showsProviderHeaders: Bool) -> CGFloat {
-        showsProviderHeaders ? providerHeaderTopInset : headerlessModelMenuTopInset
+    static func modelMenuTopInset(showsHarnessHeaders: Bool) -> CGFloat {
+        showsHarnessHeaders ? harnessHeaderTopInset : headerlessModelMenuTopInset
     }
 }
 

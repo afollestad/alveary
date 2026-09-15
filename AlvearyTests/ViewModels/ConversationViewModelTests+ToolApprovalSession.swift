@@ -26,7 +26,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(
             calls.first?.sessionApproval,
             AgentSessionApprovalGrant(
-                providerId: "claude",
+                harnessId: "claude",
                 conversationId: fixture.conversation.id,
                 sessionId: "session-123",
                 matchKind: .bashCommandGroup,
@@ -57,7 +57,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(
             calls.first?.sessionApproval,
             AgentSessionApprovalGrant(
-                providerId: "claude",
+                harnessId: "claude",
                 conversationId: fixture.conversation.id,
                 sessionId: "session-123",
                 matchKind: .bashCommandGroup,
@@ -91,7 +91,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(
             calls.first?.sessionApproval,
             AgentSessionApprovalGrant(
-                providerId: "claude",
+                harnessId: "claude",
                 conversationId: fixture.conversation.id,
                 sessionId: "session-123",
                 matchKind: .bashCommandGroup,
@@ -110,7 +110,7 @@ extension ConversationViewModelTests {
         )
         await fixture.agentsManager.recordToolApprovalSelection(
             .sessionGroup,
-            providerId: "claude",
+            harnessId: "claude",
             conversationId: fixture.conversation.id,
             sessionId: approval.sessionId
         )

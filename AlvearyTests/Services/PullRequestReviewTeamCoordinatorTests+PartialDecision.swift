@@ -131,7 +131,7 @@ extension PullRequestReviewTeamCoordinatorTests {
     @Test(arguments: [false, true])
     func `recovering a terminal run cannot clear another paused run reservation`(terminalInsertedFirst: Bool) async throws {
         let fixture = try ReviewCoordinatorFixture()
-        let other = Conversation(id: "other-review", provider: "codex", thread: fixture.conversation.thread)
+        let other = Conversation(id: "other-review", harness: "codex", thread: fixture.conversation.thread)
         fixture.container.mainContext.insert(other)
         let terminalConversation = terminalInsertedFirst ? fixture.conversation : other
         let pausedConversation = terminalInsertedFirst ? other : fixture.conversation

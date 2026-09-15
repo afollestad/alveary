@@ -4,7 +4,7 @@ extension ConversationView {
             return false
         }
         guard composerCapabilities.supportsSpeedMode || speedMode == .standard else {
-            viewModel.lastTurnError = "Fast mode is not supported by this provider."
+            viewModel.lastTurnError = "Fast mode is not supported by this harness."
             return false
         }
         let currentSpeedMode = conversation.thread?.normalizedSpeedMode ?? .standard

@@ -148,7 +148,7 @@ final class SessionHandoffPromptBuilderTests: XCTestCase {
             restoreContext: "Restoring context from local history."
         )
 
-        XCTAssertTrue(output.hasPrefix("The hidden session handoff agent could not resume the previous provider session."))
+        XCTAssertTrue(output.hasPrefix("The hidden session handoff agent could not resume the previous harness session."))
         XCTAssertTrue(output.hasSuffix("Restoring context from local history."))
     }
 

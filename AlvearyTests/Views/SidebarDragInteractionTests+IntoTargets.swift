@@ -285,7 +285,7 @@ extension SidebarDragInteractionTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             createdAt: Date(timeIntervalSince1970: 100),
             targetThread: task
         ))

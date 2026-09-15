@@ -13,7 +13,7 @@ extension PullRequestAgenticThreadService {
         }
         let team = try await coordinator.preflight(settings: work.settings)
         guard let lead = team.first else {
-            throw StartError.noReadyProvider
+            throw StartError.noReadyHarness
         }
         try Task.checkCancellation()
         try authorization.validateSource()
@@ -21,8 +21,8 @@ extension PullRequestAgenticThreadService {
             return existing
         }
         let seed = SeedSettings(
-            provider: lead.providerID, model: lead.launchModel, effort: lead.effort,
-            permissionMode: AppSettings.defaultPermissionMode(forProvider: lead.providerID)
+            harness: lead.harnessID, model: lead.launchModel, effort: lead.effort,
+            permissionMode: AppSettings.defaultPermissionMode(forHarness: lead.harnessID)
         )
         let thread = try lifecycleService.insertTaskThread(seed: Self.threadSeed(
             seed,

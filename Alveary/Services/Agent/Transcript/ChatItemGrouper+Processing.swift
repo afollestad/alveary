@@ -20,7 +20,7 @@ extension ChatItemGrouper {
         case ConversationEventRecord.errorType:
             handleError(event)
         default:
-            // Historical persisted `thinking` rows stay hidden. Provider-exposed live
+            // Historical persisted `thinking` rows stay hidden. Harness-exposed live
             // thoughts render only through transient AppKit rows.
             processSnapshotOrLifecycleEvent(event)
         }

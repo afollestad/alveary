@@ -4,7 +4,7 @@ import AppKit
 /// Edit action.
 ///
 /// Rows come from Alveary's own scheduled tasks rather than the tool payload, so the row
-/// always shows current state — and so it still works for providers that surface only the
+/// always shows current state — and so it still works for harnesses that surface only the
 /// tool's text fallback instead of its structured content.
 @MainActor
 final class AppKitScheduledTaskListDetailView: NSView {

@@ -144,7 +144,7 @@ extension ScheduledTaskSchedulerEngineTests {
         let engine = fixture.makeEngine { snapshot in
             preflightCount += 1
             guard preflightCount == 1 else {
-                return .invalid(reason: "Provider became unavailable.")
+                return .invalid(reason: "Harness became unavailable.")
             }
             return scheduledTaskReadyOutcome(for: snapshot)
         }

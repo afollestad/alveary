@@ -272,7 +272,7 @@ private final class ScheduledTaskProposalCrossContextFixture {
         let result = await hostService.handle(
             context: AgentCLIKit.AgentHostToolCallContext(
                 conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationID),
-                providerId: .codex,
+                harnessId: .codex,
                 processToken: processToken,
                 requestId: "string:\(requestID)"
             ),
@@ -339,10 +339,10 @@ private final class ScheduledTaskProposalCrossContextFixture {
     ) throws {
         let project = Project(path: "/tmp/proposal-context-topology", name: "Context topology")
         let firstThread = AgentThread(name: "First source", mode: .project, project: project)
-        let firstConversation = Conversation(id: firstConversationID, provider: "codex", thread: firstThread)
+        let firstConversation = Conversation(id: firstConversationID, harness: "codex", thread: firstThread)
         firstThread.conversations = [firstConversation]
         let secondThread = AgentThread(name: "Second source", mode: .project, project: project)
-        let secondConversation = Conversation(id: secondConversationID, provider: "codex", thread: secondThread)
+        let secondConversation = Conversation(id: secondConversationID, harness: "codex", thread: secondThread)
         secondThread.conversations = [secondConversation]
         project.threads = [firstThread, secondThread]
         context.insert(project)

@@ -276,7 +276,7 @@ private extension ScheduledTaskTargetDetachmentTests {
             destination: targetThread == nil ? .newThreadPerRun : .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             nextOccurrenceAt: Date(timeIntervalSince1970: 9_000),
             createdAt: Date(timeIntervalSince1970: 100),
             modifiedAt: Date(timeIntervalSince1970: 100),

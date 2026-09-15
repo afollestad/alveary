@@ -96,15 +96,15 @@ extension AppComponent {
         return shared { DefaultAgentRegistry() }
     }
 
-    var providerRegistry: ProviderRegistry {
-        return shared { DefaultProviderRegistry(agentRegistry: agentRegistry) }
+    var harnessRegistry: HarnessRegistry {
+        return shared { DefaultHarnessRegistry(agentRegistry: agentRegistry) }
     }
 
-    var providerDetectionService: ProviderDetectionService {
+    var harnessDetectionService: HarnessDetectionService {
         return shared {
-            DefaultProviderDetectionService(
+            DefaultHarnessDetectionService(
                 shell: shellRunner,
-                registry: providerRegistry,
+                registry: harnessRegistry,
                 executableResolver: executablePathResolver
             )
         }
@@ -118,11 +118,11 @@ extension AppComponent {
         return shared { DefaultAgentEnvironmentBuilder() }
     }
 
-    var providerSetupService: ProviderSetupService {
+    var harnessSetupService: HarnessSetupService {
         return shared {
-            DefaultProviderSetupService(
+            DefaultHarnessSetupService(
                 projectTrustService: agentCLIKitProjectTrustService,
-                projectTrustUpdates: providerProjectTrustUpdates(stores: [
+                projectTrustUpdates: harnessProjectTrustUpdates(stores: [
                     claudeProjectTrustUpdates(from: agentCLIKitClaudeConfigStore),
                     codexProjectTrustUpdates(from: agentCLIKitCodexConfigStore)
                 ])
@@ -150,8 +150,8 @@ extension AppComponent {
         return shared { AgentCLIKitLiveHookDecisionProvider() }
     }
 
-    var agentCLIKitClaudeProviderConfiguration: AgentCLIKit.ClaudeProviderAdapter.Configuration {
-        AgentCLIKit.ClaudeProviderAdapter.Configuration(
+    var agentCLIKitClaudeHarnessConfiguration: AgentCLIKit.ClaudeHarnessAdapter.Configuration {
+        AgentCLIKit.ClaudeHarnessAdapter.Configuration(
             interactionStore: agentCLIKitInteractionStore,
             approvalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
             hookSupportDirectory: storageProfile.agentCLIKitHookSupportDirectory,
@@ -159,39 +159,39 @@ extension AppComponent {
         )
     }
 
-    var agentCLIKitCodexProviderConfiguration: AgentCLIKit.CodexProviderAdapter.Configuration {
-        AgentCLIKit.CodexProviderAdapter.Configuration(
+    var agentCLIKitCodexHarnessConfiguration: AgentCLIKit.CodexHarnessAdapter.Configuration {
+        AgentCLIKit.CodexHarnessAdapter.Configuration(
             sessionApprovalPolicyStore: agentCLIKitClaudeApprovalPolicyStore
         )
     }
 
-    var agentCLIKitProviderAdapterSet: AgentCLIKit.AgentProviderAdapterSet {
+    var agentCLIKitHarnessAdapterSet: AgentCLIKit.AgentHarnessAdapterSet {
         return shared {
-            AgentCLIKit.AgentProviderAdapterSet.default(
-                claude: agentCLIKitClaudeProviderConfiguration,
-                codex: agentCLIKitCodexProviderConfiguration
+            AgentCLIKit.AgentHarnessAdapterSet.default(
+                claude: agentCLIKitClaudeHarnessConfiguration,
+                codex: agentCLIKitCodexHarnessConfiguration
             )
         }
     }
 
     /// Cleanup must reach the server holding the Codex thread's writer lock, which outlives its runtime sentinel.
-    var agentCLIKitSessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter {
-        AgentCLIKit.AgentProviderSessionActionRouter(borrowing: agentCLIKitProviderAdapterSet)
+    var agentCLIKitSessionActionRouter: AgentCLIKit.AgentHarnessSessionActionRouter {
+        AgentCLIKit.AgentHarnessSessionActionRouter(borrowing: agentCLIKitHarnessAdapterSet)
     }
 
-    var providerSessionActionService: any ProviderSessionActionService {
+    var harnessSessionActionService: any HarnessSessionActionService {
         return shared {
-            AgentCLIKitProviderSessionActionService(
+            AgentCLIKitHarnessSessionActionService(
                 sessionStore: agentCLIKitSessionStore,
                 router: agentCLIKitSessionActionRouter,
-                providerLookup: agentCLIKitProviderRegistry
+                harnessLookup: agentCLIKitHarnessRegistry
             )
         }
     }
 
-    var providerSessionBindingStore: any ProviderSessionBindingStore {
+    var harnessSessionBindingStore: any HarnessSessionBindingStore {
         return shared {
-            SwiftDataProviderSessionBindingStore(modelContainer: modelContainer)
+            SwiftDataHarnessSessionBindingStore(modelContainer: modelContainer)
         }
     }
 
@@ -211,27 +211,27 @@ extension AppComponent {
         }
     }
 
-    var agentCLIKitProviderRegistry: AgentCLIKit.AgentProviderRegistry {
+    var agentCLIKitHarnessRegistry: AgentCLIKit.AgentHarnessRegistry {
         return shared {
-            AgentCLIKit.AgentProviderRegistry(
-                definitions: agentCLIKitProviderAdapterSet.definitions
+            AgentCLIKit.AgentHarnessRegistry(
+                definitions: agentCLIKitHarnessAdapterSet.definitions
             )
         }
     }
 
-    var agentCLIKitProviderDetector: AgentCLIKit.AgentProviderDetector {
-        return shared { AgentCLIKit.AgentProviderDetector(shellRunner: agentCLIKitShellRunner) }
+    var agentCLIKitHarnessDetector: AgentCLIKit.AgentHarnessDetector {
+        return shared { AgentCLIKit.AgentHarnessDetector(shellRunner: agentCLIKitShellRunner) }
     }
 
-    var agentCLIKitCodexProviderSetup: AgentCLIKit.CodexProviderSetup {
-        return shared { AgentCLIKit.CodexProviderSetup(configStore: agentCLIKitCodexConfigStore) }
+    var agentCLIKitCodexHarnessSetup: AgentCLIKit.CodexHarnessSetup {
+        return shared { AgentCLIKit.CodexHarnessSetup(configStore: agentCLIKitCodexConfigStore) }
     }
 
     var agentCLIKitProjectTrustService: AgentCLIKit.DefaultAgentProjectTrustService {
         return shared {
             AgentCLIKit.DefaultAgentProjectTrustService(setups: [
-                agentCLIKitProviderSetup,
-                agentCLIKitCodexProviderSetup
+                agentCLIKitHarnessSetup,
+                agentCLIKitCodexHarnessSetup
             ])
         }
     }
@@ -251,7 +251,7 @@ extension AppComponent {
     var agentCLIKitRuntime: AgentCLIKit.DefaultAgentRuntime {
         return shared {
             AgentCLIKit.DefaultAgentRuntime(
-                adapterSet: agentCLIKitProviderAdapterSet,
+                adapterSet: agentCLIKitHarnessAdapterSet,
                 sessionStore: agentCLIKitSessionStore,
                 hostToolHandling: hostToolHandling
             )
@@ -271,10 +271,10 @@ extension AppComponent {
             AgentCLIKitHostServices(
                 runtime: agentCLIKitRuntime,
                 sessionStore: agentCLIKitSessionStore,
-                providerDetector: agentCLIKitProviderDetector,
-                providerRegistry: agentCLIKitProviderRegistry,
+                harnessDetector: agentCLIKitHarnessDetector,
+                harnessRegistry: agentCLIKitHarnessRegistry,
                 claudeConfigStore: agentCLIKitClaudeConfigStore,
-                claudeProviderSetup: agentCLIKitProviderSetup,
+                claudeHarnessSetup: agentCLIKitHarnessSetup,
                 interactionStore: agentCLIKitInteractionStore,
                 approvalPolicyStore: agentCLIKitApprovalPolicyStore,
                 claudeApprovalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
@@ -295,16 +295,16 @@ extension AppComponent {
             DefaultAgentsManager(
                 agentCLIKitServices: agentCLIKitHostServices,
                 sessionManager: sessionManager,
-                providerDetection: providerDetectionService,
+                harnessDetection: harnessDetectionService,
                 environmentBuilder: agentEnvironmentBuilder,
-                providerRegistry: providerRegistry,
+                harnessRegistry: harnessRegistry,
                 settingsService: settingsService,
                 keepAwakeService: keepAwakeService,
                 notificationManager: notificationManager,
                 fileListManager: fileListManager,
                 threadActivityRecorder: threadActivityRecorder,
                 claudeApprovalPersistenceStore: claudeApprovalPersistenceStore,
-                providerSessionBindingStore: providerSessionBindingStore
+                harnessSessionBindingStore: harnessSessionBindingStore
             )
         }
     }
@@ -318,8 +318,8 @@ extension AppComponent {
             DefaultAgentOneShotPromptService(
                 promptRunner: agentCLIKitOneShotPromptRunner,
                 settingsService: settingsService,
-                providerSetup: providerSetupService,
-                providerDetection: providerDetectionService,
+                harnessSetup: harnessSetupService,
+                harnessDetection: harnessDetectionService,
                 environmentBuilder: agentEnvironmentBuilder
             )
         }
@@ -381,7 +381,7 @@ extension AppComponent {
             demoMCPService ?? DefaultMCPService(
                 claudeConfigStore: agentCLIKitClaudeConfigStore,
                 codexConfigStore: agentCLIKitCodexConfigStore,
-                providerDetection: providerDetectionService,
+                harnessDetection: harnessDetectionService,
                 agentRegistry: agentRegistry
             )
         }
@@ -427,7 +427,7 @@ private func codexProjectTrustUpdates(
     }
 }
 
-private func providerProjectTrustUpdates(
+private func harnessProjectTrustUpdates(
     stores: [@Sendable () async -> AsyncStream<Void>]
 ) -> @Sendable () async -> AsyncStream<Void> {
     {

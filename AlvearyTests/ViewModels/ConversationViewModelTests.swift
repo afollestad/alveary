@@ -14,7 +14,7 @@ final class ConversationViewModelTests: XCTestCase {
         fixture.viewModel.state.activeRuntimeActivityTurnId = "turn-1"
 
         let config = AgentSpawnConfig(
-            providerId: "claude",
+            harnessId: "claude",
             workingDirectory: fixture.project.path,
             permissionMode: "acceptEdits",
             model: "sonnet",
@@ -24,11 +24,11 @@ final class ConversationViewModelTests: XCTestCase {
 
         try await fixture.viewModel.reconfigureSession(config: config)
 
-        let providerSetupCalls = await fixture.providerSetup.calls()
-        XCTAssertEqual(providerSetupCalls.count, 1)
-        XCTAssertEqual(providerSetupCalls.first?.providerId, "claude")
-        XCTAssertEqual(providerSetupCalls.first?.workingDirectory, fixture.project.path)
-        XCTAssertEqual(providerSetupCalls.first?.autoTrust, true)
+        let harnessSetupCalls = await fixture.harnessSetup.calls()
+        XCTAssertEqual(harnessSetupCalls.count, 1)
+        XCTAssertEqual(harnessSetupCalls.first?.harnessId, "claude")
+        XCTAssertEqual(harnessSetupCalls.first?.workingDirectory, fixture.project.path)
+        XCTAssertEqual(harnessSetupCalls.first?.autoTrust, true)
 
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(reconfigureCalls, [.init(conversationId: fixture.conversation.id, config: config)])
@@ -46,7 +46,7 @@ final class ConversationViewModelTests: XCTestCase {
         fixture.viewModel.state.activeRuntimeActivityTurnId = "turn-1"
 
         let config = AgentSpawnConfig(
-            providerId: "claude",
+            harnessId: "claude",
             workingDirectory: fixture.project.path,
             permissionMode: "acceptEdits",
             model: nil,
@@ -81,7 +81,7 @@ final class ConversationViewModelTests: XCTestCase {
         fixture.viewModel.state.lastPersistedEventIndex = 5
 
         let config = AgentSpawnConfig(
-            providerId: "claude",
+            harnessId: "claude",
             workingDirectory: fixture.project.path,
             permissionMode: "acceptEdits",
             model: nil,
@@ -167,11 +167,11 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertEqual(createCalls.first?.threadName, "Implement the authentication retry flow")
         XCTAssertEqual(createCalls.first?.remoteName, fixture.project.remoteName)
 
-        let providerSetupCalls = await fixture.providerSetup.calls()
-        XCTAssertEqual(providerSetupCalls.count, 1)
-        XCTAssertEqual(providerSetupCalls.first?.providerId, "claude")
-        XCTAssertEqual(providerSetupCalls.first?.workingDirectory, worktreeInfo.path)
-        XCTAssertEqual(providerSetupCalls.first?.autoTrust, true)
+        let harnessSetupCalls = await fixture.harnessSetup.calls()
+        XCTAssertEqual(harnessSetupCalls.count, 1)
+        XCTAssertEqual(harnessSetupCalls.first?.harnessId, "claude")
+        XCTAssertEqual(harnessSetupCalls.first?.workingDirectory, worktreeInfo.path)
+        XCTAssertEqual(harnessSetupCalls.first?.autoTrust, true)
 
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         XCTAssertEqual(spawnCalls.count, 1)
@@ -206,11 +206,11 @@ final class ConversationViewModelTests: XCTestCase {
         let createCalls = await fixture.worktreeManager.createCalls()
         XCTAssertTrue(createCalls.isEmpty)
 
-        let providerSetupCalls = await fixture.providerSetup.calls()
-        XCTAssertEqual(providerSetupCalls.count, 1)
-        XCTAssertEqual(providerSetupCalls.first?.providerId, "claude")
-        XCTAssertEqual(providerSetupCalls.first?.workingDirectory, fixture.project.path)
-        XCTAssertEqual(providerSetupCalls.first?.autoTrust, true)
+        let harnessSetupCalls = await fixture.harnessSetup.calls()
+        XCTAssertEqual(harnessSetupCalls.count, 1)
+        XCTAssertEqual(harnessSetupCalls.first?.harnessId, "claude")
+        XCTAssertEqual(harnessSetupCalls.first?.workingDirectory, fixture.project.path)
+        XCTAssertEqual(harnessSetupCalls.first?.autoTrust, true)
 
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         XCTAssertEqual(spawnCalls.count, 1)
@@ -293,7 +293,7 @@ struct ConversationViewModelTestFixture {
     let runtimeStore: MockConversationRuntimeStore
     let keepAwakeService: RecordingKeepAwakeService
     let worktreeManager: MockWorktreeManager
-    let providerSetup: MockProviderSetupService
+    let harnessSetup: MockHarnessSetupService
     let contextWindowCache: MockContextWindowCache
     let settingsService: InMemorySettingsService
     let fileBackedStorageRoot: URL
@@ -320,7 +320,7 @@ struct ConversationViewModelTestFixture {
         projectPath: String = "/tmp/alveary-project",
         pausesWorktreeCreate: Bool = false,
         initialAgentIsRunning: Bool? = nil,
-        providerId: String = "claude",
+        harnessId: String = "claude",
         threadMode: AgentThreadMode = .project,
         taskWorkspaceDescriptor: TaskWorkspaceDescriptor? = nil,
         autoTrustProjects: Bool = true,
@@ -344,7 +344,7 @@ struct ConversationViewModelTestFixture {
             taskWorkspaceDescriptor: taskWorkspaceDescriptor,
             project: threadMode == .project ? project : nil
         )
-        let conversation = Conversation(title: conversationTitle, provider: providerId, thread: thread)
+        let conversation = Conversation(title: conversationTitle, harness: harnessId, thread: thread)
         conversation.pendingRestoreContext = pendingRestoreContext
         if threadMode == .project {
             project.threads.append(thread)
@@ -371,7 +371,7 @@ struct ConversationViewModelTestFixture {
             worktreeInfo: worktreeInfo,
             blocksCreateUntilCancelled: pausesWorktreeCreate
         )
-        let providerSetup = MockProviderSetupService()
+        let harnessSetup = MockHarnessSetupService()
         let contextWindowCache = MockContextWindowCache()
         let fileBackedStorageRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("alveary-conversation-view-model-\(UUID().uuidString)", isDirectory: true)
@@ -393,7 +393,7 @@ struct ConversationViewModelTestFixture {
             settingsService: settingsService,
             worktreeManager: worktreeManager,
             taskWorkspaceOwnershipService: resolvedTaskWorkspaceOwnershipService,
-            providerSetup: providerSetup,
+            harnessSetup: harnessSetup,
             contextWindowCache: contextWindowCache,
             attachmentStore: resolvedAttachmentStore,
             threadActivityRecorder: threadActivityRecorder ?? NoopThreadActivityRecorder(),
@@ -405,7 +405,7 @@ struct ConversationViewModelTestFixture {
         }
         self.container = container; self.context = context; self.project = project; self.thread = thread
         self.conversation = conversation; self.agentsManager = agentsManager; self.runtimeStore = runtimeStore
-        self.keepAwakeService = keepAwakeService; self.worktreeManager = worktreeManager; self.providerSetup = providerSetup
+        self.keepAwakeService = keepAwakeService; self.worktreeManager = worktreeManager; self.harnessSetup = harnessSetup
         self.contextWindowCache = contextWindowCache; self.settingsService = settingsService; self.viewModel = viewModel
         self.fileBackedStorageRoot = fileBackedStorageRoot; self.attachmentStore = resolvedAttachmentStore
         self.taskWorkspaceOwnershipService = resolvedTaskWorkspaceOwnershipService
@@ -466,7 +466,7 @@ struct ConversationViewModelTestFixture {
 }
 
 struct MockContextWindowCacheUpdate: Equatable {
-    let providerId: String
+    let harnessId: String
     let selectedModel: String
     let reportedModelId: String?
     let contextWindowSize: Int
@@ -476,21 +476,21 @@ actor MockContextWindowCache: ContextWindowCache {
     private(set) var updates: [MockContextWindowCacheUpdate] = []
     var sizes: [String: Int] = [:]
 
-    func contextWindowSize(providerId: String, model: String) async -> Int? {
-        guard let key = JSONContextWindowCache.cacheKey(providerId: providerId, model: model) else {
+    func contextWindowSize(harnessId: String, model: String) async -> Int? {
+        guard let key = JSONContextWindowCache.cacheKey(harnessId: harnessId, model: model) else {
             return nil
         }
         return sizes[key]
     }
 
     func update(
-        providerId: String,
+        harnessId: String,
         selectedModel: String,
         reportedModelId: String?,
         contextWindowSize: Int
     ) async {
         updates.append(MockContextWindowCacheUpdate(
-            providerId: providerId,
+            harnessId: harnessId,
             selectedModel: selectedModel,
             reportedModelId: reportedModelId,
             contextWindowSize: contextWindowSize

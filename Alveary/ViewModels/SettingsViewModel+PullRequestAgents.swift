@@ -1,28 +1,28 @@
 import AgentCLIKit
 import SwiftUI
 
-/// Each route owns its pins; the editor shares only provider-dependent picker behavior.
+/// Each route owns its pins; the editor shares only harness-dependent picker behavior.
 extension SettingsViewModel {
     var reviewAgentEditor: PullRequestAgentSettingsEditor {
         PullRequestAgentSettingsEditor(viewModel: self, path: \.pullRequestReviewAgent)
     }
 
-    var addressFeedbackEffectiveProviderID: String { feedbackAgentEditor.effectiveProviderID }
-    var addressFeedbackProviderSelection: String { feedbackAgentEditor.providerSelection }
-    var addressFeedbackProviderOptions: [String] { feedbackAgentEditor.providerOptions }
+    var addressFeedbackEffectiveHarnessID: String { feedbackAgentEditor.effectiveHarnessID }
+    var addressFeedbackHarnessSelection: String { feedbackAgentEditor.harnessSelection }
+    var addressFeedbackHarnessOptions: [String] { feedbackAgentEditor.harnessOptions }
     var addressFeedbackModelSelection: String { feedbackAgentEditor.modelSelection }
     var addressFeedbackModelOptions: [String] { feedbackAgentEditor.modelOptions }
     var addressFeedbackEffortSelection: String { feedbackAgentEditor.effortSelection }
-    var addressFeedbackEffortOptions: [AgentProviderOption] { feedbackAgentEditor.effortOptions }
+    var addressFeedbackEffortOptions: [AgentHarnessOption] { feedbackAgentEditor.effortOptions }
     var addressFeedbackPermissionSelection: String { feedbackAgentEditor.permissionSelection }
     var addressFeedbackPermissionOptions: [String] { feedbackAgentEditor.permissionOptions }
 
-    func setAddressFeedbackProvider(_ value: String) { feedbackAgentEditor.setProvider(value) }
+    func setAddressFeedbackHarness(_ value: String) { feedbackAgentEditor.setHarness(value) }
     func setAddressFeedbackModel(_ value: String) { feedbackAgentEditor.setModel(value) }
     func setAddressFeedbackEffort(_ value: String) { feedbackAgentEditor.setEffort(value) }
     func setAddressFeedbackPermission(_ value: String) { feedbackAgentEditor.setPermission(value) }
 
-    func addressFeedbackLabel(forProvider value: String) -> String { feedbackAgentEditor.label(forProvider: value) }
+    func addressFeedbackLabel(forHarness value: String) -> String { feedbackAgentEditor.label(forHarness: value) }
     func addressFeedbackLabel(forModel value: String) -> String { feedbackAgentEditor.label(forModel: value) }
     func addressFeedbackLabel(forEffort value: String) -> String { feedbackAgentEditor.label(forEffort: value) }
     func addressFeedbackLabel(forPermission value: String) -> String { feedbackAgentEditor.label(forPermission: value) }
@@ -38,20 +38,20 @@ struct PullRequestAgentSettingsEditor {
     let viewModel: SettingsViewModel
     let path: WritableKeyPath<AppSettings, PullRequestAgentSettings>
 
-    var effectiveProviderID: String {
-        guard let pinned = settings.provider, viewModel.threadDefaultProviderIDs.contains(pinned) else {
-            return viewModel.threadDefaultProviderSelection
+    var effectiveHarnessID: String {
+        guard let pinned = settings.harness, viewModel.threadDefaultHarnessIDs.contains(pinned) else {
+            return viewModel.threadDefaultHarnessSelection
         }
         return pinned
     }
 
-    var providerSelection: String { settings.provider ?? inheritValue }
-    var providerOptions: [String] { [inheritValue] + viewModel.threadDefaultProviderIDs }
+    var harnessSelection: String { settings.harness ?? inheritValue }
+    var harnessOptions: [String] { [inheritValue] + viewModel.threadDefaultHarnessIDs }
 
-    /// Model, effort, and permissions are provider-scoped, so changing providers clears their pins.
-    func setProvider(_ value: String) {
+    /// Model, effort, and permissions are harness-scoped, so changing harnesses clears their pins.
+    func setHarness(_ value: String) {
         update {
-            $0.provider = value == inheritValue ? nil : value
+            $0.harness = value == inheritValue ? nil : value
             $0.model = nil
             $0.effort = nil
             $0.permissionMode = nil
@@ -61,13 +61,13 @@ struct PullRequestAgentSettingsEditor {
     var modelSelection: String {
         guard let stored = settings.model else { return inheritValue }
         return AgentModelOptionSelection.pickerValue(
-            in: viewModel.modelOptions(for: effectiveProviderID),
+            in: viewModel.modelOptions(for: effectiveHarnessID),
             matching: stored
         )
     }
 
     var modelOptions: [String] {
-        [inheritValue] + viewModel.modelOptionValues(for: effectiveProviderID).filter { $0 != inheritValue }
+        [inheritValue] + viewModel.modelOptionValues(for: effectiveHarnessID).filter { $0 != inheritValue }
     }
 
     func setModel(_ value: String) {
@@ -78,7 +78,7 @@ struct PullRequestAgentSettingsEditor {
             }
             return
         }
-        let options = viewModel.modelOptions(for: effectiveProviderID)
+        let options = viewModel.modelOptions(for: effectiveHarnessID)
         let storedModel = AgentModelOptionSelection.storedModelValue(in: options, matching: value)
         update {
             $0.model = storedModel
@@ -91,9 +91,9 @@ struct PullRequestAgentSettingsEditor {
 
     var effortSelection: String { settings.effort ?? inheritValue }
 
-    var effortOptions: [AgentProviderOption] {
+    var effortOptions: [AgentHarnessOption] {
         AgentModelOptionSelection.effortOptions(
-            in: viewModel.modelOptions(for: effectiveProviderID),
+            in: viewModel.modelOptions(for: effectiveHarnessID),
             selectedModel: settings.model
         )
     }
@@ -109,19 +109,19 @@ struct PullRequestAgentSettingsEditor {
     }
 
     var permissionOptions: [String] {
-        [inheritValue] + viewModel.permissionModeOptions(for: effectiveProviderID)
+        [inheritValue] + viewModel.permissionModeOptions(for: effectiveHarnessID)
     }
 
     func setPermission(_ value: String) {
         update { $0.permissionMode = value == inheritValue ? nil : value }
     }
 
-    func label(forProvider value: String) -> String {
-        value == inheritValue ? "Default" : viewModel.providerDisplayName(for: value)
+    func label(forHarness value: String) -> String {
+        value == inheritValue ? "Default" : viewModel.harnessDisplayName(for: value)
     }
 
     func label(forModel value: String) -> String {
-        value == inheritValue ? "Default" : viewModel.modelLabel(for: value, providerId: effectiveProviderID)
+        value == inheritValue ? "Default" : viewModel.modelLabel(for: value, harnessId: effectiveHarnessID)
     }
 
     func label(forEffort value: String) -> String {
@@ -131,10 +131,10 @@ struct PullRequestAgentSettingsEditor {
 
     func label(forPermission value: String) -> String {
         guard value != inheritValue else { return "Use thread default" }
-        let provider = effectiveProviderID
-        let label = viewModel.permissionModeLabel(for: value, providerId: provider)
-        // A concrete provider default is different from inheriting Threads settings.
-        return label == "Default" ? "Default (\(viewModel.providerDisplayName(for: provider)))" : label
+        let harness = effectiveHarnessID
+        let label = viewModel.permissionModeLabel(for: value, harnessId: harness)
+        // A concrete harness default is different from inheriting Threads settings.
+        return label == "Default" ? "Default (\(viewModel.harnessDisplayName(for: harness)))" : label
     }
 
     private var inheritValue: String { SettingsViewModel.pullRequestReviewInheritValue }

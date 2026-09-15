@@ -2,22 +2,22 @@ import Foundation
 import SwiftData
 
 /// Runtime teardown failed after the archive already committed. The thread is archived either
-/// way, so the provider-session diagnostics gathered alongside it travel with the error rather
+/// way, so the harness-session diagnostics gathered alongside it travel with the error rather
 /// than being lost on the throw path.
 struct ThreadArchiveCleanupError: Error {
-    let diagnostics: [ProviderSessionActionDiagnostic]
+    let diagnostics: [HarnessSessionActionDiagnostic]
     let underlying: Error
 }
 
 extension ThreadLifecycleService {
-    /// Archives a thread and tears its runtime down, returning the provider-session diagnostics
+    /// Archives a thread and tears its runtime down, returning the harness-session diagnostics
     /// the caller should surface. `onPersistenceCommit` runs on the same turn as the durable save,
     /// before runtime teardown resumes, so a caller can route selection away from the archived row.
     @discardableResult
     func archiveThread(
         threadID: PersistentIdentifier,
         onPersistenceCommit: @escaping @MainActor () -> Void = {}
-    ) async throws -> [ProviderSessionActionDiagnostic] {
+    ) async throws -> [HarnessSessionActionDiagnostic] {
         var dbThread = try requireThread(id: threadID)
         try requireThreadLifecycleIsUnblocked(dbThread)
         guard !dbThread.isDraft else {
@@ -25,14 +25,14 @@ extension ThreadLifecycleService {
         }
         dbThread = try await quiesceScheduledTaskRunIfNeeded(for: dbThread)
         let snapshot = try makeThreadArchiveSnapshot(dbThread)
-        let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
-        try backfillProviderSessionBindings(from: providerSessionResolution.records)
+        let harnessSessionResolution = await harnessSessionActionService.resolveSessions(matching: snapshot.harnessSessionAction)
+        try backfillHarnessSessionBindings(from: harnessSessionResolution.records)
         if let currentThread = modelContext.resolveThread(id: snapshot.threadID) {
             try requireThreadLifecycleIsUnblocked(currentThread)
         }
         await beginConversationTeardowns(snapshot.conversationIDs)
         if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
-            // Run state can change while provider resolution and runtime teardown await. Recheck
+            // Run state can change while harness resolution and runtime teardown await. Recheck
             // on the main actor immediately before the durable lifecycle mutation.
             try requireThreadLifecycleIsUnblocked(dbThread)
             if modelContext.hasChanges {
@@ -65,7 +65,7 @@ extension ThreadLifecycleService {
         invalidateConversationControllers(snapshot.conversationIDs)
 
         let teardownError = await conversationTeardownError(snapshot.conversationIDs)
-        let diagnostics = await providerSessionActionService.archiveSessions(providerSessionResolution)
+        let diagnostics = await harnessSessionActionService.archiveSessions(harnessSessionResolution)
         if let teardownError {
             throw ThreadArchiveCleanupError(diagnostics: diagnostics, underlying: teardownError)
         }

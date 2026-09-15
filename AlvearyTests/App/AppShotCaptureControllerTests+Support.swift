@@ -95,7 +95,7 @@ final class AppShotCaptureControllerFixture {
             Conversation(
                 id: id,
                 title: index == 0 ? "Main" : "Side \(index)",
-                provider: "claude",
+                harness: "claude",
                 isMain: index == 0,
                 displayOrder: index,
                 thread: thread
@@ -234,7 +234,7 @@ final class AppShotRoutingDraftOpener {
         let project = projectID.flatMap(context.resolveProject(id:))
         if projectID != nil, project == nil { throw AppShotRoutingTestError.draftCreationFailed }
         let thread = AgentThread(name: "New thread", isDraft: true, mode: project == nil ? .task : .project, project: project)
-        let conversation = Conversation(id: "draft-\(UUID().uuidString)", provider: "claude", thread: thread)
+        let conversation = Conversation(id: "draft-\(UUID().uuidString)", harness: "claude", thread: thread)
         thread.conversations = [conversation]
         project?.threads.append(thread)
         context.insert(thread)

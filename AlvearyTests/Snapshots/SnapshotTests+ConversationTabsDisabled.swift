@@ -9,7 +9,7 @@ extension SnapshotTests {
         let mainConversation = Conversation(
             id: "scheduled-main",
             title: "Scheduled Task",
-            provider: "codex",
+            harness: "codex",
             isMain: true,
             displayOrder: 0,
             thread: thread
@@ -17,7 +17,7 @@ extension SnapshotTests {
         let sideConversation = Conversation(
             id: "scheduled-side",
             title: "Follow-up",
-            provider: "codex",
+            harness: "codex",
             isMain: false,
             displayOrder: 1,
             thread: thread

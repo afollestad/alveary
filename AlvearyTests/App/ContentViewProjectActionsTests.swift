@@ -125,7 +125,7 @@ final class ContentViewProjectActionsTests: XCTestCase {
         )
         let context = ModelContext(container)
         let appState = AppState()
-        let conversation = Conversation(title: "Main", provider: "claude")
+        let conversation = Conversation(title: "Main", harness: "claude")
         let thread = AgentThread(name: "No Project", conversations: [conversation])
         context.insert(thread)
         try context.save()
@@ -180,7 +180,7 @@ final class ContentViewProjectActionsTests: XCTestCase {
         )
         let context = ModelContext(container)
         let project = Project(path: "/tmp/project", name: "Alveary")
-        let conversation = Conversation(title: "Main", provider: "claude")
+        let conversation = Conversation(title: "Main", harness: "claude")
         let thread = AgentThread(name: "Toolbar Action", project: project, conversations: [conversation])
         project.threads.append(thread)
         context.insert(project)
@@ -210,7 +210,7 @@ final class ContentViewProjectActionsTests: XCTestCase {
         )
         let context = ModelContext(container)
         let project = Project(path: "/tmp/draft-restore", name: "Draft")
-        let conversation = Conversation(title: "Main", provider: "claude")
+        let conversation = Conversation(title: "Main", harness: "claude")
         let thread = AgentThread(name: "Draft", isDraft: true, project: project, conversations: [conversation])
         project.threads.append(thread)
         context.insert(project)
@@ -237,14 +237,14 @@ final class ContentViewProjectActionsTests: XCTestCase {
         )
         let context = ModelContext(container)
         let project = Project(path: "/tmp/project", name: "Alveary")
-        let archivedConversation = Conversation(title: "Archived", provider: "claude")
+        let archivedConversation = Conversation(title: "Archived", harness: "claude")
         let archivedThread = AgentThread(
             name: "Archived",
             archivedAt: Date(),
             project: project,
             conversations: [archivedConversation]
         )
-        let activeConversation = Conversation(title: "Active", provider: "claude")
+        let activeConversation = Conversation(title: "Active", harness: "claude")
         let activeThread = AgentThread(name: "Active", project: project, conversations: [activeConversation])
         project.threads.append(archivedThread)
         project.threads.append(activeThread)
@@ -284,7 +284,7 @@ final class ContentViewProjectActionsTests: XCTestCase {
         )
         let context = ModelContext(container)
         let project = Project(path: "/tmp/project", name: "Alveary")
-        let conversation = Conversation(title: "Main", provider: "claude")
+        let conversation = Conversation(title: "Main", harness: "claude")
         let thread = AgentThread(name: "Toolbar Action", project: project, conversations: [conversation])
         project.threads.append(thread)
         context.insert(project)
@@ -301,7 +301,7 @@ final class ContentViewProjectActionsTests: XCTestCase {
         XCTAssertNil(resolvedLastOpenThreadSelection(settings: missingThreadSettings, modelContext: context))
 
         let replacementProject = Project(path: "/tmp/replacement-project", name: "Replacement")
-        let replacementConversation = Conversation(title: "Replacement", provider: "claude")
+        let replacementConversation = Conversation(title: "Replacement", harness: "claude")
         let replacementThread = AgentThread(
             name: "Replacement",
             project: replacementProject,
@@ -406,7 +406,7 @@ private func makeDiffCommitTargetFixture(
         remoteName: "upstream",
         baseRef: "develop"
     )
-    let conversation = Conversation(title: "Main", provider: "claude")
+    let conversation = Conversation(title: "Main", harness: "claude")
     let thread = AgentThread(
         name: "Toolbar Action",
         worktreePath: worktreePath,

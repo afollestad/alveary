@@ -24,13 +24,13 @@ extension SidebarViewModel {
             if let dbThread = modelContext.resolveThread(id: target.threadID) {
                 try requireNoForkRollbackAttachments(dbThread)
             }
-            let resolution = await providerSessionActionService.resolveSessions(matching: target.providerSessionActionSnapshot)
-            let diagnostics = await providerSessionActionService.deleteSessions(ProviderSessionActionResolution(
+            let resolution = await harnessSessionActionService.resolveSessions(matching: target.harnessSessionActionSnapshot)
+            let diagnostics = await harnessSessionActionService.deleteSessions(HarnessSessionActionResolution(
                 snapshot: resolution.snapshot,
                 records: resolution.records,
                 missingBindings: []
             ))
-            presentProviderSessionActionDiagnostics(diagnostics)
+            presentHarnessSessionActionDiagnostics(diagnostics)
 
             if let dbThread = modelContext.resolveThread(id: target.threadID) {
                 try requireNoForkRollbackAttachments(dbThread)

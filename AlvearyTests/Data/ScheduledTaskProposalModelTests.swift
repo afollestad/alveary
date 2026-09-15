@@ -11,7 +11,7 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
         let context = ModelContext(container)
         let project = Project(path: "/tmp/proposal-project", name: "Proposal Project")
         let thread = AgentThread(name: "Source", mode: .project, project: project)
-        let conversation = Conversation(id: "conversation-1", provider: "codex", thread: thread)
+        let conversation = Conversation(id: "conversation-1", harness: "codex", thread: thread)
         thread.conversations = [conversation]
         project.threads = [thread]
         context.insert(project)
@@ -24,7 +24,7 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
             action: .create,
             canonicalPayloadJSON: #"{"action":"create"}"#,
             canonicalPayloadHash: "payload-hash",
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: processToken,
             sourceRequestID: "string:request-1",
             definitionDraft: draft,
@@ -49,7 +49,7 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
     func testDeletingSourceConversationCascadesProposal() throws {
         let context = ModelContext(try makeContainer())
         let thread = AgentThread(name: "Task", mode: .task)
-        let conversation = Conversation(id: "conversation-2", provider: "codex", thread: thread)
+        let conversation = Conversation(id: "conversation-2", harness: "codex", thread: thread)
         thread.conversations = [conversation]
         context.insert(thread)
         context.insert(ScheduledTaskProposal(
@@ -57,7 +57,7 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
             action: .pause,
             canonicalPayloadJSON: #"{"action":"pause"}"#,
             canonicalPayloadHash: "hash-2",
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: UUID(),
             sourceRequestID: "string:request-2",
             sourceConversation: conversation
@@ -73,7 +73,7 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
     func testDeletingProposalProjectNullifiesRelationshipWithoutDeletingProposal() throws {
         let context = ModelContext(try makeContainer())
         let sourceThread = AgentThread(name: "Task", mode: .task)
-        let conversation = Conversation(id: "conversation-3", provider: "codex", thread: sourceThread)
+        let conversation = Conversation(id: "conversation-3", harness: "codex", thread: sourceThread)
         sourceThread.conversations = [conversation]
         let project = Project(path: "/tmp/detached-proposal-project", name: "Detached")
         context.insert(sourceThread)
@@ -83,7 +83,7 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
             action: .create,
             canonicalPayloadJSON: #"{"action":"create"}"#,
             canonicalPayloadHash: "hash-3",
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: UUID(),
             sourceRequestID: "string:request-3",
             definitionDraft: makeDraft(projectPath: project.path),
@@ -107,7 +107,7 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
             action: .edit,
             canonicalPayloadJSON: #"{"action":"edit"}"#,
             canonicalPayloadHash: "hash-4",
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: UUID(),
             sourceRequestID: "string:request-4",
             definitionDraft: makeDraft(projectPath: nil),
@@ -132,7 +132,7 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
             action: .create,
             canonicalPayloadJSON: #"{"action":"create"}"#,
             canonicalPayloadHash: "hash-invalid-workspace",
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: UUID(),
             sourceRequestID: "string:request-invalid-workspace",
             definitionDraft: ScheduledTaskProposalDefinitionDraft(
@@ -141,7 +141,7 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
                 destination: .newThreadPerRun,
                 recurrence: .daily(hour: 8, minute: 0),
                 timeZoneIdentifier: "UTC",
-                providerID: "codex",
+                harnessID: "codex",
                 model: nil,
                 effort: "medium",
                 permissionMode: "default",
@@ -257,7 +257,7 @@ private extension ScheduledTaskProposalModelTests {
             destination: .newThreadPerRun,
             recurrence: .weekdays(hour: 9, minute: 30),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             model: "gpt-5",
             effort: "high",
             permissionMode: "default",
@@ -351,10 +351,10 @@ private extension ScheduledTaskProposalModelTests {
     func makeReopenSources() -> ScheduledTaskProposalReopenSources {
         let project = Project(path: "/tmp/proposal-reopen-project", name: "Proposal Project")
         let firstThread = AgentThread(name: "First source", mode: .project, project: project)
-        let firstConversation = Conversation(id: "proposal-reopen-source-1", provider: "codex", thread: firstThread)
+        let firstConversation = Conversation(id: "proposal-reopen-source-1", harness: "codex", thread: firstThread)
         firstThread.conversations = [firstConversation]
         let secondThread = AgentThread(name: "Second source", mode: .project, project: project)
-        let secondConversation = Conversation(id: "proposal-reopen-source-2", provider: "codex", thread: secondThread)
+        let secondConversation = Conversation(id: "proposal-reopen-source-2", harness: "codex", thread: secondThread)
         secondThread.conversations = [secondConversation]
         project.threads = [firstThread, secondThread]
         return ScheduledTaskProposalReopenSources(
@@ -375,7 +375,7 @@ private extension ScheduledTaskProposalModelTests {
             action: .create,
             canonicalPayloadJSON: #"{"action":"create"}"#,
             canonicalPayloadHash: "proposal-reopen-hash-1",
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE") ?? UUID(),
             sourceRequestID: "string:proposal-reopen-1",
             definitionDraft: draft,
@@ -397,7 +397,7 @@ private extension ScheduledTaskProposalModelTests {
             action: .edit,
             canonicalPayloadJSON: #"{"action":"edit"}"#,
             canonicalPayloadHash: "proposal-reopen-hash-2",
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: UUID(uuidString: "FFFFFFFF-BBBB-CCCC-DDDD-EEEEEEEEEEEE") ?? UUID(),
             sourceRequestID: "string:proposal-reopen-2",
             targetDefinitionID: "proposal-reopen-definition",

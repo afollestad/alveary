@@ -19,7 +19,7 @@ enum PullRequestHostToolPresentation {
             ThreadHostToolCatalog.listPullRequestsToolName
         ]
 
-    /// Providers disagree on whether a host tool name carries the server prefix.
+    /// Harnesses disagree on whether a host tool name carries the server prefix.
     private static func matches(_ toolName: String, hostToolName: String) -> Bool {
         AlvearyHostToolCatalog.matches(reportedName: toolName, hostToolName: hostToolName)
     }

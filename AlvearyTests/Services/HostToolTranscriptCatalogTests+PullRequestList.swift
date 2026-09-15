@@ -101,7 +101,7 @@ extension HostToolTranscriptCatalogTests {
         XCTAssertEqual(HostToolWidgetSummary.text(for: entry), "No pull requests you reviewed")
     }
 
-    /// Some providers persist only the tool's plain-text fallback, so the card has to read its
+    /// Some harnesses persist only the tool's plain-text fallback, so the card has to read its
     /// rows out of that too — otherwise it lands with nothing to show.
     func testRowsAreReadFromThePlainTextFallback() throws {
         let output = """

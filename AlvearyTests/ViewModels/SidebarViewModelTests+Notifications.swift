@@ -98,12 +98,12 @@ extension SidebarViewModelTests {
         let project = Project(path: "/tmp/p-delete-multi", name: "P")
         let first = AgentThread(name: "A", project: project)
         first.conversations = [
-            Conversation(id: "a-main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: first)
+            Conversation(id: "a-main", title: "Main", harness: "claude", isMain: true, displayOrder: 0, thread: first)
         ]
         let second = AgentThread(name: "B", project: project)
         second.conversations = [
-            Conversation(id: "b-main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: second),
-            Conversation(id: "b-side", title: "Side", provider: "claude", isMain: false, displayOrder: 1, thread: second)
+            Conversation(id: "b-main", title: "Main", harness: "claude", isMain: true, displayOrder: 0, thread: second),
+            Conversation(id: "b-side", title: "Side", harness: "claude", isMain: false, displayOrder: 1, thread: second)
         ]
         project.threads = [first, second]
         fixture.context.insert(project)

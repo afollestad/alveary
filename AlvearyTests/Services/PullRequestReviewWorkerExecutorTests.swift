@@ -5,7 +5,7 @@ import XCTest
 
 final class PullRequestReviewWorkerExecutorTests: XCTestCase {
     func testClaudeExecutionUsesOnlyAppOwnedSafetyArguments() async throws {
-        let fixture = try await makeFixture(providerID: "claude", script: Self.claudeScript)
+        let fixture = try await makeFixture(harnessID: "claude", script: Self.claudeScript)
 
         let output = try await fixture.executor.execute(
             configuration: fixture.configuration,
@@ -30,7 +30,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
     }
 
     func testCodexExecutionInsertsIsolationAfterExec() async throws {
-        let fixture = try await makeFixture(providerID: "codex", script: Self.codexScript)
+        let fixture = try await makeFixture(harnessID: "codex", script: Self.codexScript)
 
         let output = try await fixture.executor.execute(
             configuration: fixture.configuration,
@@ -59,9 +59,9 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         XCTAssertTrue(arguments.contains("model_reasoning_effort=\"\(fixture.configuration.effort)\""))
     }
 
-    func testProviderAuthenticationEnvironmentIsPreserved() async throws {
+    func testHarnessAuthenticationEnvironmentIsPreserved() async throws {
         let fixture = try await makeFixture(
-            providerID: "codex",
+            harnessID: "codex",
             script: Self.codexAuthenticationScript,
             environment: ["OPENAI_API_KEY": "fake-review-worker-token"]
         )
@@ -79,8 +79,8 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
     }
 
     func testFailedExecutionNeverPersistsIntermediateStdout() async throws {
-        for diagnostic in ["", "Provider unavailable"] {
-            let fixture = try await makeFixture(providerID: "claude", script: Self.failedClaudeScript(diagnostic: diagnostic))
+        for diagnostic in ["", "Harness unavailable"] {
+            let fixture = try await makeFixture(harnessID: "claude", script: Self.failedClaudeScript(diagnostic: diagnostic))
             do {
                 _ = try await fixture.executor.execute(
                     configuration: fixture.configuration,
@@ -90,19 +90,19 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
                     generation: 1,
                     executionID: "failed-claude"
                 )
-                XCTFail("Expected provider failure")
+                XCTFail("Expected harness failure")
             } catch let error as PullRequestReviewWorkerError {
                 XCTAssertEqual(error, .commandFailed(
-                    providerID: "claude",
+                    harnessID: "claude",
                     exitCode: 7,
-                    message: diagnostic.isEmpty ? "No provider diagnostic was returned." : diagnostic
+                    message: diagnostic.isEmpty ? "No harness diagnostic was returned." : diagnostic
                 ))
             }
         }
     }
 
     func testPreflightRejectsExecutableRemovedAfterSuccessfulCheck() async throws {
-        let fixture = try await makeFixture(providerID: "claude", script: Self.claudeScript)
+        let fixture = try await makeFixture(harnessID: "claude", script: Self.claudeScript)
         try await fixture.executor.preflight(fixture.configuration)
         try FileManager.default.removeItem(atPath: fixture.configuration.executablePath)
 
@@ -115,7 +115,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
     }
 
     func testPreflightRejectsCapabilitiesChangedAtTheSamePath() async throws {
-        let fixture = try await makeFixture(providerID: "claude", script: Self.claudeScript)
+        let fixture = try await makeFixture(harnessID: "claude", script: Self.claudeScript)
         try await fixture.executor.preflight(fixture.configuration)
         let replacement = Self.claudeScript.replacingOccurrences(of: "--restricted", with: "--deprecated")
         try replacement.write(toFile: fixture.configuration.executablePath, atomically: true, encoding: .utf8)
@@ -125,12 +125,12 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
             try await fixture.executor.preflight(fixture.configuration)
             XCTFail("Expected unsupported replacement executable")
         } catch let error as PullRequestReviewWorkerError {
-            XCTAssertEqual(error, .missingCapabilities(providerID: "claude", flags: ["--restricted"]))
+            XCTAssertEqual(error, .missingCapabilities(harnessID: "claude", flags: ["--restricted"]))
         }
     }
 
-    func testCancelTerminatesTrackedProviderThatIgnoresTerm() async throws {
-        let fixture = try await makeFixture(providerID: "claude", script: Self.suspendedClaudeScript)
+    func testCancelTerminatesTrackedHarnessThatIgnoresTerm() async throws {
+        let fixture = try await makeFixture(harnessID: "claude", script: Self.suspendedClaudeScript)
         let pidURL = fixture.directory.appendingPathComponent("worker.pid")
         let task = Task {
             try await fixture.executor.execute(
@@ -157,7 +157,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
     }
 
     func testExecutionRejectsPacketDirectoryReplacedBySymlink() async throws {
-        let fixture = try await makeFixture(providerID: "codex", script: Self.codexScript)
+        let fixture = try await makeFixture(harnessID: "codex", script: Self.codexScript)
         let runDirectory = fixture.packet.directoryURL.deletingLastPathComponent()
         let escapedRun = fixture.directory.appendingPathComponent("escaped", isDirectory: true)
         let escapedLease = escapedRun.appendingPathComponent(fixture.packet.id, isDirectory: true)
@@ -192,7 +192,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
     }
 
     func makeFixture(
-        providerID: String,
+        harnessID: String,
         script: String,
         environment: [String: String] = [:],
         capabilityShellRunner: (any ShellRunner)? = nil,
@@ -204,7 +204,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         addTeardownBlock {
             try? FileManager.default.removeItem(at: directory)
         }
-        let executableURL = directory.appendingPathComponent("fake-\(providerID)")
+        let executableURL = directory.appendingPathComponent("fake-\(harnessID)")
         try script.write(to: executableURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executableURL.path)
         let argumentsURL = directory.appendingPathComponent("arguments.txt")
@@ -216,7 +216,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
             executionShellRunner: executionShellRunner
         )
         let packetStore = ReviewPacketStore(rootDirectory: directory.appendingPathComponent("packets"))
-        let packet = try await packetStore.create(runID: "run-\(providerID)", files: [
+        let packet = try await packetStore.create(runID: "run-\(harnessID)", files: [
             "changes.diff": Data("diff --git a/a b/a".utf8),
             "context.json": Data("{}".utf8)
         ])
@@ -224,10 +224,10 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
             try? await packetStore.remove(runID: packet.runID)
         }
         let configuration = ReviewWorkerConfiguration(
-            id: "reviewer-\(providerID)",
-            providerID: providerID,
+            id: "reviewer-\(harnessID)",
+            harnessID: harnessID,
             modelOptionID: "model-option",
-            launchModel: providerID == "codex" ? "gpt-test" : "claude-test",
+            launchModel: harnessID == "codex" ? "gpt-test" : "claude-test",
             effort: "medium",
             executablePath: executableURL.path
         )
@@ -355,7 +355,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
 struct ReviewWorkerTestEnvironmentBuilder: AgentEnvironmentBuilder {
     let values: [String: String]
 
-    func buildEnvironment(providerEnv: [String: String]?) -> [String: String] {
-        values.merging(providerEnv ?? [:]) { _, provider in provider }
+    func buildEnvironment(harnessEnv: [String: String]?) -> [String: String] {
+        values.merging(harnessEnv ?? [:]) { _, harness in harness }
     }
 }

@@ -19,9 +19,9 @@ struct MCPScreen: View {
                     get: { viewModel.searchQuery },
                     set: { viewModel.searchQuery = $0 }
                 ),
-                isRefreshing: viewModel.isRefreshingProviders,
+                isRefreshing: viewModel.isRefreshingHarnesses,
                 onRefresh: {
-                    Task { await viewModel.refreshProviders() }
+                    Task { await viewModel.refreshHarnesses() }
                 },
                 onAddServer: { openCustomServer() },
                 addFocus: $focusedPaneTriggerID
@@ -201,10 +201,10 @@ private func makeServerRemovalConfirmation(
     confirm: @escaping () -> Void
 ) -> DestructiveConfirmationRequest {
     let message: String
-    if server.providers.isEmpty {
+    if server.harnesses.isEmpty {
         message = "This deletes the saved configuration for \(server.name)."
     } else {
-        message = "This deletes the saved configuration for \(server.name) and removes it from \(server.providers.joined(separator: ", "))."
+        message = "This deletes the saved configuration for \(server.name) and removes it from \(server.harnesses.joined(separator: ", "))."
     }
 
     return DestructiveConfirmationRequest(

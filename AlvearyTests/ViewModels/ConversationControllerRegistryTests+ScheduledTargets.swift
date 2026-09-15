@@ -8,7 +8,7 @@ extension ConversationControllerRegistryTests {
         let fixture = try ConversationViewModelTestFixture()
         let secondary = Conversation(
             id: "scheduled-target-sibling",
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: fixture.thread
@@ -31,7 +31,7 @@ extension ConversationControllerRegistryTests {
             settingsService: fixture.settingsService,
             worktreeManager: fixture.worktreeManager,
             taskWorkspaceOwnershipService: fixture.taskWorkspaceOwnershipService,
-            providerSetup: fixture.providerSetup,
+            harnessSetup: fixture.harnessSetup,
             contextWindowCache: fixture.contextWindowCache,
             attachmentStore: fixture.attachmentStore,
             threadActivityRecorder: NoopThreadActivityRecorder()
@@ -68,7 +68,7 @@ extension ConversationControllerRegistryTests {
             destinationSnapshot: .existingThread,
             targetConversationIDSnapshot: fixture.conversation.id,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "claude",
+            harnessIDSnapshot: "claude",
             effortSnapshot: fixture.thread.effort,
             permissionModeSnapshot: fixture.thread.permissionMode,
             workspaceKindSnapshot: .project,

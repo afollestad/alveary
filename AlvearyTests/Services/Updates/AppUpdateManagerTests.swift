@@ -9,7 +9,7 @@ final class AppUpdateManagerTests: XCTestCase {
         let clock = AppUpdateTestClock(now: Date(timeIntervalSince1970: 100))
         let manager = AppUpdateManager(
             releaseClient: AppUpdateReleaseClientFake(results: [.installable(makeManagerTestFeed(latestRelease: release))]),
-            versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0"),
+            versionProvider: AppUpdateVersionHarnessFake(versionString: "0.1.0"),
             scheduleTiming: clock.scheduleTiming
         )
 
@@ -35,7 +35,7 @@ final class AppUpdateManagerTests: XCTestCase {
     func testAutomaticUnavailableResultStaysQuiet() async {
         let manager = AppUpdateManager(
             releaseClient: AppUpdateReleaseClientFake(results: [.unavailable(.privateOrNotFound)]),
-            versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0")
+            versionProvider: AppUpdateVersionHarnessFake(versionString: "0.1.0")
         )
 
         let result = await manager.runCheck(trigger: .automatic)
@@ -48,7 +48,7 @@ final class AppUpdateManagerTests: XCTestCase {
     func testManualUnavailableResultSurfacesFailure() async {
         let manager = AppUpdateManager(
             releaseClient: AppUpdateReleaseClientFake(results: [.unavailable(.rateLimited(resetDate: nil))]),
-            versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0")
+            versionProvider: AppUpdateVersionHarnessFake(versionString: "0.1.0")
         )
 
         let result = await manager.forceCheck()
@@ -72,7 +72,7 @@ final class AppUpdateManagerTests: XCTestCase {
                 .installable(makeManagerTestFeed(latestRelease: release, releaseNotes: releaseNotes)),
                 .unavailable(.rateLimited(resetDate: nil))
             ]),
-            versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0")
+            versionProvider: AppUpdateVersionHarnessFake(versionString: "0.1.0")
         )
 
         await manager.forceCheck()
@@ -89,7 +89,7 @@ final class AppUpdateManagerTests: XCTestCase {
         let client = AppUpdateReleaseClientFake()
         let manager = AppUpdateManager(
             releaseClient: client,
-            versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0")
+            versionProvider: AppUpdateVersionHarnessFake(versionString: "0.1.0")
         )
 
         let firstCheck = Task { @MainActor in
@@ -132,7 +132,7 @@ final class AppUpdateManagerTests: XCTestCase {
         let clock = AppUpdateTestClock()
         let manager = AppUpdateManager(
             releaseClient: client,
-            versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0"),
+            versionProvider: AppUpdateVersionHarnessFake(versionString: "0.1.0"),
             scheduleTiming: clock.scheduleTiming
         )
         defer { manager.stopAutomaticChecks() }
@@ -166,7 +166,7 @@ final class AppUpdateManagerTests: XCTestCase {
         let clock = AppUpdateTestClock()
         let manager = AppUpdateManager(
             releaseClient: client,
-            versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0"),
+            versionProvider: AppUpdateVersionHarnessFake(versionString: "0.1.0"),
             scheduleTiming: clock.scheduleTiming
         )
         defer { manager.stopAutomaticChecks() }
@@ -222,7 +222,7 @@ actor AppUpdateReleaseClientFake: AppUpdateReleaseClient {
     }
 }
 
-struct AppUpdateVersionProviderFake: AppVersionProviding {
+struct AppUpdateVersionHarnessFake: AppVersionProviding {
     let versionString: String?
 
     var currentVersionString: String? {

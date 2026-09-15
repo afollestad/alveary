@@ -1,14 +1,14 @@
 import AgentCLIKit
 import Foundation
 
-/// The one MCP server Alveary exposes to provider processes, composed from per-feature catalogs.
+/// The one MCP server Alveary exposes to harness processes, composed from per-feature catalogs.
 ///
 /// AgentCLIKit registers a single server per process, so every Alveary feature shares this
 /// identity, this instructions blob, and `HostToolDispatcher`'s name routing. Enroll a feature
 /// by appending its `HostToolFeatureCatalog` to `featureCatalogs` and its handler to the
 /// dispatcher in `AppComponent+HostMCP.swift`.
 enum AlvearyHostToolCatalog {
-    /// Provider-facing MCP server name. The single owner of this string.
+    /// Harness-facing MCP server name. The single owner of this string.
     static let serverName = "alveary_host"
 
     /// The name Claude reports for a host tool; Codex reports the bare host name instead.
@@ -16,7 +16,7 @@ enum AlvearyHostToolCatalog {
         "mcp__\(serverName)__\(hostToolName)"
     }
 
-    /// Providers disagree on whether a reported tool name carries the server prefix, and both
+    /// Harnesses disagree on whether a reported tool name carries the server prefix, and both
     /// shapes reach the transcript, so name matching has to answer to either.
     static func matches(reportedName: String, hostToolName: String) -> Bool {
         reportedName == hostToolName || reportedName == qualifiedToolName(hostToolName)

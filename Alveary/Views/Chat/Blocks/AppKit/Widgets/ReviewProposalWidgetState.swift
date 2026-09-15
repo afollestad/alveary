@@ -1,7 +1,7 @@
 import Foundation
 
 /// Everything a review-proposal card needs from `PullRequestReviewProposalCoordinator`, resolved
-/// per render because confirmation state lives outside the provider turn.
+/// per render because confirmation state lives outside the harness turn.
 struct ReviewProposalWidgetState: Equatable {
     let presentation: PullRequestReviewProposalPresentation?
     let preview: PullRequestReviewProposalPreviewState?

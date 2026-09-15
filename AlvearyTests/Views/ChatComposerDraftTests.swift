@@ -281,7 +281,7 @@ final class ChatComposerDraftTests: XCTestCase {
     }
 
     func testCompactCommandSendsAsNormalText() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "claude")
         let appState = AppState()
         fixture.viewModel.replaceInputDraft("/compact focus on recent work", source: .blockInputMarkdown)
         let chatView = makeChatView(
@@ -289,7 +289,7 @@ final class ChatComposerDraftTests: XCTestCase {
             appState: appState,
             supportsPlanMode: true,
             supportsSpeedMode: true,
-            providerID: "claude"
+            harnessID: "claude"
         )
 
         chatView.sendDraft()
@@ -304,11 +304,11 @@ final class ChatComposerDraftTests: XCTestCase {
     }
 
     func testCompactCommandQueuesAsNormalVisibleMessageWhileBusy() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "claude")
         let appState = AppState()
         fixture.viewModel.turnState.beginTurn()
         fixture.viewModel.replaceInputDraft("/compact", source: .blockInputMarkdown)
-        let chatView = makeChatView(fixture: fixture, appState: appState, providerID: "claude")
+        let chatView = makeChatView(fixture: fixture, appState: appState, harnessID: "claude")
 
         chatView.sendDraft()
 
@@ -337,13 +337,13 @@ final class ChatComposerDraftTests: XCTestCase {
     }
 
     func testCompactPassthroughCommandAvailabilityIsClaudeOnlyOutsideHandoff() throws {
-        let claudeFixture = try ConversationViewModelTestFixture(providerId: "claude")
+        let claudeFixture = try ConversationViewModelTestFixture(harnessId: "claude")
         let appState = AppState()
-        let claudeView = makeChatView(fixture: claudeFixture, appState: appState, providerID: "claude")
+        let claudeView = makeChatView(fixture: claudeFixture, appState: appState, harnessID: "claude")
         XCTAssertEqual(claudeView.passthroughSlashCommands.map(\.command), ["compact"])
 
-        let codexFixture = try ConversationViewModelTestFixture(providerId: "codex")
-        let codexView = makeChatView(fixture: codexFixture, appState: appState, providerID: "codex")
+        let codexFixture = try ConversationViewModelTestFixture(harnessId: "codex")
+        let codexView = makeChatView(fixture: codexFixture, appState: appState, harnessID: "codex")
         XCTAssertTrue(codexView.passthroughSlashCommands.isEmpty)
 
         claudeFixture.viewModel.state.isAwaitingHandoffSteering = true
@@ -401,7 +401,7 @@ final class ChatComposerDraftTests: XCTestCase {
         modelGroups: [ChatComposerActionRowView.ReasoningModelGroup]? = nil,
         onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
             -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected },
-        providerID: String = "claude",
+        harnessID: String = "claude",
         settingsService: SettingsService? = nil,
         voiceInputService: (any VoiceInputService)? = nil,
         voiceInputLifecycleController: VoiceInputLifecycleController? = nil
@@ -433,7 +433,7 @@ final class ChatComposerDraftTests: XCTestCase {
                 onModelChange: onModelChange
             ),
             defaultEnterBehavior: .queue,
-            providerID: providerID,
+            harnessID: harnessID,
             runtimeStatus: .neutral,
             contextWindowCache: fixture.contextWindowCache,
             workingDirectory: fixture.project.path,

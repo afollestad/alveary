@@ -263,7 +263,7 @@ struct ScheduledTaskCoordinatorFixture {
             destination: .newThreadPerRun,
             recurrence: .once(actionDate),
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             effort: "high",
             permissionMode: "acceptEdits",
             workspaceKind: .project,

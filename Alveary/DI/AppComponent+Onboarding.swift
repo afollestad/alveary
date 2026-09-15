@@ -4,7 +4,7 @@ extension AppComponent {
         shared {
             DefaultOnboardingDependencyService(
                 gitHubCLI: gitHubCLIService,
-                providerDetection: providerDetectionService,
+                harnessDetection: harnessDetectionService,
                 agentRegistry: agentRegistry,
                 shell: shellRunner,
                 executableResolver: executablePathResolver

@@ -128,8 +128,8 @@ extension DefaultAgentsManager {
             throw AgentError.stdinClosed
         }
         try await services.runtime.startGoal(objective, conversationId: runtimeConversationId)
-        // A goal start is new provider work, so it supersedes the previous turn's settled error.
-        // Unlike `sendMessage` this path writes no status of its own — only the provider knows
+        // A goal start is new harness work, so it supersedes the previous turn's settled error.
+        // Unlike `sendMessage` this path writes no status of its own — only the harness knows
         // whether its goal start marked a turn active — so drop the error and let the refresh
         // classify. `idleAgentCLIKitActivitySignal` will not promote `.error` back to `.busy`.
         if self.status(for: conversationId) == .error {
@@ -145,7 +145,7 @@ extension DefaultAgentsManager {
         }
     }
 
-    /// Drops a host-superseded deferred interaction without deleting its resumable provider session.
+    /// Drops a host-superseded deferred interaction without deleting its resumable harness session.
     func discardInactiveDeferredInteractionRuntimeWithAgentCLIKit(conversationId: String) async {
         await tearDownAgentCLIKitRuntime(conversationId: conversationId, removeSession: false)
     }
@@ -179,7 +179,7 @@ extension DefaultAgentsManager {
         let replayCursor = await services.runtime.status(conversationId: runtimeConversationId)?.lastEventIndex
         let previousSessionRecord = try await previousAgentCLIKitSessionRecord(
             conversationId: runtimeConversationId,
-            providerId: config.providerId,
+            harnessId: config.harnessId,
             services: services
         )
 
@@ -324,7 +324,7 @@ extension DefaultAgentsManager {
         }
         agentCLIKitStatuses[conversationId] = status
 
-        // Background tasks live inside the provider process; suspending would kill them.
+        // Background tasks live inside the harness process; suspending would kill them.
         guard status.waitingState == .idle,
               !status.isTurnActive,
               status.liveBackgroundTaskCount == 0 else {
@@ -388,25 +388,25 @@ extension DefaultAgentsManager {
         forkSession: Bool,
         services: AgentCLIKitHostServices
     ) async throws -> AgentCLIKit.AgentSpawnConfig {
-        let customConfig = await settingsService.current.providerConfigs[config.providerId]
-        if await providerDetection.resolvedPath(for: config.providerId) == nil {
-            await providerDetection.checkProvider(config.providerId)
+        let customConfig = await settingsService.current.harnessConfigs[config.harnessId]
+        if await harnessDetection.resolvedPath(for: config.harnessId) == nil {
+            await harnessDetection.checkHarness(config.harnessId)
         }
-        guard let detectedPath = await providerDetection.resolvedPath(for: config.providerId) else {
-            throw AgentError.cliNotInstalled(config.providerId)
+        guard let detectedPath = await harnessDetection.resolvedPath(for: config.harnessId) else {
+            throw AgentError.cliNotInstalled(config.harnessId)
         }
 
         let configuredArguments = try mergedArguments(
-            providerId: config.providerId,
+            harnessId: config.harnessId,
             customArguments: parseExtraArgs(customConfig?.extraArgs ?? ""),
             allowedDirectories: config.allowedDirectories
         )
         let arguments = ClaudeNativeSchedulingLaunchPolicy.arguments(
-            providerID: config.providerId,
+            harnessID: config.harnessId,
             configuredArguments: configuredArguments
         )
         let environment = ClaudeNativeSchedulingLaunchPolicy.environment(
-            providerID: config.providerId,
+            harnessID: config.harnessId,
             baseEnvironment: agentCLIKitEnvironment(detectedPath: detectedPath)
         )
         return try services.hostAdapter.spawnConfig(
@@ -418,11 +418,11 @@ extension DefaultAgentsManager {
     }
 
     private func mergedArguments(
-        providerId: String,
+        harnessId: String,
         customArguments: [String],
         allowedDirectories: [String]
     ) -> [String] {
-        guard providerId == "claude", !allowedDirectories.isEmpty else {
+        guard harnessId == "claude", !allowedDirectories.isEmpty else {
             return customArguments
         }
 
@@ -455,7 +455,7 @@ extension DefaultAgentsManager {
     }
 
     private func agentCLIKitEnvironment(detectedPath: String) -> [String: String] {
-        var environment = environmentBuilder.buildEnvironment(providerEnv: nil)
+        var environment = environmentBuilder.buildEnvironment(harnessEnv: nil)
         let executableDirectory = URL(fileURLWithPath: detectedPath).deletingLastPathComponent().path
         let existingPath = environment["PATH"] ?? ""
         let pathComponents = existingPath.split(separator: ":").map(String.init)

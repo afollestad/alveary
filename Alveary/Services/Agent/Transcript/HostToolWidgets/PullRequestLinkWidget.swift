@@ -55,7 +55,7 @@ enum PullRequestLinkWidgetParsing {
             action: action,
             // The result echoes Alveary's stored snapshot, which is canonical. The request's own
             // `url` is the only source while the call is still running, and it is optional on
-            // `unlink_pr`; the message is the last resort for a provider that emits only the
+            // `unlink_pr`; the message is the last resort for a harness that emits only the
             // text fallback, where an omitted URL would otherwise leave the card unable to name
             // the pull request it just unlinked. A structured receipt never takes that fallback:
             // its absent `pull_request` means there is genuinely nothing to name, and parsing its
@@ -141,7 +141,7 @@ private extension PullRequestLinkWidgetParsing {
         case ReceiptStatus.alreadyLinked, ReceiptStatus.notLinked:
             return .unchanged
         default:
-            // A provider that emits only the text fallback still reports refusal through
+            // A harness that emits only the text fallback still reports refusal through
             // `isError`, so every other landed result took effect.
             return .applied
         }

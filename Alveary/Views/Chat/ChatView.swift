@@ -10,7 +10,7 @@ struct ChatView: View {
     let composerCapabilities: ComposerCapabilities
     let reasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
-    let providerID: String
+    let harnessID: String
     let runtimeStatus: ActivitySignal
     let isReviewTeamWorking: Bool
     let onCancelReviewTeam: () -> Void
@@ -37,7 +37,7 @@ struct ChatView: View {
 
     /// Optional for the same reason as `appShotCoordinator`: a snapshot host with no app root simply
     /// offers no Sign In action on the credential banner.
-    @Environment(ProviderSignInService.self) var providerSignIn: ProviderSignInService?
+    @Environment(HarnessSignInService.self) var harnessSignIn: HarnessSignInService?
     @Environment(TerminalManager.self) var terminalManager: TerminalManager?
 
     @Query private var events: [ConversationEventRecord]
@@ -85,7 +85,7 @@ struct ChatView: View {
     var threadPresentation: ChatThreadPresentation {
         ChatThreadPresentation(
             thread: conversation.thread,
-            providerID: providerID,
+            harnessID: harnessID,
             runtimePermissionMode: viewModel.state.runtimePermissionMode,
             pendingPermissionMode: viewModel.pendingPermissionModeForDisplay(),
             runtimePlanModeEnabled: viewModel.state.runtimePlanModeEnabled,
@@ -103,7 +103,7 @@ struct ChatView: View {
         ConversationUsageSummary.derive(
             from: events,
             cachedContextWindowSize: cachedContextWindowSize,
-            accounting: ContextTokenAccounting(providerID: providerID)
+            accounting: ContextTokenAccounting(harnessID: harnessID)
         ) ?? .unreported
     }
 
@@ -123,7 +123,7 @@ struct ChatView: View {
         composerCapabilities: ComposerCapabilities,
         reasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration,
         defaultEnterBehavior: ThreadEnterDefaultBehavior,
-        providerID: String,
+        harnessID: String,
         runtimeStatus: ActivitySignal,
         isReviewTeamWorking: Bool = false,
         onCancelReviewTeam: @escaping () -> Void = {},
@@ -150,7 +150,7 @@ struct ChatView: View {
         self.composerCapabilities = composerCapabilities
         self.reasoningConfiguration = reasoningConfiguration
         self.defaultEnterBehavior = defaultEnterBehavior
-        self.providerID = providerID
+        self.harnessID = harnessID
         self.runtimeStatus = runtimeStatus
         self.isReviewTeamWorking = isReviewTeamWorking
         self.onCancelReviewTeam = onCancelReviewTeam
@@ -209,10 +209,10 @@ struct ChatView: View {
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: contextWindowCacheLookupID) {
-            let providerID = providerID
+            let harnessID = harnessID
             let selectedModel = threadPresentation.selectedModel
             cachedContextWindowSize = nil
-            let size = await contextWindowCache.contextWindowSize(providerId: providerID, model: selectedModel)
+            let size = await contextWindowCache.contextWindowSize(harnessId: harnessID, model: selectedModel)
             guard !Task.isCancelled else {
                 return
             }
@@ -257,7 +257,7 @@ struct ChatView: View {
                 appState.requestComposerFocus()
             }
         }
-        .onChange(of: providerID) { _, _ in
+        .onChange(of: harnessID) { _, _ in
             viewModel.disarmGoalModeIfNeeded()
         }
         .onChange(of: isProjectTrustBlocked) { _, isBlocked in

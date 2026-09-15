@@ -19,7 +19,7 @@ final class ScheduledTaskModelTests: XCTestCase {
             revision: 3,
             recurrence: .weekly(weekday: 2, hour: 9, minute: 30),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             model: "gpt-5",
             effort: "high",
             permissionMode: "default",
@@ -40,7 +40,7 @@ final class ScheduledTaskModelTests: XCTestCase {
         XCTAssertEqual(fetchedTask.state, .active)
         XCTAssertEqual(fetchedTask.recurrence, .weekly(weekday: 2, hour: 9, minute: 30))
         XCTAssertEqual(fetchedTask.timeZoneIdentifier, "America/Chicago")
-        XCTAssertEqual(fetchedTask.providerID, "codex")
+        XCTAssertEqual(fetchedTask.harnessID, "codex")
         XCTAssertEqual(fetchedTask.model, "gpt-5")
         XCTAssertEqual(fetchedTask.workspaceKind, .project)
         XCTAssertEqual(fetchedTask.workspaceStrategy, .worktree)
@@ -386,7 +386,7 @@ final class ScheduledTaskModelTests: XCTestCase {
             destination: .newThreadPerRun,
             recurrence: recurrence,
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             workspaceKind: project == nil ? .privateWorkspace : .project,
             grantedRoots: grantedRoots,
             project: project
@@ -410,7 +410,7 @@ final class ScheduledTaskModelTests: XCTestCase {
             promptSnapshot: task?.prompt ?? "Perform the scheduled work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: task?.timeZoneIdentifier ?? "America/Chicago",
-            providerIDSnapshot: task?.providerID ?? "codex",
+            harnessIDSnapshot: task?.harnessID ?? "codex",
             effortSnapshot: task?.effort ?? "medium",
             permissionModeSnapshot: task?.permissionMode ?? "default",
             workspaceKindSnapshot: task?.workspaceKind ?? .privateWorkspace,

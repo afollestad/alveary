@@ -110,7 +110,7 @@ extension AgentsManagerTests {
         }
         let sessionApproval = try XCTUnwrap(approval.sessionApprovalGrant(
             conversationId: conversationId,
-            providerId: "claude",
+            harnessId: "claude",
             scope: .exact
         ))
 
@@ -123,7 +123,7 @@ extension AgentsManagerTests {
             config: spawnConfig(workingDirectory: "/tmp")
         ))
         let allowsApproval = await fixture.approvalStore.allowsSessionApproval(AgentCLIKit.AgentSessionApprovalRequest(
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
             sessionId: "session-1",
             toolName: "Bash",
@@ -139,7 +139,7 @@ extension AgentsManagerTests {
         let resolutionRecorder = AgentInteractionResolutionRecorder()
         let fixture = makeAgentCLIKitFixture(
             adapter: ResolvingAgentCLIKitAdapter(
-                providerId: .codex,
+                harnessId: .codex,
                 resolutionRecorder: resolutionRecorder
             ),
             detectedPath: "/usr/bin/agent",
@@ -148,7 +148,7 @@ extension AgentsManagerTests {
         let manager = fixture.manager
         let conversationId = "agentclikit-codex-session-approval"
 
-        try await manager.spawn(id: conversationId, config: spawnConfig(providerId: "codex", workingDirectory: "/tmp"))
+        try await manager.spawn(id: conversationId, config: spawnConfig(harnessId: "codex", workingDirectory: "/tmp"))
         let maybeSubscription = await awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
         let subscription = try XCTUnwrap(maybeSubscription)
         let approvalEvent = try await nextEvent(from: subscription.stream, description: "AgentCLIKit Codex session approval event")
@@ -157,7 +157,7 @@ extension AgentsManagerTests {
         }
         let sessionApproval = try XCTUnwrap(approval.sessionApprovalGrant(
             conversationId: conversationId,
-            providerId: "codex",
+            harnessId: "codex",
             scope: .exact
         ))
 
@@ -167,7 +167,7 @@ extension AgentsManagerTests {
             resolution: ClaudeToolApprovalResolution(decision: .allow),
             additionalApprovals: [],
             sessionApproval: sessionApproval,
-            config: spawnConfig(providerId: "codex", workingDirectory: "/tmp")
+            config: spawnConfig(harnessId: "codex", workingDirectory: "/tmp")
         ))
         let resolutions = await resolutionRecorder.resolutions()
 
@@ -327,7 +327,7 @@ extension AgentsManagerTests {
                 .message(role: "assistant", content: "\(index)", parentToolUseId: nil),
                 conversationId: conversationId,
                 generation: subscription.generation,
-                providerId: "claude"
+                harnessId: "claude"
             )
         }
         let retainedBeforeMark = await manager.retainedEventCount(conversationId: conversationId)
@@ -338,7 +338,7 @@ extension AgentsManagerTests {
             .message(role: "assistant", content: "after", parentToolUseId: nil),
             conversationId: conversationId,
             generation: subscription.generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
 
         let retainedAfterMark = await manager.retainedEventCount(conversationId: conversationId)
@@ -374,13 +374,13 @@ extension AgentsManagerTests {
     }
 
     func makeAgentCLIKitFixture(
-        adapter: any AgentCLIKit.AgentProviderAdapter,
+        adapter: any AgentCLIKit.AgentHarnessAdapter,
         detectedPath: String,
         basePath: String,
         replayLimit: Int = 500,
         notificationManager: any NotificationManager = StubNotificationManager(),
         fileListManager: (any FileListManager)? = nil,
-        providerSessionBindingStore: any ProviderSessionBindingStore = NoopProviderSessionBindingStore(),
+        harnessSessionBindingStore: any HarnessSessionBindingStore = NoopHarnessSessionBindingStore(),
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
     ) -> AgentCLIKitManagerFixture {
         let sessionStore = AgentCLIKit.JSONFileAgentSessionStore(fileURL: temporaryFileURL("agentclikit-sessions.json"))
@@ -392,31 +392,31 @@ extension AgentsManagerTests {
         let services = AgentCLIKitHostServices(
             runtime: runtime,
             sessionStore: sessionStore,
-            providerDetector: AgentCLIKit.AgentProviderDetector(),
-            providerRegistry: AgentCLIKit.AgentProviderRegistry(definitions: [adapter.definition]),
+            harnessDetector: AgentCLIKit.AgentHarnessDetector(),
+            harnessRegistry: AgentCLIKit.AgentHarnessRegistry(definitions: [adapter.definition]),
             claudeConfigStore: configStore,
-            claudeProviderSetup: AgentCLIKit.ClaudeProviderSetup(configStore: configStore),
+            claudeHarnessSetup: AgentCLIKit.ClaudeHarnessSetup(configStore: configStore),
             interactionStore: AgentCLIKit.InMemoryAgentInteractionStore(),
             approvalPolicyStore: AgentCLIKit.InMemoryAgentApprovalPolicyStore(),
             claudeApprovalPolicyStore: approvalStore,
             liveHookDecisionProvider: liveHookDecisionProvider,
             contextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache(fileURL: temporaryFileURL("context.json")),
-            // Route to the test adapter; the default router builds real provider adapters.
-            sessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter { AgentCLIKit.AgentProviderAdapterSet(adapters: [adapter]) },
+            // Route to the test adapter; the default router builds real harness adapters.
+            sessionActionRouter: AgentCLIKit.AgentHarnessSessionActionRouter { AgentCLIKit.AgentHarnessAdapterSet(adapters: [adapter]) },
             hostAdapter: AgentCLIKitHostAdapter()
         )
         let manager = DefaultAgentsManager(
             agentCLIKitServices: services,
             sessionManager: sessionManager,
-            providerDetection: StubProviderDetectionService(resolvedPath: detectedPath),
+            harnessDetection: StubHarnessDetectionService(resolvedPath: detectedPath),
             environmentBuilder: FixedPathEnvironmentBuilder(path: basePath),
-            providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
+            harnessRegistry: DefaultHarnessRegistry(agentRegistry: DefaultAgentRegistry()),
             settingsService: makeSettings(),
             keepAwakeService: RecordingKeepAwakeService(),
             notificationManager: notificationManager,
             fileListManager: fileListManager,
             threadActivityRecorder: threadActivityRecorder,
-            providerSessionBindingStore: providerSessionBindingStore
+            harnessSessionBindingStore: harnessSessionBindingStore
         )
         return AgentCLIKitManagerFixture(
             manager: manager,
@@ -428,9 +428,9 @@ extension AgentsManagerTests {
             services: services
         )
     }
-    func spawnConfig(providerId: String = "claude", workingDirectory: String, model: String? = nil) -> Alveary.AgentSpawnConfig {
+    func spawnConfig(harnessId: String = "claude", workingDirectory: String, model: String? = nil) -> Alveary.AgentSpawnConfig {
         Alveary.AgentSpawnConfig(
-            providerId: providerId,
+            harnessId: harnessId,
             workingDirectory: workingDirectory,
             permissionMode: nil,
             model: model,
@@ -487,13 +487,13 @@ extension AgentsManagerTests {
 private struct FixedPathEnvironmentBuilder: AgentEnvironmentBuilder {
     let path: String
 
-    func buildEnvironment(providerEnv: [String: String]?) -> [String: String] {
+    func buildEnvironment(harnessEnv: [String: String]?) -> [String: String] {
         var environment = [
             "HOME": NSHomeDirectory(),
             "PATH": path
         ]
-        if let providerEnv {
-            environment.merge(providerEnv) { _, new in new }
+        if let harnessEnv {
+            environment.merge(harnessEnv) { _, new in new }
         }
         return environment
     }

@@ -124,17 +124,17 @@ struct SettingsScreen: View {
         .scrollClipDisabled(false)
     }
 
-    /// Only the Agents page offers a header refresh; it re-checks every provider status.
+    /// Only the Harnesses page offers a header refresh; it re-checks every harness status.
     private var headerRefresh: SettingsScreenHeaderRefresh? {
-        guard selectedPage == .agents else {
+        guard selectedPage == .harnesses else {
             return nil
         }
         return SettingsScreenHeaderRefresh(
-            accessibilityLabel: "Refresh agent statuses",
-            isRefreshing: !viewModel.hasLoadedProviderStatuses,
+            accessibilityLabel: "Refresh harness statuses",
+            isRefreshing: !viewModel.hasLoadedHarnessStatuses,
             action: {
                 Task {
-                    await viewModel.refreshProviderStatuses()
+                    await viewModel.refreshHarnessStatuses()
                 }
             }
         )
@@ -143,12 +143,6 @@ struct SettingsScreen: View {
     @ViewBuilder
     private var selectedPageView: some View {
         switch selectedPage {
-        case .agents:
-            AgentsSettingsTabView(
-                viewModel: viewModel,
-                providerIDs: viewModel.availableProviderIDs,
-                providerExtraArgsBinding: providerExtraArgsBinding
-            )
         case .interface:
             InterfaceSettingsTabView(
                 viewModel: viewModel,
@@ -187,6 +181,12 @@ struct SettingsScreen: View {
                 handoffContextCustomizationEnabled: binding(for: \.handoffContextCustomizationEnabled),
                 sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
             )
+        case .harnesses:
+            AgentsSettingsTabView(
+                viewModel: viewModel,
+                harnessIDs: viewModel.availableHarnessIDs,
+                harnessExtraArgsBinding: harnessExtraArgsBinding
+            )
         case .menuBar:
             MenuBarSettingsTabView(
                 viewModel: viewModel,
@@ -208,7 +208,7 @@ struct SettingsScreen: View {
         case .threads:
             ThreadsSettingsTabView(
                 viewModel: viewModel,
-                defaultProvider: binding(for: \.defaultProvider),
+                defaultHarness: binding(for: \.defaultHarness),
                 defaultModel: binding(for: \.defaultModel),
                 permissionMode: binding(for: \.permissionMode),
                 effort: binding(for: \.effort),
@@ -234,7 +234,7 @@ private extension SettingsScreen {
         guard let rawValue else {
             return storedPage
         }
-        return AppSettings.SettingsPage(rawValue: rawValue) ?? .agents
+        return AppSettings.SettingsPage(rawValue: rawValue) ?? .harnesses
     }
 
     func selectPage(_ page: AppSettings.SettingsPage) {
@@ -280,13 +280,13 @@ private extension SettingsScreen {
         )
     }
 
-    func providerExtraArgsBinding(for providerID: String) -> Binding<String> {
+    func harnessExtraArgsBinding(for harnessID: String) -> Binding<String> {
         Binding(
             get: {
-                viewModel.providerExtraArgs(for: providerID) ?? ""
+                viewModel.harnessExtraArgs(for: harnessID) ?? ""
             },
             set: { newValue in
-                viewModel.updateProviderExtraArgs(for: providerID, extraArgs: newValue.isEmpty ? nil : newValue)
+                viewModel.updateHarnessExtraArgs(for: harnessID, extraArgs: newValue.isEmpty ? nil : newValue)
             }
         )
     }
@@ -295,8 +295,6 @@ private extension SettingsScreen {
 private extension AppSettings.SettingsPage {
     var title: String {
         switch self {
-        case .agents:
-            return "Agents"
         case .interface:
             return "Appearance"
         case .appShots:
@@ -305,6 +303,8 @@ private extension AppSettings.SettingsPage {
             return "Git"
         case .handoff:
             return "Handoff"
+        case .harnesses:
+            return "Harnesses"
         case .menuBar:
             return "Menu bar"
         case .notifications:
@@ -320,8 +320,6 @@ private extension AppSettings.SettingsPage {
 
     var icon: ActionIcon {
         switch self {
-        case .agents:
-            return .system("brain")
         case .interface:
             return .system("paintbrush")
         case .appShots:
@@ -330,6 +328,8 @@ private extension AppSettings.SettingsPage {
             return .octicon(.gitBranch16)
         case .handoff:
             return .system("hand.palm.facing")
+        case .harnesses:
+            return .system("brain")
         case .menuBar:
             return .system("menubar.rectangle")
         case .notifications:
@@ -345,8 +345,6 @@ private extension AppSettings.SettingsPage {
 
     var description: String {
         switch self {
-        case .agents:
-            return "Manage agent installs and CLI settings."
         case .interface:
             return "Adjust theme and typography for the app shell."
         case .appShots:
@@ -355,6 +353,8 @@ private extension AppSettings.SettingsPage {
             return "Configure Git defaults, pull requests, and GitHub authentication."
         case .handoff:
             return "Configure Alveary's Amp-inspired take on compaction: automatic session handoff, steering, and context customization."
+        case .harnesses:
+            return "Manage harness installs and CLI settings."
         case .menuBar:
             return "Show Alveary in the system menu bar, and choose whether it opens at login."
         case .notifications:

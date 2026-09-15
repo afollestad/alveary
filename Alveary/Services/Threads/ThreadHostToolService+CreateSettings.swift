@@ -1,110 +1,110 @@
 import AgentCLIKit
 import Foundation
 
-/// How `create_thread` settles provider, model, effort, and permission mode: an omitted provider,
+/// How `create_thread` settles harness, model, effort, and permission mode: an omitted harness,
 /// model, or effort inherits the caller's own before falling back to the user's defaults —
 /// "create a thread" usually means "one like this one" — while every *requested* value is
 /// validated against what this Mac can actually run, with each rejection naming the valid values
 /// so the model can correct itself instead of guessing again.
 extension ThreadHostToolService {
     /// Resolves everything an omitted setting falls back to: the caller's own settings, the user's
-    /// defaults, the provider the request settled on, and that provider's model options. The
+    /// defaults, the harness the request settled on, and that harness's model options. The
     /// caller's settings are snapshotted before the resolver's suspension — SwiftData models must
     /// not be read across it.
     func resolvedSettingDefaults(
         source: HostToolCallSource,
-        fallbackProvider: String,
-        requestedProvider: String?
+        fallbackHarness: String,
+        requestedHarness: String?
     ) async throws -> ThreadSettingDefaults {
         let sourceSettings = ThreadHostToolSourceSettings(
-            provider: source.conversation.provider ?? fallbackProvider,
+            harness: source.conversation.harness ?? fallbackHarness,
             model: source.thread.model,
             effort: source.thread.effort
         )
         let resolution = await resolvedThreadDefaults(settings: settingsService.current)
-        let provider = try validatedProvider(requestedProvider, source: sourceSettings, resolution: resolution)
+        let harness = try validatedHarness(requestedHarness, source: sourceSettings, resolution: resolution)
         return ThreadSettingDefaults(
             source: sourceSettings,
             resolution: resolution,
-            provider: provider,
-            options: await modelOptions(for: provider, resolution: resolution)
+            harness: harness,
+            options: await modelOptions(for: harness, resolution: resolution)
         )
     }
 
     func resolvedThreadDefaults(settings: AppSettings) async -> ThreadDefaultResolution {
-        if let providerDiscovery {
+        if let harnessDiscovery {
             return await ThreadDefaultResolver.resolve(
                 settings: settings,
-                providerDiscovery: providerDiscovery
+                harnessDiscovery: harnessDiscovery
             )
         }
         return ThreadDefaultResolver.resolve(
             settings: settings,
-            providerOrdering: AppSettings.supportedProviderIDs,
-            providerStatuses: [:],
+            harnessOrdering: AppSettings.supportedHarnessIDs,
+            harnessStatuses: [:],
             allowStaticFallback: true
         )
     }
 
     /// The model options a requested model and effort validate against. The defaults resolution
-    /// only carries the *default* provider's options, so a request naming a different ready
-    /// provider asks discovery for that provider's own list — otherwise a valid model on the
-    /// non-default provider would be falsely rejected.
+    /// only carries the *default* harness's options, so a request naming a different ready
+    /// harness asks discovery for that harness's own list — otherwise a valid model on the
+    /// non-default harness would be falsely rejected.
     func modelOptions(
-        for provider: String,
+        for harness: String,
         resolution: ThreadDefaultResolution
     ) async -> [AgentCLIKit.AgentModelOption] {
-        if provider == resolution.providerID, !resolution.modelOptions.isEmpty {
+        if harness == resolution.harnessID, !resolution.modelOptions.isEmpty {
             return resolution.modelOptions
         }
-        if let providerDiscovery,
-           let providerID = AgentCLIKit.AgentProviderID(rawValue: provider) {
-            let discovered = await providerDiscovery.modelOptions(for: providerID)
+        if let harnessDiscovery,
+           let harnessID = AgentCLIKit.AgentHarnessID(rawValue: harness) {
+            let discovered = await harnessDiscovery.modelOptions(for: harnessID)
             if !discovered.isEmpty {
                 return discovered
             }
         }
-        return ThreadDefaultResolver.modelOptions(for: provider, providerStatuses: [:])
+        return ThreadDefaultResolver.modelOptions(for: harness, harnessStatuses: [:])
     }
 
-    /// An omitted provider means the caller's own — the provider executing this very call — and
+    /// An omitted harness means the caller's own — the harness executing this very call — and
     /// only falls back to the user's default if discovery no longer reports the caller's as ready.
-    func validatedProvider(
+    func validatedHarness(
         _ requested: String?,
         source: ThreadHostToolSourceSettings,
         resolution: ThreadDefaultResolution
     ) throws -> String {
         guard let requested else {
-            if resolution.readyProviderIDs.contains(source.provider) {
-                return source.provider
+            if resolution.readyHarnessIDs.contains(source.harness) {
+                return source.harness
             }
-            guard let providerID = resolution.providerID else {
-                throw ThreadHostToolServiceError.noReadyProvider
+            guard let harnessID = resolution.harnessID else {
+                throw ThreadHostToolServiceError.noReadyHarness
             }
-            return providerID
+            return harnessID
         }
-        guard resolution.readyProviderIDs.contains(requested) else {
-            throw ThreadHostToolServiceError.providerNotReady(
-                providerID: requested,
-                ready: resolution.readyProviderIDs
+        guard resolution.readyHarnessIDs.contains(requested) else {
+            throw ThreadHostToolServiceError.harnessNotReady(
+                harnessID: requested,
+                ready: resolution.readyHarnessIDs
             )
         }
         return requested
     }
 
-    /// `nil` means "the provider's default model". An omitted `model` inherits the caller's own
-    /// while the provider matches — trusted host state a running thread already uses, so it is
+    /// `nil` means "the harness's default model". An omitted `model` inherits the caller's own
+    /// while the harness matches — trusted host state a running thread already uses, so it is
     /// deliberately not re-validated against live options, which change independently of it. A
-    /// request naming a different provider cannot inherit and falls back to the user's settings.
+    /// request naming a different harness cannot inherit and falls back to the user's settings.
     func validatedModel(
         _ requested: String?,
         defaults: ThreadSettingDefaults
     ) throws -> String? {
         guard let requested else {
-            if defaults.provider == defaults.source.provider {
+            if defaults.harness == defaults.source.harness {
                 return normalizedInheritedModel(defaults.source.model)
             }
-            return defaults.provider == defaults.resolution.providerID ? defaults.resolution.storedThreadModel : nil
+            return defaults.harness == defaults.resolution.harnessID ? defaults.resolution.storedThreadModel : nil
         }
         guard let option = AgentModelOptionSelection.option(in: defaults.options, matching: requested) else {
             throw ThreadHostToolServiceError.modelUnavailable(model: requested)
@@ -120,9 +120,9 @@ extension ThreadHostToolService {
     ) throws -> String {
         guard let requested else {
             let inherited: String
-            if defaults.provider == defaults.source.provider, !defaults.source.effort.isEmpty {
+            if defaults.harness == defaults.source.harness, !defaults.source.effort.isEmpty {
                 inherited = defaults.source.effort
-            } else if defaults.provider == defaults.resolution.providerID {
+            } else if defaults.harness == defaults.resolution.harnessID {
                 inherited = defaults.resolution.effort
             } else {
                 inherited = AppSettings.defaultEffortLevel
@@ -142,20 +142,20 @@ extension ThreadHostToolService {
 
     func validatedPermissionMode(
         _ requested: String?,
-        provider: String,
+        harness: String,
         resolution: ThreadDefaultResolution
     ) throws -> String {
-        let supported = AppSettings.supportedPermissionModes(forProvider: provider)
+        let supported = AppSettings.supportedPermissionModes(forHarness: harness)
         guard let requested else {
-            let inherited = provider == resolution.providerID ? resolution.permissionMode : ""
+            let inherited = harness == resolution.harnessID ? resolution.permissionMode : ""
             return supported.contains(inherited)
                 ? inherited
-                : AppSettings.defaultPermissionMode(forProvider: provider)
+                : AppSettings.defaultPermissionMode(forHarness: harness)
         }
         guard supported.contains(requested) else {
             throw ThreadHostToolServiceError.permissionModeUnavailable(
                 mode: requested,
-                providerID: provider,
+                harnessID: harness,
                 supported: supported
             )
         }
@@ -164,7 +164,7 @@ extension ThreadHostToolService {
 }
 
 private extension ThreadHostToolService {
-    /// The caller's "provider default" stays exactly that: `nil`, an empty string, and the UI's
+    /// The caller's "harness default" stays exactly that: `nil`, an empty string, and the UI's
     /// `"default"` sentinel all read as nil rather than resolving to the settings model.
     func normalizedInheritedModel(_ model: String?) -> String? {
         guard let model, !model.isEmpty, model != AppSettings.defaultModelValue else {
@@ -175,11 +175,11 @@ private extension ThreadHostToolService {
 }
 
 /// Everything an omitted setting resolves against, bundled because the validators consult all of
-/// it: the caller's own settings, the user's defaults, the provider the request settled on, and
-/// that provider's model options.
+/// it: the caller's own settings, the user's defaults, the harness the request settled on, and
+/// that harness's model options.
 struct ThreadSettingDefaults {
     let source: ThreadHostToolSourceSettings
     let resolution: ThreadDefaultResolution
-    let provider: String
+    let harness: String
     let options: [AgentCLIKit.AgentModelOption]
 }

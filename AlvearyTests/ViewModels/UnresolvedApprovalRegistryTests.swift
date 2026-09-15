@@ -26,7 +26,7 @@ final class UnresolvedApprovalRegistryTests: XCTestCase {
         }
     }
 
-    /// The provider can run the tool without Alveary ever stamping the row. Counting those would
+    /// The harness can run the tool without Alveary ever stamping the row. Counting those would
     /// leave the thread blue forever.
     func testApprovalWhoseToolAlreadyReturnedDoesNotSurface() throws {
         let fixture = try Fixture()

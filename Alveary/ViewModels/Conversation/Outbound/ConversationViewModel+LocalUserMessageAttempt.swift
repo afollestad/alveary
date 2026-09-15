@@ -12,7 +12,7 @@ struct LocalUserMessageAttempt {
     let attachments: [LocalImageAttachment]
     let fileAttachments: [LocalFileAttachment]
     let appShots: [AppShotAttachment]
-    let providerMetadata: [String: AgentCLIKit.JSONValue]
+    let harnessMetadata: [String: AgentCLIKit.JSONValue]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
     let insertedMessage: Bool
     let metadata: LocalUserMessageAttemptMetadata?

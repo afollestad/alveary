@@ -78,8 +78,8 @@ final class PullRequestReviewProposalRecordTests: XCTestCase {
     func testAVersionFourEnvelopeRoundTripsCollectiveEvidenceAndProvenance() throws {
         let conversation = try makeConversation()
         let reviewers = [
-            PullRequestReviewProposalRecord.Reviewer(id: "r1", providerID: "codex", modelOptionID: "gpt-5"),
-            PullRequestReviewProposalRecord.Reviewer(id: "r2", providerID: "claude", modelOptionID: "sonnet")
+            PullRequestReviewProposalRecord.Reviewer(id: "r1", harnessID: "codex", modelOptionID: "gpt-5"),
+            PullRequestReviewProposalRecord.Reviewer(id: "r2", harnessID: "claude", modelOptionID: "sonnet")
         ]
         let evidence = PullRequestReviewProposalRecord.CommentEvidence(
             findingID: "f1",
@@ -190,7 +190,7 @@ private extension PullRequestReviewProposalRecordTests {
         self.container = container
         let context = ModelContext(container)
         let thread = AgentThread(name: "Thread")
-        let conversation = Conversation(id: "c1", provider: "codex", thread: thread)
+        let conversation = Conversation(id: "c1", harness: "codex", thread: thread)
         thread.conversations = [conversation]
         context.insert(thread)
         try context.save()
@@ -212,7 +212,7 @@ private extension PullRequestReviewProposalRecordTests {
             comments: comments,
             titleSnapshot: "Title",
             pendingCommentCountSnapshot: 0,
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: "t",
             sourceRequestID: "r",
             createdAt: Date(timeIntervalSince1970: 1_000)
@@ -245,7 +245,7 @@ private extension PullRequestReviewProposalRecordTests {
             ],
             titleSnapshot: "Title",
             pendingCommentCountSnapshot: 0,
-            sourceProviderID: nil,
+            sourceHarnessID: nil,
             sourceProcessToken: nil,
             sourceRequestID: nil,
             sourceKind: .collectiveReview,

@@ -10,14 +10,20 @@ final class AgentSessionApprovalSelection {
     var selection: String
     var updatedAt: Date
 
+    /// Keeps the existing SwiftData column while exposing harness terminology.
+    var harnessId: String {
+        get { providerId }
+        set { providerId = newValue }
+    }
+
     init(
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String,
         selection: String,
         updatedAt: Date = Date()
     ) {
-        self.providerId = providerId
+        self.providerId = harnessId
         self.conversationId = conversationId
         self.sessionId = sessionId
         self.selection = selection

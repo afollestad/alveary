@@ -72,8 +72,8 @@ final class ComposerReasoningModelsSectionClipView: NSView {
 extension ChatComposerActionRowView.ReasoningSelection {
     func updatingEffort(_ option: ChatComposerActionRowView.MenuOption) -> Self {
         Self(
-            providerID: providerID,
-            providerTitle: providerTitle,
+            harnessID: harnessID,
+            harnessTitle: harnessTitle,
             modelID: modelID,
             modelTitle: modelTitle,
             effortValue: option.value,
@@ -87,8 +87,8 @@ extension ChatComposerActionRowView.ReasoningSelection {
 
     func updatingSpeedMode(_ speedMode: AgentSpeedMode) -> Self {
         Self(
-            providerID: providerID,
-            providerTitle: providerTitle,
+            harnessID: harnessID,
+            harnessTitle: harnessTitle,
             modelID: modelID,
             modelTitle: modelTitle,
             effortValue: effortValue,

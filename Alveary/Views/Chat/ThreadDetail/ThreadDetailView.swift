@@ -9,9 +9,9 @@ struct ThreadDetailView: View {
     let agentsManager: any AgentsManager
     let conversationControllerRegistry: any ConversationControllerRegistry
     let settingsService: SettingsService
-    let providerRegistry: ProviderRegistry
-    let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
-    let providerSetup: ProviderSetupService
+    let harnessRegistry: HarnessRegistry
+    let harnessDiscovery: any AgentCLIKit.AgentHarnessDiscoveryService
+    let harnessSetup: HarnessSetupService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
@@ -113,8 +113,8 @@ struct ThreadDetailView: View {
                         conversationControllerRegistry: conversationControllerRegistry,
                         modelContext: modelContext,
                         settingsService: settingsService,
-                        providerRegistry: providerRegistry,
-                        providerDiscovery: providerDiscovery,
+                        harnessRegistry: harnessRegistry,
+                        harnessDiscovery: harnessDiscovery,
                         contextWindowCache: contextWindowCache,
                         fileListManager: fileListManager,
                         voiceInputService: voiceInputService,
@@ -305,9 +305,9 @@ private extension ThreadDetailView {
             conversationID: conversation.id,
             threadName: liveThread.displayName(),
             conversationTitle: conversation.displayName(),
-            providerID: conversation.providerSessionProviderId ?? conversation.provider,
-            providerSessionID: conversation.providerSessionId,
-            providerSessionWorkingDirectory: conversation.providerSessionWorkingDirectory
+            harnessID: conversation.harnessSessionHarnessId ?? conversation.harness,
+            harnessSessionID: conversation.harnessSessionId,
+            harnessSessionWorkingDirectory: conversation.harnessSessionWorkingDirectory
         )
         return { request }
     }
@@ -341,7 +341,7 @@ private extension ThreadDetailView {
 
         let existingConversations = conversations
         let conversation = Conversation(
-            provider: existingConversations.first(where: { $0.isMain })?.provider ?? existingConversations.first?.provider,
+            harness: existingConversations.first(where: { $0.isMain })?.harness ?? existingConversations.first?.harness,
             isMain: false,
             displayOrder: (existingConversations.map(\.displayOrder).max() ?? -1) + 1,
             thread: dbThread

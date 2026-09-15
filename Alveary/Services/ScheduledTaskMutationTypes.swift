@@ -59,7 +59,7 @@ struct ScheduledTaskDefinitionEdit {
     let destination: ScheduledTaskDestination
     let recurrence: ScheduledTaskRecurrence
     let timeZoneIdentifier: String
-    let providerID: String
+    let harnessID: String
     let model: String?
     let effort: String
     let permissionMode: String
@@ -81,7 +81,7 @@ struct ScheduledTaskDefinitionEdit {
         destination: ScheduledTaskDestination,
         recurrence: ScheduledTaskRecurrence,
         timeZoneIdentifier: String,
-        providerID: String,
+        harnessID: String,
         model: String?,
         effort: String,
         permissionMode: String,
@@ -98,7 +98,7 @@ struct ScheduledTaskDefinitionEdit {
         self.destination = destination
         self.recurrence = recurrence
         self.timeZoneIdentifier = timeZoneIdentifier
-        self.providerID = providerID
+        self.harnessID = harnessID
         self.model = model
         self.effort = effort
         self.permissionMode = permissionMode

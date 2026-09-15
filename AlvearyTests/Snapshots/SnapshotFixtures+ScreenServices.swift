@@ -218,7 +218,7 @@ private extension SnapshotMCPService {
             url: "https://mcp.context7.com/mcp",
             headers: ["Authorization": "Bearer ***"],
             env: nil,
-            providers: ["claude"]
+            harnesses: ["claude"]
         )
     }
 
@@ -232,7 +232,7 @@ private extension SnapshotMCPService {
                 url: nil,
                 headers: nil,
                 env: ["PLAYWRIGHT_BROWSERS_PATH": "0"],
-                providers: []
+                harnesses: []
             ),
             description: "Browser automation for UI validation and screenshot capture.",
             headerPrompts: ["PLAYWRIGHT_TOKEN"]

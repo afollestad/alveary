@@ -30,14 +30,14 @@ extension PullRequestHostToolServiceTests {
         XCTAssertTrue(launch.prompts.prompts.isEmpty)
     }
 
-    func testReviewLaunchRejectsProviderMismatchBeforeFetching() async throws {
+    func testReviewLaunchRejectsHarnessMismatchBeforeFetching() async throws {
         let launch = try PullRequestHostReviewLaunchFixture()
 
         let result = await launch.host.handle(
-            PullRequestHostToolCatalog.startReviewToolName, context: launch.host.agentContext(providerID: .claude)
+            PullRequestHostToolCatalog.startReviewToolName, context: launch.host.agentContext(harnessID: .claude)
         )
 
-        XCTAssertEqual(result.text, PullRequestHostToolServiceError.sourceProviderMismatch.localizedDescription)
+        XCTAssertEqual(result.text, PullRequestHostToolServiceError.sourceHarnessMismatch.localizedDescription)
         XCTAssertEqual(launch.host.pullRequests.detailCallCount, 0)
         XCTAssertEqual(try launch.sidebar.context.fetchCount(FetchDescriptor<AgentThread>()), 1)
     }

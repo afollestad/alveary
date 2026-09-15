@@ -196,7 +196,7 @@ extension ConversationViewModelTests {
 
         fixture.viewModel.handleEvent(.thinking(content: "Plan", parentToolUseId: nil))
         fixture.viewModel.handleEvent(.permissionModeChanged("acceptEdits"))
-        fixture.viewModel.handleEvent(.providerSessionMetadataChanged(sessionId: "session", name: nil, preview: nil))
+        fixture.viewModel.handleEvent(.harnessSessionMetadataChanged(sessionId: "session", name: nil, preview: nil))
 
         XCTAssertEqual(fixture.viewModel.thoughtText, "Plan")
         XCTAssertEqual(fixture.viewModel.thoughtSequence, 1)

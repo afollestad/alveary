@@ -2,25 +2,25 @@ import AgentCLIKit
 import Foundation
 
 extension DefaultAgentsManager {
-    func recordProviderSessionBindingIfNeeded(
+    func recordHarnessSessionBindingIfNeeded(
         from envelope: AgentCLIKit.AgentEventEnvelope,
         conversationId: String,
         workingDirectory: String
     ) async {
-        guard let providerSessionId = envelope.providerSessionId?.rawValue else {
+        guard let harnessSessionId = envelope.harnessSessionId?.rawValue else {
             return
         }
 
-        let binding = ProviderSessionBinding(
+        let binding = HarnessSessionBinding(
             conversationID: conversationId,
-            providerID: envelope.providerId.rawValue,
-            providerSessionID: providerSessionId,
+            harnessID: envelope.harnessId.rawValue,
+            harnessSessionID: harnessSessionId,
             workingDirectory: workingDirectory
         )
-        guard recordedProviderSessionBindings.insert(binding).inserted else {
+        guard recordedHarnessSessionBindings.insert(binding).inserted else {
             return
         }
-        await providerSessionBindingStore.record(binding)
+        await harnessSessionBindingStore.record(binding)
     }
 
     func recordAgentCLIKitEnvelopeIndex(

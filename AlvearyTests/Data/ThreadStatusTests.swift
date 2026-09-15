@@ -146,7 +146,7 @@ final class ThreadStatusTests: XCTestCase {
 
     // MARK: - Durable failures
 
-    /// The regression this exists for: a provider that errors without ending its turn leaves the
+    /// The regression this exists for: a harness that errors without ending its turn leaves the
     /// runtime reporting `.busy`, which used to short-circuit the fold and hide the failure.
     func testDurableFailureBeatsItsOwnStaleBusySignal() {
         XCTAssertEqual(folded([.init(runtime: .busy, lastTurnFailed: true)]), .error)

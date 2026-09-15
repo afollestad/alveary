@@ -9,27 +9,27 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
     func testConfigureClearsPreviousDraftSnapshotProviderBeforeInstallingNext() throws {
         let controller = AppKitChatComposerEditorController()
         var events: [String] = []
-        var sharedProvider: ComposerDraftSnapshotProvider?
+        var sharedHarness: ComposerDraftSnapshotProvider?
 
         controller.configure(makeConfiguration(
-            onDraftSnapshotProviderChange: { provider in
-                events.append(provider == nil ? "first.clear" : "first.install")
-                sharedProvider = provider
+            onDraftSnapshotProviderChange: { harness in
+                events.append(harness == nil ? "first.clear" : "first.install")
+                sharedHarness = harness
             }
         ))
         XCTAssertEqual(events, ["first.install"])
-        XCTAssertEqual(try XCTUnwrap(sharedProvider)().text, "First")
+        XCTAssertEqual(try XCTUnwrap(sharedHarness)().text, "First")
         controller.configure(makeConfiguration(
             text: "Second",
             inputDraftRevision: 1,
-            onDraftSnapshotProviderChange: { provider in
-                events.append(provider == nil ? "second.clear" : "second.install")
-                sharedProvider = provider
+            onDraftSnapshotProviderChange: { harness in
+                events.append(harness == nil ? "second.clear" : "second.install")
+                sharedHarness = harness
             }
         ))
 
         XCTAssertEqual(events, ["first.install", "first.clear", "second.install"])
-        XCTAssertEqual(try XCTUnwrap(sharedProvider)().text, "Second")
+        XCTAssertEqual(try XCTUnwrap(sharedHarness)().text, "Second")
     }
 
     func testConfigureInvalidatesPreferredSizeWithSurfaceAnimationEnabled() {

@@ -1,24 +1,24 @@
 import AgentCLIKit
 import SwiftUI
 
-/// One agent's grid cell on the Agents settings tab: name, status, install
+/// One harness's grid cell on the Harnesses settings tab: name, status, install
 /// details, enabled toggle, and extra args. Reuses the untitled
-/// `SettingsFormSection` chrome with the agent name inside the card, keeping
+/// `SettingsFormSection` chrome with the harness name inside the card, keeping
 /// the cell compact.
 struct SettingsAgentCard: View {
     let viewModel: SettingsViewModel
-    let providerID: String
+    let harnessID: String
     @Binding var extraArgs: String
 
     /// Both optional so a snapshot host mounted without the app root renders the card with no Sign In
     /// action rather than failing to resolve.
-    @Environment(ProviderSignInService.self) private var providerSignIn: ProviderSignInService?
+    @Environment(HarnessSignInService.self) private var harnessSignIn: HarnessSignInService?
     @Environment(TerminalManager.self) private var terminalManager: TerminalManager?
     @Environment(AppState.self) private var appState: AppState?
 
     var body: some View {
         SettingsFormSection {
-            let status = viewModel.providerStatus(for: providerID)
+            let status = viewModel.harnessStatus(for: harnessID)
 
             SettingsFormRow {
                 headerAndDetails(for: status)
@@ -27,8 +27,8 @@ struct SettingsAgentCard: View {
             SettingsToggleRow(
                 "Enabled",
                 isOn: Binding(
-                    get: { viewModel.isProviderEnabled(providerID) },
-                    set: { viewModel.setProvider(providerID, enabled: $0) }
+                    get: { viewModel.isHarnessEnabled(harnessID) },
+                    set: { viewModel.setHarness(harnessID, enabled: $0) }
                 )
             )
 
@@ -44,14 +44,14 @@ struct SettingsAgentCard: View {
 }
 
 private extension SettingsAgentCard {
-    func isChecking(_ status: AgentProviderStatus?) -> Bool {
+    func isChecking(_ status: AgentHarnessStatus?) -> Bool {
         status?.isEnabled == true && status?.installation == .unknown && status?.setup == .unknown
     }
 
-    func headerAndDetails(for status: AgentProviderStatus?) -> some View {
+    func headerAndDetails(for status: AgentHarnessStatus?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(viewModel.providerDisplayName(for: providerID))
+                Text(viewModel.harnessDisplayName(for: harnessID))
                     .font(.headline)
 
                 Spacer(minLength: 16)
@@ -80,7 +80,7 @@ private extension SettingsAgentCard {
         .padding(.vertical, 4)
     }
 
-    func detailsStack(for status: AgentProviderStatus?) -> some View {
+    func detailsStack(for status: AgentHarnessStatus?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             versionAndPathLine(for: status)
 
@@ -98,17 +98,17 @@ private extension SettingsAgentCard {
         }
     }
 
-    /// Sign In for an installed provider whose credential needs renewing. Gated the same way as
+    /// Sign In for an installed harness whose credential needs renewing. Gated the same way as
     /// `installCommandSection`: the state it fixes, plus a registry command to fix it with.
     @ViewBuilder
-    func signInSection(for status: AgentProviderStatus?) -> some View {
+    func signInSection(for status: AgentHarnessStatus?) -> some View {
         if status?.installation == .installed,
            status?.setup == .needsSetup,
-           viewModel.signInCommand(for: providerID) != nil,
-           let providerSignIn,
+           viewModel.signInCommand(for: harnessID) != nil,
+           let harnessSignIn,
            let terminalManager {
             Button("Sign In") {
-                guard providerSignIn.startSignIn(providerID: providerID, terminalManager: terminalManager) else {
+                guard harnessSignIn.startSignIn(harnessID: harnessID, terminalManager: terminalManager) else {
                     return
                 }
                 appState?.showTerminalPane()
@@ -119,9 +119,9 @@ private extension SettingsAgentCard {
     }
 
     @ViewBuilder
-    func versionAndPathLine(for status: AgentProviderStatus?) -> some View {
-        let version = viewModel.providerVersion(for: status)
-        let path = viewModel.providerExecutablePath(for: status)
+    func versionAndPathLine(for status: AgentHarnessStatus?) -> some View {
+        let version = viewModel.harnessVersion(for: status)
+        let path = viewModel.harnessExecutablePath(for: status)
 
         if version != nil || path != nil {
             versionAndPathText(version: version, path: path)
@@ -148,8 +148,8 @@ private extension SettingsAgentCard {
     }
 
     @ViewBuilder
-    func installCommandSection(for status: AgentProviderStatus?) -> some View {
-        if status?.installation == .missing, let installCommand = viewModel.installCommand(for: providerID) {
+    func installCommandSection(for status: AgentHarnessStatus?) -> some View {
+        if status?.installation == .missing, let installCommand = viewModel.installCommand(for: harnessID) {
             Text(installCommand)
                 .font(.caption.monospaced())
                 .textSelection(.enabled)
@@ -157,7 +157,7 @@ private extension SettingsAgentCard {
     }
 
     @ViewBuilder
-    func diagnosticsSection(for status: AgentProviderStatus?) -> some View {
+    func diagnosticsSection(for status: AgentHarnessStatus?) -> some View {
         if let status, !status.diagnostics.isEmpty {
             ForEach(status.diagnostics, id: \.self) { diagnostic in
                 Text(diagnostic)

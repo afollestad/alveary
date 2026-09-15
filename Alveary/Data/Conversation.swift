@@ -36,13 +36,37 @@ final class Conversation {
     @Relationship(deleteRule: .cascade, inverse: \ConversationEventRecord.conversation) var events: [ConversationEventRecord]
     @Relationship(deleteRule: .cascade, inverse: \ScheduledTaskProposal.sourceConversation) var scheduledTaskProposals: [ScheduledTaskProposal]
 
+    /// Keeps the existing SwiftData column while exposing harness terminology.
+    var harness: String? {
+        get { provider }
+        set { provider = newValue }
+    }
+
+    /// Keeps the existing SwiftData column while exposing harness terminology.
+    var harnessSessionId: String? {
+        get { providerSessionId }
+        set { providerSessionId = newValue }
+    }
+
+    /// Keeps the existing SwiftData column while exposing harness terminology.
+    var harnessSessionHarnessId: String? {
+        get { providerSessionProviderId }
+        set { providerSessionProviderId = newValue }
+    }
+
+    /// Keeps the existing SwiftData column while exposing harness terminology.
+    var harnessSessionWorkingDirectory: String? {
+        get { providerSessionWorkingDirectory }
+        set { providerSessionWorkingDirectory = newValue }
+    }
+
     init(
         id: String = UUID().uuidString,
         title: String? = nil,
-        provider: String? = nil,
-        providerSessionId: String? = nil,
-        providerSessionProviderId: String? = nil,
-        providerSessionWorkingDirectory: String? = nil,
+        harness: String? = nil,
+        harnessSessionId: String? = nil,
+        harnessSessionHarnessId: String? = nil,
+        harnessSessionWorkingDirectory: String? = nil,
         pendingRestoreContext: String? = nil,
         isActive: Bool = true,
         isMain: Bool = true,
@@ -54,10 +78,10 @@ final class Conversation {
     ) {
         self.id = id
         self.title = title
-        self.provider = provider
-        self.providerSessionId = providerSessionId
-        self.providerSessionProviderId = providerSessionProviderId
-        self.providerSessionWorkingDirectory = providerSessionWorkingDirectory.map(CanonicalPath.normalize)
+        self.provider = harness
+        self.providerSessionId = harnessSessionId
+        self.providerSessionProviderId = harnessSessionHarnessId
+        self.providerSessionWorkingDirectory = harnessSessionWorkingDirectory.map(CanonicalPath.normalize)
         self.pendingRestoreContext = pendingRestoreContext
         self.scheduledTaskProposalReceiptsJSON = nil
         self.threadHostToolReceiptsJSON = nil
@@ -132,7 +156,7 @@ private extension Conversation {
 
         var lines = [
             "Restoring context from local history.",
-            "This is a fresh provider session; do not assume memory from earlier turns.",
+            "This is a fresh harness session; do not assume memory from earlier turns.",
             "Conversation: \(conversationName)"
         ]
 

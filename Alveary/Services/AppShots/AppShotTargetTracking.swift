@@ -35,7 +35,7 @@ enum AppShotCaptureError: LocalizedError, Equatable {
     case noTargetWindow
     case noReliableScreenCaptureMatch
     case screenshotEncodingFailed
-    case unsupportedProvider(String)
+    case unsupportedHarness(String)
     case claudeScreenshotUnreadable(String)
 
     var errorDescription: String? {
@@ -52,8 +52,8 @@ enum AppShotCaptureError: LocalizedError, Equatable {
             return "Could not reliably match the Accessibility window to a screen-capture window."
         case .screenshotEncodingFailed:
             return "Could not encode the app-shot screenshot."
-        case .unsupportedProvider(let providerID):
-            return "App shots are not supported for \(providerID)."
+        case .unsupportedHarness(let harnessID):
+            return "App shots are not supported for \(harnessID)."
         case .claudeScreenshotUnreadable(let path):
             return "Claude cannot read the app-shot screenshot at \(path)."
         }

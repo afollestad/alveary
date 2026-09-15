@@ -134,7 +134,7 @@ extension DefaultAgentsManager {
         guard !isHostToolServerUnavailableDiagnostic || envelope.generation >= subscriptionGeneration else {
             return
         }
-        await recordProviderSessionBindingIfNeeded(
+        await recordHarnessSessionBindingIfNeeded(
             from: envelope,
             conversationId: conversationId,
             workingDirectory: workingDirectory
@@ -161,7 +161,7 @@ extension DefaultAgentsManager {
                 event,
                 conversationId: conversationId,
                 generation: generation,
-                providerId: envelope.providerId.rawValue,
+                harnessId: envelope.harnessId.rawValue,
                 runtimeEventIndex: envelope.index
             )
         }

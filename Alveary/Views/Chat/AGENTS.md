@@ -42,7 +42,7 @@ These capture conversation-view interaction patterns. Keep new UI aligned with t
 `ChatView+LocalCommands.swift` runs an Alveary local command once `ComposerLocalCommand` has parsed it; `Alveary/Views/Input/AGENTS.md` owns when each one is offered at all.
 
 - **Bare `/effort` and `/model` open the reasoning popover instead of sending.** Both clear only the command text, preserve attachments, send nothing, and do not request editor focus — `/effort` lands on the effort slider, `/model` opens with the Models disclosure expanded and keyboard focus on the selected model row.
-- **An argument that is not accepted leaves the composer as it was.** Clear and refocus only on accepted, applied, or unchanged; otherwise retain the draft and attachments and surface either the current dynamic options or the underlying setting error. `/effort <value>` takes exactly one case-insensitive canonical option; `/model <name>` matching order and the `provider:name` qualifier are documented in `ComposerLocalCommand+ModelOptions.swift`.
+- **An argument that is not accepted leaves the composer as it was.** Clear and refocus only on accepted, applied, or unchanged; otherwise retain the draft and attachments and surface either the current dynamic options or the underlying setting error. `/effort <value>` takes exactly one case-insensitive canonical option; `/model <name>` matching order and the `harness:name` qualifier are documented in `ComposerLocalCommand+ModelOptions.swift`.
 - **`/fast` toggles first, then sends.** Bare `/fast` only toggles; `/fast <prompt>` toggles and then sends or queues that prompt with the resulting speed as its next-turn requirement. It takes no inline argument hint.
 - **`/handoff` passes its argument as the steering prompt, or `nil` for none**, and clears and refocuses once the flow starts. Bare `/handoff` prompts for steering without a countdown.
 
@@ -60,12 +60,12 @@ These capture conversation-view interaction patterns. Keep new UI aligned with t
 
 Session handoff is a between-turn hidden flow. Its steering, countdowns, and prompt building live in `Alveary/ViewModels/Conversation/SessionHandoff/` and `Alveary/Services/Settings/`; below are the parts a chat surface can break.
 
-- **Hide the exchange.** The handoff prompt and response never render as transcript rows; one centered `Handing off session...` note appears at start and becomes `Session handed off` once the fresh provider session starts.
+- **Hide the exchange.** The handoff prompt and response never render as transcript rows; one centered `Handing off session...` note appears at start and becomes `Session handed off` once the fresh harness session starts.
 - **Seed the fresh session before queues resume.** Staged, edited, and immediate handoff output all take the handoff send path.
-- **Keep failures blocking.** A failed hidden handoff holds a blocking retry state so a later visible send cannot continue from provider-only context, and a retry goes straight to the hidden flow reusing already-submitted steering.
+- **Keep failures blocking.** A failed hidden handoff holds a blocking retry state so a later visible send cannot continue from harness-only context, and a retry goes straight to the hidden flow reusing already-submitted steering.
 - **Restore an interrupted draft** after the handoff seed sends successfully, and also on hidden handoff failure.
 - **Keep the two countdowns independent.** `handoffSteeringCountdownSeconds` governs only the user's steering prompt; `handoffPromptSendCountdownSeconds` governs only generated output, where `0s` sends immediately without staging it in the composer.
-- **Runtime lifecycle cues are transcript notes, not new bubble styles.** Provider plan-mode transitions take that text-only path — `Entered plan mode`, `Exited plan mode`, and a denied exit as `Staying in plan mode` — never a standalone tool pill.
+- **Runtime lifecycle cues are transcript notes, not new bubble styles.** Harness plan-mode transitions take that text-only path — `Entered plan mode`, `Exited plan mode`, and a denied exit as `Staying in plan mode` — never a standalone tool pill.
 
 #### First Sends And Setup
 

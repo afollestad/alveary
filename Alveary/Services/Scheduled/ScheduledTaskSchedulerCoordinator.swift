@@ -171,7 +171,7 @@ final class ScheduledTaskSchedulerCoordinator {
         }
     }
 
-    /// Clears coalesced work for a tracked user stop, then delegates live provider cancellation
+    /// Clears coalesced work for a tracked user stop, then delegates live harness cancellation
     /// to the executor. Work that has not reached the executor is cancelled locally.
     func stop(runID: PersistentIdentifier) async throws {
         guard let launchID = launchIDsByRunID[runID],
@@ -243,7 +243,7 @@ final class ScheduledTaskSchedulerCoordinator {
         }
     }
 
-    /// Closes the launch boundary and waits for every in-flight pipeline to quiesce. Provider
+    /// Closes the launch boundary and waits for every in-flight pipeline to quiesce. Harness
     /// cancellation is owned by the executing task; user-stop semantics are intentionally not
     /// used here so coalesced occurrences remain available for the next catch-up pass.
     func beginShutdown() {

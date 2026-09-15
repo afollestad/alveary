@@ -32,14 +32,14 @@ extension ThreadLifecycleServiceTests {
         XCTAssertEqual(invalidatedConversationIDs.sorted(), ["main", "side"])
         let destroyCalls = await fixture.agentsManager.destroyCalls()
         XCTAssertEqual(destroyCalls.sorted(), ["main", "side"])
-        let actions = await fixture.providerSessionActions.actions
+        let actions = await fixture.harnessSessionActions.actions
         XCTAssertTrue(actions.contains { if case .archive = $0 { return true } else { return false } })
     }
 
-    func testArchiveThreadReturnsProviderSessionDiagnostics() async throws {
-        let diagnostic = ProviderSessionActionDiagnostic.fixture(action: .archive)
+    func testArchiveThreadReturnsHarnessSessionDiagnostics() async throws {
+        let diagnostic = HarnessSessionActionDiagnostic.fixture(action: .archive)
         let fixture = try SidebarTestFixture(
-            providerSessionActions: RecordingProviderSessionActionService(archiveDiagnostics: [diagnostic])
+            harnessSessionActions: RecordingHarnessSessionActionService(archiveDiagnostics: [diagnostic])
         )
         let thread = try fixture.insertThread(projectName: "Alveary", projectPath: "/tmp/alveary-project")
 
@@ -51,9 +51,9 @@ extension ThreadLifecycleServiceTests {
     }
 
     func testArchiveThreadCarriesDiagnosticsOnTheCleanupFailurePath() async throws {
-        let diagnostic = ProviderSessionActionDiagnostic.fixture(action: .archive)
+        let diagnostic = HarnessSessionActionDiagnostic.fixture(action: .archive)
         let fixture = try SidebarTestFixture(
-            providerSessionActions: RecordingProviderSessionActionService(archiveDiagnostics: [diagnostic])
+            harnessSessionActions: RecordingHarnessSessionActionService(archiveDiagnostics: [diagnostic])
         )
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -130,7 +130,7 @@ extension ThreadLifecycleServiceTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             targetThread: dbThread
         )
         dbThread.targetedScheduledTasks = [definition]

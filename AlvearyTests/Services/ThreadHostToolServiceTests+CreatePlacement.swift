@@ -139,7 +139,7 @@ extension ThreadHostToolServiceTests {
     func testCreateThreadFallsBackToTasksWhenTheInheritedSectionVanishesMidCall() async throws {
         let removal = MidResolveMutationBox()
         let fixture = try ThreadHostToolFixture(
-            providerDiscovery: MidResolveMutatingProviderDiscoveryStub { removal.run() }
+            harnessDiscovery: MidResolveMutatingHarnessDiscoveryStub { removal.run() }
         )
         try await fixture.moveSourceTaskIntoSection(named: "Research")
         let sectionID = try XCTUnwrap(fixture.thread.customSection?.id)
@@ -200,13 +200,13 @@ extension ThreadHostToolFixture {
     }
 }
 
-/// Host state can change while the defaults resolver awaits provider discovery; this stub is that
+/// Host state can change while the defaults resolver awaits harness discovery; this stub is that
 /// suspension, running a main-actor mutation midway so a snapshot the handler already took can go
 /// stale in the only window where it can.
-private actor MidResolveMutatingProviderDiscoveryStub: AgentCLIKit.AgentProviderDiscoveryService {
-    private let statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] = [
-        .codex: AgentCLIKit.AgentProviderStatus(
-            providerId: .codex,
+private actor MidResolveMutatingHarnessDiscoveryStub: AgentCLIKit.AgentHarnessDiscoveryService {
+    private let statuses: [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] = [
+        .codex: AgentCLIKit.AgentHarnessStatus(
+            harnessId: .codex,
             installation: .installed,
             setup: .ready,
             modelOptions: AgentModelOptionTestFixtures.codexModelOptions
@@ -218,26 +218,26 @@ private actor MidResolveMutatingProviderDiscoveryStub: AgentCLIKit.AgentProvider
         self.mutate = mutate
     }
 
-    func providerStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+    func harnessStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] {
         await mutate()
         return statuses
     }
 
-    func installedProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+    func installedHarnessStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] {
         await mutate()
         return statuses
     }
 
-    func availableProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+    func availableHarnessStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] {
         await mutate()
         return statuses
     }
 
-    func modelOptions(for providerId: AgentCLIKit.AgentProviderID) async -> [AgentCLIKit.AgentModelOption] {
-        statuses[providerId]?.modelOptions ?? []
+    func modelOptions(for harnessId: AgentCLIKit.AgentHarnessID) async -> [AgentCLIKit.AgentModelOption] {
+        statuses[harnessId]?.modelOptions ?? []
     }
 
-    func stableProviderOrdering() async -> [AgentCLIKit.AgentProviderID] {
+    func stableHarnessOrdering() async -> [AgentCLIKit.AgentHarnessID] {
         [.codex]
     }
 }

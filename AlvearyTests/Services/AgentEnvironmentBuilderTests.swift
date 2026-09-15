@@ -35,9 +35,9 @@ final class AgentEnvironmentBuilderTests: XCTestCase {
         XCTAssertEqual(components.first, "/opt/homebrew/bin", "Existing PATH order must be preserved")
     }
 
-    func testProviderEnvironmentOverridesBaseValues() {
+    func testHarnessEnvironmentOverridesBaseValues() {
         let environment = DefaultAgentEnvironmentBuilder().buildEnvironment(
-            providerEnv: ["PATH": "/provider/only", "CUSTOM": "value"]
+            harnessEnv: ["PATH": "/provider/only", "CUSTOM": "value"]
         )
 
         XCTAssertEqual(environment["PATH"], "/provider/only")

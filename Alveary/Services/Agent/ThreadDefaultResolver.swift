@@ -2,53 +2,53 @@ import AgentCLIKit
 import Foundation
 
 struct ThreadDefaultResolution: Equatable {
-    let providerID: String?
+    let harnessID: String?
     let storedThreadModel: String?
     let permissionMode: String
     let effort: String
-    let readyProviderIDs: [String]
+    let readyHarnessIDs: [String]
     let modelOptions: [AgentCLIKit.AgentModelOption]
 
-    var hasReadyProvider: Bool {
-        providerID != nil
+    var hasReadyHarness: Bool {
+        harnessID != nil
     }
 }
 
 enum ThreadDefaultResolver {
     static func resolve(
         settings: AppSettings,
-        providerOrdering: [String],
-        providerStatuses: [String: AgentCLIKit.AgentProviderStatus],
+        harnessOrdering: [String],
+        harnessStatuses: [String: AgentCLIKit.AgentHarnessStatus],
         allowStaticFallback: Bool = false
     ) -> ThreadDefaultResolution {
-        let orderedProviderIDs = orderedSupportedProviderIDs(providerOrdering)
-        let readyProviderIDs = orderedProviderIDs.filter { providerID in
-            guard settings.isProviderEnabled(providerID) else {
+        let orderedHarnessIDs = orderedSupportedHarnessIDs(harnessOrdering)
+        let readyHarnessIDs = orderedHarnessIDs.filter { harnessID in
+            guard settings.isHarnessEnabled(harnessID) else {
                 return false
             }
-            guard let status = providerStatuses[providerID] else {
+            guard let status = harnessStatuses[harnessID] else {
                 return allowStaticFallback
             }
-            return isReadyProvider(providerID: providerID, settings: settings, status: status)
+            return isReadyHarness(harnessID: harnessID, settings: settings, status: status)
         }
 
-        let resolvedProviderID: String? = readyProviderIDs.contains(settings.defaultProvider)
-            ? settings.defaultProvider
-            : readyProviderIDs.first
-        guard let providerID = resolvedProviderID else {
+        let resolvedHarnessID: String? = readyHarnessIDs.contains(settings.defaultHarness)
+            ? settings.defaultHarness
+            : readyHarnessIDs.first
+        guard let harnessID = resolvedHarnessID else {
             return ThreadDefaultResolution(
-                providerID: nil,
+                harnessID: nil,
                 storedThreadModel: nil,
                 permissionMode: settings.permissionMode,
                 effort: AppSettings.normalizedEffortLevel(settings.effort),
-                readyProviderIDs: readyProviderIDs,
+                readyHarnessIDs: readyHarnessIDs,
                 modelOptions: []
             )
         }
 
-        let options = modelOptions(for: providerID, providerStatuses: providerStatuses)
+        let options = modelOptions(for: harnessID, harnessStatuses: harnessStatuses)
         let storedModel = normalizedStoredModel(settings.defaultModel, options: options)
-        let permissionMode = normalizedPermissionMode(settings.permissionMode, providerID: providerID)
+        let permissionMode = normalizedPermissionMode(settings.permissionMode, harnessID: harnessID)
         let effort = AgentModelOptionSelection.normalizedEffort(
             settings.effort,
             options: options,
@@ -56,55 +56,55 @@ enum ThreadDefaultResolver {
         )
 
         return ThreadDefaultResolution(
-            providerID: providerID,
+            harnessID: harnessID,
             storedThreadModel: storedModel == AppSettings.defaultModelValue ? nil : storedModel,
             permissionMode: permissionMode,
             effort: effort,
-            readyProviderIDs: readyProviderIDs,
+            readyHarnessIDs: readyHarnessIDs,
             modelOptions: options
         )
     }
 
     static func resolve(
         settings: AppSettings,
-        providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
+        harnessDiscovery: any AgentCLIKit.AgentHarnessDiscoveryService
     ) async -> ThreadDefaultResolution {
-        async let ordering = providerDiscovery.stableProviderOrdering()
-        async let statuses = providerDiscovery.providerStatuses(projectURL: nil)
+        async let ordering = harnessDiscovery.stableHarnessOrdering()
+        async let statuses = harnessDiscovery.harnessStatuses(projectURL: nil)
         let resolvedOrdering = await ordering
         let resolvedStatuses = await statuses
         return resolve(
             settings: settings,
-            providerOrdering: resolvedOrdering.map(\.rawValue),
-            providerStatuses: Dictionary(uniqueKeysWithValues: resolvedStatuses.map { ($0.key.rawValue, $0.value) })
+            harnessOrdering: resolvedOrdering.map(\.rawValue),
+            harnessStatuses: Dictionary(uniqueKeysWithValues: resolvedStatuses.map { ($0.key.rawValue, $0.value) })
         )
     }
 
     static func modelOptions(
-        for providerID: String,
-        providerStatuses: [String: AgentCLIKit.AgentProviderStatus]
+        for harnessID: String,
+        harnessStatuses: [String: AgentCLIKit.AgentHarnessStatus]
     ) -> [AgentCLIKit.AgentModelOption] {
-        if let options = providerStatuses[providerID]?.modelOptions, !options.isEmpty {
+        if let options = harnessStatuses[harnessID]?.modelOptions, !options.isEmpty {
             return options
         }
-        guard let id = AgentCLIKit.AgentProviderID(rawValue: providerID) else {
+        guard let id = AgentCLIKit.AgentHarnessID(rawValue: harnessID) else {
             return []
         }
         return AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: id)
     }
 
-    static func orderedSupportedProviderIDs(_ providerOrdering: [String]) -> [String] {
-        let ordered = providerOrdering.isEmpty ? AppSettings.supportedProviderIDs : providerOrdering
-        let supported = ordered.filter(AppSettings.supportedProviderIDs.contains)
-        return supported.isEmpty ? AppSettings.supportedProviderIDs : supported
+    static func orderedSupportedHarnessIDs(_ harnessOrdering: [String]) -> [String] {
+        let ordered = harnessOrdering.isEmpty ? AppSettings.supportedHarnessIDs : harnessOrdering
+        let supported = ordered.filter(AppSettings.supportedHarnessIDs.contains)
+        return supported.isEmpty ? AppSettings.supportedHarnessIDs : supported
     }
 
-    static func isReadyProvider(
-        providerID: String,
+    static func isReadyHarness(
+        harnessID: String,
         settings: AppSettings,
-        status: AgentCLIKit.AgentProviderStatus
+        status: AgentCLIKit.AgentHarnessStatus
     ) -> Bool {
-        settings.isProviderEnabled(providerID) && status.isEnabled && status.isInstalled && status.isSetupReady
+        settings.isHarnessEnabled(harnessID) && status.isEnabled && status.isInstalled && status.isSetupReady
     }
 
     private static func normalizedStoredModel(
@@ -117,8 +117,8 @@ enum ThreadDefaultResolver {
         return AgentModelOptionSelection.storedModelValue(for: option)
     }
 
-    private static func normalizedPermissionMode(_ mode: String, providerID: String) -> String {
-        let supportedModes = AppSettings.supportedPermissionModes(forProvider: providerID)
-        return supportedModes.contains(mode) ? mode : AppSettings.defaultPermissionMode(forProvider: providerID)
+    private static func normalizedPermissionMode(_ mode: String, harnessID: String) -> String {
+        let supportedModes = AppSettings.supportedPermissionModes(forHarness: harnessID)
+        return supportedModes.contains(mode) ? mode : AppSettings.defaultPermissionMode(forHarness: harnessID)
     }
 }

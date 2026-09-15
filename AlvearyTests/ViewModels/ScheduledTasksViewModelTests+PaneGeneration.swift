@@ -98,7 +98,7 @@ extension ScheduledTasksViewModelTests {
         fixture.viewModel.requestCreate()
         var draft = try XCTUnwrap(fixture.viewModel.pendingEditorDraft)
         draft.prompt = "Keep this manual draft and its validation error."
-        draft.providerID = "codex"
+        draft.harnessID = "codex"
         draft.permissionMode = "acceptEdits"
         fixture.viewModel.updateActiveDraft(draft)
         fixture.viewModel.submitActivePane()
@@ -114,7 +114,7 @@ extension ScheduledTasksViewModelTests {
         XCTAssertEqual(fixture.viewModel.paneSessions[.create], sessionBeforeLoad)
 
         var normalizedDraft = sessionBeforeLoad.draft
-        fixture.viewModel.normalizeProviderDependentFields(&normalizedDraft)
+        fixture.viewModel.normalizeHarnessDependentFields(&normalizedDraft)
         XCTAssertNotEqual(normalizedDraft, sessionBeforeLoad.draft)
 
         await fixture.viewModel.loadForScreen()

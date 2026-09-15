@@ -10,17 +10,17 @@ struct ContentView: View {
 
     let settingsService: SettingsService
     private let gitHubCLI: GitHubCLIService
-    private let providerDetection: any ProviderDetectionService
-    private let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
+    private let harnessDetection: any HarnessDetectionService
+    private let harnessDiscovery: any AgentCLIKit.AgentHarnessDiscoveryService
     private let agentRegistry: AgentRegistry
-    private let providerRegistry: ProviderRegistry
+    private let harnessRegistry: HarnessRegistry
     private let skillsService: SkillsService
     private let mcpService: MCPService
     private let agentsManager: any AgentsManager
     let agentOneShotPromptService: any AgentOneShotPromptService
     private let conversationControllerRegistry: any ConversationControllerRegistry
-    private let providerSetup: ProviderSetupService
-    private let providerSignIn: ProviderSignInService
+    private let harnessSetup: HarnessSetupService
+    private let harnessSignIn: HarnessSignInService
     private let contextWindowCache: any ContextWindowCache
     private let fileListManager: FileListManager
     let notificationManager: any NotificationManager
@@ -86,17 +86,17 @@ struct ContentView: View {
         self.appState = appState
         self.settingsService = dependencies.settingsService
         self.gitHubCLI = dependencies.gitHubCLI
-        self.providerDetection = dependencies.providerDetection
-        self.providerDiscovery = dependencies.providerDiscovery
+        self.harnessDetection = dependencies.harnessDetection
+        self.harnessDiscovery = dependencies.harnessDiscovery
         self.agentRegistry = dependencies.agentRegistry
-        self.providerRegistry = dependencies.providerRegistry
+        self.harnessRegistry = dependencies.harnessRegistry
         self.skillsService = dependencies.skillsService
         self.mcpService = dependencies.mcpService
         self.agentsManager = dependencies.agentsManager
         self.agentOneShotPromptService = dependencies.agentOneShotPromptService
         self.conversationControllerRegistry = dependencies.conversationControllerRegistry
-        self.providerSetup = dependencies.providerSetup
-        self.providerSignIn = dependencies.providerSignIn
+        self.harnessSetup = dependencies.harnessSetup
+        self.harnessSignIn = dependencies.harnessSignIn
         self.contextWindowCache = dependencies.contextWindowCache
         self.fileListManager = dependencies.fileListManager
         self.notificationManager = dependencies.notificationManager
@@ -194,9 +194,9 @@ private extension ContentView {
             agentsManager: agentsManager,
             conversationControllerRegistry: conversationControllerRegistry,
             settingsService: settingsService,
-            providerRegistry: providerRegistry,
-            providerDiscovery: providerDiscovery,
-            providerSetup: providerSetup,
+            harnessRegistry: harnessRegistry,
+            harnessDiscovery: harnessDiscovery,
+            harnessSetup: harnessSetup,
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
@@ -281,11 +281,11 @@ private extension ContentView {
     func rootWindowChrome<Content: View>(_ content: Content) -> some View {
         content
         .environment(terminalManager)
-        // Both the Agents settings card and the composer's credential banner offer Sign In; the card
+        // Both the Harnesses settings card and the composer's credential banner offer Sign In; the card
         // also needs `appState` to reveal the pane holding the tab it opens. Read `appState` from here
         // for identity only — a body that reads one of its properties re-renders on every selection
         // and pane change. `ChatView` takes it as an injected `@Bindable` and is unaffected.
-        .environment(providerSignIn)
+        .environment(harnessSignIn)
         .environment(appState)
         .environment(appShotCoordinator)
         // Scheduling proposals are confirmed inside transcript widgets, so the queue
@@ -439,11 +439,11 @@ private extension ContentView {
         }
         .onChange(of: terminalManager.runningProjectActionSessionIDs, initial: true) { _, runningSessionIDs in
             handleTerminalRunningSessionIDsChange(runningSessionIDs)
-            providerSignIn.handleRunningProjectActionSessionIDsChange(runningSessionIDs)
+            harnessSignIn.handleRunningProjectActionSessionIDsChange(runningSessionIDs)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             onboardingViewModel.handleAppDidBecomeActive()
-            providerSignIn.handleAppDidBecomeActive()
+            harnessSignIn.handleAppDidBecomeActive()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: .voiceInputComposerInteractionLockChanged,

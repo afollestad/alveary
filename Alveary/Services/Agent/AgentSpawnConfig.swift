@@ -1,12 +1,12 @@
 import AgentCLIKit
 
-/// Provider-neutral app request for starting or reconfiguring an agent runtime.
+/// Harness-neutral app request for starting or reconfiguring an agent runtime.
 ///
 /// `AgentCLIKitHostAdapter` converts this Alveary model into `AgentCLIKit.AgentSpawnConfig`.
-/// It intentionally contains only host settings; provider session IDs and launch arguments
+/// It intentionally contains only host settings; harness session IDs and launch arguments
 /// are owned by `AgentCLIKit`.
 struct AgentSpawnConfig: Sendable, Equatable {
-    let providerId: String
+    let harnessId: String
     let workingDirectory: String
     let permissionMode: String?
     let planModeEnabled: Bool?
@@ -26,7 +26,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let isAutomatedScheduledTurn: Bool
 
     init(
-        providerId: String,
+        harnessId: String,
         workingDirectory: String,
         permissionMode: String? = nil,
         planModeEnabled: Bool? = nil,
@@ -45,7 +45,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         initialGoal: String? = nil,
         isAutomatedScheduledTurn: Bool = false
     ) {
-        self.providerId = providerId
+        self.harnessId = harnessId
         self.workingDirectory = workingDirectory
         self.permissionMode = permissionMode
         self.planModeEnabled = planModeEnabled
@@ -85,7 +85,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         model: String?,
         effort: String?
     ) {
-        providerId = config.providerId
+        harnessId = config.harnessId
         workingDirectory = config.workingDirectory
         permissionMode = config.permissionMode
         planModeEnabled = config.planModeEnabled
@@ -111,7 +111,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         hostToolServer: AgentCLIKit.AgentHostToolServerMetadata,
         hostTools: [AgentCLIKit.AgentHostToolDefinition]
     ) {
-        providerId = config.providerId
+        harnessId = config.harnessId
         workingDirectory = config.workingDirectory
         permissionMode = config.permissionMode
         planModeEnabled = config.planModeEnabled

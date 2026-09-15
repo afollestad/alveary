@@ -56,7 +56,7 @@ extension PullRequestHostToolService {
             target: target,
             identity: identity,
             requestID: requestID,
-            providerID: context.providerId.rawValue
+            harnessID: context.harnessId.rawValue
         )
         // Seeded — and awaited — before the envelope is stored: `pendingResult` posts the
         // lifecycle notification whose reload re-reads the cache, so the entry has to be on disk
@@ -138,7 +138,7 @@ private extension PullRequestHostToolService {
         target: ValidatedProposalTarget,
         identity: PullRequestHostToolCallIdentity,
         requestID: String,
-        providerID: String
+        harnessID: String
     ) -> PullRequestReviewProposalRecord {
         let detail = target.detail
         let diffFiles = target.diffFiles ?? []
@@ -168,7 +168,7 @@ private extension PullRequestHostToolService {
             },
             titleSnapshot: detail.title,
             pendingCommentCountSnapshot: detail.pendingCommentCount,
-            sourceProviderID: providerID,
+            sourceHarnessID: harnessID,
             sourceProcessToken: identity.processToken.uuidString.lowercased(),
             sourceRequestID: requestID,
             sourceKind: .hostTool,
@@ -187,7 +187,7 @@ private extension PullRequestHostToolService {
         identity: PullRequestHostToolCallIdentity
     ) throws -> AgentCLIKit.AgentHostToolResult? {
         if existing.deduplicationKey == identity.deduplicationKey {
-            // The provider replayed a call whose receipt has aged out; the proposal it opened is
+            // The harness replayed a call whose receipt has aged out; the proposal it opened is
             // still the live one, so report that rather than opening a second.
             return try pendingResult(
                 source: source,
@@ -398,7 +398,7 @@ private extension PullRequestHostToolService {
         ]
     }
 
-    /// A plain-text-fallback provider has only this sentence to relay, so it has to say both what
+    /// A plain-text-fallback harness has only this sentence to relay, so it has to say both what
     /// confirming would publish and that nothing has happened yet.
     static func pendingMessage(
         record: PullRequestReviewProposalRecord,

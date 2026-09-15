@@ -23,10 +23,10 @@ extension ScheduledTaskMutationServiceTests {
         XCTAssertEqual(definition.model, "gpt-6")
     }
 
-    func testEditDropsReuseLinkWhenWorkspaceProviderOrDestinationChanges() throws {
+    func testEditDropsReuseLinkWhenWorkspaceHarnessOrDestinationChanges() throws {
         let fixture = try ScheduledTaskMutationFixture()
         for edit in [
-            fixture.makeReuseEdit(providerID: "claude"),
+            fixture.makeReuseEdit(harnessID: "claude"),
             fixture.makeReuseEdit(grantedRoots: ["/tmp"]),
             fixture.makeReuseEdit(destination: .newThreadPerRun)
         ] {
@@ -100,7 +100,7 @@ extension ScheduledTaskMutationFixture {
             state: state,
             recurrence: .daily(hour: 8, minute: 0),
             timeZoneIdentifier: "Etc/UTC",
-            providerID: "codex"
+            harnessID: "codex"
         )
         context.insert(definition)
         try context.save()
@@ -109,7 +109,7 @@ extension ScheduledTaskMutationFixture {
 
     func makeReuseEdit(
         destination: ScheduledTaskDestination = .reusedThread,
-        providerID: String = "codex",
+        harnessID: String = "codex",
         model: String? = nil,
         effort: String = AppSettings.defaultEffortLevel,
         permissionMode: String = "default",
@@ -124,7 +124,7 @@ extension ScheduledTaskMutationFixture {
             destination: destination,
             recurrence: .daily(hour: 8, minute: 0),
             timeZoneIdentifier: "Etc/UTC",
-            providerID: providerID,
+            harnessID: harnessID,
             model: model,
             effort: effort,
             permissionMode: permissionMode,

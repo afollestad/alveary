@@ -11,8 +11,8 @@ These instructions cover `Alveary/Views/Input/Editor/` — the BlockInputKit bri
 - **Keep `BlockInputComposerCompletionProvider` identity stable across ordinary composer updates**, refreshing it through `update(...)`. BlockInputKit treats provider replacement as a semantic completion reset and dismisses the active popup.
 - **Route key handling through `BlockInputConfiguration.keyboardShortcuts`.** Enter, Shift+Enter, Cmd+Enter, and Escape all go there; do not intercept composer keys outside BlockInputKit APIs.
 - **Keep editor drops disabled in production.** File and image drops belong to the composer panel: route picked and dropped URLs through Alveary staging and render the attachment strip outside BlockInputKit so the editor never owns the top preview row.
-- **Slash-command argument hints are inline hints, never draft text.** Back them with live local-command metadata or cached `Skill.argumentHint` values, and keep them current across model and provider refreshes without replacing the provider.
-- App-shot preview chips are host-owned attachments whose AX tree and provider transport wrapper stay hidden from the editor and transcript. Removing the preview only unstages the app shot; it must not mutate composer Markdown.
+- **Slash-command argument hints are inline hints, never draft text.** Back them with live local-command metadata or cached `Skill.argumentHint` values, and keep them current across model and harness refreshes without replacing the completion provider.
+- App-shot preview chips are host-owned attachments whose AX tree and harness transport wrapper stay hidden from the editor and transcript. Removing the preview only unstages the app shot; it must not mutate composer Markdown.
 - Composer selection background stays visually distinct from chip fill — a neutral non-accent token for selection chrome, chip fill and foreground tokens unchanged.
 
 ### Drafts

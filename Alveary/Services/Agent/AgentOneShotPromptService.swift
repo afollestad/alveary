@@ -6,7 +6,7 @@ protocol AgentOneShotPromptService: Sendable {
 }
 
 enum AgentOneShotPromptError: LocalizedError, Equatable {
-    case untrustedProject(providerId: String, workingDirectory: String)
+    case untrustedProject(harnessId: String, workingDirectory: String)
     case approvalRequested
     case promptRequired
     case emptyOutput
@@ -16,8 +16,8 @@ enum AgentOneShotPromptError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .untrustedProject(let providerId, let workingDirectory):
-            return "Project is not trusted for \(providerId): \(workingDirectory)"
+        case .untrustedProject(let harnessId, let workingDirectory):
+            return "Project is not trusted for \(harnessId): \(workingDirectory)"
         case .approvalRequested:
             return "Commit message generation requested user approval."
         case .promptRequired:
@@ -42,23 +42,23 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
 
     private let promptRunner: any AgentCLIKit.AgentOneShotPromptRunning
     private let settingsService: SettingsService
-    private let providerSetup: ProviderSetupService
-    private let providerDetection: ProviderDetectionService
+    private let harnessSetup: HarnessSetupService
+    private let harnessDetection: HarnessDetectionService
     private let environmentBuilder: AgentEnvironmentBuilder
     private let timeout: Duration
 
     init(
         promptRunner: any AgentCLIKit.AgentOneShotPromptRunning,
         settingsService: SettingsService,
-        providerSetup: ProviderSetupService,
-        providerDetection: ProviderDetectionService,
+        harnessSetup: HarnessSetupService,
+        harnessDetection: HarnessDetectionService,
         environmentBuilder: AgentEnvironmentBuilder,
         timeout: Duration = .seconds(120)
     ) {
         self.promptRunner = promptRunner
         self.settingsService = settingsService
-        self.providerSetup = providerSetup
-        self.providerDetection = providerDetection
+        self.harnessSetup = harnessSetup
+        self.harnessDetection = harnessDetection
         self.environmentBuilder = environmentBuilder
         self.timeout = timeout
     }
@@ -93,28 +93,28 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
         try Task.checkCancellation()
 
         let settings = await settingsService.current.normalized()
-        let providerId = settings.defaultProvider
+        let harnessId = settings.defaultHarness
         let normalizedWorkingDirectory = CanonicalPath.normalize(workingDirectory)
 
         try await prepareTrustedProject(
-            providerId: providerId,
+            harnessId: harnessId,
             workingDirectory: normalizedWorkingDirectory,
             autoTrust: settings.autoTrustProjects
         )
 
-        let detectedPath = try await detectedExecutablePath(for: providerId)
-        let configuredArguments = try parseExtraArgs(settings.providerConfigs[providerId]?.extraArgs ?? "")
+        let detectedPath = try await detectedExecutablePath(for: harnessId)
+        let configuredArguments = try parseExtraArgs(settings.harnessConfigs[harnessId]?.extraArgs ?? "")
         let arguments = ClaudeNativeSchedulingLaunchPolicy.arguments(
-            providerID: providerId,
+            harnessID: harnessId,
             configuredArguments: configuredArguments
         )
         let environment = ClaudeNativeSchedulingLaunchPolicy.environment(
-            providerID: providerId,
+            harnessID: harnessId,
             baseEnvironment: oneShotEnvironment(detectedPath: detectedPath)
         )
 
         return AgentCLIKit.AgentOneShotPromptRequest(
-            providerId: try Self.agentProviderID(providerId),
+            harnessId: try Self.agentHarnessID(harnessId),
             workingDirectory: URL(fileURLWithPath: normalizedWorkingDirectory, isDirectory: true),
             prompt: Self.promptWithReadOnlyProjectGuidance(prompt),
             arguments: arguments,
@@ -127,35 +127,35 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
     }
 
     private func prepareTrustedProject(
-        providerId: String,
+        harnessId: String,
         workingDirectory: String,
         autoTrust: Bool
     ) async throws {
-        await providerSetup.prepareForSpawn(
-            providerId: providerId,
+        await harnessSetup.prepareForSpawn(
+            harnessId: harnessId,
             workingDirectory: workingDirectory,
             autoTrust: autoTrust
         )
-        guard await providerSetup.isTrustedProject(providerId: providerId, workingDirectory: workingDirectory) else {
+        guard await harnessSetup.isTrustedProject(harnessId: harnessId, workingDirectory: workingDirectory) else {
             throw AgentOneShotPromptError.untrustedProject(
-                providerId: providerId,
+                harnessId: harnessId,
                 workingDirectory: workingDirectory
             )
         }
     }
 
-    private func detectedExecutablePath(for providerId: String) async throws -> String {
-        if await providerDetection.resolvedPath(for: providerId) == nil {
-            await providerDetection.checkProvider(providerId)
+    private func detectedExecutablePath(for harnessId: String) async throws -> String {
+        if await harnessDetection.resolvedPath(for: harnessId) == nil {
+            await harnessDetection.checkHarness(harnessId)
         }
-        guard let detectedPath = await providerDetection.resolvedPath(for: providerId) else {
-            throw AgentError.cliNotInstalled(providerId)
+        guard let detectedPath = await harnessDetection.resolvedPath(for: harnessId) else {
+            throw AgentError.cliNotInstalled(harnessId)
         }
         return detectedPath
     }
 
     private func oneShotEnvironment(detectedPath: String) -> [String: String] {
-        var environment = environmentBuilder.buildEnvironment(providerEnv: nil)
+        var environment = environmentBuilder.buildEnvironment(harnessEnv: nil)
         let executableDirectory = URL(fileURLWithPath: detectedPath).deletingLastPathComponent().path
         let existingPath = environment["PATH"] ?? ""
         let pathComponents = existingPath.split(separator: ":").map(String.init)
@@ -165,11 +165,11 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
         return environment
     }
 
-    private static func agentProviderID(_ providerId: String) throws -> AgentCLIKit.AgentProviderID {
-        guard let agentProviderID = AgentCLIKit.AgentProviderID(rawValue: providerId) else {
-            throw AgentOneShotPromptError.failed("Unsupported provider: \(providerId)")
+    private static func agentHarnessID(_ harnessId: String) throws -> AgentCLIKit.AgentHarnessID {
+        guard let agentHarnessID = AgentCLIKit.AgentHarnessID(rawValue: harnessId) else {
+            throw AgentOneShotPromptError.failed("Unsupported harness: \(harnessId)")
         }
-        return agentProviderID
+        return agentHarnessID
     }
 
     private static func promptWithReadOnlyProjectGuidance(_ prompt: String) -> String {
@@ -206,13 +206,13 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
             return .timedOut
         case .cancelled:
             return .cancelled
-        case .unsupportedProvider,
+        case .unsupportedHarness,
              .unsupportedToolPolicy,
              .commandLaunchFailed,
              .commandFailed,
              .unavailableModel,
              .malformedOutput,
-             .providerReportedError:
+             .harnessReportedError:
             return .failed(error.localizedDescription)
         }
     }

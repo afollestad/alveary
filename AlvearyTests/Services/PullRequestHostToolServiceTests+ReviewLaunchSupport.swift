@@ -5,7 +5,7 @@ import XCTest
 
 @testable import Alveary
 
-/// Real launch and host services share storage, while provider work stays behind a controllable gate.
+/// Real launch and host services share storage, while harness work stays behind a controllable gate.
 @MainActor
 final class PullRequestHostReviewLaunchFixture {
     let sidebar: SidebarTestFixture
@@ -17,7 +17,7 @@ final class PullRequestHostReviewLaunchFixture {
     let packetRoot: URL
 
     init(
-        providerDiscovery: (any AgentProviderDiscoveryService)? = nil,
+        harnessDiscovery: (any AgentHarnessDiscoveryService)? = nil,
         receiptSave: @escaping (ModelContext) throws -> Void = { try $0.save() },
         coordinatorSave: @escaping (ModelContext) throws -> Void = { try $0.save() }
     ) throws {
@@ -25,9 +25,9 @@ final class PullRequestHostReviewLaunchFixture {
         self.sidebar = sidebar
         let host = try PullRequestHostToolFixture(sidebar: sidebar)
         self.host = host
-        let discovery = providerDiscovery ?? RecordingProviderDiscoveryService(statuses: [
-            .claude: SettingsViewModelTests.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
-            .codex: SettingsViewModelTests.providerStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
+        let discovery = harnessDiscovery ?? RecordingHarnessDiscoveryService(statuses: [
+            .claude: SettingsViewModelTests.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
+            .codex: SettingsViewModelTests.harnessStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
         ])
         let worker = ReviewCoordinatorWorker()
         self.worker = worker
@@ -41,7 +41,7 @@ final class PullRequestHostReviewLaunchFixture {
             packets: ReviewPacketStore(rootDirectory: root),
             staging: PullRequestCollectiveReviewStagingService(modelContext: sidebar.context, service: host.pullRequests),
             activity: activity,
-            resolver: PullRequestReviewTeamResolver(providerDiscovery: discovery),
+            resolver: PullRequestReviewTeamResolver(harnessDiscovery: discovery),
             cancellationStore: ReviewTeamCancellationStore(rootDirectory: root.appendingPathComponent("cancellations")),
             notificationManager: RecordingNotificationManager(),
             commitSave: coordinatorSave
@@ -87,11 +87,11 @@ final class PullRequestHostReviewLaunchFixture {
         ))
         host.settingsService.update {
             $0.pullRequestReviewMode = .singleAgent
-            $0.pullRequestReviewProvider = "claude"
+            $0.pullRequestReviewHarness = "claude"
             $0.pullRequestReviewModel = "sonnet"
             $0.pullRequestReviewEffort = "high"
             $0.pullRequestReviewPeers = [
-                PullRequestReviewPeer(id: "peer", providerID: "codex", model: "gpt-5.5", effort: "medium")
+                PullRequestReviewPeer(id: "peer", harnessID: "codex", model: "gpt-5.5", effort: "medium")
             ]
         }
     }
@@ -116,7 +116,7 @@ final class PullRequestHostReviewLaunchFixture {
         sidebar: SidebarTestFixture,
         host: PullRequestHostToolFixture,
         coordinator: PullRequestReviewTeamCoordinator,
-        discovery: any AgentProviderDiscoveryService,
+        discovery: any AgentHarnessDiscoveryService,
         prompts: ThreadHostToolPromptRecorder
     ) -> PullRequestAgenticThreadService {
         PullRequestAgenticThreadService(
@@ -126,7 +126,7 @@ final class PullRequestHostReviewLaunchFixture {
             settingsService: host.settingsService,
             worktreeManager: sidebar.worktreeManager,
             taskWorkspaceOwnershipService: sidebar.taskWorkspaceOwnershipService,
-            providerDiscovery: discovery,
+            harnessDiscovery: discovery,
             directoryExists: { _ in false },
             currentBranch: { _ in nil },
             reviewTeamCoordinator: coordinator,

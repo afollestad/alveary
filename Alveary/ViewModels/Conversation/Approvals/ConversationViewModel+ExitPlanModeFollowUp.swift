@@ -27,8 +27,8 @@ extension ConversationViewModel {
         let consumedRevisionGuidance = transportText == nil ? nil : PendingExitPlanModeRevisionGuidance(
             toolUseId: followUp.toolUseId,
             sessionId: followUp.sessionId,
-            providerId: followUp.providerId,
-            providerSessionId: followUp.providerSessionId
+            harnessId: followUp.harnessId,
+            harnessSessionId: followUp.harnessSessionId
         )
         state.pendingExitPlanModeFollowUp = nil
         state.messageQueue.prepend(
@@ -69,8 +69,8 @@ extension ConversationViewModel {
         state.pendingExitPlanModeFollowUp = PendingExitPlanModeFollowUp(
             toolUseId: followUp.toolUseId,
             sessionId: followUp.sessionId,
-            providerId: followUp.providerId,
-            providerSessionId: followUp.providerSessionId,
+            harnessId: followUp.harnessId,
+            harnessSessionId: followUp.harnessSessionId,
             message: followUp.message,
             transportText: followUp.transportText,
             sourceTurnId: state.activeRuntimeActivityTurnId,
@@ -260,19 +260,19 @@ extension ConversationViewModel {
     func stagePendingExitPlanModeFollowUp(
         message: String,
         approval: ToolApprovalRequest,
-        providerSnapshot: ExitPlanModeRevisionProviderSnapshot
+        harnessSnapshot: ExitPlanModeRevisionHarnessSnapshot
     ) {
         cancelPendingExitPlanModeFollowUpQuietTask()
         let shouldWrapTransport = effectivePlanModeEnabled &&
-            ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(providerId: providerSnapshot.providerId)
+            ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(harnessId: harnessSnapshot.harnessId)
         let transportText = shouldWrapTransport
             ? ExitPlanModeDenialPolicy.revisionTransportText(visibleText: message)
             : nil
         state.pendingExitPlanModeFollowUp = PendingExitPlanModeFollowUp(
             toolUseId: approval.toolUseId,
             sessionId: approval.sessionId,
-            providerId: providerSnapshot.providerId,
-            providerSessionId: providerSnapshot.providerSessionId,
+            harnessId: harnessSnapshot.harnessId,
+            harnessSessionId: harnessSnapshot.harnessSessionId,
             message: message,
             transportText: transportText,
             sourceTurnId: state.activeRuntimeActivityTurnId,
@@ -298,12 +298,12 @@ extension ConversationViewModel {
     }
 
     private func canSendPendingExitPlanModeFollowUp(_ followUp: PendingExitPlanModeFollowUp) -> Bool {
-        let providerSnapshot = exitPlanModeRevisionProviderSnapshot()
-        guard providerSnapshot.providerId == followUp.providerId else {
+        let harnessSnapshot = exitPlanModeRevisionHarnessSnapshot()
+        guard harnessSnapshot.harnessId == followUp.harnessId else {
             return false
         }
-        if let expectedSessionId = followUp.providerSessionId,
-           let currentSessionId = providerSnapshot.providerSessionId,
+        if let expectedSessionId = followUp.harnessSessionId,
+           let currentSessionId = harnessSnapshot.harnessSessionId,
            currentSessionId != expectedSessionId {
             return false
         }

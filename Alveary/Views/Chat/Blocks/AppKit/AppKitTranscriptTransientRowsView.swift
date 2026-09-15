@@ -14,7 +14,7 @@ private let streamingRevealMaximumStepCharacterCount = 12
 /// message is persisted into the transcript.
 ///
 /// The row deliberately owns its own reveal timer and layout interpolation.
-/// Provider deltas arrive in uneven batches, and replacing the whole string on
+/// Harness deltas arrive in uneven batches, and replacing the whole string on
 /// each batch makes the AppKit transcript feel like it refreshes every few
 /// seconds instead of growing continuously like the prior SwiftUI surface.
 /// Keep this row free of delayed frame animations: reveal ticks happen faster
@@ -193,7 +193,7 @@ final class AppKitTranscriptStreamingBubbleView: NSView {
             return
         }
 
-        // Provider partials can arrive in coarse bursts. SwiftUI made those bursts feel
+        // Harness partials can arrive in coarse bursts. SwiftUI made those bursts feel
         // continuous by diffing text layout over frames; the AppKit row needs an explicit
         // reveal loop so long assistant responses do not visibly refresh in whole chunks.
         let appendedCount = text.count - displayedText.count

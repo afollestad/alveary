@@ -160,7 +160,7 @@ extension AppShotCaptureError {
              .noTargetWindow,
              .noReliableScreenCaptureMatch,
              .screenshotEncodingFailed,
-             .unsupportedProvider,
+             .unsupportedHarness,
              .claudeScreenshotUnreadable:
             return nil
         }

@@ -46,7 +46,7 @@ final class ReviewProposalFixture {
         let context = ModelContext(container)
         modelContext = context
         let thread = AgentThread(name: "Thread")
-        let sourceConversation = Conversation(id: "source-conversation", provider: "codex", thread: thread)
+        let sourceConversation = Conversation(id: "source-conversation", harness: "codex", thread: thread)
         conversation = sourceConversation
         thread.conversations = [sourceConversation]
         context.insert(thread)
@@ -91,7 +91,7 @@ final class ReviewProposalFixture {
         comments: [PullRequestReviewProposalRecord.Comment]?
     ) throws {
         let thread = AgentThread(name: "Other Thread")
-        let conversation = Conversation(id: "other-conversation", provider: "codex", thread: thread)
+        let conversation = Conversation(id: "other-conversation", harness: "codex", thread: thread)
         thread.conversations = [conversation]
         context.insert(thread)
         try conversation.storePullRequestReviewProposal(
@@ -125,7 +125,7 @@ final class ReviewProposalFixture {
             comments: comments,
             titleSnapshot: "Detail title",
             pendingCommentCountSnapshot: pendingCommentCount,
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: "token",
             sourceRequestID: "request-\(id)",
             createdAt: createdAt

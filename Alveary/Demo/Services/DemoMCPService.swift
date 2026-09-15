@@ -20,7 +20,7 @@ final class DemoMCPService: MCPService {
 
     func addServer(_ server: MCPServer, for agents: [String]) async throws {
         var copy = server
-        copy.providers = agents
+        copy.harnesses = agents
         // `MCPServer.id` is its name, so an edit replaces rather than duplicates.
         if let index = servers.firstIndex(where: { $0.name == server.name }) {
             servers[index] = copy
@@ -34,8 +34,8 @@ final class DemoMCPService: MCPService {
     }
 
     /// Never empty: the Add/Edit pane's Save gates on a non-empty agent selection. The real
-    /// service reaches this through provider detection, which spawns a `--version` probe per
-    /// provider; the stub removes that from the screen entirely.
+    /// service reaches this through harness detection, which spawns a `--version` probe per
+    /// harness; the stub removes that from the screen entirely.
     func availableAgents() async -> [MCPAgentAvailability] {
         DemoCatalogs.mcpAgents
     }

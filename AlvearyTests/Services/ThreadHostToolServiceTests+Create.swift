@@ -13,7 +13,7 @@ extension ThreadHostToolServiceTests {
         let result = await fixture.create(arguments: [
             "project_path": .string(fixture.project.path),
             "name": .string("Release checklist"),
-            "provider": .string("codex"),
+            "harness": .string("codex"),
             "permission_mode": .string("never"),
             "effort": .string("low"),
             "pinned": .bool(true)
@@ -21,7 +21,8 @@ extension ThreadHostToolServiceTests {
 
         let content = try object(result.structuredContent)
         XCTAssertEqual(content["name"], .string("Release checklist"))
-        XCTAssertEqual(content["provider"], .string("codex"))
+        XCTAssertEqual(content["harness"], .string("codex"))
+        XCTAssertNil(content["provider"])
         XCTAssertEqual(content["permission_mode"], .string("never"))
         XCTAssertEqual(content["effort"], .string("low"))
         XCTAssertEqual(content["is_pinned"], .bool(true))
@@ -29,7 +30,7 @@ extension ThreadHostToolServiceTests {
         let created = try fixture.createdThread(in: result)
         XCTAssertTrue(created.hasCustomName)
         XCTAssertTrue(created.isPinned)
-        XCTAssertEqual(created.soleMainConversation?.provider, "codex")
+        XCTAssertEqual(created.soleMainConversation?.harness, "codex")
     }
 
     /// A pinned project absorbs its children, so the promised pin would silently do nothing.
@@ -80,6 +81,11 @@ extension ThreadHostToolServiceTests {
 
     func testCreateThreadRejectsUnknownArgumentsAndBadTypes() async throws {
         let fixture = try ThreadHostToolFixture()
+
+        let legacyName = await fixture.create(arguments: ["provider": .string("codex")])
+        XCTAssertTrue(legacyName.isError)
+        XCTAssertTrue(legacyName.text.contains("unsupported field(s): provider"), legacyName.text)
+        XCTAssertEqual(try fixture.threadCount(), 1)
 
         let unknownKey = await fixture.create(arguments: [
             "project_path": .string(fixture.project.path),
@@ -286,6 +292,7 @@ extension ThreadHostToolServiceTests {
         let arguments: [String: AgentCLIKit.JSONValue] = [
             "project_path": .string(fixture.project.path),
             "name": .string("Release checklist"),
+            "harness": .string("codex"),
             "initial_prompt": .string("Audit the release notes.")
         ]
 
@@ -293,6 +300,8 @@ extension ThreadHostToolServiceTests {
         let retry = await fixture.create(arguments: arguments)
 
         XCTAssertEqual(try object(retry.structuredContent)["status"], .string("created"))
+        XCTAssertEqual(try object(retry.structuredContent)["harness"], .string("codex"))
+        XCTAssertNil(try object(retry.structuredContent)["provider"])
         XCTAssertEqual(try fixture.threadID(in: retry), try fixture.threadID(in: first))
         XCTAssertEqual(retry.text, first.text)
         XCTAssertEqual(try fixture.threadCount(), 2)

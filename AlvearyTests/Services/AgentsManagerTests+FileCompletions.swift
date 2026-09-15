@@ -21,7 +21,7 @@ extension AgentsManagerTests {
             .toolResult(id: "write", output: "Done", isError: false, parentToolUseId: nil, metadata: nil),
             conversationId: fixture.conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
 
         let refreshed = await fixture.loadFiles()
@@ -44,7 +44,7 @@ extension AgentsManagerTests {
 
         await fixture.manager.handleStreamEvent(
             .stop(message: nil), conversationId: fixture.conversationId,
-            generation: oldGeneration, providerId: "claude"
+            generation: oldGeneration, harnessId: "claude"
         )
         let stillCached = await fixture.loadFiles()
         XCTAssertEqual(stillCached, before)
@@ -52,22 +52,22 @@ extension AgentsManagerTests {
         let currentGeneration = try await fixture.bufferGeneration()
         await fixture.manager.handleStreamEvent(
             .stop(message: nil), conversationId: fixture.conversationId,
-            generation: currentGeneration, providerId: "claude"
+            generation: currentGeneration, harnessId: "claude"
         )
         let currentFiles = await fixture.loadFiles()
         // The replacement explicitly removed its secondary grant; only its primary is invalidated.
         XCTAssertEqual(currentFiles, [fixture.replacementFiles[0], fixture.originalFiles[1]])
     }
 
-    func testProviderGenerationReplacementRetainsWorkspaceCompletionRoots() async throws {
+    func testHarnessGenerationReplacementRetainsWorkspaceCompletionRoots() async throws {
         let fixture = try await makeFileCompletionRuntimeFixture()
         defer { fixture.remove() }
         _ = await fixture.loadFiles()
         try fixture.replaceFiles()
         fixture.events.continuation.yield(AgentCLIKit.AgentEventEnvelope(
-            generation: 2, index: 1, providerId: .claude,
+            generation: 2, index: 1, harnessId: .claude,
             conversationId: AgentCLIKit.AgentConversationID(rawValue: fixture.conversationId),
-            providerSessionId: nil, source: .process,
+            harnessSessionId: nil, source: .process,
             event: .lifecycle(AgentCLIKit.AgentLifecycleEvent(state: .exited))
         ))
         try await waitUntil("expected replacement generation terminal event") {
@@ -116,7 +116,7 @@ extension AgentsManagerTests {
         await manager.installAgentCLIKitSubscriptionBuffer(
             conversationId: conversationId,
             config: Alveary.AgentSpawnConfig(
-                providerId: "claude", workingDirectory: primary.path, additionalWorkspaceRoots: [primary.path, secondary.path]
+                harnessId: "claude", workingDirectory: primary.path, additionalWorkspaceRoots: [primary.path, secondary.path]
             ),
             subscription: AgentCLIKit.AgentEventSubscription(generation: 1, events: events.stream)
         )
@@ -158,8 +158,8 @@ private struct FileCompletionRuntimeFixture {
 
     func status(index: Int, backgroundTasks: Int) -> AgentCLIKit.AgentRuntimeStatus {
         AgentCLIKit.AgentRuntimeStatus(
-            conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId), providerId: .claude,
-            generation: 1, state: .running, lastEventIndex: index, providerSessionId: nil,
+            conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId), harnessId: .claude,
+            generation: 1, state: .running, lastEventIndex: index, harnessSessionId: nil,
             isTurnActive: false, liveBackgroundTaskCount: backgroundTasks
         )
     }

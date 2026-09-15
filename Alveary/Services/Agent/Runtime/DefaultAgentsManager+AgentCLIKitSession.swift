@@ -4,15 +4,15 @@ import Foundation
 extension DefaultAgentsManager {
     func previousAgentCLIKitSessionRecord(
         conversationId: AgentCLIKit.AgentConversationID,
-        providerId rawProviderId: String,
+        harnessId rawHarnessId: String,
         services: AgentCLIKitHostServices
     ) async throws -> AgentCLIKit.AgentSessionRecord? {
-        guard let providerId = services.hostAdapter.providerId(rawProviderId) else {
-            throw AgentCLIKitHostAdapterError.unsupportedProvider(rawProviderId)
+        guard let harnessId = services.hostAdapter.harnessId(rawHarnessId) else {
+            throw AgentCLIKitHostAdapterError.unsupportedHarness(rawHarnessId)
         }
         return try await services.sessionStore.record(
             conversationId: conversationId,
-            providerId: providerId
+            harnessId: harnessId
         )
     }
 
@@ -24,38 +24,38 @@ extension DefaultAgentsManager {
             return
         }
         await services.claudeApprovalPolicyStore.removeSessionApprovals(
-            providerId: previousSessionRecord.providerId,
+            harnessId: previousSessionRecord.harnessId,
             conversationId: previousSessionRecord.conversationId,
-            sessionId: previousSessionRecord.providerSessionId
+            sessionId: previousSessionRecord.harnessSessionId
         )
         do {
             let currentRecord = try await services.sessionStore.record(
                 conversationId: previousSessionRecord.conversationId,
-                providerId: previousSessionRecord.providerId
+                harnessId: previousSessionRecord.harnessId
             )
-            guard currentRecord?.providerSessionId == previousSessionRecord.providerSessionId else {
+            guard currentRecord?.harnessSessionId == previousSessionRecord.harnessSessionId else {
                 return
             }
-            await archivePreviousAgentCLIKitProviderSession(previousSessionRecord, services: services)
+            await archivePreviousAgentCLIKitHarnessSession(previousSessionRecord, services: services)
             try await services.sessionStore.remove(
                 conversationId: previousSessionRecord.conversationId,
-                providerId: previousSessionRecord.providerId
+                harnessId: previousSessionRecord.harnessId
             )
         } catch {
             pendingSessionRemovalErrors[previousSessionRecord.conversationId.rawValue] = error.localizedDescription
         }
     }
 
-    /// Archives the provider session a handoff is dropping, along with everything it superseded.
+    /// Archives the harness session a handoff is dropping, along with everything it superseded.
     ///
     /// A handoff spawns fresh, so the runtime never sees this session replaced and never records it in a lineage.
     /// Removing its record right after would leave it — and its whole lineage — live with nothing left pointing at
-    /// them. Best effort: the handoff already succeeded, so a provider failure must not fail or undo it.
-    private func archivePreviousAgentCLIKitProviderSession(
+    /// them. Best effort: the handoff already succeeded, so a harness failure must not fail or undo it.
+    private func archivePreviousAgentCLIKitHarnessSession(
         _ previousSessionRecord: AgentCLIKit.AgentSessionRecord,
         services: AgentCLIKitHostServices
     ) async {
-        guard let definition = await services.providerRegistry.definition(for: previousSessionRecord.providerId),
+        guard let definition = await services.harnessRegistry.definition(for: previousSessionRecord.harnessId),
               definition.capabilities.supportsSessionArchiving else {
             return
         }

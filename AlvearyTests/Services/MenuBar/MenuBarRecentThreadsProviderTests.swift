@@ -12,7 +12,7 @@ final class MenuBarRecentThreadsProviderTests: XCTestCase {
         fixture.insertThread(name: "Newest", conversationID: "convo-newest", modifiedAt: fixture.date(-10))
         fixture.insertThread(name: "Middle", conversationID: "convo-middle", modifiedAt: fixture.date(-100))
 
-        let recentThreads = fixture.provider.recentThreads()
+        let recentThreads = fixture.harness.recentThreads()
 
         XCTAssertEqual(recentThreads.map(\.title), ["Newest", "Middle", "Older"])
         XCTAssertEqual(recentThreads.map(\.conversationID), ["convo-newest", "convo-middle", "convo-older"])
@@ -36,7 +36,7 @@ final class MenuBarRecentThreadsProviderTests: XCTestCase {
         )
         fixture.insertThread(name: "No conversation", conversationID: nil, modifiedAt: fixture.date(-2))
 
-        XCTAssertEqual(fixture.provider.recentThreads().map(\.conversationID), ["convo-listed"])
+        XCTAssertEqual(fixture.harness.recentThreads().map(\.conversationID), ["convo-listed"])
     }
 
     func testHonorsTheLimit() throws {
@@ -49,9 +49,9 @@ final class MenuBarRecentThreadsProviderTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(fixture.provider.recentThreads().count, MenuBarRecentThreadsProvider.defaultLimit)
-        XCTAssertEqual(fixture.provider.recentThreads(limit: 2).map(\.conversationID), ["convo-7", "convo-6"])
-        XCTAssertTrue(fixture.provider.recentThreads(limit: 0).isEmpty)
+        XCTAssertEqual(fixture.harness.recentThreads().count, MenuBarRecentThreadsProvider.defaultLimit)
+        XCTAssertEqual(fixture.harness.recentThreads(limit: 2).map(\.conversationID), ["convo-7", "convo-6"])
+        XCTAssertTrue(fixture.harness.recentThreads(limit: 0).isEmpty)
     }
 
     func testTruncatesLongTitlesAndCollapsesWhitespace() {
@@ -69,7 +69,7 @@ final class MenuBarRecentThreadsProviderTests: XCTestCase {
 private struct MenuBarRecentThreadsFixture {
     let container: ModelContainer
     let context: ModelContext
-    let provider: MenuBarRecentThreadsProvider
+    let harness: MenuBarRecentThreadsProvider
 
     init() throws {
         container = try ModelContainer(
@@ -80,7 +80,7 @@ private struct MenuBarRecentThreadsFixture {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         context = ModelContext(container)
-        provider = MenuBarRecentThreadsProvider(modelContext: context)
+        harness = MenuBarRecentThreadsProvider(modelContext: context)
     }
 
     func date(_ offset: TimeInterval) -> Date {

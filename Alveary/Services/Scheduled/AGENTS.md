@@ -6,20 +6,20 @@ These instructions cover `Alveary/Services/Scheduled/` — claiming a due occurr
 
 ### Ownership And Composition
 
-- **Keep scheduling app-owned and provider-neutral.** Provider processes consume immutable run snapshots; they own neither recurrence nor persistence.
+- **Keep scheduling app-owned and harness-neutral.** Harness processes consume immutable run snapshots; they own neither recurrence nor persistence.
 - **Validate asynchronously before claiming.** Capture Project and grant directory identities before async work, then revalidate those identities and re-resolve definition revision, state, and occurrence fields before mutating SwiftData.
 - **Compose execution through `ScheduledTaskSchedulerCoordinator`.** Same-source worktree creation and overlapping primary/granted roots must keep their separate lock scopes.
-- **Use the shared `ConversationControllerRegistry` background lease and outcome stream.** Scheduled execution must never open a second provider subscription.
+- **Use the shared `ConversationControllerRegistry` background lease and outcome stream.** Scheduled execution must never open a second harness subscription.
 - `ScheduledTaskSchedulerCoordinator` owns scheduled keep-awake from claimed or recovered run launch through materialization, lock waits, execution, and failure or cancellation.
-- **Every scheduled turn's text opens with `DefaultScheduledTaskRunExecutor.scheduledRunPreamble`.** The executor applies it because it is the single path from a run snapshot to a provider turn; a second caller of `startAutomatedScheduledTurn` would otherwise send a run without it.
+- **Every scheduled turn's text opens with `DefaultScheduledTaskRunExecutor.scheduledRunPreamble`.** The executor applies it because it is the single path from a run snapshot to a harness turn; a second caller of `startAutomatedScheduledTurn` would otherwise send a run without it.
 
 ### Quiescence And User Stop
 
 - **Fence Task archive and delete on coordinator-owned per-run quiescence.** A nonterminal run uses user-stop pending-occurrence clearing; a terminal run only waits for the targeted launch to finish, so historical state is never mutated. Never block unrelated scheduled work with the global idle waiter.
 - **Finalize before releasing power.** Executor finalization persists the result and unread state, flushes, and suspends the runtime before the coordinator releases scheduled power. A waiting approval or question retains the lease and runtime.
 - **Never use shared-context rollback in coordinator persistence retries.** Flush or reapply the scoped run and conversation mutations instead, so unrelated changes survive; retries retain power throughout.
-- **User stop installs a definition fence before awaiting provider cancellation.** It rejects new claims, cancels and quiesces queued same-definition claims, and retains scheduled power until the pending-occurrence clear is durable and the stopped launch has finished.
-    - **When user stop finds an inactive fallback `tool_deferred` boundary**, discard only that waiting runtime — preserving its provider session — then supersede every unresolved interaction row, mark any unanswered prompt handled, and emit a durable interruption boundary so run quiescence cannot hang.
+- **User stop installs a definition fence before awaiting harness cancellation.** It rejects new claims, cancels and quiesces queued same-definition claims, and retains scheduled power until the pending-occurrence clear is durable and the stopped launch has finished.
+    - **When user stop finds an inactive fallback `tool_deferred` boundary**, discard only that waiting runtime — preserving its harness session — then supersede every unresolved interaction row, mark any unanswered prompt handled, and emit a durable interruption boundary so run quiescence cannot hang.
 - **Coalesce executor stop and cancellation cleanup through the per-run `ActiveScheduledTaskExecution` barrier.** Seal and drain it before clearing automated-run state, so stale runtime teardown cannot reach a later manual turn.
 
 ### Recovery And Terminal Proof
@@ -28,7 +28,7 @@ These instructions cover `Alveary/Services/Scheduled/` — claiming a due occurr
 - **Recovery interruptions repair provenance rather than inventing it.** Create missing Task and note provenance for unprepared claims, reconstruct only identity-valid prepared-workspace descriptors, and sanitize a changed existing descriptor while preserving ownership-only deletion provenance. Persist terminal state and main-conversation unread routing before badge refresh.
 - **Flush preexisting `ModelContext` changes before recovery or termination reconciliation mutates.** If the isolated recovery save fails, roll that batch back and publish neither notifications nor controller flushes.
 - **Age automatic claim recovery from the scheduled occurrence**, and Run-now recovery from its explicit trigger time instead.
-- **Precompute claimed-run recovery readiness from Sendable immutable snapshots** through the full provider, workspace, and worktree preflight. Recovery's synchronous mutation pass may consume only the resulting safe run IDs.
+- **Precompute claimed-run recovery readiness from Sendable immutable snapshots** through the full harness, workspace, and worktree preflight. Recovery's synchronous mutation pass may consume only the resulting safe run IDs.
 
 ### Reused-Thread Runs
 
@@ -46,7 +46,7 @@ These instructions cover `Alveary/Services/Scheduled/` — claiming a due occurr
 
 ### Deadlines And Occurrence Coalescing
 
-- **`ScheduledTaskLifecycleCoordinator` activates only after launch cleanup, session and orphan cleanup, and provider refresh.** Its deadline must rearm after `.scheduledTasksChanged`, scheduler claim completion, wake reconciliation, and system clock or time-zone changes.
+- **`ScheduledTaskLifecycleCoordinator` activates only after launch cleanup, session and orphan cleanup, and harness refresh.** Its deadline must rearm after `.scheduledTasksChanged`, scheduler claim completion, wake reconciliation, and system clock or time-zone changes.
 - **Hold a due `pendingOccurrenceAt` while any nonterminal or unknown-status run exists for that definition**, but keep considering `nextOccurrenceAt` so newer cadence work can coalesce.
 - **Publish claim, recovery-interruption, and terminal changes through `.scheduledTasksChanged`** so management state and deadline reconciliation share one durable boundary.
-- **Scheduled transcript notes are display-only provenance.** Exclude them from provider context, restore summaries, and forks.
+- **Scheduled transcript notes are display-only provenance.** Exclude them from harness context, restore summaries, and forks.

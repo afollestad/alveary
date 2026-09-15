@@ -3,10 +3,10 @@ import XCTest
 @testable import Alveary
 
 extension ComposerLocalCommandParserTests {
-    func testModelArgumentHintJoinsShortNamesInProviderOrder() {
+    func testModelArgumentHintJoinsShortNamesInHarnessOrder() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
-            option(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
-            option(providerID: "claude", value: "opus", shortName: "opus", title: "Opus")
+            option(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
+            option(harnessID: "claude", value: "opus", shortName: "opus", title: "Opus")
         ])
 
         XCTAssertEqual(availability.modelArgumentHint, "sonnet|opus")
@@ -14,13 +14,13 @@ extension ComposerLocalCommandParserTests {
 
     func testModelArgumentHintTruncatesLongListsWithEllipsis() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
-            option(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
-            option(providerID: "claude", value: "fable", shortName: "fable", title: "Fable"),
-            option(providerID: "claude", value: "opus", shortName: "opus", title: "Opus"),
-            option(providerID: "claude", value: "haiku", shortName: "haiku", title: "Haiku"),
+            option(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
+            option(harnessID: "claude", value: "fable", shortName: "fable", title: "Fable"),
+            option(harnessID: "claude", value: "opus", shortName: "opus", title: "Opus"),
+            option(harnessID: "claude", value: "haiku", shortName: "haiku", title: "Haiku"),
             // Codex ids that earn no alias stay long, which is what pushes the hint over its budget.
-            option(providerID: "codex", value: "gpt-5.4-mini", shortName: "gpt-5.4-mini", title: "GPT-5.4-Mini"),
-            option(providerID: "codex", value: "gpt-5.5", shortName: "gpt-5.5", title: "GPT-5.5")
+            option(harnessID: "codex", value: "gpt-5.4-mini", shortName: "gpt-5.4-mini", title: "GPT-5.4-Mini"),
+            option(harnessID: "codex", value: "gpt-5.5", shortName: "gpt-5.5", title: "GPT-5.5")
         ])
 
         let hint = availability.modelArgumentHint
@@ -32,13 +32,13 @@ extension ComposerLocalCommandParserTests {
     /// `claude-sonnet-4-6` before `opus` or `haiku` were ever shown.
     func testModelArgumentHintListsAliasedOptionsBeforeBareIDs() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
-            option(providerID: "claude", value: "claude-fable-5", shortName: "fable", title: "Fable 5"),
-            option(providerID: "claude", value: "claude-opus-5", shortName: "opus", title: "Opus 5"),
-            option(providerID: "claude", value: "claude-opus-4-8", shortName: "claude-opus-4-8", title: "Opus 4.8"),
-            option(providerID: "claude", value: "claude-opus-4-7", shortName: "claude-opus-4-7", title: "Opus 4.7"),
-            option(providerID: "claude", value: "claude-sonnet-5", shortName: "sonnet", title: "Sonnet 5"),
-            option(providerID: "claude", value: "claude-sonnet-4-6", shortName: "claude-sonnet-4-6", title: "Sonnet 4.6"),
-            option(providerID: "claude", value: "claude-haiku-4-5", shortName: "haiku", title: "Haiku 4.5")
+            option(harnessID: "claude", value: "claude-fable-5", shortName: "fable", title: "Fable 5"),
+            option(harnessID: "claude", value: "claude-opus-5", shortName: "opus", title: "Opus 5"),
+            option(harnessID: "claude", value: "claude-opus-4-8", shortName: "claude-opus-4-8", title: "Opus 4.8"),
+            option(harnessID: "claude", value: "claude-opus-4-7", shortName: "claude-opus-4-7", title: "Opus 4.7"),
+            option(harnessID: "claude", value: "claude-sonnet-5", shortName: "sonnet", title: "Sonnet 5"),
+            option(harnessID: "claude", value: "claude-sonnet-4-6", shortName: "claude-sonnet-4-6", title: "Sonnet 4.6"),
+            option(harnessID: "claude", value: "claude-haiku-4-5", shortName: "haiku", title: "Haiku 4.5")
         ])
 
         XCTAssertEqual(availability.modelArgumentHint, "fable|opus|sonnet|haiku|claude-opus-4-8|…")
@@ -46,8 +46,8 @@ extension ComposerLocalCommandParserTests {
 
     func testModelOptionResolvesAFamilyAliasAndItsPinnedVersions() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
-            option(providerID: "claude", value: "claude-opus-5", shortName: "opus", title: "Opus 5"),
-            option(providerID: "claude", value: "claude-opus-4-8", shortName: "claude-opus-4-8", title: "Opus 4.8")
+            option(harnessID: "claude", value: "claude-opus-5", shortName: "opus", title: "Opus 5"),
+            option(harnessID: "claude", value: "claude-opus-4-8", shortName: "claude-opus-4-8", title: "Opus 4.8")
         ])
 
         XCTAssertEqual(availability.modelOption(matching: "opus")?.value, "claude-opus-5")
@@ -57,8 +57,8 @@ extension ComposerLocalCommandParserTests {
 
     func testModelArgumentHintDeduplicatesSharedShortNames() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
-            option(providerID: "claude", value: "default", shortName: "default", title: "Default"),
-            option(providerID: "codex", value: "default", shortName: "default", title: "Default")
+            option(harnessID: "claude", value: "default", shortName: "default", title: "Default"),
+            option(harnessID: "codex", value: "default", shortName: "default", title: "Default")
         ])
 
         XCTAssertEqual(availability.modelArgumentHint, "default")
@@ -66,8 +66,8 @@ extension ComposerLocalCommandParserTests {
 
     func testModelOptionMatchesShortNameThenValueThenTitle() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
-            option(providerID: "codex", value: "gpt-5.6-sol", shortName: "sol", title: "GPT-5.6-Sol"),
-            option(providerID: "claude", value: "opus", shortName: "opus", title: "Opus")
+            option(harnessID: "codex", value: "gpt-5.6-sol", shortName: "sol", title: "GPT-5.6-Sol"),
+            option(harnessID: "claude", value: "opus", shortName: "opus", title: "Opus")
         ])
 
         XCTAssertEqual(availability.modelOption(matching: "SOL")?.value, "gpt-5.6-sol")
@@ -78,21 +78,21 @@ extension ComposerLocalCommandParserTests {
         XCTAssertNil(availability.modelOption(matching: "   "))
     }
 
-    func testModelOptionResolvesSharedShortNameByProviderOrderAndQualifier() {
+    func testModelOptionResolvesSharedShortNameByHarnessOrderAndQualifier() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
-            option(providerID: "claude", value: "default", shortName: "default", title: "Default"),
-            option(providerID: "codex", value: "default", shortName: "default", title: "Default")
+            option(harnessID: "claude", value: "default", shortName: "default", title: "Default"),
+            option(harnessID: "codex", value: "default", shortName: "default", title: "Default")
         ])
 
-        XCTAssertEqual(availability.modelOption(matching: "default")?.providerID, "claude")
-        XCTAssertEqual(availability.modelOption(matching: "codex:default")?.providerID, "codex")
-        XCTAssertEqual(availability.modelOption(matching: "CODEX:DEFAULT")?.providerID, "codex")
+        XCTAssertEqual(availability.modelOption(matching: "default")?.harnessID, "claude")
+        XCTAssertEqual(availability.modelOption(matching: "codex:default")?.harnessID, "codex")
+        XCTAssertEqual(availability.modelOption(matching: "CODEX:DEFAULT")?.harnessID, "codex")
     }
 
-    func testModelOptionFallsBackToWholeStringWhenProviderPrefixIsUnknown() {
+    func testModelOptionFallsBackToWholeStringWhenHarnessPrefixIsUnknown() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
-            option(providerID: "codex", value: "vendor:model", shortName: "vendor:model", title: "Vendor Model"),
-            option(providerID: "claude", value: "opus", shortName: "opus", title: "Opus")
+            option(harnessID: "codex", value: "vendor:model", shortName: "vendor:model", title: "Vendor Model"),
+            option(harnessID: "claude", value: "opus", shortName: "opus", title: "Opus")
         ])
 
         XCTAssertEqual(availability.modelOption(matching: "vendor:model")?.value, "vendor:model")
@@ -100,11 +100,11 @@ extension ComposerLocalCommandParserTests {
     }
 
     private func option(
-        providerID: String,
+        harnessID: String,
         value: String,
         shortName: String,
         title: String
     ) -> ComposerModelCommandOption {
-        ComposerModelCommandOption(providerID: providerID, value: value, shortName: shortName, title: title)
+        ComposerModelCommandOption(harnessID: harnessID, value: value, shortName: shortName, title: title)
     }
 }

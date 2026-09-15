@@ -481,7 +481,7 @@ extension ConversationViewModelTests {
         XCTAssertFalse(fixture.viewModel.state.isSendingMessage)
         do {
             try await fixture.viewModel.reconfigureSession(config: AgentSpawnConfig(
-                providerId: "claude",
+                harnessId: "claude",
                 workingDirectory: fixture.project.path,
                 permissionMode: "acceptEdits",
                 model: nil,

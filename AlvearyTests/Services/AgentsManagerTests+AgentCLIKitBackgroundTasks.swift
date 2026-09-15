@@ -75,7 +75,7 @@ extension AgentsManagerTests {
         }
 
         try await manager.sendMessage("active:background-task:1", conversationId: conversationId, activityVisibility: .hidden)
-        try await waitUntil("expected the provider-initiated turn to record a visible turn end") {
+        try await waitUntil("expected the harness-initiated turn to record a visible turn end") {
             recorder.visibleTurnEndedConversationIDs == [conversationId]
         }
 

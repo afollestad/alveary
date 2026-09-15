@@ -69,12 +69,12 @@ extension ThreadHostToolServiceTests {
     func testSendPromptReportsUnlistableThreadsAsMissing() async throws {
         let fixture = try ThreadHostToolFixture()
         let draft = AgentThread(name: "Draft", isDraft: true, mode: .task)
-        draft.conversations = [Conversation(id: "draft-main", provider: "codex", thread: draft)]
+        draft.conversations = [Conversation(id: "draft-main", harness: "codex", thread: draft)]
         fixture.modelContext.insert(draft)
         let forked = AgentThread(name: "Forked", mode: .task)
         forked.conversations = [
-            Conversation(id: "forked-main", provider: "codex", thread: forked),
-            Conversation(id: "forked-fork", provider: "codex", thread: forked)
+            Conversation(id: "forked-main", harness: "codex", thread: forked),
+            Conversation(id: "forked-fork", harness: "codex", thread: forked)
         ]
         fixture.modelContext.insert(forked)
         try fixture.modelContext.save()
@@ -257,7 +257,7 @@ extension ThreadHostToolFixture {
     }
 
     /// Persisted `send_prompt_to_thread` calls on the calling conversation, each with its result,
-    /// as the provider records them — Claude prefixed with the server name, Codex bare. An
+    /// as the harness records them — Claude prefixed with the server name, Codex bare. An
     /// `unanswered` call is one still in flight, like the call being handled.
     func insertSendPromptCalls(
         to targetConversationID: String,

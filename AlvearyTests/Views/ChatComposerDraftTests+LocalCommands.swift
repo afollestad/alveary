@@ -6,7 +6,7 @@ import XCTest
 @MainActor
 extension ChatComposerDraftTests {
     func testBareEffortCommandClearsOnlyTextWithoutSendingOrRequestingComposerFocus() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         let attachment = LocalFileAttachment(
             fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("notes.txt")
@@ -17,7 +17,7 @@ extension ChatComposerDraftTests {
             fixture: fixture,
             appState: appState,
             effortOptions: effortMenuOptions,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -32,7 +32,7 @@ extension ChatComposerDraftTests {
     }
 
     func testEffortCommandWithTrailingSpaceClearsOnlyTextWithoutSendingOrRequestingComposerFocus() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         let attachment = LocalFileAttachment(
             fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("notes.txt")
@@ -43,7 +43,7 @@ extension ChatComposerDraftTests {
             fixture: fixture,
             appState: appState,
             effortOptions: effortMenuOptions,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -58,7 +58,7 @@ extension ChatComposerDraftTests {
     }
 
     func testEffortCommandAppliesCanonicalCaseInsensitiveValueWithoutSending() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         var appliedEfforts: [String] = []
         fixture.viewModel.replaceInputDraft("/effort HIGH", source: .blockInputMarkdown)
@@ -70,7 +70,7 @@ extension ChatComposerDraftTests {
                 appliedEfforts.append(effort)
                 return true
             },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -83,7 +83,7 @@ extension ChatComposerDraftTests {
     }
 
     func testEffortCommandStagesAcceptedValueDuringActiveTurnWithoutSteeringOrQueueing() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.state.turnState.beginTurn()
         fixture.viewModel.replaceInputDraft("/effort high", source: .blockInputMarkdown)
@@ -95,7 +95,7 @@ extension ChatComposerDraftTests {
                 _ = fixture.viewModel.applyEffortChange(effort)
                 return fixture.conversation.thread?.effort == effort
             },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.steerDraft()
@@ -113,7 +113,7 @@ extension ChatComposerDraftTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         let appState = AppState()
         fixture.viewModel.replaceInputDraft("/effort high", source: .blockInputMarkdown)
@@ -125,7 +125,7 @@ extension ChatComposerDraftTests {
                 _ = fixture.viewModel.applyEffortChange(effort)
                 return fixture.conversation.thread?.effort == effort
             },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -139,7 +139,7 @@ extension ChatComposerDraftTests {
     }
 
     func testInvalidEffortCommandPreservesDraftAttachmentsAndShowsDynamicError() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         let attachment = LocalFileAttachment(
             fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("notes.txt")
@@ -155,7 +155,7 @@ extension ChatComposerDraftTests {
                 appliedEfforts.append(effort)
                 return true
             },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -170,7 +170,7 @@ extension ChatComposerDraftTests {
     }
 
     func testRejectedEffortCommandPreservesDraftAndUnderlyingError() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.replaceInputDraft("/effort high", source: .blockInputMarkdown)
         let chatView = makeChatView(
@@ -181,7 +181,7 @@ extension ChatComposerDraftTests {
                 fixture.viewModel.lastTurnError = "Could not save the setting."
                 return false
             },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -192,7 +192,7 @@ extension ChatComposerDraftTests {
     }
 
     func testRejectedEffortCommandUsesFallbackErrorWhenCallbackProvidesNone() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.replaceInputDraft("/effort high", source: .blockInputMarkdown)
         let chatView = makeChatView(
@@ -200,7 +200,7 @@ extension ChatComposerDraftTests {
             appState: appState,
             effortOptions: effortMenuOptions,
             onEffortChange: { _ in false },
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -211,10 +211,10 @@ extension ChatComposerDraftTests {
     }
 
     func testEffortTextIsNotInterceptedWithoutModelEffortOptions() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.replaceInputDraft("/effort high", source: .blockInputMarkdown)
-        let chatView = makeChatView(fixture: fixture, appState: appState, providerID: "codex")
+        let chatView = makeChatView(fixture: fixture, appState: appState, harnessID: "codex")
 
         chatView.sendDraft()
 
@@ -224,7 +224,7 @@ extension ChatComposerDraftTests {
     }
 
     func testBareFastCommandTogglesSpeedWithoutSending() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         let attachment = LocalFileAttachment(
             fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("notes.txt")
@@ -236,7 +236,7 @@ extension ChatComposerDraftTests {
             fixture: fixture,
             appState: appState,
             supportsSpeedMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -263,7 +263,7 @@ extension ChatComposerDraftTests {
     }
 
     func testFastCommandWithArgumentTogglesStandardToFastAndSendsPrompt() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.state.runtimeSpeedMode = .standard
         fixture.viewModel.replaceInputDraft("/fast Fix the tests", source: .blockInputMarkdown)
@@ -271,7 +271,7 @@ extension ChatComposerDraftTests {
             fixture: fixture,
             appState: appState,
             supportsSpeedMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -287,7 +287,7 @@ extension ChatComposerDraftTests {
     }
 
     func testFastCommandWithArgumentTogglesFastToStandardAndSendsPrompt() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
         try fixture.context.save()
@@ -297,7 +297,7 @@ extension ChatComposerDraftTests {
             fixture: fixture,
             appState: appState,
             supportsSpeedMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -311,7 +311,7 @@ extension ChatComposerDraftTests {
     }
 
     func testFastCommandWithArgumentQueuesStandardRequirementWhileBusy() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
         try fixture.context.save()
@@ -322,7 +322,7 @@ extension ChatComposerDraftTests {
             fixture: fixture,
             appState: appState,
             supportsSpeedMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.steerDraft()
@@ -364,7 +364,7 @@ extension ChatComposerDraftTests {
             focusedElementSummary: "",
             attachmentStoreRoot: root
         )
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         await fixture.agentsManager.enqueueSendResult(.failure(.sendFailed))
         fixture.viewModel.state.runtimeSpeedMode = .standard
@@ -374,7 +374,7 @@ extension ChatComposerDraftTests {
             fixture: fixture,
             appState: appState,
             supportsSpeedMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -391,7 +391,7 @@ extension ChatComposerDraftTests {
     func testFastCommandToggleFailureRestoresFullCommandAndAttachmentsWithoutSending() async throws {
         let fixture = try ConversationViewModelTestFixture(
             reconfigureError: .reconfigureFailed,
-            providerId: "codex"
+            harnessId: "codex"
         )
         let appState = AppState()
         let attachment = LocalFileAttachment(
@@ -406,7 +406,7 @@ extension ChatComposerDraftTests {
             fixture: fixture,
             appState: appState,
             supportsSpeedMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()

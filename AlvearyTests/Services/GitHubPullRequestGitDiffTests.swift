@@ -55,9 +55,9 @@ struct GitHubPullRequestGitDiffTests {
             invocation.args.contains("fetch")
                 ? .success(pullRequestsShellResult(stderr: "fetch failed", exitCode: 1)) : nil
         }
-        let provider = GitHubPullRequestGitDiff(shell: shell, githubCLI: "/test/gh")
+        let harness = GitHubPullRequestGitDiff(shell: shell, githubCLI: "/test/gh")
         await #expect(throws: PullRequestsServiceError.self) {
-            try await provider.prepare(id: .init(owner: "octo", repo: "alpha", number: 7),
+            try await harness.prepare(id: .init(owner: "octo", repo: "alpha", number: 7),
                                        comparison: .init(base: String(repeating: "a", count: 40), head: String(repeating: "b", count: 40)))
         }
         let directory = try #require(await shell.invocations.first?.directory)

@@ -71,7 +71,7 @@ extension ScheduledTasksViewModelTests {
         XCTAssertEqual(card, makeScheduledCard(task: task, onOpen: { XCTFail("unused") }))
         XCTAssertNotEqual(card, makeScheduledCard(task: task, isRunNowPending: true))
         XCTAssertNotEqual(card, makeScheduledCard(task: task, isSelected: true))
-        XCTAssertNotEqual(card, makeScheduledCard(task: task, providerName: "Codex"))
+        XCTAssertNotEqual(card, makeScheduledCard(task: task, harnessName: "Codex"))
         XCTAssertNotEqual(card, makeScheduledCard(task: task, focusID: "scheduled-edit-other"))
         XCTAssertNotEqual(card, makeScheduledCard(task: makeRowPresentation(title: "Renamed")))
     }
@@ -85,7 +85,7 @@ extension ScheduledTasksViewModelTests {
             state: .active,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "UTC",
-            providerID: "claude",
+            harnessID: "claude",
             workspaceSummary: "/tmp/project",
             destination: nil,
             isWaitingForTarget: false,
@@ -104,7 +104,7 @@ extension ScheduledTasksViewModelTests {
 @MainActor
 private func makeScheduledCard(
     task: ScheduledTaskRowPresentation,
-    providerName: String = "Claude",
+    harnessName: String = "Claude",
     isRunNowPending: Bool = false,
     isSelected: Bool = false,
     focusID: String = "scheduled-edit-definition",
@@ -112,7 +112,7 @@ private func makeScheduledCard(
 ) -> ScheduledTaskCard {
     ScheduledTaskCardEqualityHost(
         task: task,
-        providerName: providerName,
+        harnessName: harnessName,
         isRunNowPending: isRunNowPending,
         isSelected: isSelected,
         focusID: focusID,
@@ -122,7 +122,7 @@ private func makeScheduledCard(
 
 private struct ScheduledTaskCardEqualityHost: View {
     let task: ScheduledTaskRowPresentation
-    let providerName: String
+    let harnessName: String
     let isRunNowPending: Bool
     let isSelected: Bool
     let focusID: String
@@ -133,7 +133,7 @@ private struct ScheduledTaskCardEqualityHost: View {
     var card: ScheduledTaskCard {
         ScheduledTaskCard(
             task: task,
-            providerName: providerName,
+            harnessName: harnessName,
             isRunNowPending: isRunNowPending,
             isSelected: isSelected,
             onOpen: onOpen,

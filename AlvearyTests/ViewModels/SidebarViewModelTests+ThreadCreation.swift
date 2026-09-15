@@ -53,7 +53,7 @@ extension SidebarViewModelTests {
         let draft = try await fixture.viewModel.openDraftThread(project: alpha)
         let conversationID = try XCTUnwrap(draft.conversations.first?.id)
         let conversation = try fixture.requireConversation(id: conversationID)
-        conversation.provider = "codex"
+        conversation.harness = "codex"
         draft.permissionMode = "acceptEdits"
         draft.model = "opus"
         draft.effort = "high"
@@ -67,7 +67,7 @@ extension SidebarViewModelTests {
 
         XCTAssertEqual(moved.persistentModelID, draft.persistentModelID)
         XCTAssertEqual(moved.conversations.first?.id, conversationID)
-        XCTAssertEqual(try fixture.requireConversation(id: conversationID).provider, "codex")
+        XCTAssertEqual(try fixture.requireConversation(id: conversationID).harness, "codex")
         XCTAssertEqual(moved.project?.path, beta.path)
         XCTAssertEqual(moved.permissionMode, "acceptEdits")
         XCTAssertEqual(moved.model, "opus")
@@ -147,20 +147,20 @@ extension SidebarViewModelTests {
     }
 
     func testConcurrentOpenDraftThreadSharesOneRowAndLatestProjectWins() async throws {
-        let discovery = PausingDraftProviderDiscoveryService(statuses: [
-            .claude: SettingsViewModelTests.providerStatus(
+        let discovery = PausingDraftHarnessDiscoveryService(statuses: [
+            .claude: SettingsViewModelTests.harnessStatus(
                 for: .claude,
                 modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
             )
         ])
-        let fixture = try SidebarTestFixture(providerDiscovery: discovery)
+        let fixture = try SidebarTestFixture(harnessDiscovery: discovery)
         let alpha = try fixture.insertProject(name: "Alpha", path: "/tmp/draft-race-alpha")
         let beta = try fixture.insertProject(name: "Beta", path: "/tmp/draft-race-beta")
 
         let firstOpen = Task { @MainActor in
             try await fixture.viewModel.openDraftThread(project: alpha).persistentModelID
         }
-        await discovery.waitUntilProviderStatusesRequested()
+        await discovery.waitUntilHarnessStatusesRequested()
         let latestOpen = Task { @MainActor in
             try await fixture.viewModel.openDraftThread(project: beta).persistentModelID
         }
@@ -168,7 +168,7 @@ extension SidebarViewModelTests {
             await Task.yield()
         }
         XCTAssertEqual(fixture.viewModel.pendingDraftProjectID, beta.id)
-        await discovery.resumeProviderStatuses()
+        await discovery.resumeHarnessStatuses()
 
         let firstDraftID = try await firstOpen.value
         let latestDraftID = try await latestOpen.value
@@ -188,10 +188,10 @@ extension SidebarViewModelTests {
     /// The reported New Thread delay, at the layer that produced it. `SidebarView+Actions` only
     /// moves the selection once this returns, so a blocking discovery probe leaves the content
     /// pane on the old thread for the whole subprocess fan-out.
-    func testOpenDraftThreadDoesNotWaitOnAStaleProviderDiscoveryProbe() async throws {
-        let base = PausingDraftProviderDiscoveryService(
+    func testOpenDraftThreadDoesNotWaitOnAStaleHarnessDiscoveryProbe() async throws {
+        let base = PausingDraftHarnessDiscoveryService(
             statuses: [
-                .claude: SettingsViewModelTests.providerStatus(
+                .claude: SettingsViewModelTests.harnessStatus(
                     for: .claude,
                     modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
                 )
@@ -199,7 +199,7 @@ extension SidebarViewModelTests {
             startsPaused: false
         )
         let clock = DraftDiscoveryTestClock()
-        let cache = CachingAgentProviderDiscoveryService(
+        let cache = CachingAgentHarnessDiscoveryService(
             base: base,
             timeToLive: 60,
             now: { clock.now }
@@ -208,7 +208,7 @@ extension SidebarViewModelTests {
         clock.advance(61)
         await base.pause()
 
-        let fixture = try SidebarTestFixture(providerDiscovery: cache)
+        let fixture = try SidebarTestFixture(harnessDiscovery: cache)
         let project = try fixture.insertProject(name: "Alpha", path: "/tmp/stale-discovery-alpha")
 
         // Would hang here before stale-while-revalidate: the held probe was on the click's path.
@@ -217,14 +217,14 @@ extension SidebarViewModelTests {
 
         var refreshStarted = false
         for _ in 0..<200 {
-            if await base.providerStatusesCallCount() == 2 {
+            if await base.harnessStatusesCallCount() == 2 {
                 refreshStarted = true
                 break
             }
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTAssertTrue(refreshStarted, "expected the stale read to refresh behind the answer")
-        await base.resumeProviderStatuses()
+        await base.resumeHarnessStatuses()
     }
 
     func testCreateThreadSeedsDefaultsAndInitialConversationForGitProjects() async throws {
@@ -245,7 +245,7 @@ extension SidebarViewModelTests {
 
         let thread = try await fixture.viewModel.createThread(
             project: externalProject,
-            provider: "claude",
+            harness: "claude",
             permissionMode: "acceptEdits"
         )
 
@@ -257,7 +257,7 @@ extension SidebarViewModelTests {
         XCTAssertFalse(savedThread.isPinned)
         XCTAssertEqual(savedThread.project?.path, project.path)
         XCTAssertEqual(savedThread.conversations.count, 1)
-        XCTAssertEqual(savedThread.conversations.first?.provider, "claude")
+        XCTAssertEqual(savedThread.conversations.first?.harness, "claude")
         XCTAssertTrue(savedThread.conversations.first?.isMain ?? false)
         XCTAssertEqual(savedThread.conversations.first?.displayOrder, 0)
     }
@@ -268,7 +268,7 @@ extension SidebarViewModelTests {
 
         let thread = try await fixture.viewModel.createThread(
             project: project,
-            provider: "claude",
+            harness: "claude",
             permissionMode: "default"
         )
 
@@ -281,7 +281,7 @@ extension SidebarViewModelTests {
 
         let thread = try await fixture.viewModel.createThread(
             project: project,
-            provider: "claude",
+            harness: "claude",
             permissionMode: "default"
         )
 
@@ -299,7 +299,7 @@ extension SidebarViewModelTests {
 
         let thread = try await fixture.viewModel.createThread(
             project: externalProject,
-            provider: "claude",
+            harness: "claude",
             permissionMode: "default"
         )
 
@@ -316,7 +316,7 @@ extension SidebarViewModelTests {
 
         let thread = try await fixture.viewModel.createThread(
             project: project,
-            provider: "claude",
+            harness: "claude",
             permissionMode: "default"
         )
 
@@ -334,21 +334,21 @@ extension SidebarViewModelTests {
 
         let thread = try await fixture.viewModel.createThread(
             project: project,
-            provider: "claude",
+            harness: "claude",
             permissionMode: "default"
         )
 
         XCTAssertEqual(try fixture.requireThread(thread).effort, "high")
     }
 
-    func testCreateThreadDefaultPathUsesReadyProviderFallback() async throws {
+    func testCreateThreadDefaultPathUsesReadyHarnessFallback() async throws {
         let fixture = try SidebarTestFixture(
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: SettingsViewModelTests.providerStatus(
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: SettingsViewModelTests.harnessStatus(
                     for: .claude,
                     modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
                 ),
-                .codex: SettingsViewModelTests.providerStatus(
+                .codex: SettingsViewModelTests.harnessStatus(
                     for: .codex,
                     installation: .missing,
                     modelOptions: AgentModelOptionTestFixtures.codexModelOptions
@@ -356,7 +356,7 @@ extension SidebarViewModelTests {
             ])
         )
         fixture.settingsService.update {
-            $0.defaultProvider = "codex"
+            $0.defaultHarness = "codex"
             $0.defaultModel = "gpt-5.4-mini"
             $0.permissionMode = "never"
         }
@@ -367,30 +367,30 @@ extension SidebarViewModelTests {
         let savedThread = try fixture.requireThread(thread)
         XCTAssertEqual(savedThread.model, nil)
         XCTAssertEqual(savedThread.permissionMode, "default")
-        XCTAssertEqual(savedThread.conversations.first?.provider, "claude")
+        XCTAssertEqual(savedThread.conversations.first?.harness, "claude")
     }
 
-    func testCreateThreadDefaultPathFailsWhenNoProviderIsReady() async throws {
+    func testCreateThreadDefaultPathFailsWhenNoHarnessIsReady() async throws {
         let fixture = try SidebarTestFixture(
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: SettingsViewModelTests.providerStatus(
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: SettingsViewModelTests.harnessStatus(
                     for: .claude,
                     installation: .missing,
                     modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
                 ),
-                .codex: SettingsViewModelTests.providerStatus(
+                .codex: SettingsViewModelTests.harnessStatus(
                     for: .codex,
                     setup: .needsSetup,
                     modelOptions: AgentModelOptionTestFixtures.codexModelOptions
                 )
             ])
         )
-        let project = try fixture.insertProject(name: "No Providers", path: "/tmp/no-ready-providers")
+        let project = try fixture.insertProject(name: "No Harnesses", path: "/tmp/no-ready-providers")
 
         do {
             _ = try await fixture.viewModel.createThread(project: project)
-            XCTFail("Expected no-ready-provider failure")
-        } catch SidebarViewModelError.noReadyThreadDefaultProvider {
+            XCTFail("Expected no-ready-harness failure")
+        } catch SidebarViewModelError.noReadyThreadDefaultHarness {
             XCTAssertTrue(fixture.context.hasChanges == false)
         }
     }
@@ -406,7 +406,7 @@ extension SidebarViewModelTests {
 
         let thread = try await fixture.viewModel.createThread(
             project: externalProject,
-            provider: "claude",
+            harness: "claude",
             permissionMode: "acceptEdits"
         )
 

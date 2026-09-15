@@ -135,14 +135,14 @@ private extension PullRequestReviewTeamEditorSheet {
 
             SettingsFormSection {
                 SettingsFormRow {
-                    SettingsResponsiveControlRow("Agent", horizontalControlSizing: .intrinsic) {
+                    SettingsResponsiveControlRow("Harness", horizontalControlSizing: .intrinsic) {
                         SettingsMenuPicker(
-                            "Reviewer \(index + 2) agent",
-                            selection: providerBinding(index: index),
-                            options: viewModel.pullRequestReviewPeerProviderOptions(
-                                including: peers[index].providerID
+                            "Reviewer \(index + 2) harness",
+                            selection: harnessBinding(index: index),
+                            options: viewModel.pullRequestReviewPeerHarnessOptions(
+                                including: peers[index].harnessID
                             ),
-                            label: { viewModel.providerDisplayName(for: $0) }
+                            label: { viewModel.harnessDisplayName(for: $0) }
                         )
                     }
                 }
@@ -156,7 +156,7 @@ private extension PullRequestReviewTeamEditorSheet {
                             label: { value in
                                 viewModel.pullRequestReviewPeerModelLabel(
                                     value,
-                                    providerID: peers[index].providerID
+                                    harnessID: peers[index].harnessID
                                 )
                             }
                         )
@@ -218,20 +218,20 @@ private extension PullRequestReviewTeamEditorSheet {
         peers.append(peer)
     }
 
-    func providerBinding(index: Int) -> Binding<String> {
+    func harnessBinding(index: Int) -> Binding<String> {
         Binding(
-            get: { peers[index].providerID },
-            set: { providerID in
+            get: { peers[index].harnessID },
+            set: { harnessID in
                 if let replacement = viewModel.defaultPullRequestReviewPeer(
-                    providerID: providerID,
+                    harnessID: harnessID,
                     excluding: peers.enumerated().compactMap { $0.offset == index ? nil : $0.element },
                     settings: draft
                 ) {
-                    peers[index].providerID = providerID
+                    peers[index].harnessID = harnessID
                     peers[index].model = replacement.model
                     peers[index].effort = replacement.effort
                 } else {
-                    peers[index].providerID = providerID
+                    peers[index].harnessID = harnessID
                     peers[index].model = ""
                     peers[index].effort = AppSettings.defaultEffortLevel
                 }
@@ -244,12 +244,12 @@ private extension PullRequestReviewTeamEditorSheet {
             get: { viewModel.pullRequestReviewPeerModelSelection(peers[index]) },
             set: { selection in
                 let model = viewModel.pullRequestReviewPeerStoredModel(
-                    providerID: peers[index].providerID,
+                    harnessID: peers[index].harnessID,
                     selection: selection
                 )
                 peers[index].model = model
                 peers[index].effort = viewModel.pullRequestReviewPeerDefaultEffort(
-                    providerID: peers[index].providerID,
+                    harnessID: peers[index].harnessID,
                     model: model
                 )
             }

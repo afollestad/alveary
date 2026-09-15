@@ -8,7 +8,7 @@ These instructions cover `Alveary/App/` — the entry point, `AppDelegate`, `App
 
 - Keep `NSApplicationDelegate` implementations such as `AppDelegate` on `@MainActor`.
 - When Swift 6 strict concurrency and AppKit interop fight in lifecycle code, prefer small explicit seams: injected dependencies for startup/shutdown behavior, and `@preconcurrency import AppKit` only where needed to bridge sendability gaps.
-- **`.appWillTerminate` is an early shutdown contract, not a best-effort hint.** An observer owning teardown that must finish before process exit (file watchers, debounce tasks) completes synchronously on the main actor, never behind a `Task` hop — including flushing app-scoped conversation controllers before `AgentsManager.beginShutdown()` tears down provider runtimes.
+- **`.appWillTerminate` is an early shutdown contract, not a best-effort hint.** An observer owning teardown that must finish before process exit (file watchers, debounce tasks) completes synchronously on the main actor, never behind a `Task` hop — including flushing app-scoped conversation controllers before `AgentsManager.beginShutdown()` tears down harness runtimes.
 - **To reach the main actor from a delegate callback not guaranteed to run there** (for example `UNUserNotificationCenterDelegate`), use `Task { @MainActor in ... }` — never `DispatchQueue.main.async` plus `MainActor.assumeIsolated`. `assumeIsolated` stays right inside callbacks already delivered on main, such as `NotificationCenter` observers registered with `queue: .main` or synchronous `deinit` work on a `@MainActor` type.
 
 ## Root Layout

@@ -9,37 +9,37 @@ struct RawTranscriptLogEntry: Identifiable, Equatable {
 }
 
 struct RawTranscriptSource: Hashable {
-    let providerID: String
-    let providerSessionID: String
+    let harnessID: String
+    let harnessSessionID: String
     let workingDirectory: String?
 
     var id: String {
-        [providerID, providerSessionID, workingDirectory ?? ""].joined(separator: "\u{1F}")
+        [harnessID, harnessSessionID, workingDirectory ?? ""].joined(separator: "\u{1F}")
     }
 
-    init?(providerID: String?, providerSessionID: String?, workingDirectory: String?) {
-        guard let providerID, !providerID.isEmpty,
-              let providerSessionID, !providerSessionID.isEmpty else {
+    init?(harnessID: String?, harnessSessionID: String?, workingDirectory: String?) {
+        guard let harnessID, !harnessID.isEmpty,
+              let harnessSessionID, !harnessSessionID.isEmpty else {
             return nil
         }
-        self.providerID = providerID
-        self.providerSessionID = providerSessionID
+        self.harnessID = harnessID
+        self.harnessSessionID = harnessSessionID
         self.workingDirectory = workingDirectory
     }
 
     func fileURL(fileManager: FileManager = .default) -> URL? {
-        switch providerID {
+        switch harnessID {
         case "claude":
             guard let workingDirectory, !workingDirectory.isEmpty else {
                 return nil
             }
             return AgentCLIKit.ClaudePathEncoder.sessionFileURL(
-                sessionId: AgentCLIKit.AgentSessionID(rawValue: providerSessionID),
+                sessionId: AgentCLIKit.AgentSessionID(rawValue: harnessSessionID),
                 workingDirectoryPath: workingDirectory
             )
         case "codex":
             return RawTranscriptCodexSessionLocator.sessionFileURL(
-                threadID: providerSessionID,
+                threadID: harnessSessionID,
                 fileManager: fileManager
             )
         default:

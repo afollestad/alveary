@@ -6,13 +6,13 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskRunExecutorTests {
-    func testStopDuringProviderSetupPreventsScheduledRuntimeLaunch() async throws {
+    func testStopDuringHarnessSetupPreventsScheduledRuntimeLaunch() async throws {
         let scheduledFixture = try ScheduledConversationViewModelFixture()
         defer { scheduledFixture.removeFiles() }
         let fixture = scheduledFixture.fixture
         let run = try XCTUnwrap(fixture.thread.scheduledTaskRun)
-        let gate = ScheduledProviderStartGate()
-        await fixture.providerSetup.setPrepareForSpawnHook {
+        let gate = ScheduledHarnessStartGate()
+        await fixture.harnessSetup.setPrepareForSpawnHook {
             await gate.waitForRelease()
         }
         let registry = DefaultConversationControllerRegistry(
@@ -48,13 +48,13 @@ extension ScheduledTaskRunExecutorTests {
         XCTAssertTrue(try fixture.userMessages().isEmpty)
     }
 
-    func testCoordinatorCancellationDuringProviderSetupPreventsScheduledRuntimeLaunch() async throws {
+    func testCoordinatorCancellationDuringHarnessSetupPreventsScheduledRuntimeLaunch() async throws {
         let scheduledFixture = try ScheduledConversationViewModelFixture()
         defer { scheduledFixture.removeFiles() }
         let fixture = scheduledFixture.fixture
         let run = try XCTUnwrap(fixture.thread.scheduledTaskRun)
-        let gate = ScheduledProviderStartGate()
-        await fixture.providerSetup.setPrepareForSpawnHook {
+        let gate = ScheduledHarnessStartGate()
+        await fixture.harnessSetup.setPrepareForSpawnHook {
             await gate.waitForRelease()
         }
         let registry = DefaultConversationControllerRegistry(
@@ -87,7 +87,7 @@ extension ScheduledTaskRunExecutorTests {
         XCTAssertTrue(try fixture.userMessages().isEmpty)
     }
 
-    func testTranscriptStopDuringProviderSetupClearsPendingAndInterruptsWithoutLaunching() async throws {
+    func testTranscriptStopDuringHarnessSetupClearsPendingAndInterruptsWithoutLaunching() async throws {
         let scheduledFixture = try ScheduledConversationViewModelFixture()
         defer { scheduledFixture.removeFiles() }
         let fixture = scheduledFixture.fixture
@@ -99,8 +99,8 @@ extension ScheduledTaskRunExecutorTests {
             fixture: fixture
         )
 
-        let gate = ScheduledProviderStartGate()
-        await fixture.providerSetup.setPrepareForSpawnHook {
+        let gate = ScheduledHarnessStartGate()
+        await fixture.harnessSetup.setPrepareForSpawnHook {
             await gate.waitForRelease()
         }
         let coordinator = try makeCoordinator(scheduledFixture: scheduledFixture, run: run)
@@ -197,7 +197,7 @@ private extension ScheduledTaskRunExecutorTests {
             destination: .newThreadPerRun,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: run.timeZoneIdentifierSnapshot,
-            providerID: run.providerIDSnapshot,
+            harnessID: run.harnessIDSnapshot,
             effort: run.effortSnapshot,
             permissionMode: run.permissionModeSnapshot,
             workspaceKind: .project,
@@ -418,7 +418,7 @@ private enum ScheduledLiveInteraction: Equatable {
     }
 }
 
-private actor ScheduledProviderStartGate {
+private actor ScheduledHarnessStartGate {
     private var entered = false
     private var cancellationObserved = false
     private var released = false

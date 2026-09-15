@@ -1,7 +1,7 @@
 import Foundation
 
 extension ChatView {
-    /// Team workers are coordinator-owned and never have an ordinary provider turn to cancel.
+    /// Team workers are coordinator-owned and never have an ordinary harness turn to cancel.
     func stopActiveWork() {
         isStopConfirmationArmed = false
         if isReviewTeamWorking {

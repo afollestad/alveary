@@ -16,7 +16,7 @@ enum ThreadHostToolPresentation {
             .contains { matches(toolName, hostToolName: $0) }
     }
 
-    /// Providers disagree on whether a host tool name carries the server prefix.
+    /// Harnesses disagree on whether a host tool name carries the server prefix.
     private static func matches(_ toolName: String, hostToolName: String) -> Bool {
         AlvearyHostToolCatalog.matches(reportedName: toolName, hostToolName: hostToolName)
     }

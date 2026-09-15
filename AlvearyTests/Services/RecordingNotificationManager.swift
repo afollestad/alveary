@@ -12,7 +12,7 @@ final class RecordingNotificationManager: NotificationManager {
     var handleEventCalls: [RecordedNotificationEvent] = []
     var markReadCalls: [String] = []
     var refreshBadgeCountCalls = 0
-    var activeConversationProviderCalls = 0
+    var activeConversationHarnessCalls = 0
     var handleAppVisibilityChangedCalls = 0
 
     func handleEvent(_ event: ConversationEvent, conversationId: String) {
@@ -39,6 +39,6 @@ final class RecordingNotificationManager: NotificationManager {
     }
 
     func setActiveConversationProvider(_ provider: @escaping @MainActor () -> String?) {
-        activeConversationProviderCalls += 1
+        activeConversationHarnessCalls += 1
     }
 }

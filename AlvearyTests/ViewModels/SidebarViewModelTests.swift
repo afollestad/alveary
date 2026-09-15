@@ -289,13 +289,13 @@ final class SidebarViewModelTests: XCTestCase {
             project: project
         )
         primaryThread.conversations = [
-            Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: primaryThread),
-            Conversation(id: "side", title: "Side", provider: "claude", isMain: false, displayOrder: 1, thread: primaryThread)
+            Conversation(id: "main", title: "Main", harness: "claude", isMain: true, displayOrder: 0, thread: primaryThread),
+            Conversation(id: "side", title: "Side", harness: "claude", isMain: false, displayOrder: 1, thread: primaryThread)
         ]
 
         let secondaryThread = AgentThread(name: "Secondary", project: project)
         secondaryThread.conversations = [
-            Conversation(id: "archived", title: "Archived", provider: "claude", isMain: true, displayOrder: 0, thread: secondaryThread)
+            Conversation(id: "archived", title: "Archived", harness: "claude", isMain: true, displayOrder: 0, thread: secondaryThread)
         ]
 
         project.threads = [primaryThread, secondaryThread]
@@ -325,7 +325,7 @@ final class SidebarViewModelTests: XCTestCase {
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
         let thread = AgentThread(name: "Primary", project: project)
         thread.conversations = [
-            Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: thread)
+            Conversation(id: "main", title: "Main", harness: "claude", isMain: true, displayOrder: 0, thread: thread)
         ]
         project.threads = [thread]
         fixture.context.insert(project)
@@ -362,7 +362,7 @@ final class SidebarViewModelTests: XCTestCase {
             project: project
         )
         thread.conversations = [
-            Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: thread)
+            Conversation(id: "main", title: "Main", harness: "claude", isMain: true, displayOrder: 0, thread: thread)
         ]
 
         project.threads = [thread]

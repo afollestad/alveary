@@ -246,7 +246,7 @@ private extension ScheduledTaskHostToolService {
         parsedRequest: ScheduledTaskParsedProposalRequest
     ) async throws -> AgentCLIKit.AgentHostToolResult {
         let prepared = try await prepareGrantMetadata(
-            request: parsedRequest.request, sourceThread: source.thread, providerID: context.providerId.rawValue
+            request: parsedRequest.request, sourceThread: source.thread, harnessID: context.harnessId.rawValue
         )
         // Discovery suspends: revalidate the caller, target revision, and exact retry before
         // persisting anything. Retained folders are never probed or rewritten.
@@ -266,7 +266,7 @@ private extension ScheduledTaskHostToolService {
         let resolution = try resolveProposal(
             parsedRequest.request,
             sourceThread: liveSource.thread,
-            sourceProviderID: context.providerId.rawValue,
+            sourceHarnessID: context.harnessId.rawValue,
             resolveNewFolder: { path in
                 guard let folder = prepared.folders[path], folder.path == path else {
                     throw ScheduledTaskHostToolServiceError.grantRootUnavailable(path: path)
@@ -322,11 +322,11 @@ private extension ScheduledTaskHostToolService {
     func prepareGrantMetadata(
         request: ScheduledTaskProposalRequest,
         sourceThread: AgentThread,
-        providerID: String
+        harnessID: String
     ) async throws -> PreparedScheduledTaskGrantMetadata {
         var newPaths = Set<String>()
         let prepared = try resolveProposal(
-            request, sourceThread: sourceThread, sourceProviderID: providerID,
+            request, sourceThread: sourceThread, sourceHarnessID: harnessID,
             resolveNewFolder: { path in
                 newPaths.insert(path)
                 return SourceFolderSnapshot(path: path)
@@ -355,7 +355,7 @@ private extension ScheduledTaskHostToolService {
             action: parsedRequest.request.action,
             canonicalPayloadJSON: parsedRequest.canonicalPayloadJSON,
             canonicalPayloadHash: parsedRequest.canonicalPayloadHash,
-            sourceProviderID: context.providerId.rawValue,
+            sourceHarnessID: context.harnessId.rawValue,
             sourceProcessToken: context.processToken,
             sourceRequestID: identity.requestID,
             targetDefinitionID: resolution.targetDefinitionID,

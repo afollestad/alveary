@@ -58,7 +58,7 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
         XCTAssertFalse(activity.isWorking(uppercase, kind: .review))
     }
 
-    func testCollectiveWorkIgnoresProviderTurnCompletion() {
+    func testCollectiveWorkIgnoresHarnessTurnCompletion() {
         let (activity, center) = makeActivity()
         activity.setCollectiveWorking(true, identifier: identifier, conversationID: "team")
         for signal in [ActivitySignal.idle, .neutral, .stopped, .error] {
@@ -150,7 +150,7 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
         XCTAssertFalse(activity.isWorking(identifier, kind: .review))
     }
 
-    /// A spawn whose provider never starts reports nothing at all, so only the grace can end it.
+    /// A spawn whose harness never starts reports nothing at all, so only the grace can end it.
     func testTheStartupGraceDropsARunThatNeverStarts() async {
         let (activity, _) = makeActivity(startupGrace: .milliseconds(10))
         activity.begin(identifier, kind: .review)

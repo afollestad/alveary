@@ -4,17 +4,17 @@ import Foundation
 struct AgentCLIKitHostServices: Sendable {
     let runtime: AgentCLIKit.DefaultAgentRuntime
     let sessionStore: AgentCLIKit.JSONFileAgentSessionStore
-    let providerDetector: AgentCLIKit.AgentProviderDetector
-    let providerRegistry: AgentCLIKit.AgentProviderRegistry
+    let harnessDetector: AgentCLIKit.AgentHarnessDetector
+    let harnessRegistry: AgentCLIKit.AgentHarnessRegistry
     let claudeConfigStore: AgentCLIKit.ClaudeConfigStore
-    let claudeProviderSetup: AgentCLIKit.ClaudeProviderSetup
+    let claudeHarnessSetup: AgentCLIKit.ClaudeHarnessSetup
     let interactionStore: AgentCLIKit.InMemoryAgentInteractionStore
     let approvalPolicyStore: AgentCLIKit.InMemoryAgentApprovalPolicyStore
     let claudeApprovalPolicyStore: any AgentCLIKit.ClaudeApprovalPolicyStoring & AgentCLIKit.ClaudeTransientDecisionStoring
     let liveHookDecisionProvider: AgentCLIKitLiveHookDecisionProvider
     let contextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache
-    /// Routes provider-native session actions for sessions no runtime owns, such as one a handoff is about to drop.
-    let sessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter
+    /// Routes harness-native session actions for sessions no runtime owns, such as one a handoff is about to drop.
+    let sessionActionRouter: AgentCLIKit.AgentHarnessSessionActionRouter
     let hostAdapter: AgentCLIKitHostAdapter
 }
 
@@ -23,8 +23,8 @@ struct AgentCLIKitHostAdapter: Sendable {
         AgentCLIKit.AgentConversationID(rawValue: rawValue)
     }
 
-    func providerId(_ rawValue: String) -> AgentCLIKit.AgentProviderID? {
-        AgentCLIKit.AgentProviderID(rawValue: rawValue)
+    func harnessId(_ rawValue: String) -> AgentCLIKit.AgentHarnessID? {
+        AgentCLIKit.AgentHarnessID(rawValue: rawValue)
     }
 
     func spawnConfig(
@@ -33,11 +33,11 @@ struct AgentCLIKitHostAdapter: Sendable {
         environment: [String: String] = [:],
         forkSession: Bool = false
     ) throws -> AgentCLIKit.AgentSpawnConfig {
-        guard let providerId = providerId(config.providerId) else {
-            throw AgentCLIKitHostAdapterError.unsupportedProvider(config.providerId)
+        guard let harnessId = harnessId(config.harnessId) else {
+            throw AgentCLIKitHostAdapterError.unsupportedHarness(config.harnessId)
         }
         return AgentCLIKit.AgentSpawnConfig(
-            providerId: providerId,
+            harnessId: harnessId,
             workingDirectory: URL(fileURLWithPath: config.workingDirectory, isDirectory: true),
             arguments: arguments,
             environment: environment,
@@ -118,7 +118,7 @@ private extension AgentCLIKit.AgentSessionForkMode {
 }
 
 enum AgentCLIKitHostAdapterError: Error, Equatable {
-    case unsupportedProvider(String)
+    case unsupportedHarness(String)
 }
 
 struct AgentCLIKitShellRunnerAdapter: AgentCLIKit.ShellRunning {

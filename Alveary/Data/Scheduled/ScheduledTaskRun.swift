@@ -223,6 +223,12 @@ final class ScheduledTaskRun {
     /// what actually happened.
     var targetThread: AgentThread?
 
+    /// Keeps the existing SwiftData column while exposing harness terminology.
+    var harnessIDSnapshot: String {
+        get { providerIDSnapshot }
+        set { providerIDSnapshot = newValue }
+    }
+
     // swiftlint:disable:next function_body_length
     init(
         id: String = UUID().uuidString,
@@ -241,7 +247,7 @@ final class ScheduledTaskRun {
         targetThreadNameSnapshot: String? = nil,
         threadSectionIDSnapshot: String? = nil,
         timeZoneIdentifierSnapshot: String,
-        providerIDSnapshot: String,
+        harnessIDSnapshot: String,
         modelSnapshot: String? = nil,
         effortSnapshot: String,
         permissionModeSnapshot: String,
@@ -298,7 +304,7 @@ final class ScheduledTaskRun {
         self.targetThreadNameSnapshot = targetThreadNameSnapshot
         self.threadSectionIDSnapshot = threadSectionIDSnapshot
         self.timeZoneIdentifierSnapshot = timeZoneIdentifierSnapshot
-        self.providerIDSnapshot = providerIDSnapshot
+        self.providerIDSnapshot = harnessIDSnapshot
         self.modelSnapshot = modelSnapshot
         self.effortSnapshot = effortSnapshot
         self.permissionModeSnapshot = permissionModeSnapshot
@@ -390,7 +396,7 @@ extension ScheduledTaskRun {
                 ?? (reusedThread != nil ? reusedTarget?.threadName : nil),
             threadSectionIDSnapshot: definition.threadSection?.id,
             timeZoneIdentifierSnapshot: definition.timeZoneIdentifier,
-            providerIDSnapshot: targetSnapshot?.providerID ?? definition.providerID,
+            harnessIDSnapshot: targetSnapshot?.harnessID ?? definition.harnessID,
             modelSnapshot: targetSnapshot == nil ? definition.model : targetSnapshot?.model,
             effortSnapshot: targetSnapshot?.effort ?? definition.effort,
             permissionModeSnapshot: targetSnapshot?.permissionMode ?? definition.permissionMode,

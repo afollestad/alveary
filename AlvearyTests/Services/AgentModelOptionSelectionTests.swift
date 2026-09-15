@@ -21,7 +21,7 @@ final class AgentModelOptionSelectionTests: XCTestCase {
     /// A short name must never win over an option that owns the value as its id.
     func testExactModelIDWinsOverAnotherOptionsShortName() {
         let options = Self.claudeOptions + [
-            AgentCLIKit.AgentModelOption(providerId: .claude, id: "opus", model: "opus", label: "Legacy Opus")
+            AgentCLIKit.AgentModelOption(harnessId: .claude, id: "opus", model: "opus", label: "Legacy Opus")
         ]
 
         XCTAssertEqual(AgentModelOptionSelection.option(in: options, matching: "opus")?.label, "Legacy Opus")
@@ -43,13 +43,13 @@ final class AgentModelOptionSelectionTests: XCTestCase {
     /// Thread defaults reset any model they cannot resolve, so a dropped alias would silently discard the user's choice.
     func testThreadDefaultsKeepAStoredFamilyAliasInsteadOfResettingIt() {
         var settings = AppSettings()
-        settings.defaultProvider = "claude"
+        settings.defaultHarness = "claude"
         settings.defaultModel = "opus"
 
         let resolution = ThreadDefaultResolver.resolve(
             settings: settings,
-            providerOrdering: ["claude"],
-            providerStatuses: ["claude": Self.claudeStatus]
+            harnessOrdering: ["claude"],
+            harnessStatuses: ["claude": Self.claudeStatus]
         )
 
         XCTAssertEqual(resolution.storedThreadModel, "claude-opus-5")
@@ -94,7 +94,7 @@ final class AgentModelOptionSelectionTests: XCTestCase {
     /// Mirrors the real catalog's shape: the strongest model leads and the default sits further down.
     private static let claudeOptions: [AgentCLIKit.AgentModelOption] = [
         AgentCLIKit.AgentModelOption(
-            providerId: .claude,
+            harnessId: .claude,
             id: "claude-opus-5",
             model: "claude-opus-5",
             label: "Opus 5",
@@ -103,7 +103,7 @@ final class AgentModelOptionSelectionTests: XCTestCase {
             defaultEffortOption: AgentModelOptionTestFixtures.high
         ),
         AgentCLIKit.AgentModelOption(
-            providerId: .claude,
+            harnessId: .claude,
             id: "claude-opus-4-8",
             model: "claude-opus-4-8",
             label: "Opus 4.8",
@@ -111,7 +111,7 @@ final class AgentModelOptionSelectionTests: XCTestCase {
             defaultEffortOption: AgentModelOptionTestFixtures.high
         ),
         AgentCLIKit.AgentModelOption(
-            providerId: .claude,
+            harnessId: .claude,
             id: "claude-sonnet-5",
             model: "claude-sonnet-5",
             label: "Sonnet 5",
@@ -122,13 +122,13 @@ final class AgentModelOptionSelectionTests: XCTestCase {
         )
     ]
 
-    private static var claudeStatus: AgentCLIKit.AgentProviderStatus {
-        AgentCLIKit.AgentProviderStatus(
-            providerId: .claude,
-            definition: AgentCLIKit.ClaudeProviderDefinition.definition,
+    private static var claudeStatus: AgentCLIKit.AgentHarnessStatus {
+        AgentCLIKit.AgentHarnessStatus(
+            harnessId: .claude,
+            definition: AgentCLIKit.ClaudeHarnessDefinition.definition,
             installation: .installed,
-            availability: AgentCLIKit.AgentProviderAvailability(
-                providerId: .claude,
+            availability: AgentCLIKit.AgentHarnessAvailability(
+                harnessId: .claude,
                 executablePath: "/usr/local/bin/claude"
             ),
             setup: .ready,

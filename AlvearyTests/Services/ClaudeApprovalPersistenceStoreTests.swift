@@ -32,22 +32,22 @@ final class ClaudeApprovalPersistenceStoreTests: XCTestCase {
         _ = await store.recordSessionApproval(sessionApproval())
         await store.recordToolApprovalSelection(
             .sessionExact,
-            providerId: "claude",
+            harnessId: "claude",
             conversationId: "conversation-1",
             sessionId: "session-1"
         )
         let selection = await store.toolApprovalSelection(
-            providerId: "claude",
+            harnessId: "claude",
             conversationId: "conversation-1",
             sessionId: "session-1"
         )
 
-        await store.removeSessionApprovals(providerId: "claude", conversationId: "conversation-1", sessionId: "session-1")
+        await store.removeSessionApprovals(harnessId: "claude", conversationId: "conversation-1", sessionId: "session-1")
         let allowsAfterRemoval = await store.allowsSessionApproval(matching: [
             sessionApproval(matchValue: "git status")
         ])
         let selectionAfterRemoval = await store.toolApprovalSelection(
-            providerId: "claude",
+            harnessId: "claude",
             conversationId: "conversation-1",
             sessionId: "session-1"
         )
@@ -78,7 +78,7 @@ final class ClaudeApprovalPersistenceStoreTests: XCTestCase {
 
     private func sessionApproval(matchValue: String = "git status") -> AgentSessionApprovalGrant {
         AgentSessionApprovalGrant(
-            providerId: "claude",
+            harnessId: "claude",
             conversationId: "conversation-1",
             sessionId: "session-1",
             matchKind: .bashExact,

@@ -19,7 +19,7 @@ final class DataComponentTests: XCTestCase {
 
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
         let thread = AgentThread(name: "Phase 1")
-        let conversation = Conversation(provider: "claude")
+        let conversation = Conversation(harness: "claude")
         let event = ConversationEventRecord(
             conversationId: conversation.id,
             type: "message",
@@ -34,7 +34,7 @@ final class DataComponentTests: XCTestCase {
             action: .create,
             canonicalPayloadJSON: #"{"action":"create"}"#,
             canonicalPayloadHash: "proposal-payload-hash",
-            sourceProviderID: "codex",
+            sourceHarnessID: "codex",
             sourceProcessToken: UUID(),
             sourceRequestID: "string:proposal-request",
             sourceConversation: conversation,
@@ -138,7 +138,7 @@ final class DataComponentTests: XCTestCase {
 
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
         let thread = AgentThread(name: "Phase 1")
-        let conversation = Conversation(provider: "claude")
+        let conversation = Conversation(harness: "claude")
         let event = ConversationEventRecord(
             conversationId: conversation.id,
             type: "message"
@@ -171,7 +171,7 @@ final class DataComponentTests: XCTestCase {
             destination: .newThreadPerRun,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "codex",
+            harnessID: "codex",
             project: project
         )
     }

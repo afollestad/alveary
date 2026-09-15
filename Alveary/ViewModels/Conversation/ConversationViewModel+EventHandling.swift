@@ -2,7 +2,7 @@ import Foundation
 
 extension ConversationViewModel {
     func handleEvent(_ event: ConversationEvent) {
-        if handleProviderSessionMetadataChanged(event) {
+        if handleHarnessSessionMetadataChanged(event) {
             scheduleSave()
             return
         }
@@ -33,7 +33,7 @@ private extension ConversationViewModel {
     func shouldPersistEvent(_ event: ConversationEvent) -> Bool {
         if state.isGeneratingCommitMessage { return shouldPersistHiddenCommitMessageGenerationEvent(event) }
         if state.isHandingOffSession || state.failedSessionHandoffMessage != nil { return shouldPersistHiddenSessionHandoffEvent(event) }
-        if state.isDrainingCommitMessageGenerationEvents, !isProviderInitiatedTurnStart(event) {
+        if state.isDrainingCommitMessageGenerationEvents, !isHarnessInitiatedTurnStart(event) {
             return acknowledgeLateHiddenCommitMessageGenerationEvent(event)
         }
 
@@ -44,7 +44,7 @@ private extension ConversationViewModel {
         if shouldSuppressInterruptedTurnFallout(event) { return false }
 
         switch event {
-        case .sessionInit, .providerSessionMetadataChanged: return false
+        case .sessionInit, .harnessSessionMetadataChanged: return false
 
         case .permissionModeChanged(let permissionMode):
             return handlePermissionModeChanged(permissionMode)
@@ -92,8 +92,8 @@ private extension ConversationViewModel {
         case .error(let message):
             return shouldPersistErrorEvent(message: message)
 
-        case .providerAuthenticationRequired(let message):
-            return shouldPersistProviderAuthenticationRequiredEvent(message: message)
+        case .harnessAuthenticationRequired(let message):
+            return shouldPersistHarnessAuthenticationRequiredEvent(message: message)
 
         case .subAgentStarted, .subAgentProgress, .subAgentCompleted:
             return shouldPersistSubAgentControlEvent(event)
@@ -109,17 +109,17 @@ private extension ConversationViewModel {
         guard case .toolResult(let id, _, _, _, _) = event else {
             return
         }
-        // Tool output proves the approval prompt is terminal even if the provider replays prompts late.
+        // Tool output proves the approval prompt is terminal even if the harness replays prompts late.
         resolveUnresolvedToolApprovalsCompletedByToolResult(toolUseId: id)
     }
 
-    func handleProviderSessionMetadataChanged(_ event: ConversationEvent) -> Bool {
-        guard case .providerSessionMetadataChanged(_, let name, let preview) = event else {
+    func handleHarnessSessionMetadataChanged(_ event: ConversationEvent) -> Bool {
+        guard case .harnessSessionMetadataChanged(_, let name, let preview) = event else {
             return false
         }
-        let appShotTitleFallback = state.appShotProviderSessionTitleFallback ??
-            latestPersistedAppShotProviderSessionTitleFallback()
-        guard let providerTitle = Self.providerSessionTitle(
+        let appShotTitleFallback = state.appShotHarnessSessionTitleFallback ??
+            latestPersistedAppShotHarnessSessionTitleFallback()
+        guard let harnessTitle = Self.harnessSessionTitle(
             name: name,
             preview: preview,
             appShotTitleFallback: appShotTitleFallback
@@ -132,18 +132,18 @@ private extension ConversationViewModel {
 
         let previousThreadDisplayName = thread.displayName()
         let mainConversation = thread.conversations.first { $0.isMain }
-        if previousThreadDisplayName != providerTitle {
-            thread.name = providerTitle
+        if previousThreadDisplayName != harnessTitle {
+            thread.name = harnessTitle
             NotificationCenter.default.post(name: .threadPresentationChanged, object: thread)
         }
         if let mainConversation,
            mainConversation.shouldFollowThreadRename(previousThreadDisplayName: previousThreadDisplayName) {
-            mainConversation.title = mainConversation.persistedTitle(from: providerTitle)
+            mainConversation.title = mainConversation.persistedTitle(from: harnessTitle)
         }
         return true
     }
 
-    func latestPersistedAppShotProviderSessionTitleFallback() -> String? {
+    func latestPersistedAppShotHarnessSessionTitleFallback() -> String? {
         conversationEventRecords().reversed().first { record in
             record.type == ConversationEventRecord.messageType &&
                 record.role == ConversationEventRecord.userRole &&
@@ -318,7 +318,7 @@ private extension ConversationViewModel {
     ) -> Bool {
         switch activityState {
         case .active:
-            // See `isProviderInitiatedTurnStart`: no host turn means the provider started this one.
+            // See `isHarnessInitiatedTurnStart`: no host turn means the harness started this one.
             if !state.turnState.isActive {
                 state.lastTurnInterrupted = false
                 state.isCancellingTurn = false
@@ -334,8 +334,8 @@ private extension ConversationViewModel {
     }
 
     /// Host-started turns begin before their `.active` arrives, so `.active` outside a turn can only be
-    /// the provider starting one itself, such as Claude consuming a background task notification.
-    func isProviderInitiatedTurnStart(_ event: ConversationEvent) -> Bool {
+    /// the harness starting one itself, such as Claude consuming a background task notification.
+    func isHarnessInitiatedTurnStart(_ event: ConversationEvent) -> Bool {
         guard case .runtimeActivity(.active, _, _) = event else {
             return false
         }

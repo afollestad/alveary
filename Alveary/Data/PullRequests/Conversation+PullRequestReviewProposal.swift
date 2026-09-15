@@ -22,7 +22,7 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
 
     struct Reviewer: Codable, Equatable, Sendable {
         let id: String
-        let providerID: String
+        let harnessID: String
         let modelOptionID: String
     }
 
@@ -111,7 +111,7 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
     /// node id is deliberately *not* snapshotted — it is resolved fresh at confirmation.
     let titleSnapshot: String
     let pendingCommentCountSnapshot: Int
-    let sourceProviderID: String?
+    let sourceHarnessID: String?
     let sourceProcessToken: String?
     let sourceRequestID: String?
     let sourceKind: SourceKind?
@@ -133,7 +133,7 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
         comments: [Comment]?,
         titleSnapshot: String,
         pendingCommentCountSnapshot: Int,
-        sourceProviderID: String?,
+        sourceHarnessID: String?,
         sourceProcessToken: String?,
         sourceRequestID: String?,
         sourceKind: SourceKind? = nil,
@@ -154,7 +154,7 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
         self.comments = comments
         self.titleSnapshot = titleSnapshot
         self.pendingCommentCountSnapshot = pendingCommentCountSnapshot
-        self.sourceProviderID = sourceProviderID
+        self.sourceHarnessID = sourceHarnessID
         self.sourceProcessToken = sourceProcessToken
         self.sourceRequestID = sourceRequestID
         self.sourceKind = sourceKind
@@ -220,7 +220,7 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
             comments: comments.isEmpty ? nil : comments,
             titleSnapshot: titleSnapshot,
             pendingCommentCountSnapshot: pendingCommentCountSnapshot,
-            sourceProviderID: sourceProviderID,
+            sourceHarnessID: sourceHarnessID,
             sourceProcessToken: sourceProcessToken,
             sourceRequestID: sourceRequestID,
             sourceKind: sourceKind,
@@ -231,6 +231,30 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
             reviewers: reviewers,
             createdAt: createdAt
         )
+    }
+
+    /// Keep the stored JSON format stable across the harness terminology rename.
+    private enum CodingKeys: String, CodingKey {
+        case payloadVersion
+        case id
+        case deduplicationKey
+        case repositoryNameWithOwner
+        case number
+        case event
+        case body
+        case comments
+        case titleSnapshot
+        case pendingCommentCountSnapshot
+        case sourceHarnessID = "sourceProviderID"
+        case sourceProcessToken
+        case sourceRequestID
+        case sourceKind
+        case sourceRunID
+        case sourceResultHash
+        case reviewedBaseOID
+        case reviewedHeadOID
+        case reviewers
+        case createdAt
     }
 }
 
@@ -248,6 +272,15 @@ struct ReviewProposalTranscriptPayload: Codable, Equatable, Sendable {
     let commentCount: Int
     let pendingCommentCount: Int
     let supersededProposalIDs: [String]
+}
+
+/// Keep reviewer provenance readable in stored proposals across the harness terminology rename.
+extension PullRequestReviewProposalRecord.Reviewer {
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case harnessID = "providerID"
+        case modelOptionID
+    }
 }
 
 extension Notification.Name {

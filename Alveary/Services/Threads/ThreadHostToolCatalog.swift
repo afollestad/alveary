@@ -142,7 +142,7 @@ private extension ThreadHostToolCatalog {
                             "project_path": HostToolSchema.stringSchema,
                             "project_id": HostToolSchema.stringSchema,
                             "primary_folder_path": HostToolSchema.stringSchema,
-                            "provider": HostToolSchema.stringSchema,
+                            "harness": HostToolSchema.stringSchema,
                             "model": HostToolSchema.stringSchema,
                             "effort": HostToolSchema.stringSchema,
                             "permission_mode": HostToolSchema.stringSchema,
@@ -156,7 +156,7 @@ private extension ThreadHostToolCatalog {
                             "name",
                             "workspace",
                             "workspace_kind",
-                            "provider",
+                            "harness",
                             "model",
                             "effort",
                             "permission_mode",
@@ -180,7 +180,7 @@ private extension ThreadHostToolCatalog {
         conversation's saved source, grants, and sidebar placement. mode "task" requests a fresh private workspace. \
         granted_roots explicitly replaces additional folders, including [] to remove all; omission preserves defaults. \
         section names an existing section, or Tasks, independently of folder access. Legacy project_path must identify \
-        one project unambiguously. Provider, model, and effort inherit this conversation unless specified. initial_prompt \
+        one project unambiguously. Harness, model, and effort inherit this conversation unless specified. initial_prompt \
         dispatches background work to the new thread. Report its returned thread_id; do not wait for the work's outcome.
         """,
         inputSchema: HostToolSchema.strictObject(
@@ -191,7 +191,7 @@ private extension ThreadHostToolCatalog {
                 "primary_folder_path": HostToolSchema.nonEmptyStringSchema,
                 "granted_roots": HostToolSchema.arraySchema(items: HostToolSchema.nonEmptyStringSchema),
                 "name": HostToolSchema.nonEmptyStringSchema,
-                "provider": HostToolSchema.enumSchema(AppSettings.supportedProviderIDs),
+                "harness": HostToolSchema.enumSchema(AppSettings.supportedHarnessIDs),
                 "model": HostToolSchema.nonEmptyStringSchema,
                 "effort": HostToolSchema.nonEmptyStringSchema,
                 "permission_mode": HostToolSchema.enumSchema(AppSettings.supportedPermissionModes),
@@ -211,7 +211,7 @@ private extension ThreadHostToolCatalog {
                 "project_id": HostToolSchema.stringSchema,
                 "primary_folder_path": HostToolSchema.stringSchema,
                 "granted_roots": HostToolSchema.arraySchema(items: HostToolSchema.stringSchema),
-                "provider": HostToolSchema.stringSchema,
+                "harness": HostToolSchema.stringSchema,
                 "model": HostToolSchema.stringSchema,
                 "effort": HostToolSchema.stringSchema,
                 "permission_mode": HostToolSchema.stringSchema,

@@ -6,7 +6,7 @@ struct ScheduledTaskProposalOutcomeTarget: Equatable, Sendable {
     let proposalID: String
     let sourceConversationID: String
     /// Target task name, captured before the proposal row is deleted so the marker can
-    /// keep naming the task for providers whose tool result never carried a title.
+    /// keep naming the task for harnesses whose tool result never carried a title.
     let title: String?
 
     init(proposal: ScheduledTaskProposal) {

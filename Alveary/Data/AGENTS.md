@@ -8,13 +8,13 @@ These instructions cover the SwiftData models under `Alveary/Data/` — conversa
 
 These are persistence contracts backed by SwiftData fields. Treat them as hard constraints unless the work explicitly includes a coordinated migration.
 
-- **Archived-thread restore uses persisted per-conversation `pendingRestoreContext`, not provider resume.** Regenerate the summary from saved `ConversationEventRecord`s, hydrate it into `ConversationState.stagedContext` when the view model is recreated, send it only through the staged-context path, and clear the field on dismissal or successful send.
-    - **Restore summaries carry actionable conversation history only.** Exclude UI-only transcript notes such as session handoff markers, so recovery context does not tell a fresh provider session about Alveary display state.
+- **Archived-thread restore uses persisted per-conversation `pendingRestoreContext`, not harness resume.** Regenerate the summary from saved `ConversationEventRecord`s, hydrate it into `ConversationState.stagedContext` when the view model is recreated, send it only through the staged-context path, and clear the field on dismissal or successful send.
+    - **Restore summaries carry actionable conversation history only.** Exclude UI-only transcript notes such as session handoff markers, so recovery context does not tell a fresh harness session about Alveary display state.
 - **Tool approval resolution belongs on the associated transcript row.** Store approve/deny state on the `tool_approval` `ConversationEventRecord` via `toolApprovalStatus`, not a separate model, so button state survives rebuilds and restarts.
-- **Session-scoped tool approvals are the exception.** `AgentSessionApprovalRule` stores provider-scoped, session-scoped grants — exact Bash commands, command groups, exact file paths — that let `AgentCLIKit` answer future requests through Alveary's persistence adapter.
+- **Session-scoped tool approvals are the exception.** `AgentSessionApprovalRule` stores harness-scoped, session-scoped grants — exact Bash commands, command groups, exact file paths — that let `AgentCLIKit` answer future requests through Alveary's persistence adapter.
     - **`AgentSessionApprovalSelection` is not a grant**; it stores only the last approval-button pick, to preselect the next prompt.
     - **Keep both out of transcript persistence** — rendering still reads final button state from `ConversationEventRecord.toolApprovalStatus`.
-    - **Rows are keyed by provider, conversation ID, and provider session ID**; remove them when that conversation's runtime session is replaced or destroyed.
+    - **Rows are keyed by harness, conversation ID, and harness session ID**; remove them when that conversation's runtime session is replaced or destroyed.
 - **`Conversation.lastTurnFailedAt` is the durable half of `ThreadStatus.error`.** Written only from the terminal-boundary writer `ConversationViewModel` installs on `ConversationState`; cleared by `markVisibleTurnStarted()` and again before `sendReserved` dispatches. A new turn-start path that skips that clear leaves a stale failure outranking a live spinner.
 - Key project identity, ordering, and notifications by `Project.id`; paths belong to `ProjectFolder` membership and may appear in multiple projects. Never put computed `Project.path` or repository properties in SwiftData predicates or sort descriptors.
 - Persist `ProjectFolder.remoteName` with `gitRemote`. Thread and schedule consumers read captured `SourceFolderSnapshot` metadata, never the project's current primary folder.
@@ -28,8 +28,8 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
 
 - **`ConversationEventRecord.type` and `.role` are persisted discriminators.** Use the model's `static let` constants (`messageType`, `toolCallType`, `toolApprovalType`, `userRole`, …), never a repeated literal — a typo silently stops matching rows instead of failing to build.
     - Test fixtures may keep literals; asserting the raw persisted value is what catches an accidental constant rename.
-- **Token rows are append-only history.** Persist `tokenCacheCreation`, `providerModelId`, `contextWindowSize`, and `costUsd` on the reporting event, not a separate usage model.
-    - **`context_window_invalidated` is a hidden boundary marker** inserted after a model change on a successful fork so old provider-reported maxes stop applying; it never renders in transcript or restore summary.
+- **Token rows are append-only history.** Persist `tokenCacheCreation`, `harnessModelId`, `contextWindowSize`, and `costUsd` on the reporting event, not a separate usage model.
+    - **`context_window_invalidated` is a hidden boundary marker** inserted after a model change on a successful fork so old harness-reported maxes stop applying; it never renders in transcript or restore summary.
     - **Spend is not context usage.** Usage is latest-window state from the latest token row; spend sums token-row `costUsd` for the active conversation tab, including pre-compaction and pre-invalidation rows.
 - **`sub_agent_completed` and `host_tool_outcome` reuse existing columns**, so neither needed a migration. The first stores the tool ID in `toolId` and metrics in `durationMs` plus JSON `content`, drives grouping only, and stays out of restore text.
     - **`ScheduledTaskProposalReceipt` cannot stand in for `host_tool_outcome`**: it is pruned by process token and retention window, so it is a dedup ledger, not history.

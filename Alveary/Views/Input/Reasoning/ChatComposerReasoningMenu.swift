@@ -55,11 +55,11 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
         self.onCancel = onCancel
         modelsDisclosure = ComposerReasoningModelsDisclosureControl(reducesMotion: reducesMotion)
         // Model rows are the menu's only expensive build (one custom view per
-        // model per provider), so defer them until the disclosure first expands.
+        // model per harness), so defer them until the disclosure first expands.
         hasBuiltModelRows = isModelsExpanded
         modelList = ComposerReasoningModelListView(
             groups: isModelsExpanded ? configuration.modelGroups : [],
-            selectedProviderID: configuration.selection.providerID,
+            selectedHarnessID: configuration.selection.harnessID,
             selectedModelID: configuration.selection.modelID,
             onModelSelected: onModelSelected,
             onCancel: onCancel
@@ -89,7 +89,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
             hasBuiltModelRows = true
             modelList.update(
                 groups: configuration.modelGroups,
-                selectedProviderID: configuration.selection.providerID,
+                selectedHarnessID: configuration.selection.harnessID,
                 selectedModelID: configuration.selection.modelID
             )
         }
@@ -113,7 +113,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
             hasBuiltModelRows = true
             modelList.update(
                 groups: configuration.modelGroups,
-                selectedProviderID: configuration.selection.providerID,
+                selectedHarnessID: configuration.selection.harnessID,
                 selectedModelID: configuration.selection.modelID
             )
         }

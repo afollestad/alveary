@@ -12,7 +12,7 @@ extension DefaultClaudeApprovalPersistenceStore {
     /// The stored rules a grant would duplicate.
     ///
     /// Only the session triple is a predicate; the two match fields are compared in memory. A
-    /// five-term `#Predicate` took ~6s to type-check on CI — twice the budget — and one provider
+    /// five-term `#Predicate` took ~6s to type-check on CI — twice the budget — and one harness
     /// session holds a handful of rules, so narrowing the fetch and filtering costs nothing.
     static func sessionApprovalRules(
         matching grant: AgentSessionApprovalGrant,
@@ -20,7 +20,7 @@ extension DefaultClaudeApprovalPersistenceStore {
     ) -> [AgentSessionApprovalRule] {
         let rules = (try? context.fetch(
             sessionApprovalRulesDescriptor(
-                providerId: grant.providerId,
+                harnessId: grant.harnessId,
                 conversationId: grant.conversationId,
                 sessionId: grant.sessionId
             )
@@ -29,34 +29,34 @@ extension DefaultClaudeApprovalPersistenceStore {
         return rules.filter { $0.matchKind == matchKind && $0.matchValue == grant.matchValue }
     }
 
-    /// Matches every stored rule for one provider session.
+    /// Matches every stored rule for one harness session.
     static func sessionApprovalRulesDescriptor(
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) -> FetchDescriptor<AgentSessionApprovalRule> {
         FetchDescriptor<AgentSessionApprovalRule>(
             predicate: #Predicate {
-                $0.providerId == providerId &&
+                $0.providerId == harnessId &&
                     $0.conversationId == conversationId &&
                     $0.sessionId == sessionId
             }
         )
     }
 
-    /// Matches every stored scope selection for one provider session.
+    /// Matches every stored scope selection for one harness session.
     ///
     /// `sortBy` stays a parameter because only the read path orders by recency; the write and
     /// removal paths deliberately take the store's natural order.
     static func sessionApprovalSelectionsDescriptor(
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String,
         sortBy: [SortDescriptor<AgentSessionApprovalSelection>] = []
     ) -> FetchDescriptor<AgentSessionApprovalSelection> {
         FetchDescriptor<AgentSessionApprovalSelection>(
             predicate: #Predicate {
-                $0.providerId == providerId &&
+                $0.providerId == harnessId &&
                     $0.conversationId == conversationId &&
                     $0.sessionId == sessionId
             },

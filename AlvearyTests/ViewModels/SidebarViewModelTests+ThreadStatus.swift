@@ -40,7 +40,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(fixture.threadStatus(for: thread), .archived)
     }
 
-    /// End to end through the real fold: a provider that errors without ending its turn leaves the
+    /// End to end through the real fold: a harness that errors without ending its turn leaves the
     /// runtime reporting `.busy`, and the persisted failure is what turns the row red anyway.
     func testThreadStatusShowsErrorForDurablyFailedConversationWithStaleBusySignal() async throws {
         let fixture = try SidebarTestFixture()

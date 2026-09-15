@@ -70,7 +70,7 @@ enum ThreadActionWidgetParsing {
             // The result echoes the thread Alveary acted on, which is canonical. `pin_thread`,
             // `unpin_thread`, `archive_thread`, and `send_prompt_to_thread` require the id in the
             // request, so their cards can name it while the call is still running. Launch tools
-            // cannot, and for a provider that emits only the text fallback its own message is the
+            // cannot, and for a harness that emits only the text fallback its own message is the
             // sole source. A structured receipt never takes that fallback — its fields are the answer.
             threadID: receipt?.threadID
                 ?? HostToolWidgetJSON.string(arguments["thread_id"])
@@ -159,14 +159,14 @@ private extension ThreadActionWidgetParsing {
             return .unchanged
         }
         guard let status = receipt?.status, unchangedStatuses.contains(status) else {
-            // A provider that emits only the text fallback still reports refusal through
+            // A harness that emits only the text fallback still reports refusal through
             // `isError`, so every other landed result took effect.
             return .applied
         }
         return .unchanged
     }
 
-    /// The launch tool appends this label so text-only providers retain a nonfatal link failure.
+    /// The launch tool appends this label so text-only harnesses retain a nonfatal link failure.
     static func linkWarning(inMessage message: String?) -> String? {
         guard let message, let marker = message.range(of: "Link warning: ") else { return nil }
         let warning = message[marker.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)

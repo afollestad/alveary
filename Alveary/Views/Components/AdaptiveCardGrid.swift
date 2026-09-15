@@ -1,12 +1,12 @@
 import SwiftUI
 
 /// One owner for the card grids that pair up when wide enough — Skills, MCP, and the
-/// Settings Agents tab — so the column minimum, the two-column threshold, and the flip
+/// Settings Harnesses tab — so the column minimum, the two-column threshold, and the flip
 /// animation cannot drift apart per screen.
 enum AdaptiveCardGridLayout {
     /// Two `columnMinimumWidth` columns plus their gap need 496pt; the rest is slack for
     /// the observing container's content insets. Skills and MCP measure their scroll view
-    /// while the Agents tab measures the grid itself, so the threshold is deliberately
+    /// while the Harnesses tab measures the grid itself, so the threshold is deliberately
     /// loose enough to serve both rather than derived per screen.
     static let twoColumnMinimumWidth: CGFloat = 544
     static let columnMinimumWidth: CGFloat = 240
@@ -54,7 +54,7 @@ extension View {
     /// happens to pass it — near the end, the reflow trails the slide as a second beat.
     ///
     /// Pass `spansMainPane: false` when the measured container is inset from the lane's
-    /// main-content slot (the Settings Agents grid sits behind the settings side list):
+    /// main-content slot (the Settings Harnesses grid sits behind the settings side list):
     /// the settled slot width then overstates the container's width by that inset, so the
     /// modifier falls back to the live-geometry flip, which stays animated but late.
     func adaptiveCardGridColumnCount(

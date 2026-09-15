@@ -5,14 +5,14 @@ import XCTest
 
 @MainActor
 final class SettingsViewModelTests: XCTestCase {
-    func testRefreshProviderStatusesLoadsDetectedStatusAndHelperMetadata() async {
-        let discovery = RecordingProviderDiscoveryService(statuses: [
-            .claude: AgentCLIKit.AgentProviderStatus(
-                providerId: .claude,
-                definition: AgentCLIKit.ClaudeProviderDefinition.definition,
+    func testRefreshHarnessStatusesLoadsDetectedStatusAndHelperMetadata() async {
+        let discovery = RecordingHarnessDiscoveryService(statuses: [
+            .claude: AgentCLIKit.AgentHarnessStatus(
+                harnessId: .claude,
+                definition: AgentCLIKit.ClaudeHarnessDefinition.definition,
                 installation: .installed,
-                availability: AgentCLIKit.AgentProviderAvailability(
-                    providerId: .claude,
+                availability: AgentCLIKit.AgentHarnessAvailability(
+                    harnessId: .claude,
                     executablePath: "/usr/local/bin/claude",
                     versionDescription: "2.1.104"
                 ),
@@ -22,41 +22,41 @@ final class SettingsViewModelTests: XCTestCase {
         ])
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(),
-            providerDiscovery: discovery
+            harnessDiscovery: discovery
         )
 
-        await viewModel.refreshProviderStatuses()
-        let providerStatusesInvocations = await discovery.providerStatusesInvocations()
+        await viewModel.refreshHarnessStatuses()
+        let harnessStatusesInvocations = await discovery.harnessStatusesInvocations()
 
-        XCTAssertEqual(viewModel.providerStatus(for: "claude")?.installation, .installed)
-        XCTAssertEqual(viewModel.shortStatusLabel(for: viewModel.providerStatus(for: "claude")), "Ready")
-        XCTAssertEqual(viewModel.statusDescription(for: viewModel.providerStatus(for: "claude")), "2.1.104 at /usr/local/bin/claude")
+        XCTAssertEqual(viewModel.harnessStatus(for: "claude")?.installation, .installed)
+        XCTAssertEqual(viewModel.shortStatusLabel(for: viewModel.harnessStatus(for: "claude")), "Ready")
+        XCTAssertEqual(viewModel.statusDescription(for: viewModel.harnessStatus(for: "claude")), "2.1.104 at /usr/local/bin/claude")
         XCTAssertEqual(viewModel.installCommand(for: "claude"), "curl -fsSL https://claude.ai/install.sh | bash")
-        XCTAssertEqual(providerStatusesInvocations, 1)
+        XCTAssertEqual(harnessStatusesInvocations, 1)
     }
 
-    func testRefreshProviderStatusesIfNeededOnlyLoadsOnce() async {
-        let discovery = RecordingProviderDiscoveryService(statuses: [
-            .claude: AgentCLIKit.AgentProviderStatus(
-                providerId: .claude,
-                definition: AgentCLIKit.ClaudeProviderDefinition.definition,
+    func testRefreshHarnessStatusesIfNeededOnlyLoadsOnce() async {
+        let discovery = RecordingHarnessDiscoveryService(statuses: [
+            .claude: AgentCLIKit.AgentHarnessStatus(
+                harnessId: .claude,
+                definition: AgentCLIKit.ClaudeHarnessDefinition.definition,
                 installation: .missing,
-                availability: AgentCLIKit.AgentProviderAvailability(providerId: .claude, executablePath: nil),
+                availability: AgentCLIKit.AgentHarnessAvailability(harnessId: .claude, executablePath: nil),
                 setup: .ready,
                 modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
             )
         ])
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(),
-            providerDiscovery: discovery
+            harnessDiscovery: discovery
         )
 
-        await viewModel.refreshProviderStatusesIfNeeded()
-        await viewModel.refreshProviderStatusesIfNeeded()
-        let providerStatusesInvocations = await discovery.providerStatusesInvocations()
+        await viewModel.refreshHarnessStatusesIfNeeded()
+        await viewModel.refreshHarnessStatusesIfNeeded()
+        let harnessStatusesInvocations = await discovery.harnessStatusesInvocations()
 
-        XCTAssertEqual(viewModel.providerStatus(for: "claude")?.installation, .missing)
-        XCTAssertEqual(providerStatusesInvocations, 1)
+        XCTAssertEqual(viewModel.harnessStatus(for: "claude")?.installation, .missing)
+        XCTAssertEqual(harnessStatusesInvocations, 1)
     }
 
     func testCodeFontFamilyOptionsLoadLazilyAndCacheResults() {
@@ -102,12 +102,12 @@ final class SettingsViewModelTests: XCTestCase {
             $0.notifications.sound = false
             $0.notifications.soundName = "Tink"
             $0.branchPrefix = "feature/"
-            $0.providerConfigs["claude"] = ProviderCustomConfig(extraArgs: "--verbose")
+            $0.harnessConfigs["claude"] = HarnessCustomConfig(extraArgs: "--verbose")
         }
         let viewModel = SettingsViewModel(settingsService: service)
 
         XCTAssertEqual(viewModel.lastSettingsPage, .terminal)
-        XCTAssertEqual(viewModel.defaultProvider, "claude")
+        XCTAssertEqual(viewModel.defaultHarness, "claude")
         // The picker value resolves the stored alias against the static catalog, mirroring what a
         // discovery-backed screen shows.
         XCTAssertEqual(viewModel.defaultModel, "claude-opus-5")
@@ -129,7 +129,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.soundEnabled)
         XCTAssertEqual(viewModel.soundName, "Tink")
         XCTAssertEqual(viewModel.branchPrefix, "feature/")
-        XCTAssertEqual(viewModel.providerExtraArgs(for: "claude"), "--verbose")
+        XCTAssertEqual(viewModel.harnessExtraArgs(for: "claude"), "--verbose")
     }
 
     func testContextManagementGettersReflectCurrentSettings() {
@@ -180,7 +180,7 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(settingsService: service)
 
         viewModel.lastSettingsPage = .git
-        viewModel.defaultProvider = "claude"
+        viewModel.defaultHarness = "claude"
         viewModel.defaultModel = "sonnet"
         viewModel.permissionMode = "acceptEdits"
         viewModel.effort = "max"
@@ -202,7 +202,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.branchPrefix = "feature/"
 
         XCTAssertEqual(service.current.lastSettingsPage, .git)
-        XCTAssertEqual(service.current.defaultProvider, "claude")
+        XCTAssertEqual(service.current.defaultHarness, "claude")
         // Writes store the catalog id the typed alias resolves to, mirroring a discovery-backed screen.
         XCTAssertEqual(service.current.defaultModel, "claude-sonnet-5")
         XCTAssertEqual(service.current.permissionMode, "acceptEdits")
@@ -240,7 +240,7 @@ final class SettingsViewModelTests: XCTestCase {
     // Settings Effort picker must not silently retain a value the new model rejects.
     func testDefaultModelSetterCoercesEffortWhenNewModelDoesNotSupportIt() async {
         let limitedSonnet = AgentCLIKit.AgentModelOption(
-            providerId: .claude,
+            harnessId: .claude,
             id: "sonnet",
             model: "sonnet",
             label: "Sonnet",
@@ -248,7 +248,7 @@ final class SettingsViewModelTests: XCTestCase {
             defaultEffortOption: AgentModelOptionTestFixtures.high
         )
         let opus = AgentCLIKit.AgentModelOption(
-            providerId: .claude,
+            harnessId: .claude,
             id: "opus",
             model: "opus",
             label: "Opus",
@@ -262,11 +262,11 @@ final class SettingsViewModelTests: XCTestCase {
         }
         let viewModel = SettingsViewModel(
             settingsService: service,
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: [limitedSonnet, opus])
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: [limitedSonnet, opus])
             ])
         )
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
         viewModel.defaultModel = "sonnet"
 
@@ -282,11 +282,11 @@ final class SettingsViewModelTests: XCTestCase {
         }
         let viewModel = SettingsViewModel(
             settingsService: service,
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
             ])
         )
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
         viewModel.defaultModel = "opus"
 
@@ -294,9 +294,9 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.effort, "high")
     }
 
-    func testDefaultModelGetterUsesOptionIDWhileSetterStoresProviderModelValue() async {
+    func testDefaultModelGetterUsesOptionIDWhileSetterStoresHarnessModelValue() async {
         let modelOption = AgentCLIKit.AgentModelOption(
-            providerId: .codex,
+            harnessId: .codex,
             id: "codex-fast",
             model: "gpt-5.4-mini",
             label: "GPT-5.4-Mini",
@@ -306,16 +306,16 @@ final class SettingsViewModelTests: XCTestCase {
         )
         let service = InMemorySettingsService()
         service.update {
-            $0.defaultProvider = "codex"
+            $0.defaultHarness = "codex"
             $0.defaultModel = "gpt-5.4-mini"
         }
         let viewModel = SettingsViewModel(
             settingsService: service,
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .codex: Self.providerStatus(for: .codex, modelOptions: [modelOption])
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .codex: Self.harnessStatus(for: .codex, modelOptions: [modelOption])
             ])
         )
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
 
         XCTAssertEqual(viewModel.defaultModel, "codex-fast")
 
@@ -332,11 +332,11 @@ final class SettingsViewModelTests: XCTestCase {
         let service = InMemorySettingsService()
         let viewModel = SettingsViewModel(
             settingsService: service,
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
             ])
         )
-        await viewModel.refreshProviderStatuses()
+        await viewModel.refreshHarnessStatuses()
         service.update {
             $0.defaultModel = "sonnet"
             $0.effort = AppSettings.defaultEffortLevel
@@ -348,19 +348,19 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.effort, "high")
     }
 
-    func testProviderExtraArgsHelpersCreateEntriesAndPreserveOtherProviders() {
+    func testHarnessExtraArgsHelpersCreateEntriesAndPreserveOtherHarnesses() {
         let service = InMemorySettingsService()
         service.update {
-            $0.providerConfigs["other"] = ProviderCustomConfig(extraArgs: "--other")
+            $0.harnessConfigs["other"] = HarnessCustomConfig(extraArgs: "--other")
         }
         let viewModel = SettingsViewModel(settingsService: service)
 
-        XCTAssertNil(viewModel.providerExtraArgs(for: "claude"))
+        XCTAssertNil(viewModel.harnessExtraArgs(for: "claude"))
 
-        viewModel.updateProviderExtraArgs(for: "claude", extraArgs: "--verbose")
+        viewModel.updateHarnessExtraArgs(for: "claude", extraArgs: "--verbose")
 
-        XCTAssertEqual(service.current.providerConfigs["claude"], ProviderCustomConfig(extraArgs: "--verbose"))
-        XCTAssertEqual(service.current.providerConfigs["other"], ProviderCustomConfig(extraArgs: "--other"))
+        XCTAssertEqual(service.current.harnessConfigs["claude"], HarnessCustomConfig(extraArgs: "--verbose"))
+        XCTAssertEqual(service.current.harnessConfigs["other"], HarnessCustomConfig(extraArgs: "--other"))
     }
 
     func testSoundNameFallsBackToGlassWhenStoredValueIsNil() {
@@ -442,20 +442,20 @@ final class SettingsViewModelTests: XCTestCase {
 }
 
 extension SettingsViewModelTests {
-    static func providerStatus(
-        for providerId: AgentCLIKit.AgentProviderID,
-        installation: AgentCLIKit.AgentProviderInstallationState = .installed,
+    static func harnessStatus(
+        for harnessId: AgentCLIKit.AgentHarnessID,
+        installation: AgentCLIKit.AgentHarnessInstallationState = .installed,
         isEnabled: Bool = true,
-        setup: AgentCLIKit.AgentProviderReadinessState = .ready,
+        setup: AgentCLIKit.AgentHarnessReadinessState = .ready,
         modelOptions: [AgentCLIKit.AgentModelOption]
-    ) -> AgentCLIKit.AgentProviderStatus {
-        AgentCLIKit.AgentProviderStatus(
-            providerId: providerId,
-            definition: providerId == .claude
-                ? AgentCLIKit.ClaudeProviderDefinition.definition
-                : AgentCLIKit.CodexProviderDefinition.definition,
+    ) -> AgentCLIKit.AgentHarnessStatus {
+        AgentCLIKit.AgentHarnessStatus(
+            harnessId: harnessId,
+            definition: harnessId == .claude
+                ? AgentCLIKit.ClaudeHarnessDefinition.definition
+                : AgentCLIKit.CodexHarnessDefinition.definition,
             installation: installation,
-            availability: AgentCLIKit.AgentProviderAvailability(providerId: providerId, executablePath: "/usr/local/bin/\(providerId.rawValue)"),
+            availability: AgentCLIKit.AgentHarnessAvailability(harnessId: harnessId, executablePath: "/usr/local/bin/\(harnessId.rawValue)"),
             isEnabled: isEnabled,
             setup: setup,
             modelOptions: modelOptions
@@ -463,36 +463,36 @@ extension SettingsViewModelTests {
     }
 }
 
-actor RecordingProviderDiscoveryService: AgentCLIKit.AgentProviderDiscoveryService {
-    private let statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
-    private var providerStatusesCallCount = 0
+actor RecordingHarnessDiscoveryService: AgentCLIKit.AgentHarnessDiscoveryService {
+    private let statuses: [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus]
+    private var harnessStatusesCallCount = 0
 
-    init(statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]) {
+    init(statuses: [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus]) {
         self.statuses = statuses
     }
 
-    func providerStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        providerStatusesCallCount += 1
+    func harnessStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] {
+        harnessStatusesCallCount += 1
         return statuses
     }
 
-    func installedProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+    func installedHarnessStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] {
         statuses.filter { $0.value.isInstalled }
     }
 
-    func availableProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+    func availableHarnessStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] {
         statuses.filter { $0.value.isEnabled && $0.value.installation != .missing }
     }
 
-    func modelOptions(for providerId: AgentCLIKit.AgentProviderID) async -> [AgentCLIKit.AgentModelOption] {
-        statuses[providerId]?.modelOptions ?? AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
+    func modelOptions(for harnessId: AgentCLIKit.AgentHarnessID) async -> [AgentCLIKit.AgentModelOption] {
+        statuses[harnessId]?.modelOptions ?? AgentCLIKit.AgentDefaultModelOptions.harnessDefault(for: harnessId)
     }
 
-    func stableProviderOrdering() async -> [AgentCLIKit.AgentProviderID] {
+    func stableHarnessOrdering() async -> [AgentCLIKit.AgentHarnessID] {
         [.claude, .codex]
     }
 
-    func providerStatusesInvocations() -> Int {
-        providerStatusesCallCount
+    func harnessStatusesInvocations() -> Int {
+        harnessStatusesCallCount
     }
 }

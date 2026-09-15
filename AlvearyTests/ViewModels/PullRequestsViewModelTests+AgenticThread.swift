@@ -251,7 +251,7 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(pane.workingKinds, [.review])
     }
 
-    /// A spawn whose provider never starts would otherwise spin forever.
+    /// A spawn whose harness never starts would otherwise spin forever.
     func testARunThatNeverStartsIsDroppedByTheStartupGrace() async {
         let pane = await openedReviewPane(
             startupGrace: .milliseconds(10),
@@ -374,7 +374,7 @@ extension PullRequestsViewModelTests {
 
     func testAFailedStartSurfacesAsAFooterBannerAndReleasesTheButton() async {
         let pane = await openedReviewPane(starter: { _ in
-            throw PullRequestAgenticThreadService.StartError.noReadyProvider
+            throw PullRequestAgenticThreadService.StartError.noReadyHarness
         })
 
         pane.viewModel.startAgenticThread(kind: .addressFeedback)
@@ -383,7 +383,7 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(pane.workingKinds, [])
         XCTAssertEqual(
             pane.session?.agenticThreadError,
-            PullRequestAgenticThreadService.StartError.noReadyProvider.localizedDescription
+            PullRequestAgenticThreadService.StartError.noReadyHarness.localizedDescription
         )
 
         pane.viewModel.clearAgenticThreadError()

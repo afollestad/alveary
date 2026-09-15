@@ -104,9 +104,9 @@ extension AgentCLIKitEventMapperTests {
         AgentCLIKit.AgentEventEnvelope(
             generation: 1,
             index: 0,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: nil,
+            harnessSessionId: nil,
             source: .stdout,
             event: event,
             createdAt: Date(timeIntervalSince1970: 0)

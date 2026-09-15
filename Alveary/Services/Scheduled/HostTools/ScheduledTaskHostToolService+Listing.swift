@@ -73,7 +73,7 @@ private extension ScheduledTaskHostToolService {
         value == 1 ? "1 \(singular)" : "\(value) \(singular)s"
     }
 
-    /// The rows go into the text as well as `structuredContent`: a plain-text-fallback provider
+    /// The rows go into the text as well as `structuredContent`: a plain-text-fallback harness
     /// sees only the text, and the transcript's Output section shows the same string.
     func listText(header: String, rows: [String]) -> String {
         rows.isEmpty ? "\(header)." : "\(header):\n\(rows.joined(separator: "\n"))"

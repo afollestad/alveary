@@ -180,7 +180,7 @@ final class ScheduledTaskRunExecutorTests: XCTestCase {
         try await waitUntil("expected scheduled run to start") { run.status == .running }
 
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: makeToolApproval(), status: .pending)
-        try await waitUntil("expected provider cancellation after the save failure") {
+        try await waitUntil("expected harness cancellation after the save failure") {
             await fixture.agentsManager.cancelCalls().isEmpty == false
         }
         fixture.viewModel.state.pendingToolApproval = nil
@@ -231,7 +231,7 @@ final class ScheduledTaskRunExecutorTests: XCTestCase {
         XCTAssertEqual(run.status, .success)
     }
 
-    func testUserStopCancelsActiveProviderWithoutMutatingDefinitionCadence() async throws {
+    func testUserStopCancelsActiveHarnessWithoutMutatingDefinitionCadence() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let definition = ScheduledTask(
             id: "definition",
@@ -240,7 +240,7 @@ final class ScheduledTaskRunExecutorTests: XCTestCase {
             destination: .newThreadPerRun,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "claude",
+            harnessID: "claude",
             effort: "medium",
             permissionMode: "default",
             nextOccurrenceAt: Date(timeIntervalSinceReferenceDate: 10_000),
@@ -286,7 +286,7 @@ final class ScheduledTaskRunExecutorTests: XCTestCase {
         XCTAssertEqual(cancelCalls, [fixture.conversation.id])
     }
 
-    func testTaskCancellationCancelsProviderAndPersistsInterruptionBeforeReturning() async throws {
+    func testTaskCancellationCancelsHarnessAndPersistsInterruptionBeforeReturning() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let run = try attachRun(to: fixture, status: .preparing)
         let suspension = ScheduledExecutionSuspensionRecorder(conversation: fixture.conversation)
@@ -313,7 +313,7 @@ final class ScheduledTaskRunExecutorTests: XCTestCase {
         }
 
         execution.cancel()
-        try await waitUntil("expected provider cancellation request") {
+        try await waitUntil("expected harness cancellation request") {
             await fixture.agentsManager.cancelCalls().isEmpty == false
         }
         fixture.viewModel.state.lastTurnInterrupted = true
@@ -328,7 +328,7 @@ final class ScheduledTaskRunExecutorTests: XCTestCase {
         XCTAssertTrue(cancelCalls.contains(fixture.conversation.id))
     }
 
-    func testStopForHistoricalRunDoesNotCancelProviderOrMutateNewerPendingWork() async throws {
+    func testStopForHistoricalRunDoesNotCancelHarnessOrMutateNewerPendingWork() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let definition = ScheduledTask(
             id: "definition",
@@ -337,7 +337,7 @@ final class ScheduledTaskRunExecutorTests: XCTestCase {
             destination: .newThreadPerRun,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            providerID: "claude",
+            harnessID: "claude",
             effort: "medium",
             permissionMode: "default",
             pendingOccurrenceAt: Date(timeIntervalSinceReferenceDate: 12_000)
@@ -488,7 +488,7 @@ private func makeScheduledTaskRun(
         promptSnapshot: "Run scheduled work.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "claude",
+        harnessIDSnapshot: "claude",
         effortSnapshot: "medium",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: workspaceKind,

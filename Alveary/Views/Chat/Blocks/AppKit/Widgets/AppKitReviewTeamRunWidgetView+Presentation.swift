@@ -4,9 +4,9 @@ import Foundation
 /// Keeps the transcript concise while the run details retain the full workflow explanations.
 enum ReviewTeamRunCardPresentation {
     /// Match exact catalog IDs only: resolving a saved family alias would attribute it to today's pinned version.
-    static func modelLabel(providerID: String, modelOptionID: String) -> String {
-        if let providerID = AgentProviderID(rawValue: providerID),
-           let option = AgentDefaultModelOptions.staticOptions(for: providerID).first(where: {
+    static func modelLabel(harnessID: String, modelOptionID: String) -> String {
+        if let harnessID = AgentHarnessID(rawValue: harnessID),
+           let option = AgentDefaultModelOptions.staticOptions(for: harnessID).first(where: {
                $0.id == modelOptionID || $0.model == modelOptionID
            }) {
             return option.label

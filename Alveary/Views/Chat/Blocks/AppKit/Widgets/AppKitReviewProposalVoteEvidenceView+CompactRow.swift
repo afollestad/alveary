@@ -110,7 +110,7 @@ private extension AppKitReviewProposalCompactVoteRowView {
     func modelLabel(_ configuration: PullRequestReviewProposalRecord.Reviewer?) -> String {
         guard let configuration else { return "Model unavailable" }
         return ReviewTeamRunCardPresentation.modelLabel(
-            providerID: configuration.providerID, modelOptionID: configuration.modelOptionID
+            harnessID: configuration.harnessID, modelOptionID: configuration.modelOptionID
         )
     }
 }

@@ -1,6 +1,6 @@
-/// Parses shell-style provider argument text into tokens without shell expansion.
+/// Parses shell-style harness argument text into tokens without shell expansion.
 ///
-/// Alveary uses this for provider extra-args settings and approval-summary command grouping.
+/// Alveary uses this for harness extra-args settings and approval-summary command grouping.
 /// It accepts quotes and backslash escapes, but intentionally does not perform substitutions,
 /// globbing, or environment expansion.
 func parseExtraArgs(_ raw: String) throws -> [String] {
@@ -23,7 +23,7 @@ private struct ShellStyleArgumentsParser {
             current.append("\\")
         }
         if let activeQuote {
-            throw AgentError.spawnFailed("Invalid provider extra args: unmatched \(activeQuote) quote")
+            throw AgentError.spawnFailed("Invalid harness extra args: unmatched \(activeQuote) quote")
         }
 
         flushCurrentIfNeeded()

@@ -47,7 +47,7 @@ extension ThreadHostToolServiceTests {
         XCTAssertTrue(destroyCalls.isEmpty)
     }
 
-    /// Archiving kills the calling provider process mid-call, so the result would never arrive.
+    /// Archiving kills the calling harness process mid-call, so the result would never arrive.
     func testAConversationCannotArchiveItsOwnThread() async throws {
         let fixture = try ThreadHostToolFixture()
 
@@ -85,7 +85,7 @@ extension ThreadHostToolServiceTests {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "Etc/UTC",
-            providerID: "codex",
+            harnessID: "codex",
             targetThread: target
         )
         target.targetedScheduledTasks = [definition]
@@ -115,10 +115,10 @@ extension ThreadHostToolServiceTests {
         XCTAssertNotNil(target.archivedAt)
     }
 
-    func testProviderSessionDiagnosticsAnnotateTheMessageWithoutFailingTheTool() async throws {
-        let diagnostic = ProviderSessionActionDiagnostic.fixture(action: .archive, message: "Codex archive failed")
+    func testHarnessSessionDiagnosticsAnnotateTheMessageWithoutFailingTheTool() async throws {
+        let diagnostic = HarnessSessionActionDiagnostic.fixture(action: .archive, message: "Codex archive failed")
         let fixture = try ThreadHostToolFixture(
-            providerSessionActions: RecordingProviderSessionActionService(archiveDiagnostics: [diagnostic])
+            harnessSessionActions: RecordingHarnessSessionActionService(archiveDiagnostics: [diagnostic])
         )
         let target = try fixture.insertThread(name: "Nightly audit", conversationID: "target-main")
 

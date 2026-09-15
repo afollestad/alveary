@@ -36,7 +36,7 @@ This section owns the cross-surface render-cost rules; `PullRequests/`, `Archive
 
 Cross-surface mapping for status dots and chips: `SidebarThreadRow.statusColor`, plus the conversation-tab and terminal-session chips' `statusIndicator: TabChipStatusIndicator` values.
 
-- **Blue** = waiting on the user (`.waitingForUser`) — both a blocked provider process and a transcript decision the runtime cannot see, which `ConversationDecisionAttention` supplies.
+- **Blue** = waiting on the user (`.waitingForUser`) — both a blocked harness process and a transcript decision the runtime cannot see, which `ConversationDecisionAttention` supplies.
     - A collapsed sidebar section header or project row stands in for the row its collapse hid, through `SidebarHiddenActivityIndicator`: this blue dot when a hidden thread waits, red when one failed, else the neutral working ring, all at 6pt. It ranks waiting, then failed, then working, inverting `ThreadStatus.folded` — the fold owns why.
 - **Green** = done / success (`.unread`, `.succeeded`). Inline transcript tool rows are the muted shape-only exception — they render through `transcriptInlineToolRowColor` with no trailing success/error glyphs (see `Alveary/Views/Chat/Blocks/Tools/AGENTS.md`).
 - **Red** = error (`.error`, `.failed`). **Orange** = user-cancelled (`.cancelled`). **Secondary** = inert (`.stopped`, `.archived`) and draft pull requests (`PullRequestStatus.draft`).

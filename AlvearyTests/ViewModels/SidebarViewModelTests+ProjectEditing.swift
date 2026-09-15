@@ -64,7 +64,7 @@ extension SidebarViewModelTests {
         let project = try fixture.viewModel.saveProjectConfiguration(ProjectConfiguration(name: "Project", folders: folders))
         let projectID = project.id
         let secondMembershipID = project.orderedFolders[1].id
-        let thread = try await fixture.viewModel.createThread(project: project, provider: "codex", permissionMode: "never")
+        let thread = try await fixture.viewModel.createThread(project: project, harness: "codex", permissionMode: "never")
         let workspace = thread.workspaceSnapshot
         var draft = ProjectConfiguration(project: project)
         draft.name = "Renamed"

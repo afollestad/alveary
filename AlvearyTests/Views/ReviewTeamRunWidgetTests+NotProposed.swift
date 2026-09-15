@@ -45,7 +45,7 @@ extension ReviewTeamRunWidgetTests {
         let run = notProposedMarkdownRun()
         let finding = try #require(run.canonical?.findings.first)
         let reviewers = run.team.map {
-            PullRequestReviewProposalRecord.Reviewer(id: $0.id, providerID: $0.providerID, modelOptionID: $0.modelOptionID)
+            PullRequestReviewProposalRecord.Reviewer(id: $0.id, harnessID: $0.harnessID, modelOptionID: $0.modelOptionID)
         }
         let votes = run.team.flatMap { run.voteReports[$0.id]?.votes ?? [] }
         let evidence = AppKitReviewProposalVoteEvidenceView()

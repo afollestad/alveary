@@ -4,7 +4,7 @@ import SwiftUI
 extension ChatView {
     var composerTopContentConfiguration: AppKitChatComposerTopContentView.Configuration {
         var items: [AppKitChatComposerTopContentView.Item] = []
-        appendProviderAuthenticationNotice(to: &items)
+        appendHarnessAuthenticationNotice(to: &items)
         appendLastTurnError(to: &items)
         appendVoiceInputNotice(to: &items)
         appendSessionContinuityNotice(to: &items)
@@ -33,37 +33,37 @@ extension ChatView {
         )))
     }
 
-    /// Banner for a provider that refused the turn until its credential is renewed.
+    /// Banner for a harness that refused the turn until its credential is renewed.
     ///
     /// First in the list, so it outranks every other composer notice: it is the only one offering a way
     /// out of a state where nothing else will work. The accompanying `.error` becomes the transcript
     /// row rather than a second banner — `shouldPersistErrorEvent` nils `lastTurnError` on that path.
-    /// The Sign In action appears only when the registry defines a command for this provider;
+    /// The Sign In action appears only when the registry defines a command for this harness;
     /// otherwise the banner still explains the failure, which is more than the bare error row did.
-    private func appendProviderAuthenticationNotice(to items: inout [AppKitChatComposerTopContentView.Item]) {
-        guard let message = viewModel.providerAuthenticationFailure else {
+    private func appendHarnessAuthenticationNotice(to items: inout [AppKitChatComposerTopContentView.Item]) {
+        guard let message = viewModel.harnessAuthenticationFailure else {
             return
         }
-        let canSignIn = providerSignIn?.signInCommand(for: providerID) != nil && terminalManager != nil
+        let canSignIn = harnessSignIn?.signInCommand(for: harnessID) != nil && terminalManager != nil
         items.append(.inlineBanner(.init(
             message: message,
             severity: .error,
             actionTitle: canSignIn ? "Sign In" : nil,
-            onAction: canSignIn ? { startProviderSignIn() } : nil,
-            onDismiss: { viewModel.providerAuthenticationFailure = nil }
+            onAction: canSignIn ? { startHarnessSignIn() } : nil,
+            onDismiss: { viewModel.harnessAuthenticationFailure = nil }
         )))
     }
 
     /// Opens the sign-in tab and reveals the pane holding it, then clears the banner: the pane is now
     /// what the user is acting in, so leaving the banner up would only be stale.
-    private func startProviderSignIn() {
-        guard let providerSignIn,
+    private func startHarnessSignIn() {
+        guard let harnessSignIn,
               let terminalManager,
-              providerSignIn.startSignIn(providerID: providerID, terminalManager: terminalManager) else {
+              harnessSignIn.startSignIn(harnessID: harnessID, terminalManager: terminalManager) else {
             return
         }
         appState.showTerminalPane()
-        viewModel.providerAuthenticationFailure = nil
+        viewModel.harnessAuthenticationFailure = nil
     }
 
     private func appendLastTurnError(to items: inout [AppKitChatComposerTopContentView.Item]) {
@@ -140,7 +140,7 @@ extension ChatView {
     }
 
     func isGoalActionVisible(_ action: AgentGoalAction, for goal: AgentGoalSnapshot) -> Bool {
-        guard providerID == "claude",
+        guard harnessID == "claude",
               action == .delete,
               goal.status == .active else {
             return true

@@ -14,7 +14,7 @@ final class HostToolDispatcher {
     /// is a constructor argument of `DefaultAgentRuntime` — so a feature that depends on
     /// `AgentsManager` would otherwise recurse through the runtime and overflow the stack during
     /// DI. `ThreadHostToolService` does exactly that, by way of `ThreadLifecycleService`. By the
-    /// time any tool call arrives a provider process is running, so the graph is complete.
+    /// time any tool call arrives a harness process is running, so the graph is complete.
     private let makeFeatures: () -> [any HostToolFeature]
     private var resolvedFeaturesByToolName: [String: any HostToolFeature]?
 

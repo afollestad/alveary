@@ -28,7 +28,7 @@ enum HostToolWidgetJSON {
         return Int(number)
     }
 
-    /// The provider's plain-text fallback: a result that is not JSON at all. `nil` when the
+    /// The harness's plain-text fallback: a result that is not JSON at all. `nil` when the
     /// output did parse, so callers prefer the receipt's own message over its serialization.
     static func plainText(from output: String?) -> String? {
         guard let output, object(from: output) == nil else {

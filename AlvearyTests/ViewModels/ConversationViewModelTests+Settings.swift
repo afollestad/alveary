@@ -62,7 +62,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
 
         await fixture.viewModel.applyModelChange("opus").value
@@ -106,7 +106,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: true,
             reconfigureError: .reconfigureFailed,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
 
         await fixture.viewModel.applyEffortChange("high").value
@@ -163,7 +163,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: true,
             reconfigureError: .reconfigureFailed,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         try fixture.dbThread().model = "sonnet"
         try fixture.context.save()
@@ -183,7 +183,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: true,
             reconfigureError: .reconfigureFailed,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         try fixture.dbThread().permissionMode = "on-request"
         try fixture.context.save()
@@ -194,7 +194,7 @@ extension ConversationViewModelTests {
         XCTAssertNotNil(fixture.viewModel.lastTurnError)
     }
 
-    func testApplyProviderChangeBeforeInitialSetupUpdatesThreadDefaults() async throws {
+    func testApplyHarnessChangeBeforeInitialSetupUpdatesThreadDefaults() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
             initialAgentIsRunning: false
@@ -205,17 +205,17 @@ extension ConversationViewModelTests {
         try fixture.dbThread().effort = "high"
         try fixture.context.save()
 
-        fixture.viewModel.applyProviderChange("codex")
+        fixture.viewModel.applyHarnessChange("codex")
 
-        XCTAssertEqual(try fixture.dbConversation().provider, "codex")
+        XCTAssertEqual(try fixture.dbConversation().harness, "codex")
         XCTAssertNil(try fixture.dbThread().model)
-        XCTAssertEqual(try fixture.dbThread().permissionMode, AppSettings.defaultPermissionMode(forProvider: "codex"))
+        XCTAssertEqual(try fixture.dbThread().permissionMode, AppSettings.defaultPermissionMode(forHarness: "codex"))
         XCTAssertEqual(try fixture.dbThread().effort, AppSettings.defaultEffortLevel)
-        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, AppSettings.defaultPermissionMode(forProvider: "codex"))
-        XCTAssertEqual(fixture.viewModel.state.lastNonPlanPermissionMode, AppSettings.defaultPermissionMode(forProvider: "codex"))
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, AppSettings.defaultPermissionMode(forHarness: "codex"))
+        XCTAssertEqual(fixture.viewModel.state.lastNonPlanPermissionMode, AppSettings.defaultPermissionMode(forHarness: "codex"))
     }
 
-    func testApplyProviderChangeIsRejectedAfterInitialSetup() async throws {
+    func testApplyHarnessChangeIsRejectedAfterInitialSetup() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: false
@@ -224,14 +224,14 @@ extension ConversationViewModelTests {
         try fixture.dbThread().permissionMode = "acceptEdits"
         try fixture.context.save()
 
-        fixture.viewModel.applyProviderChange("codex")
+        fixture.viewModel.applyHarnessChange("codex")
 
-        XCTAssertEqual(try fixture.dbConversation().provider, "claude")
+        XCTAssertEqual(try fixture.dbConversation().harness, "claude")
         XCTAssertEqual(try fixture.dbThread().model, "opus")
         XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
     }
 
-    func testApplyPreStartupProviderModelChangeSavesProviderModelPermissionPlanAndPreservesSupportedEffort() async throws {
+    func testApplyPreStartupHarnessModelChangeSavesHarnessModelPermissionPlanAndPreservesSupportedEffort() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
             initialAgentIsRunning: false
@@ -242,24 +242,24 @@ extension ConversationViewModelTests {
         try fixture.dbThread().effort = "high"
         try fixture.context.save()
 
-        let didApply = fixture.viewModel.applyPreStartupProviderModelChange(
-            providerID: "codex",
+        let didApply = fixture.viewModel.applyPreStartupHarnessModelChange(
+            harnessID: "codex",
             model: "gpt-5.5",
             effortOptions: AgentModelOptionTestFixtures.codexDefaultEfforts,
             defaultEffort: AgentModelOptionTestFixtures.medium.value
         )
 
         XCTAssertTrue(didApply)
-        XCTAssertEqual(try fixture.dbConversation().provider, "codex")
+        XCTAssertEqual(try fixture.dbConversation().harness, "codex")
         XCTAssertEqual(try fixture.dbThread().model, "gpt-5.5")
-        XCTAssertEqual(try fixture.dbThread().permissionMode, AppSettings.defaultPermissionMode(forProvider: "codex"))
+        XCTAssertEqual(try fixture.dbThread().permissionMode, AppSettings.defaultPermissionMode(forHarness: "codex"))
         XCTAssertEqual(try fixture.dbThread().planModeEnabled, false)
         XCTAssertEqual(try fixture.dbThread().effort, "high")
-        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, AppSettings.defaultPermissionMode(forProvider: "codex"))
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, AppSettings.defaultPermissionMode(forHarness: "codex"))
         XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
     }
 
-    func testApplyPreStartupProviderModelChangeDefaultsUnsupportedEffortAndKeepsDefaultModelSentinel() async throws {
+    func testApplyPreStartupHarnessModelChangeDefaultsUnsupportedEffortAndKeepsDefaultModelSentinel() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
             initialAgentIsRunning: false
@@ -268,20 +268,20 @@ extension ConversationViewModelTests {
         try fixture.dbThread().effort = "max"
         try fixture.context.save()
 
-        let didApply = fixture.viewModel.applyPreStartupProviderModelChange(
-            providerID: "codex",
+        let didApply = fixture.viewModel.applyPreStartupHarnessModelChange(
+            harnessID: "codex",
             model: AppSettings.defaultModelValue,
             effortOptions: AgentModelOptionTestFixtures.codexDefaultEfforts,
             defaultEffort: AgentModelOptionTestFixtures.medium.value
         )
 
         XCTAssertTrue(didApply)
-        XCTAssertEqual(try fixture.dbConversation().provider, "codex")
+        XCTAssertEqual(try fixture.dbConversation().harness, "codex")
         XCTAssertNil(try fixture.dbThread().model)
         XCTAssertEqual(try fixture.dbThread().effort, "medium")
     }
 
-    func testApplyPreStartupProviderModelChangeIsRejectedAfterInitialSetup() async throws {
+    func testApplyPreStartupHarnessModelChangeIsRejectedAfterInitialSetup() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: false
@@ -289,15 +289,15 @@ extension ConversationViewModelTests {
         try fixture.dbThread().model = "opus"
         try fixture.context.save()
 
-        let didApply = fixture.viewModel.applyPreStartupProviderModelChange(
-            providerID: "codex",
+        let didApply = fixture.viewModel.applyPreStartupHarnessModelChange(
+            harnessID: "codex",
             model: "gpt-5.5",
             effortOptions: AgentModelOptionTestFixtures.codexDefaultEfforts,
             defaultEffort: AgentModelOptionTestFixtures.medium.value
         )
 
         XCTAssertFalse(didApply)
-        XCTAssertEqual(try fixture.dbConversation().provider, "claude")
+        XCTAssertEqual(try fixture.dbConversation().harness, "claude")
         XCTAssertEqual(try fixture.dbThread().model, "opus")
     }
 

@@ -22,7 +22,7 @@ final class AskUserQuestionOverlayStateTests: XCTestCase {
         XCTAssertEqual(state.answers(for: prompt).first?.answer, "Use the safer path")
     }
 
-    func testParsedCustomResponseRequiresTextWhenCustomOptionHasProviderId() {
+    func testParsedCustomResponseRequiresTextWhenCustomOptionHasHarnessId() {
         let question = PromptEntry.PromptQuestion(
             question: "What should happen?",
             header: nil,

@@ -40,7 +40,7 @@ extension PullRequestAgenticThreadServiceTests {
         fixture: SidebarTestFixture? = nil,
         existingDirectories: Set<String> = [],
         branchesByRoot: [String: String] = [:],
-        providerDiscovery: (any AgentProviderDiscoveryService)? = nil
+        harnessDiscovery: (any AgentHarnessDiscoveryService)? = nil
     ) throws -> StartFixture {
         let fixture = try fixture ?? SidebarTestFixture()
         let pullRequests = StubPullRequestsService()
@@ -55,8 +55,8 @@ extension PullRequestAgenticThreadServiceTests {
             settingsService: fixture.settingsService,
             worktreeManager: fixture.worktreeManager,
             taskWorkspaceOwnershipService: fixture.taskWorkspaceOwnershipService,
-            // Tests use either static defaults or an injected catalog, never a live provider.
-            providerDiscovery: providerDiscovery,
+            // Tests use either static defaults or an injected catalog, never a live harness.
+            harnessDiscovery: harnessDiscovery,
             directoryExists: { existingDirectories.contains($0) },
             currentBranch: { branchesByRoot[$0] },
             startInitialPrompt: { conversation, prompt in
@@ -103,9 +103,9 @@ extension PullRequestAgenticThreadServiceTests {
     }
 
     func testEachRouteCreatesThreadsWithItsOwnAgentSettings() async throws {
-        let start = try makeStartFixture(providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-            .claude: SettingsViewModelTests.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
-            .codex: SettingsViewModelTests.providerStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
+        let start = try makeStartFixture(harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
+            .claude: SettingsViewModelTests.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
+            .codex: SettingsViewModelTests.harnessStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
         ]))
         let project = Project(
             path: "/tmp/alveary-permission-project",
@@ -116,11 +116,11 @@ extension PullRequestAgenticThreadServiceTests {
         try start.fixture.context.save()
         start.fixture.settingsService.update { settings in
             settings.permissionMode = "acceptEdits"
-            settings.pullRequestReviewProvider = "codex"
+            settings.pullRequestReviewHarness = "codex"
             settings.pullRequestReviewModel = "gpt-5.4-mini"
             settings.pullRequestReviewEffort = "medium"
             settings.pullRequestReviewPermissionMode = "never"
-            settings.pullRequestAddressFeedbackProvider = "claude"
+            settings.pullRequestAddressFeedbackHarness = "claude"
             settings.pullRequestAddressFeedbackModel = "haiku"
             settings.pullRequestAddressFeedbackEffort = "low"
             settings.pullRequestAddressFeedbackPermissionMode = "bypassPermissions"
@@ -134,7 +134,7 @@ extension PullRequestAgenticThreadServiceTests {
             let thread = conversation?.thread
             let settings = start.fixture.settingsService.current
             let expected = kind == .review ? settings.pullRequestReviewAgent : settings.pullRequestAddressFeedbackAgent
-            XCTAssertEqual(conversation?.provider, expected.provider)
+            XCTAssertEqual(conversation?.harness, expected.harness)
             XCTAssertEqual(thread?.model, expected.model)
             XCTAssertEqual(thread?.effort, expected.effort)
             XCTAssertEqual(thread?.permissionMode, expected.permissionMode)
@@ -240,10 +240,10 @@ extension PullRequestAgenticThreadServiceTests {
         XCTAssertNil(outcome.linkFailure)
     }
     func testConcurrentCallersSharePreparationAndCheckpointTheirOwnDestination() async throws {
-        let entered = expectation(description: "provider discovery entered")
+        let entered = expectation(description: "harness discovery entered")
         let discovery = LaunchGatedDiscovery(onRead: { entered.fulfill() })
         defer { discovery.gate.open() }
-        let start = try makeStartFixture(providerDiscovery: discovery)
+        let start = try makeStartFixture(harnessDiscovery: discovery)
         var checkpoints: [PullRequestAgenticThreadDestination] = []
         let first = Task { try await start.service.start(
             kind: .review, identifier: start.identifier, url: start.url,
@@ -273,10 +273,10 @@ extension PullRequestAgenticThreadServiceTests {
     }
 
     func testSourceIsRevalidatedAfterPreparationBeforeInsertingATask() async throws {
-        let entered = expectation(description: "provider discovery entered")
+        let entered = expectation(description: "harness discovery entered")
         let discovery = LaunchGatedDiscovery(onRead: { entered.fulfill() })
         defer { discovery.gate.open() }
-        let start = try makeStartFixture(providerDiscovery: discovery)
+        let start = try makeStartFixture(harnessDiscovery: discovery)
         var sourceExists = true
         let launch = Task { try await start.service.start(
             kind: .review, identifier: start.identifier, url: start.url,
@@ -295,10 +295,10 @@ extension PullRequestAgenticThreadServiceTests {
     }
 
     func testCancellationDuringPreparationCreatesNoTask() async throws {
-        let entered = expectation(description: "provider discovery entered")
+        let entered = expectation(description: "harness discovery entered")
         let discovery = LaunchGatedDiscovery(onRead: { entered.fulfill() })
         defer { discovery.gate.open() }
-        let start = try makeStartFixture(providerDiscovery: discovery)
+        let start = try makeStartFixture(harnessDiscovery: discovery)
         let launch = Task { try await start.service.start(kind: .review, identifier: start.identifier, url: start.url) }
         await fulfillment(of: [entered], timeout: 2)
         launch.cancel()
@@ -333,7 +333,7 @@ extension PullRequestAgenticThreadServiceTests {
         XCTAssertFalse(start.service.activity.isWorking(start.identifier, kind: .review))
     }
 
-    func testAnActiveRouteReusesItsTaskUntilTheProviderTurnEnds() async throws {
+    func testAnActiveRouteReusesItsTaskUntilTheHarnessTurnEnds() async throws {
         let start = try makeStartFixture()
         let first = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
         _ = try await first.dispatch.value
@@ -356,24 +356,24 @@ private enum LaunchTestError: Error, Equatable {
     case refused
 }
 
-private actor LaunchGatedDiscovery: AgentProviderDiscoveryService {
+private actor LaunchGatedDiscovery: AgentHarnessDiscoveryService {
     nonisolated let gate = PullRequestsServiceGate()
     private let onRead: @Sendable () -> Void
-    private let statuses: [AgentProviderID: AgentProviderStatus] = [
-        .claude: AgentProviderStatus(providerId: .claude, installation: .installed, setup: .ready,
+    private let statuses: [AgentHarnessID: AgentHarnessStatus] = [
+        .claude: AgentHarnessStatus(harnessId: .claude, installation: .installed, setup: .ready,
                                     modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
     ]
 
     init(onRead: @escaping @Sendable () -> Void) { self.onRead = onRead }
 
-    func providerStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] {
+    func harnessStatuses(projectURL: URL?) async -> [AgentHarnessID: AgentHarnessStatus] {
         onRead()
         await gate.wait()
         return statuses
     }
 
-    func installedProviderStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] { statuses }
-    func availableProviderStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] { statuses }
-    func modelOptions(for providerId: AgentProviderID) async -> [AgentModelOption] { statuses[providerId]?.modelOptions ?? [] }
-    func stableProviderOrdering() async -> [AgentProviderID] { [.claude] }
+    func installedHarnessStatuses(projectURL: URL?) async -> [AgentHarnessID: AgentHarnessStatus] { statuses }
+    func availableHarnessStatuses(projectURL: URL?) async -> [AgentHarnessID: AgentHarnessStatus] { statuses }
+    func modelOptions(for harnessId: AgentHarnessID) async -> [AgentModelOption] { statuses[harnessId]?.modelOptions ?? [] }
+    func stableHarnessOrdering() async -> [AgentHarnessID] { [.claude] }
 }

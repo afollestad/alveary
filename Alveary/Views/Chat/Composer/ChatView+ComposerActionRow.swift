@@ -60,7 +60,7 @@ extension ChatView {
 extension ChatView {
     var supportedPermissionModeOptions: [ChatComposerActionRowView.PermissionOptionPresentation] {
         ChatComposerPermissionPresentation.options(
-            providerID: reasoningConfiguration.selection.providerID,
+            harnessID: reasoningConfiguration.selection.harnessID,
             permissionModes: composerCapabilities.supportedPermissionModes
         )
     }

@@ -43,7 +43,7 @@ final class ScheduledTaskMutationService {
             state: nextOccurrence == nil ? .completed : .active,
             recurrence: edit.recurrence,
             timeZoneIdentifier: timeZoneIdentifier,
-            providerID: edit.providerID,
+            harnessID: edit.harnessID,
             model: edit.model,
             effort: edit.effort,
             permissionMode: edit.permissionMode,
@@ -195,7 +195,7 @@ final class ScheduledTaskMutationService {
             definition.prompt = edit.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
             definition.recurrence = edit.recurrence
             definition.timeZoneIdentifier = timeZoneIdentifier
-            definition.providerID = edit.providerID
+            definition.harnessID = edit.harnessID
             definition.model = edit.model
             definition.effort = edit.effort
             definition.permissionMode = edit.permissionMode

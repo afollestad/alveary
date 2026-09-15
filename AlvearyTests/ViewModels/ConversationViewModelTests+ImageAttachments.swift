@@ -31,7 +31,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(attachment.fileURL.path.contains(fixture.conversation.id))
     }
 
-    func testSupportedProviderSendUsesImageAttachmentsWithoutMarkdownFallback() async throws {
+    func testSupportedHarnessSendUsesImageAttachmentsWithoutMarkdownFallback() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let attachment = localImageAttachment(label: "diagram.png")
         fixture.viewModel.state.stagedImageAttachments = [attachment]
@@ -52,7 +52,7 @@ extension ConversationViewModelTests {
         )
     }
 
-    func testUnsupportedProviderSendConvertsStagedImagesToMarkdownText() async throws {
+    func testUnsupportedHarnessSendConvertsStagedImagesToMarkdownText() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let attachment = localImageAttachment(label: "diagram.png")
         fixture.viewModel.state.stagedImageAttachments = [attachment]
@@ -165,7 +165,7 @@ extension ConversationViewModelTests {
     }
 
     func testCodexAppShotSendUsesHiddenTransportAndLocalImageMetadata() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appShot = try localAppShotAttachment(label: "codex-appshot.png")
         fixture.viewModel.state.stagedAppShots = [appShot]
 
@@ -190,7 +190,7 @@ extension ConversationViewModelTests {
     }
 
     func testClaudeAppShotSendUsesHiddenMarkdownScreenshotAndDirectoryGrant() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "claude")
         let storeRoot = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
         let appShot = try localAppShotAttachment(label: "claude-appshot.png", attachmentStoreRoot: storeRoot)
@@ -212,7 +212,7 @@ extension ConversationViewModelTests {
     }
 
     func testClaudeAppShotTransportEscapesWrapperTextAndMarkdownDestination() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "claude")
         let storeRoot = temporaryDirectory().appendingPathComponent("clip>root", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storeRoot.deletingLastPathComponent()) }
         let appShot = try localAppShotAttachment(
@@ -242,7 +242,7 @@ extension ConversationViewModelTests {
     }
 
     func testQueuedClaudeAppShotKeepsHiddenTransportAndGrantsDirectoryOnDrain() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "claude")
         fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.turnState.beginTurn()
         let storeRoot = temporaryDirectory()
@@ -272,16 +272,16 @@ extension ConversationViewModelTests {
         XCTAssertEqual(sentMetadata, [[:]])
     }
 
-    func testUnsupportedProviderAppShotDoesNotDowngradeToMarkdown() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "unsupported")
+    func testUnsupportedHarnessAppShotDoesNotDowngradeToMarkdown() async throws {
+        let fixture = try ConversationViewModelTestFixture(harnessId: "unsupported")
         let appShot = try localAppShotAttachment(label: "unsupported-appshot.png")
         fixture.viewModel.state.stagedAppShots = [appShot]
 
         do {
             try await fixture.viewModel.send("Use this", supportsLocalImageInput: false)
-            XCTFail("Expected unsupported app-shot provider to fail")
+            XCTFail("Expected unsupported app-shot harness to fail")
         } catch let error as AppShotCaptureError {
-            XCTAssertEqual(error, .unsupportedProvider("unsupported"))
+            XCTAssertEqual(error, .unsupportedHarness("unsupported"))
         }
 
         let sentMessages = await fixture.agentsManager.sentMessages()

@@ -47,7 +47,7 @@ extension ConversationViewModelTests {
     func testSendStartsFreshSessionWithLocalContextWhenStoredCodexSessionCannotResume() async throws {
         let fixture = try ConversationViewModelTestFixture(
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         try seedLocalRestoreHistory(
             fixture,
@@ -85,7 +85,7 @@ extension ConversationViewModelTests {
     }
 
     func testRecoveredNonresumableSendFailureKeepsLocalContextForRetry() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         try seedLocalRestoreHistory(
             fixture,
             userMessage: "Summarize index.html.",
@@ -118,7 +118,7 @@ extension ConversationViewModelTests {
     }
 
     func testSendStartsFreshSessionWithLocalContextWhenCodexSendCannotResume() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         try seedLocalRestoreHistory(
             fixture,
             userMessage: "Summarize index.html.",
@@ -147,16 +147,16 @@ extension ConversationViewModelTests {
         XCTAssertTrue(fixture.viewModel.turnState.isActive)
     }
 
-    func testNonresumableProviderSessionDetectionRecognizesResumeMissingConversationText() throws {
+    func testNonresumableHarnessSessionDetectionRecognizesResumeMissingConversationText() throws {
         let fixture = try ConversationViewModelTestFixture()
 
         XCTAssertTrue(
-            fixture.viewModel.isNonresumableProviderSessionError(
+            fixture.viewModel.isNonresumableHarnessSessionError(
                 AgentError.spawnFailed("Resume failed: no conversation found for session abc123")
             )
         )
         XCTAssertFalse(
-            fixture.viewModel.isNonresumableProviderSessionError(
+            fixture.viewModel.isNonresumableHarnessSessionError(
                 AgentError.spawnFailed("Working directory not found")
             )
         )

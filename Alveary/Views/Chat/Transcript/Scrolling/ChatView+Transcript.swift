@@ -133,7 +133,7 @@ struct ChatTranscriptView: View {
 
     private func transcriptLifecycleObservers<Content: View>(_ content: Content) -> some View {
         content
-            // Proposal confirmation happens outside the provider turn, so the widget's
+            // Proposal confirmation happens outside the harness turn, so the widget's
             // live state needs its own invalidation signal.
             // Editing or pausing a task elsewhere changes what the list tool's row renders.
             .onReceive(NotificationCenter.default.publisher(for: .scheduledTasksChanged)) { _ in

@@ -21,7 +21,7 @@ extension PullRequestHostToolService {
         }
     }
 
-    /// Failed disk writes must still prevent a live provider's exact retry from creating another task.
+    /// Failed disk writes must still prevent a live harness's exact retry from creating another task.
     func retainReviewLaunchFailure(_ result: AgentCLIKit.AgentHostToolResult, identity: PullRequestHostToolCallIdentity) {
         var receipt = makeReceipt(
             identity: identity, toolName: PullRequestHostToolCatalog.startReviewToolName, status: "error", message: result.text

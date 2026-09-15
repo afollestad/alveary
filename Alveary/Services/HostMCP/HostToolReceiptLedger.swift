@@ -6,7 +6,7 @@ import Foundation
 /// conforming type. `HostToolDeduplication` owns how `deduplicationKey` is derived.
 protocol HostToolReceiptRecord: Codable, Equatable, Sendable {
     var deduplicationKey: String { get }
-    /// The provider process that made the call, lowercased. A receipt cannot outlive its process,
+    /// The harness process that made the call, lowercased. A receipt cannot outlive its process,
     /// or a restart reusing a request ID would silently swallow a genuinely new call.
     var sourceProcessToken: String { get }
     var createdAt: Date { get }
@@ -18,7 +18,7 @@ enum HostToolReceiptLedger {
     static let maximumReceiptCount = 256
     static let retention: TimeInterval = 7 * 24 * 60 * 60
 
-    /// Drops receipts from an earlier provider process or past the retention window, keeps the
+    /// Drops receipts from an earlier harness process or past the retention window, keeps the
     /// newest of any duplicated key, and caps the ledger.
     static func maintained<Receipt: HostToolReceiptRecord>(
         _ receipts: [Receipt],

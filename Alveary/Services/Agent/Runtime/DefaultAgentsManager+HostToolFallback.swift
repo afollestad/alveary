@@ -151,7 +151,7 @@ struct HostToolFallbackClassifier {
         case .hostToolsUnavailable:
             return .retryWithoutHostTools
         case let .codexThreadJSONRPC(method, message):
-            guard config.providerId == "codex",
+            guard config.harnessId == "codex",
                   codexThreadBootstrapMethods.contains(method),
                   explicitlyReferencesInjectedCodexHostToolPolicy(message, config: config) else {
                 return .propagate

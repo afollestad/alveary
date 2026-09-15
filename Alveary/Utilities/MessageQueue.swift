@@ -8,12 +8,12 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
     let stagedContext: String?
     let requiredPlanModeEnabled: Bool?
     let requiredSpeedMode: AgentSpeedMode?
-    /// Provider-facing text for delivery; local UI and transcript must keep using `text`.
+    /// Harness-facing text for delivery; local UI and transcript must keep using `text`.
     let transportText: String?
     let attachments: [LocalImageAttachment]
     let fileAttachments: [LocalFileAttachment]
     let appShots: [AppShotAttachment]
-    let providerMetadata: [String: AgentCLIKit.JSONValue]
+    let harnessMetadata: [String: AgentCLIKit.JSONValue]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
     let relayedFrom: RelayedPromptAttribution?
 
@@ -27,7 +27,7 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
         attachments: [LocalImageAttachment] = [],
         fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
-        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil,
         relayedFrom: RelayedPromptAttribution? = nil
     ) {
@@ -40,7 +40,7 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
         self.attachments = attachments
         self.fileAttachments = fileAttachments
         self.appShots = appShots
-        self.providerMetadata = providerMetadata
+        self.harnessMetadata = harnessMetadata
         self.consumedExitPlanModeRevisionGuidance = consumedExitPlanModeRevisionGuidance
         self.relayedFrom = relayedFrom
     }
@@ -60,7 +60,7 @@ final class MessageQueue {
         attachments: [LocalImageAttachment] = [],
         fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
-        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil,
         relayedFrom: RelayedPromptAttribution? = nil
     ) {
@@ -73,7 +73,7 @@ final class MessageQueue {
             attachments: attachments,
             fileAttachments: fileAttachments,
             appShots: appShots,
-            providerMetadata: providerMetadata,
+            harnessMetadata: harnessMetadata,
             consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance,
             relayedFrom: relayedFrom
         ))
@@ -88,7 +88,7 @@ final class MessageQueue {
         attachments: [LocalImageAttachment] = [],
         fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
-        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
         pending.insert(QueuedMessage(
@@ -100,7 +100,7 @@ final class MessageQueue {
             attachments: attachments,
             fileAttachments: fileAttachments,
             appShots: appShots,
-            providerMetadata: providerMetadata,
+            harnessMetadata: harnessMetadata,
             consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
         ), at: 0)
     }
@@ -135,7 +135,7 @@ final class MessageQueue {
                 attachments: message.attachments,
                 fileAttachments: message.fileAttachments,
                 appShots: message.appShots,
-                providerMetadata: message.providerMetadata,
+                harnessMetadata: message.harnessMetadata,
                 relayedFrom: message.relayedFrom
             )
         }

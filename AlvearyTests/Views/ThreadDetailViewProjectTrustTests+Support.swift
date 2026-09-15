@@ -5,7 +5,7 @@ import SwiftUI
 
 @testable import Alveary
 
-actor PausingThreadDetailProjectTrustService: ProviderSetupService {
+actor PausingThreadDetailProjectTrustService: HarnessSetupService {
     private let pausedProjectPath: String
     private var didPauseStatus = false
     private var statusPauseContinuation: CheckedContinuation<Void, Never>?
@@ -16,7 +16,7 @@ actor PausingThreadDetailProjectTrustService: ProviderSetupService {
         self.pausedProjectPath = CanonicalPath.normalize(pausedProjectPath)
     }
 
-    nonisolated func cachedProjectTrustStatus(providerId _: String, workingDirectory _: String) -> Bool? {
+    nonisolated func cachedProjectTrustStatus(harnessId _: String, workingDirectory _: String) -> Bool? {
         nil
     }
 
@@ -26,9 +26,9 @@ actor PausingThreadDetailProjectTrustService: ProviderSetupService {
         }
     }
 
-    func prepareForSpawn(providerId _: String, workingDirectory _: String, autoTrust _: Bool) async {}
+    func prepareForSpawn(harnessId _: String, workingDirectory _: String, autoTrust _: Bool) async {}
 
-    func isTrustedProject(providerId _: String, workingDirectory: String) async -> Bool {
+    func isTrustedProject(harnessId _: String, workingDirectory: String) async -> Bool {
         let projectPath = CanonicalPath.normalize(workingDirectory)
         if projectPath == pausedProjectPath, !didPauseStatus {
             didPauseStatus = true
@@ -39,7 +39,7 @@ actor PausingThreadDetailProjectTrustService: ProviderSetupService {
         return trustedProjectPaths.contains(projectPath)
     }
 
-    func trustProject(providerId _: String, workingDirectory: String) async {
+    func trustProject(harnessId _: String, workingDirectory: String) async {
         trustedProjectPaths.insert(CanonicalPath.normalize(workingDirectory))
     }
 
@@ -92,7 +92,7 @@ struct ThreadDetailProjectTrustFixture {
         isDraft: Bool = false,
         hasCompletedInitialSetup: Bool = false,
         settings: AppSettings = AppSettings(),
-        providerSetup: (any ProviderSetupService)? = nil
+        harnessSetup: (any HarnessSetupService)? = nil
     ) throws {
         let seededModel = try Self.makeSeededModel(
             isDraft: isDraft,
@@ -108,7 +108,7 @@ struct ThreadDetailProjectTrustFixture {
             threadID: thread.persistentModelID,
             canonicalProjectPath: "/tmp/alveary-project",
             projectName: "Alveary",
-            providerID: "claude"
+            harnessID: "claude"
         )
         let recorder = ThreadDetailDeleteRecorder(
             context: context,
@@ -116,11 +116,11 @@ struct ThreadDetailProjectTrustFixture {
             deletesBeforeThrowing: deletesBeforeThrowing
         )
         deleteRecorder = recorder
-        let resolvedProviderSetup: any ProviderSetupService
-        if let providerSetup {
-            resolvedProviderSetup = providerSetup
+        let resolvedHarnessSetup: any HarnessSetupService
+        if let harnessSetup {
+            resolvedHarnessSetup = harnessSetup
         } else {
-            resolvedProviderSetup = MockProviderSetupService()
+            resolvedHarnessSetup = MockHarnessSetupService()
         }
 
         view = Self.makeView(
@@ -130,7 +130,7 @@ struct ThreadDetailProjectTrustFixture {
             recorder: recorder,
             services: ThreadDetailProjectTrustViewServices(
                 settingsService: InMemorySettingsService(current: settings),
-                providerSetup: resolvedProviderSetup
+                harnessSetup: resolvedHarnessSetup
             )
         )
     }
@@ -158,7 +158,7 @@ struct ThreadDetailProjectTrustFixture {
             isDraft: isDraft,
             project: project
         )
-        let conversation = Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: thread)
+        let conversation = Conversation(id: "main", title: "Main", harness: "claude", isMain: true, displayOrder: 0, thread: thread)
         thread.conversations = [conversation]
         project.threads = [thread]
         context.insert(project)
@@ -204,7 +204,7 @@ struct ThreadDetailProjectTrustFixture {
                 modelContext: context,
                 settingsService: services.settingsService,
                 worktreeManager: worktreeManager,
-                providerSetup: services.providerSetup,
+                harnessSetup: services.harnessSetup,
                 contextWindowCache: contextWindowCache
             )
         }
@@ -215,9 +215,9 @@ struct ThreadDetailProjectTrustFixture {
             agentsManager: agentsManager,
             conversationControllerRegistry: conversationControllerRegistry,
             settingsService: services.settingsService,
-            providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
-            providerDiscovery: SnapshotThreadProviderDiscoveryService(),
-            providerSetup: services.providerSetup,
+            harnessRegistry: DefaultHarnessRegistry(agentRegistry: DefaultAgentRegistry()),
+            harnessDiscovery: SnapshotThreadHarnessDiscoveryService(),
+            harnessSetup: services.harnessSetup,
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: RecordingNotificationManager(),
@@ -242,7 +242,7 @@ struct ThreadDetailProjectTrustFixture {
 
 struct ThreadDetailProjectTrustViewServices {
     let settingsService: any SettingsService
-    let providerSetup: any ProviderSetupService
+    let harnessSetup: any HarnessSetupService
 }
 
 struct ThreadDetailProjectTrustSeededModel {

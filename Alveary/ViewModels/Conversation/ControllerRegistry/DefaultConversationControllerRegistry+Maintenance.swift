@@ -254,7 +254,7 @@ extension DefaultConversationControllerRegistry {
         }
         switch trackedTurn.state {
         case .waitingForApproval, .waitingForQuestion:
-            // A provider can deliver a final interaction after the scheduled turn's terminal
+            // A harness can deliver a final interaction after the scheduled turn's terminal
             // boundary. Its owner has already superseded and flushed it before reaching here.
             publish(
                 .init(turn: trackedTurn.turn, state: .interrupted),

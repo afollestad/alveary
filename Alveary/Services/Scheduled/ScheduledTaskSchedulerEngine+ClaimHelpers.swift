@@ -17,7 +17,7 @@ extension ScheduledTaskSchedulerEngine {
             scheduledOccurrenceAt: occurrenceAt,
             recurrence: recurrence,
             timeZoneIdentifier: definition.timeZoneIdentifier,
-            providerID: target?.providerID ?? definition.providerID,
+            harnessID: target?.harnessID ?? definition.harnessID,
             model: target == nil ? definition.model : target?.model,
             effort: target?.effort ?? definition.effort,
             permissionMode: target?.permissionMode ?? definition.permissionMode,
@@ -75,7 +75,7 @@ extension ScheduledTaskSchedulerEngine {
         return ScheduledTaskTargetSnapshot(
             conversationID: conversation.id,
             threadName: thread.name,
-            providerID: conversation.provider ?? definition.providerID,
+            harnessID: conversation.harness ?? definition.harnessID,
             model: thread.model,
             effort: thread.effort,
             permissionMode: thread.permissionMode,

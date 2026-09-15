@@ -32,7 +32,7 @@ Not everything routes through a swapped service. Know these before capturing:
 
 - **Terminal pane** — a real `forkpty`, so it renders the real username and hostname, and `cd`
   into a fake project path fails. Keep it closed while capturing.
-- **Provider and model pickers** — real `claude --version` / `codex --version` probes.
+- **Harness and model pickers** — real `claude --version` / `codex --version` probes.
 - **`worktreeManager` and `gitHubCLIService`** take `shellRunner` directly rather than `gitService`,
   so the Git decorator does not cover them.
 - **App update check and notification authorization** can paint a badge or raise a system alert

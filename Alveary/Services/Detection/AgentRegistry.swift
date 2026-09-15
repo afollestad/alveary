@@ -3,7 +3,7 @@ protocol AgentRegistry: Sendable {
     func agent(for id: String) -> AgentDefinition?
 }
 
-protocol ProviderRegistry: Sendable {
-    var providers: [ProviderDefinition] { get }
-    func provider(for id: String) -> ProviderDefinition?
+protocol HarnessRegistry: Sendable {
+    var harnesses: [HarnessDefinition] { get }
+    func harness(for id: String) -> HarnessDefinition?
 }

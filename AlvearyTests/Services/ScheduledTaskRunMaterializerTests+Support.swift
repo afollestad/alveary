@@ -91,7 +91,7 @@ struct ScheduledTaskRunMaterializerFixture {
             destinationSnapshot: destination,
             targetConversationIDSnapshot: targetConversationID,
             timeZoneIdentifierSnapshot: "America/Chicago",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             modelSnapshot: "gpt-5",
             effortSnapshot: "high",
             permissionModeSnapshot: "acceptEdits",

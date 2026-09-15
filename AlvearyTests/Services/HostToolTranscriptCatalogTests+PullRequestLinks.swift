@@ -178,7 +178,7 @@ extension HostToolTranscriptCatalogTests {
         XCTAssertEqual(HostToolWidgetSummary.text(for: entry(content)), "PR linked to thread: octo/alpha#7")
     }
 
-    /// `unlink_pr` resolves an omitted URL against the thread, so with a text-fallback provider
+    /// `unlink_pr` resolves an omitted URL against the thread, so with a text-fallback harness
     /// the host's own message is the only thing naming the pull request it removed. Without it
     /// the card cannot say which one, and cannot open it.
     func testPlainTextUnlinkNamesThePullRequestFromItsMessage() throws {
@@ -202,7 +202,7 @@ extension HostToolTranscriptCatalogTests {
     }
 
     /// A structured receipt with no `pull_request` means there is genuinely nothing to name.
-    /// The message fallback is for text-fallback providers only — parsing a receipt's message
+    /// The message fallback is for text-fallback harnesses only — parsing a receipt's message
     /// would let a pull-request-shaped thread name invent one.
     func testStructuredReceiptWithoutASnapshotNeverParsesItsMessage() throws {
         let content = try XCTUnwrap(

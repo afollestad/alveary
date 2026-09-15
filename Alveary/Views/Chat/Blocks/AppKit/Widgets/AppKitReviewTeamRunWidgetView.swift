@@ -116,7 +116,7 @@ private extension AppKitReviewTeamRunWidgetView {
         reviewers = configuration.run.team.enumerated().map { index, member in
             let row = AppKitReviewTeamReviewerRowView(
                 member: member,
-                model: ReviewTeamRunCardPresentation.modelLabel(providerID: member.providerID, modelOptionID: member.modelOptionID),
+                model: ReviewTeamRunCardPresentation.modelLabel(harnessID: member.harnessID, modelOptionID: member.modelOptionID),
                 role: member.id == "lead" ? "Lead" : "Peer \(index)",
                 status: ReviewTeamRunPresentation.status(for: member, in: configuration.run),
                 typography: configuration.typography
@@ -184,7 +184,7 @@ private extension AppKitReviewTeamRunWidgetView {
         team.map {
             PullRequestReviewProposalRecord.Reviewer(
                 id: $0.id,
-                providerID: $0.providerID,
+                harnessID: $0.harnessID,
                 modelOptionID: $0.modelOptionID
             )
         }

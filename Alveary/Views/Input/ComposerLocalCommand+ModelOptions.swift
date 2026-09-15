@@ -1,7 +1,7 @@
 import Foundation
 
 extension ComposerLocalCommandAvailability {
-    /// Inline hint for `/model`, capped so a provider reporting many models cannot push the ghost hint onto a second line.
+    /// Inline hint for `/model`, capped so a harness reporting many models cannot push the ghost hint onto a second line.
     var modelArgumentHint: String {
         var names: [String] = []
         var seenNames: Set<String> = []
@@ -29,7 +29,7 @@ extension ComposerLocalCommandAvailability {
         return didTruncate ? "\(joined)|…" : joined
     }
 
-    /// Resolves typed `/model` input, accepting a `provider:name` qualifier when one short name spans multiple providers.
+    /// Resolves typed `/model` input, accepting a `harness:name` qualifier when one short name spans multiple harnesses.
     func modelOption(matching argument: String) -> ComposerModelCommandOption? {
         let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -37,9 +37,9 @@ extension ComposerLocalCommandAvailability {
         }
 
         if let separatorIndex = trimmed.firstIndex(of: ":") {
-            let providerID = String(trimmed[..<separatorIndex])
+            let harnessID = String(trimmed[..<separatorIndex])
             let scopedOptions = modelOptions.filter {
-                $0.providerID.caseInsensitiveCompare(providerID) == .orderedSame
+                $0.harnessID.caseInsensitiveCompare(harnessID) == .orderedSame
             }
             // An unknown prefix falls through so a model id that itself contains a colon still resolves.
             if !scopedOptions.isEmpty {
@@ -56,21 +56,21 @@ extension ComposerLocalCommandAvailability {
     /// Roughly one composer line of aliases; the trailing ellipsis signals the rest are still selectable.
     private static let modelArgumentHintBudget = 40
 
-    /// Within each provider, options carrying a real alias lead, so a provider that mostly reports long pinned version
-    /// ids still spends the hint's budget on names worth typing. Providers keep their order, because the hint reads as
-    /// the reasoning menu's provider grouping and a later provider must not jump ahead of the active one.
+    /// Within each harness, options carrying a real alias lead, so a harness that mostly reports long pinned version
+    /// ids still spends the hint's budget on names worth typing. Harnesses keep their order, because the hint reads as
+    /// the reasoning menu's harness grouping and a later harness must not jump ahead of the active one.
     private static func hintOrderedOptions(_ options: [ComposerModelCommandOption]) -> [ComposerModelCommandOption] {
-        var providerOrder: [String] = []
-        var optionsByProvider: [String: [ComposerModelCommandOption]] = [:]
+        var harnessOrder: [String] = []
+        var optionsByHarness: [String: [ComposerModelCommandOption]] = [:]
         for option in options {
-            if optionsByProvider[option.providerID] == nil {
-                providerOrder.append(option.providerID)
+            if optionsByHarness[option.harnessID] == nil {
+                harnessOrder.append(option.harnessID)
             }
-            optionsByProvider[option.providerID, default: []].append(option)
+            optionsByHarness[option.harnessID, default: []].append(option)
         }
-        return providerOrder.flatMap { providerID -> [ComposerModelCommandOption] in
-            let providerOptions = optionsByProvider[providerID] ?? []
-            return providerOptions.filter(isAliased) + providerOptions.filter { !isAliased($0) }
+        return harnessOrder.flatMap { harnessID -> [ComposerModelCommandOption] in
+            let harnessOptions = optionsByHarness[harnessID] ?? []
+            return harnessOptions.filter(isAliased) + harnessOptions.filter { !isAliased($0) }
         }
     }
 
@@ -86,7 +86,7 @@ extension ComposerLocalCommandAvailability {
         guard !trimmedName.isEmpty else {
             return nil
         }
-        // Provider order decides ties, matching the order the reasoning menu lists models in.
+        // Harness order decides ties, matching the order the reasoning menu lists models in.
         let fields: [KeyPath<ComposerModelCommandOption, String>] = [\.shortName, \.value, \.title]
         for field in fields {
             if let match = options.first(where: {

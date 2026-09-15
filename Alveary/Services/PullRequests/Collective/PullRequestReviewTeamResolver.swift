@@ -4,10 +4,10 @@ import Foundation
 enum PullRequestReviewTeamResolutionError: LocalizedError, Equatable, Sendable {
     case invalidTeamSize(Int)
     case duplicateMemberID(String)
-    case providerUnavailable(memberID: String, memberName: String, providerID: String)
-    case modelUnavailable(memberID: String, memberName: String, providerID: String, model: String)
+    case harnessUnavailable(memberID: String, memberName: String, harnessID: String)
+    case modelUnavailable(memberID: String, memberName: String, harnessID: String, model: String)
     case effortUnavailable(memberID: String, memberName: String, effort: String)
-    case executableUnavailable(memberID: String, memberName: String, providerID: String)
+    case executableUnavailable(memberID: String, memberName: String, harnessID: String)
     case duplicateModel(firstMemberID: String, firstMemberName: String, secondMemberID: String, secondMemberName: String)
 
     var errorDescription: String? {
@@ -16,44 +16,44 @@ enum PullRequestReviewTeamResolutionError: LocalizedError, Equatable, Sendable {
             "Review teams need 2–5 reviewers; this team has \(count)."
         case .duplicateMemberID:
             "The review team contains duplicate saved reviewer identities."
-        case .providerUnavailable(_, let memberName, let providerID):
-            "\(memberName) uses \(providerID), which is not ready."
+        case .harnessUnavailable(_, let memberName, let harnessID):
+            "\(memberName) uses \(harnessID), which is not ready."
         case .modelUnavailable(_, let memberName, _, let model):
             "\(memberName) uses \(model), which is not a concrete available model."
         case .effortUnavailable(_, let memberName, let effort):
             "\(memberName) uses \(effort), which the selected model does not support."
-        case .executableUnavailable(_, let memberName, let providerID):
-            "\(memberName) cannot find the \(providerID) executable."
+        case .executableUnavailable(_, let memberName, let harnessID):
+            "\(memberName) cannot find the \(harnessID) executable."
         case .duplicateModel(_, let firstMemberName, _, let secondMemberName):
-            "\(firstMemberName) and \(secondMemberName) use the same agent and model."
+            "\(firstMemberName) and \(secondMemberName) use the same harness and model."
         }
     }
 }
 
 /// Resolves every member from one discovery snapshot, rejecting stale pins rather than substituting defaults.
 struct PullRequestReviewTeamResolver: Sendable {
-    private let providerDiscovery: any AgentProviderDiscoveryService
+    private let harnessDiscovery: any AgentHarnessDiscoveryService
 
-    init(providerDiscovery: any AgentProviderDiscoveryService) {
-        self.providerDiscovery = providerDiscovery
+    init(harnessDiscovery: any AgentHarnessDiscoveryService) {
+        self.harnessDiscovery = harnessDiscovery
     }
 
     func resolve(settings: AppSettings) async throws -> [ReviewWorkerConfiguration] {
-        async let statuses = providerDiscovery.providerStatuses(projectURL: nil)
-        async let ordering = providerDiscovery.stableProviderOrdering()
+        async let statuses = harnessDiscovery.harnessStatuses(projectURL: nil)
+        async let ordering = harnessDiscovery.stableHarnessOrdering()
         let resolvedStatuses = await statuses
         let resolvedOrdering = await ordering
         return try Self.resolve(
             settings: settings,
-            providerStatuses: resolvedStatuses,
-            providerOrdering: resolvedOrdering.map(\.rawValue)
+            harnessStatuses: resolvedStatuses,
+            harnessOrdering: resolvedOrdering.map(\.rawValue)
         )
     }
 
     static func resolve(
         settings: AppSettings,
-        providerStatuses: [AgentProviderID: AgentProviderStatus],
-        providerOrdering _: [String] = []
+        harnessStatuses: [AgentHarnessID: AgentHarnessStatus],
+        harnessOrdering _: [String] = []
     ) throws -> [ReviewWorkerConfiguration] {
         let peers = settings.pullRequestReviewPeers.enumerated().map { index, peer in
             Member.peer(peer, index: index)
@@ -70,8 +70,8 @@ struct PullRequestReviewTeamResolver: Sendable {
             guard memberIDs.insert(member.id).inserted else {
                 throw PullRequestReviewTeamResolutionError.duplicateMemberID(member.id)
             }
-            let worker = try resolve(member: member, settings: settings, statuses: providerStatuses)
-            let selection = ModelSelection(providerID: worker.providerID, launchModel: worker.launchModel)
+            let worker = try resolve(member: member, settings: settings, statuses: harnessStatuses)
+            let selection = ModelSelection(harnessID: worker.harnessID, launchModel: worker.launchModel)
             if let firstMember = selections[selection] {
                 throw PullRequestReviewTeamResolutionError.duplicateModel(
                     firstMemberID: firstMember.id,
@@ -88,9 +88,9 @@ struct PullRequestReviewTeamResolver: Sendable {
 
     static func resolveLead(
         settings: AppSettings,
-        providerStatuses: [AgentProviderID: AgentProviderStatus]
+        harnessStatuses: [AgentHarnessID: AgentHarnessStatus]
     ) throws -> ReviewWorkerConfiguration {
-        try resolve(member: lead(from: settings), settings: settings, statuses: providerStatuses)
+        try resolve(member: lead(from: settings), settings: settings, statuses: harnessStatuses)
     }
 }
 
@@ -98,7 +98,7 @@ private extension PullRequestReviewTeamResolver {
     struct Member {
         let id: String
         let name: String
-        let providerID: String
+        let harnessID: String
         let model: String
         let effort: String
 
@@ -106,7 +106,7 @@ private extension PullRequestReviewTeamResolver {
             Member(
                 id: peer.id,
                 name: "Reviewer \(index + 2)",
-                providerID: peer.providerID,
+                harnessID: peer.harnessID,
                 model: peer.model,
                 effort: peer.effort
             )
@@ -114,7 +114,7 @@ private extension PullRequestReviewTeamResolver {
     }
 
     struct ModelSelection: Hashable {
-        let providerID: String
+        let harnessID: String
         let launchModel: String
     }
 
@@ -124,12 +124,12 @@ private extension PullRequestReviewTeamResolver {
     }
 
     static func lead(from settings: AppSettings) -> Member {
-        let providerID = settings.pullRequestReviewProvider ?? settings.defaultProvider
-        let inheritsDefaults = providerID == settings.defaultProvider
+        let harnessID = settings.pullRequestReviewHarness ?? settings.defaultHarness
+        let inheritsDefaults = harnessID == settings.defaultHarness
         return Member(
             id: "lead",
             name: "Lead",
-            providerID: providerID,
+            harnessID: harnessID,
             model: settings.pullRequestReviewModel
                 ?? (inheritsDefaults ? settings.defaultModel : nil)
                 ?? AppSettings.defaultModelValue,
@@ -141,18 +141,18 @@ private extension PullRequestReviewTeamResolver {
     static func resolve(
         member: Member,
         settings: AppSettings,
-        statuses: [AgentProviderID: AgentProviderStatus]
+        statuses: [AgentHarnessID: AgentHarnessStatus]
     ) throws -> ReviewWorkerConfiguration {
-        guard let providerID = AgentProviderID(rawValue: member.providerID),
-              let status = statuses[providerID],
-              settings.isProviderEnabled(member.providerID),
+        guard let harnessID = AgentHarnessID(rawValue: member.harnessID),
+              let status = statuses[harnessID],
+              settings.isHarnessEnabled(member.harnessID),
               status.isEnabled,
               status.isInstalled,
               status.isSetupReady else {
-            throw PullRequestReviewTeamResolutionError.providerUnavailable(
+            throw PullRequestReviewTeamResolutionError.harnessUnavailable(
                 memberID: member.id,
                 memberName: member.name,
-                providerID: member.providerID
+                harnessID: member.harnessID
             )
         }
         let model = try resolvedModel(member: member, status: status)
@@ -163,12 +163,12 @@ private extension PullRequestReviewTeamResolver {
             throw PullRequestReviewTeamResolutionError.executableUnavailable(
                 memberID: member.id,
                 memberName: member.name,
-                providerID: member.providerID
+                harnessID: member.harnessID
             )
         }
         return ReviewWorkerConfiguration(
             id: member.id,
-            providerID: member.providerID,
+            harnessID: member.harnessID,
             modelOptionID: model.option.id,
             launchModel: model.launchModel,
             effort: effort,
@@ -176,7 +176,7 @@ private extension PullRequestReviewTeamResolver {
         )
     }
 
-    static func resolvedModel(member: Member, status: AgentProviderStatus) throws -> ResolvedModel {
+    static func resolvedModel(member: Member, status: AgentHarnessStatus) throws -> ResolvedModel {
         let exactOption = status.modelOptions.first {
             ($0.id == member.model || $0.model == member.model) && Self.concreteLaunchModel($0) != nil
         }
@@ -188,7 +188,7 @@ private extension PullRequestReviewTeamResolver {
             throw PullRequestReviewTeamResolutionError.modelUnavailable(
                 memberID: member.id,
                 memberName: member.name,
-                providerID: member.providerID,
+                harnessID: member.harnessID,
                 model: member.model
             )
         }

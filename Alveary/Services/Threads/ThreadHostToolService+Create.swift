@@ -37,8 +37,8 @@ extension ThreadHostToolService {
         let placement = ThreadHostToolSourcePlacement(thread: source.thread)
         let defaults = try await resolvedSettingDefaults(
             source: source,
-            fallbackProvider: context.providerId.rawValue,
-            requestedProvider: parsed.provider
+            fallbackHarness: context.harnessId.rawValue,
+            requestedHarness: parsed.harness
         )
         let request = try await validatedCreateRequest(parsed, placement: placement, defaults: defaults)
         try Task.checkCancellation()
@@ -96,7 +96,7 @@ private extension ThreadHostToolService {
                 threadID: conversation.id,
                 name: thread.displayName(),
                 workspace: request.workspace,
-                provider: request.provider,
+                harness: request.harness,
                 model: request.model,
                 effort: request.effort,
                 permissionMode: request.permissionMode,
@@ -127,7 +127,7 @@ private extension ThreadHostToolService {
             return try lifecycleService.insertSourceThread(
                 project: project,
                 seed: ProjectThreadSeed(
-                    provider: request.provider, permissionMode: request.permissionMode,
+                    harness: request.harness, permissionMode: request.permissionMode,
                     model: request.model, effort: request.effort, isDraft: false,
                     name: request.name, pinned: request.pinned, workspaceSnapshot: workspace.snapshot,
                     useWorktree: workspace.useWorktree, sectionID: workspace.sectionID
@@ -135,7 +135,7 @@ private extension ThreadHostToolService {
             )
         }
         return try lifecycleService.insertTaskThread(seed: TaskThreadSeed(
-            provider: request.provider, permissionMode: request.permissionMode,
+            harness: request.harness, permissionMode: request.permissionMode,
             model: request.model, effort: request.effort, isDraft: false, name: request.name, pinned: request.pinned,
             grantedRoots: workspace.snapshot.grants.map(\.path),
             placement: workspace.placement, workspaceSnapshot: workspace.snapshot
@@ -171,13 +171,13 @@ private extension ThreadHostToolService {
         let effort = try validatedEffort(parsed.effort, defaults: defaults, model: model)
         let permissionMode = try validatedPermissionMode(
             parsed.permissionMode,
-            provider: defaults.provider,
+            harness: defaults.harness,
             resolution: defaults.resolution
         )
         return ThreadHostToolCreateRequest(
             workspace: try await validatedWorkspace(parsed.workspace, placement: placement),
             name: parsed.name,
-            provider: defaults.provider,
+            harness: defaults.harness,
             model: model,
             effort: effort,
             permissionMode: permissionMode,
@@ -200,7 +200,7 @@ private struct ThreadHostToolCreatedThread {
     let threadID: String
     let name: String
     let workspace: ThreadHostToolCreateWorkspace
-    let provider: String
+    let harness: String
     let model: String?
     let effort: String
     let permissionMode: String
@@ -212,7 +212,7 @@ private struct ThreadHostToolCreatedThread {
     let dispatchedInitialPrompt: Bool
 
     var message: String {
-        var message = "Created the thread \"\(name)\" \(workspaceSummary) (id: \(threadID)) using \(provider), " +
+        var message = "Created the thread \"\(name)\" \(workspaceSummary) (id: \(threadID)) using \(harness), " +
             "model \(model ?? AppSettings.defaultModelValue), effort \(effort), permissions \(permissionMode)"
         message += isPinned ? ", pinned." : "."
         if let projectName { message += " It is shown under \(projectName)." }
@@ -230,7 +230,7 @@ private struct ThreadHostToolCreatedThread {
             "thread_id": .string(threadID),
             "name": .string(name),
             "workspace_kind": .string(workspace.kind.rawValue),
-            "provider": .string(provider),
+            "harness": .string(harness),
             "model": .string(model ?? AppSettings.defaultModelValue),
             "effort": .string(effort),
             "permission_mode": .string(permissionMode),

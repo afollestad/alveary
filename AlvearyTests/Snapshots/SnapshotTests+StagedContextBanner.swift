@@ -9,7 +9,7 @@ extension SnapshotTests {
             StagedContextBanner(
                 context: """
                 Restoring context from local history.
-                This is a fresh provider session; do not assume memory from earlier turns.
+                This is a fresh harness session; do not assume memory from earlier turns.
                 Conversation: Git status cleanup
                 """,
                 onDismiss: {}

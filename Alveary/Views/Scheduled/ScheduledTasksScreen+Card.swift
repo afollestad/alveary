@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ScheduledTaskCard: View, Equatable {
     let task: ScheduledTaskRowPresentation
-    let providerName: String
+    let harnessName: String
     let isRunNowPending: Bool
     let isSelected: Bool
     let onOpen: () -> Void
@@ -23,7 +23,7 @@ struct ScheduledTaskCard: View, Equatable {
     /// invalidates this view directly regardless of `==`.
     nonisolated static func == (lhs: ScheduledTaskCard, rhs: ScheduledTaskCard) -> Bool {
         lhs.task == rhs.task
-            && lhs.providerName == rhs.providerName
+            && lhs.harnessName == rhs.harnessName
             && lhs.isRunNowPending == rhs.isRunNowPending
             && lhs.isSelected == rhs.isSelected
             && lhs.cardFocusID == rhs.cardFocusID
@@ -63,7 +63,7 @@ struct ScheduledTaskCard: View, Equatable {
                 }
             }
 
-            ScheduledTaskCardMetaLine(task: task, providerName: providerName)
+            ScheduledTaskCardMetaLine(task: task, harnessName: harnessName)
 
             VStack(alignment: .leading, spacing: 4) {
                 ScheduledTaskMetadataLabel(
@@ -136,12 +136,12 @@ struct ScheduledTaskCard: View, Equatable {
 }
 
 /// State, agent, and destination on one line. Collapsed from a badge row plus a trailing
-/// provider label plus a stacked `folder` metadata row, because the card's height was the
+/// harness label plus a stacked `folder` metadata row, because the card's height was the
 /// whole complaint; `lineLimit(1)` keeps a long workspace summary from reflowing the card
 /// at the narrow one-column width.
 private struct ScheduledTaskCardMetaLine: View {
     let task: ScheduledTaskRowPresentation
-    let providerName: String
+    let harnessName: String
 
     var body: some View {
         HStack(spacing: 6) {
@@ -153,7 +153,7 @@ private struct ScheduledTaskCardMetaLine: View {
             // One `Text`, not a separator view between two: `workspaceSummary` already
             // embeds its own inline interpuncts, and an `HStack`-spaced one beside them
             // renders visibly wider than its neighbours on the same line.
-            Text("\(providerName) · \(task.workspaceSummary)")
+            Text("\(harnessName) · \(task.workspaceSummary)")
         }
         .font(.caption)
         .foregroundStyle(.secondary)

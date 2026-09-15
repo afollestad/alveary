@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 extension ConversationViewModelTests {
     func testPlainClaudeDenyWrapsNextNormalFeedbackWithoutChangingVisibleTranscript() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, harnessId: "claude")
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
@@ -30,7 +30,7 @@ extension ConversationViewModelTests {
     }
 
     func testPlainCodexDenyDoesNotWrapNextNormalFeedback() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, harnessId: "codex")
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
@@ -53,7 +53,7 @@ extension ConversationViewModelTests {
     }
 
     func testCustomClaudeDenyFollowUpUsesWrappedTransportWhenPlanModeEnabled() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, harnessId: "claude")
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
@@ -75,7 +75,7 @@ extension ConversationViewModelTests {
     }
 
     func testPlainClaudeRevisionTransportIsPreservedForRetry() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, harnessId: "claude")
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
@@ -104,7 +104,7 @@ extension ConversationViewModelTests {
     }
 
     func testPlainClaudeRevisionTransportIsPreservedAcrossStdinClosedRespawnRecovery() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, harnessId: "claude")
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
@@ -131,7 +131,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: false,
             worktreeInfo: worktreeInfo,
             initialAgentIsRunning: false,
-            providerId: "claude"
+            harnessId: "claude"
         )
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
@@ -155,7 +155,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: false,
             pausesWorktreeCreate: true,
             initialAgentIsRunning: false,
-            providerId: "claude"
+            harnessId: "claude"
         )
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
@@ -190,15 +190,15 @@ extension ConversationViewModelTests {
         XCTAssertEqual(outbound.transportText, exitPlanModeRevisionTransportText("Please revise after cancel."))
     }
 
-    func testPlainClaudeRevisionGuidanceClearsOnProviderMismatch() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, providerId: "claude")
+    func testPlainClaudeRevisionGuidanceClearsOnHarnessMismatch() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, harnessId: "claude")
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
 
         try await fixture.viewModel.denyExitPlanMode(toolUseId: approval.toolUseId)
         let conversation = try fixture.dbConversation()
-        conversation.provider = "codex"
+        conversation.harness = "codex"
         try fixture.context.save()
         try await fixture.viewModel.queueOrSend("Please revise this.")
 
@@ -207,18 +207,18 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeRevisionGuidance)
     }
 
-    func testPlainClaudeRevisionGuidanceClearsOnProviderSessionMismatch() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, providerId: "claude")
+    func testPlainClaudeRevisionGuidanceClearsOnHarnessSessionMismatch() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, harnessId: "claude")
         try enablePlanMode(for: fixture)
         let conversation = try fixture.dbConversation()
-        conversation.providerSessionProviderId = "claude"
-        conversation.providerSessionId = "session-a"
+        conversation.harnessSessionHarnessId = "claude"
+        conversation.harnessSessionId = "session-a"
         try fixture.context.save()
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
 
         try await fixture.viewModel.denyExitPlanMode(toolUseId: approval.toolUseId)
-        conversation.providerSessionId = "session-b"
+        conversation.harnessSessionId = "session-b"
         try fixture.context.save()
         try await fixture.viewModel.queueOrSend("Please revise this.")
 
@@ -228,7 +228,7 @@ extension ConversationViewModelTests {
     }
 
     func testQueuedPlanRevisionFeedbackCannotBeSteeredAndEditRearmsGuidance() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, harnessId: "claude")
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
@@ -244,7 +244,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(queued.requiredPlanModeEnabled, true)
         XCTAssertNotNil(queued.consumedExitPlanModeRevisionGuidance)
 
-        XCTAssertTrue(fixture.viewModel.providerCanSteerCurrentTurn)
+        XCTAssertTrue(fixture.viewModel.harnessCanSteerCurrentTurn)
         do {
             try await fixture.viewModel.steerQueuedMessage(id: queued.id)
             XCTFail("Expected transport-only queued plan feedback to be rejected for steering")
@@ -260,7 +260,7 @@ extension ConversationViewModelTests {
     }
 
     func testQueuedPlanRevisionFeedbackSendsRawWhenPlanModeTurnsOffBeforeDrain() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, harnessId: "claude")
         fixture.viewModel.activateViewLifecycle()
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
@@ -289,7 +289,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: true,
             reconfigureError: .reconfigureFailed,
             initialAgentIsRunning: true,
-            providerId: "claude",
+            harnessId: "claude",
         )
         try enablePlanMode(for: fixture)
         fixture.viewModel.state.turnState.beginTurn()
@@ -316,7 +316,7 @@ extension ConversationViewModelTests {
     }
 
     func testQueuedCustomPlanFollowUpSendsRawWhenPlanModeTurnsOffBeforeDrain() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, harnessId: "claude")
         fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.deactivateViewLifecycle()
         try enablePlanMode(for: fixture)
@@ -347,7 +347,7 @@ extension ConversationViewModelTests {
     }
 
     func testSessionHandoffClearsQueuedRevisionTransportBeforeHiddenPrompt() async throws {
-        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true, harnessId: "claude")
         try enablePlanMode(for: fixture)
         let approval = exitPlanModeTransportApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)

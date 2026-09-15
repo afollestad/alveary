@@ -42,7 +42,7 @@ enum DemoMode {
     ///
     /// `NSWorkspace`, not `Process`: assigning `Process.environment` *replaces* the environment
     /// rather than merging, which would strip `PATH`/`HOME`/`SHELL` from the child and break
-    /// provider detection, `gh`, and the terminal pane. It also launches the raw executable, which
+    /// harness detection, `gh`, and the terminal pane. It also launches the raw executable, which
     /// leaves the child's TCC responsible-process chain pointing at the dying parent. This route
     /// matches `run.sh --demo`, which uses `open --env` — likewise a LaunchServices launch.
     static func relaunch(inDemoMode enabled: Bool, onFailure: @escaping @MainActor (String) -> Void) {
@@ -74,7 +74,7 @@ enum DemoMode {
         [AppRuntimeProfile.demoEnvironmentKey: enabled ? "1" : "0"]
     }
 
-    /// Status dots and the in-flight tool spinner, without a provider runtime.
+    /// Status dots and the in-flight tool spinner, without a harness runtime.
     ///
     /// `updateStatus(_:for:)` is declared on `DefaultAgentsManager`, not the `AgentsManager`
     /// protocol, so this has to go through the concrete registration.

@@ -88,7 +88,7 @@ enum PullRequestPaneSnapshots {
         )
         let context = ModelContext(container)
         let thread = AgentThread(name: "Review thread")
-        let conversation = Conversation(id: "review-conversation", provider: "codex", thread: thread)
+        let conversation = Conversation(id: "review-conversation", harness: "codex", thread: thread)
         thread.conversations = [conversation]
         context.insert(thread)
         try conversation.storePullRequestReviewProposal(
@@ -103,7 +103,7 @@ enum PullRequestPaneSnapshots {
                 comments: comments,
                 titleSnapshot: "Add pull request browsing to the sidebar",
                 pendingCommentCountSnapshot: 0,
-                sourceProviderID: "codex",
+                sourceHarnessID: "codex",
                 sourceProcessToken: "token",
                 sourceRequestID: "request-1",
                 createdAt: Date(timeIntervalSince1970: 1_799_960_000)

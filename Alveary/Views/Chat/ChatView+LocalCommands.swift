@@ -145,7 +145,7 @@ extension ChatView {
 
     func goalModeStartUnavailableMessage() -> String? {
         if !composerCapabilities.supportsGoalMode {
-            return composerCapabilities.goalModeDisabledTooltip ?? "Goal mode is not supported by this agent."
+            return composerCapabilities.goalModeDisabledTooltip ?? "Goal mode is not supported by this harness."
         }
         if let tooltip = composerCapabilities.goalModeDisabledTooltip {
             return tooltip
@@ -158,7 +158,7 @@ extension ChatView {
         }
         if viewModel.hasVisibleUserMessageHistory,
            !composerCapabilities.supportsExistingSessionGoalStart {
-            return "This agent can only start Goal mode before the first visible user message."
+            return "This harness can only start Goal mode before the first visible user message."
         }
         if viewModel.state.messageQueue.peekNext() != nil {
             return "Send or clear queued messages before starting Goal mode."
@@ -375,7 +375,7 @@ extension ChatView {
 
         let outcome = reasoningConfiguration.onModelChange(
             ChatComposerActionRowView.ReasoningModelSelectionRequest(
-                providerID: option.providerID,
+                harnessID: option.harnessID,
                 modelID: option.value
             )
         )

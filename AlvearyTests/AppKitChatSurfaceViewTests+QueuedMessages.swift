@@ -26,11 +26,11 @@ extension AppKitChatSurfaceViewTests {
         XCTAssertGreaterThan(contextField.frame.minY, textView.frame.maxY)
     }
 
-    func testNativeQueuedMessagesNeverRenderProviderTransportText() throws {
+    func testNativeQueuedMessagesNeverRenderHarnessTransportText() throws {
         let message = QueuedMessage(
             text: "Visible queued feedback",
             stagedContext: nil,
-            transportText: "Hidden provider-only revision guidance"
+            transportText: "Hidden harness-only revision guidance"
         )
         let view = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 80))
         view.configure(makeNativeQueuedMessagesConfiguration([message]))
@@ -40,7 +40,7 @@ extension AppKitChatSurfaceViewTests {
             ($0 as? NSTextView)?.string.contains("Visible queued feedback") == true
         })
         XCTAssertNil(firstDescendant(of: view) {
-            ($0 as? NSTextView)?.string.contains("Hidden provider-only revision guidance") == true
+            ($0 as? NSTextView)?.string.contains("Hidden harness-only revision guidance") == true
         })
     }
 

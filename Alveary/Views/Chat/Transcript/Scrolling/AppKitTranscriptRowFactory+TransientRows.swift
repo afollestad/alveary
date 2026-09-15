@@ -67,7 +67,7 @@ extension AppKitTranscriptRowFactory {
 }
 
 /// Renders only the newest reasoning line. Live thought text accumulates for a whole turn, and
-/// providers separate reasoning sections with a blank line, so rendering all of it grows the row
+/// harnesses separate reasoning sections with a blank line, so rendering all of it grows the row
 /// without bound and reads as one run-on sentence.
 func appKitTranscriptLiveThoughtSummaryText(from text: String) -> String {
     let lines = text
@@ -87,7 +87,7 @@ func appKitTranscriptLiveThoughtSummaryText(from text: String) -> String {
     return appKitTranscriptCollapsedLiveThoughtPlainText(from: appKitTranscriptNewestEmphasisSection(in: text))
 }
 
-/// Keeps only the text after the last touching emphasis boundary. A provider that emits no separator
+/// Keeps only the text after the last touching emphasis boundary. A harness that emits no separator
 /// leaves one section's closing delimiter against the next one's opening delimiter, so `****` marks a
 /// section break rather than emphasis. A single space between runs is ordinary text and stays intact.
 /// Sections that switch delimiter across the seam (`**…**__…__`) are left alone; matching only a

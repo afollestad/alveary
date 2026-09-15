@@ -7,7 +7,7 @@ import XCTest
 extension PullRequestsViewModelTests {
     func testRetryReplacesTimedOutDiscoveryWithoutWaitingForTheAbandonedProbe() async {
         let discovery = ReviewTeamRetryDiscovery()
-        let cache = CachingAgentProviderDiscoveryService(base: discovery)
+        let cache = CachingAgentHarnessDiscoveryService(base: discovery)
         let deadlines = [PullRequestsServiceGate(), PullRequestsServiceGate()]
         var deadlineCalls = 0
         defer {
@@ -18,7 +18,7 @@ extension PullRequestsViewModelTests {
         let pane = await openedReviewPane(
             settingsService: reviewTeamValidationSettings(),
             reviewTeamSettingsValidator: { _ in
-                _ = await cache.providerStatuses(projectURL: nil)
+                _ = await cache.harnessStatuses(projectURL: nil)
             },
             reviewTeamValidationSleeper: {
                 guard deadlines.indices.contains(deadlineCalls) else {
@@ -28,7 +28,7 @@ extension PullRequestsViewModelTests {
                 deadlineCalls += 1
                 await gate.wait()
             },
-            refreshReviewTeamProviderDiscovery: { await cache.refresh() }
+            refreshReviewTeamHarnessDiscovery: { await cache.refresh() }
         )
         await waitFor { discovery.calls == 1 && deadlineCalls == 1 }
         let abandonedValidation = pane.viewModel.reviewTeamValidationTask
@@ -81,7 +81,7 @@ extension PullRequestsViewModelTests {
             XCTAssertNil(pane.viewModel.reviewTeamValidationToken)
             XCTAssertTrue(expiredValidation?.isCancelled == true)
 
-            // A provider that ignores cancellation must not resurrect a timed-out check.
+            // A harness that ignores cancellation must not resurrect a timed-out check.
             harness.validations[0].open()
             await expiredValidation?.value
             XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, failed)
@@ -344,13 +344,13 @@ private final class ReviewTeamValidationHarness {
 
 /// A cold probe that ignores cancellation, with independent release of its replacement during Retry.
 @MainActor
-private final class ReviewTeamRetryDiscovery: AgentProviderDiscoveryService {
+private final class ReviewTeamRetryDiscovery: AgentHarnessDiscoveryService {
     let firstProbe = PullRequestsServiceGate()
     let replacementProbe = PullRequestsServiceGate()
     private(set) var calls = 0
     private(set) var completedCalls: [Int] = []
 
-    func providerStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] {
+    func harnessStatuses(projectURL: URL?) async -> [AgentHarnessID: AgentHarnessStatus] {
         calls += 1
         let call = calls
         await (call == 1 ? firstProbe : replacementProbe).wait()
@@ -358,8 +358,8 @@ private final class ReviewTeamRetryDiscovery: AgentProviderDiscoveryService {
         return [:]
     }
 
-    func installedProviderStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] { [:] }
-    func availableProviderStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] { [:] }
-    func modelOptions(for providerId: AgentProviderID) async -> [AgentModelOption] { [] }
-    func stableProviderOrdering() async -> [AgentProviderID] { [] }
+    func installedHarnessStatuses(projectURL: URL?) async -> [AgentHarnessID: AgentHarnessStatus] { [:] }
+    func availableHarnessStatuses(projectURL: URL?) async -> [AgentHarnessID: AgentHarnessStatus] { [:] }
+    func modelOptions(for harnessId: AgentHarnessID) async -> [AgentModelOption] { [] }
+    func stableHarnessOrdering() async -> [AgentHarnessID] { [] }
 }

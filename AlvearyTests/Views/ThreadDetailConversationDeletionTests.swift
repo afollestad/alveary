@@ -50,7 +50,7 @@ final class ThreadDetailConversationDeletionTests: XCTestCase {
             destination: .existingThread,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             targetThread: fixture.thread
         )
         fixture.context.insert(definition)
@@ -141,7 +141,7 @@ final class ThreadDetailConversationDeletionTests: XCTestCase {
             promptSnapshot: "Run scheduled work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "UTC",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "default",
             workspaceKindSnapshot: .privateWorkspace,
@@ -151,7 +151,7 @@ final class ThreadDetailConversationDeletionTests: XCTestCase {
         fixture.thread.scheduledTaskRun = run
         let sideConversation = Conversation(
             id: "scheduled-side-\(UUID().uuidString)",
-            provider: "codex",
+            harness: "codex",
             isMain: false,
             displayOrder: 1,
             thread: fixture.thread

@@ -1,25 +1,25 @@
 import AgentCLIKit
 
 enum AgentModelOptionTestFixtures {
-    static let medium = AgentCLIKit.AgentProviderOption(
+    static let medium = AgentCLIKit.AgentHarnessOption(
         value: "medium",
         label: "Medium",
         description: "Use medium reasoning effort."
     )
 
-    static let high = AgentCLIKit.AgentProviderOption(
+    static let high = AgentCLIKit.AgentHarnessOption(
         value: "high",
         label: "High",
         description: "Use high reasoning effort."
     )
 
-    static let xhigh = AgentCLIKit.AgentProviderOption(
+    static let xhigh = AgentCLIKit.AgentHarnessOption(
         value: "xhigh",
         label: "Extra High",
         description: "Use extra high reasoning effort."
     )
 
-    static let max = AgentCLIKit.AgentProviderOption(
+    static let max = AgentCLIKit.AgentHarnessOption(
         value: "max",
         label: "Max",
         description: "Use max reasoning effort."
@@ -33,7 +33,7 @@ enum AgentModelOptionTestFixtures {
 
     static let claudeModelOptions: [AgentCLIKit.AgentModelOption] = [
         AgentCLIKit.AgentModelOption(
-            providerId: .claude,
+            harnessId: .claude,
             id: "sonnet",
             model: "sonnet",
             label: "Sonnet",
@@ -42,7 +42,7 @@ enum AgentModelOptionTestFixtures {
             defaultEffortOption: high
         ),
         AgentCLIKit.AgentModelOption(
-            providerId: .claude,
+            harnessId: .claude,
             id: "fable",
             model: "fable",
             label: "Fable",
@@ -50,7 +50,7 @@ enum AgentModelOptionTestFixtures {
             defaultEffortOption: high
         ),
         AgentCLIKit.AgentModelOption(
-            providerId: .claude,
+            harnessId: .claude,
             id: "opus",
             model: "opus",
             label: "Opus",
@@ -58,7 +58,7 @@ enum AgentModelOptionTestFixtures {
             defaultEffortOption: high
         ),
         AgentCLIKit.AgentModelOption(
-            providerId: .claude,
+            harnessId: .claude,
             id: "haiku",
             model: "haiku",
             label: "Haiku",
@@ -69,7 +69,7 @@ enum AgentModelOptionTestFixtures {
 
     static let codexModelOptions: [AgentCLIKit.AgentModelOption] = [
         AgentCLIKit.AgentModelOption(
-            providerId: .codex,
+            harnessId: .codex,
             id: "gpt-5.5",
             model: "gpt-5.5",
             label: "GPT-5.5",
@@ -78,7 +78,7 @@ enum AgentModelOptionTestFixtures {
             defaultEffortOption: medium
         ),
         AgentCLIKit.AgentModelOption(
-            providerId: .codex,
+            harnessId: .codex,
             id: "gpt-5.4-mini",
             model: "gpt-5.4-mini",
             label: "GPT-5.4-Mini",
@@ -87,7 +87,7 @@ enum AgentModelOptionTestFixtures {
         )
     ]
 
-    private static let low = AgentCLIKit.AgentProviderOption(
+    private static let low = AgentCLIKit.AgentHarnessOption(
         value: "low",
         label: "Low",
         description: "Use low reasoning effort."

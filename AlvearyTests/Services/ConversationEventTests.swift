@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 final class ConversationEventTests: XCTestCase {
     func testSteeredConversationToRecordPersistsDeterministicMarker() throws {
-        let conversation = Conversation(provider: "codex")
+        let conversation = Conversation(harness: "codex")
 
         let record = try XCTUnwrap(
             ConversationEvent.steeredConversation(inputID: "local-user-1")
@@ -20,7 +20,7 @@ final class ConversationEventTests: XCTestCase {
     }
 
     func testTaskListSnapshotToRecordPersistsJSONPayload() throws {
-        let conversation = Conversation(provider: "codex")
+        let conversation = Conversation(harness: "codex")
         let snapshot = ConversationTaskListSnapshot(
             id: "tasks-codex-plan-turn-1",
             items: [
@@ -69,7 +69,7 @@ final class ConversationEventTests: XCTestCase {
     }
 
     func testToolResultToRecordPersistsMetadataAndConversationLink() throws {
-        let conversation = Conversation(provider: "claude")
+        let conversation = Conversation(harness: "claude")
         let event = ConversationEvent.toolResult(
             id: "tool-1",
             output: "Done",
@@ -99,7 +99,7 @@ final class ConversationEventTests: XCTestCase {
     }
 
     func testTokensAndSessionInitProducePersistedRecords() throws {
-        let conversation = Conversation(provider: "claude")
+        let conversation = Conversation(harness: "claude")
         let tokensRecord = try XCTUnwrap(
             ConversationEvent.tokens(
                 input: 10,
@@ -110,7 +110,7 @@ final class ConversationEventTests: XCTestCase {
                 stopReason: "end_turn",
                 durationMs: 1200,
                 costUsd: 0.42,
-                providerModelId: "claude-sonnet-4-6",
+                harnessModelId: "claude-sonnet-4-6",
                 contextWindowSize: 200_000,
                 permissionDenials: []
             ).toRecord(conversation: conversation)
@@ -128,7 +128,7 @@ final class ConversationEventTests: XCTestCase {
         XCTAssertEqual(tokensRecord.durationMs, 1200)
         XCTAssertEqual(tokensRecord.costUsd, 0.42)
         XCTAssertTrue(tokensRecord.costUsdReported)
-        XCTAssertEqual(tokensRecord.providerModelId, "claude-sonnet-4-6")
+        XCTAssertEqual(tokensRecord.harnessModelId, "claude-sonnet-4-6")
         XCTAssertEqual(tokensRecord.contextWindowSize, 200_000)
 
         XCTAssertEqual(sessionInitRecord.type, "session_init")
@@ -136,7 +136,7 @@ final class ConversationEventTests: XCTestCase {
     }
 
     func testMissingTokenCostPersistsZeroWithoutReportedFlag() throws {
-        let conversation = Conversation(provider: "codex")
+        let conversation = Conversation(harness: "codex")
         let tokensRecord = try XCTUnwrap(
             ConversationEvent.tokens(
                 input: 10,
@@ -155,7 +155,7 @@ final class ConversationEventTests: XCTestCase {
     }
 
     func testOptionalMessageContentRemainsNilInPersistedRecords() throws {
-        let conversation = Conversation(provider: "claude")
+        let conversation = Conversation(harness: "claude")
 
         let notificationRecord = try XCTUnwrap(
             ConversationEvent.notification(type: "status", message: nil).toRecord(conversation: conversation)
@@ -173,7 +173,7 @@ final class ConversationEventTests: XCTestCase {
     }
 
     func testContextCompactionEventsProducePersistedRecords() throws {
-        let conversation = Conversation(provider: "claude")
+        let conversation = Conversation(harness: "claude")
 
         let started = try XCTUnwrap(
             ConversationEvent.contextCompactionStarted(id: "compact-1", trigger: "auto")
@@ -204,7 +204,7 @@ final class ConversationEventTests: XCTestCase {
     }
 
     func testStreamOnlyEventsDoNotCreateRecords() {
-        let conversation = Conversation(provider: "claude")
+        let conversation = Conversation(harness: "claude")
 
         XCTAssertNil(ConversationEvent.messageChunk(text: "chunk", parentToolUseId: nil).toRecord(conversation: conversation))
         XCTAssertNil(ConversationEvent.transientAssistantMessage(content: "snapshot", parentToolUseId: nil).toRecord(conversation: conversation))
@@ -222,18 +222,18 @@ final class ConversationEventTests: XCTestCase {
                 .toRecord(conversation: conversation)
         )
         XCTAssertNil(
-            ConversationEvent.providerSessionMetadataChanged(sessionId: "thread-1", name: "Generated", preview: "Preview")
+            ConversationEvent.harnessSessionMetadataChanged(sessionId: "thread-1", name: "Generated", preview: "Preview")
                 .toRecord(conversation: conversation)
         )
     }
 
     /// The credential banner accompanies an `.error` that persists on its own, so persisting this one
     /// too would double the transcript row a reader sees.
-    func testProviderAuthenticationRequiredDoesNotCreateRecord() {
-        let conversation = Conversation(provider: "claude")
+    func testHarnessAuthenticationRequiredDoesNotCreateRecord() {
+        let conversation = Conversation(harness: "claude")
 
         XCTAssertNil(
-            ConversationEvent.providerAuthenticationRequired(message: "OAuth session expired")
+            ConversationEvent.harnessAuthenticationRequired(message: "OAuth session expired")
                 .toRecord(conversation: conversation)
         )
     }

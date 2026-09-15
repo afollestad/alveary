@@ -93,7 +93,7 @@ private extension ScheduledTaskHostToolCatalog {
         results into an existing thread. A workspace with a project_id from list_projects uses that project's current folders. \
         granted_roots replaces the folder grants \
         the task would otherwise inherit. Entries must be existing absolute folder paths and can combine with project_id and \
-        primary_folder_path. Every grant is shown to the user for confirmation. Provider, model, effort, permissions, and run location are bound by \
+        primary_folder_path. Every grant is shown to the user for confirmation. Harness, model, effort, permissions, and run location are bound by \
         Alveary and are intentionally not accepted. After it returns, report the `status` \
         it gave back: `applied` means the change is already in effect, and `pending_confirmation` means a proposal was opened and \
         nothing has changed yet.

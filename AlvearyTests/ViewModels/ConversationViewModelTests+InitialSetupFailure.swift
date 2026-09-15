@@ -5,15 +5,15 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    /// The runtime arms a turn when it installs the spawn's event buffer, before the provider
+    /// The runtime arms a turn when it installs the spawn's event buffer, before the harness
     /// process starts. A failed spawn emits no terminal event, so without an explicit rollback the
     /// composer stays busy forever — and a busy conversation fails `canApplyPreStartupSettingChange`,
-    /// which is what made the reasoning menu's cross-provider picks silently no-op on a pull request
+    /// which is what made the reasoning menu's cross-harness picks silently no-op on a pull request
     /// agentic-review thread whose Codex `thread/start` failed.
-    func testFailedInitialSetupEndsOptimisticTurnAndAllowsProviderSwitch() async throws {
+    func testFailedInitialSetupEndsOptimisticTurnAndAllowsHarnessSwitch() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         let state = fixture.viewModel.state
         await fixture.agentsManager.setSpawnPrologue { state.turnState.beginTurn() }
@@ -45,15 +45,15 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertEqual(composerMode(for: fixture.viewModel), .idle)
 
-        let didApply = fixture.viewModel.applyPreStartupProviderModelChange(
-            providerID: "claude",
+        let didApply = fixture.viewModel.applyPreStartupHarnessModelChange(
+            harnessID: "claude",
             model: "sonnet",
             effortOptions: AgentModelOptionTestFixtures.claudeSonnetEfforts,
             defaultEffort: AgentModelOptionTestFixtures.high.value
         )
 
         XCTAssertTrue(didApply)
-        XCTAssertEqual(try fixture.dbConversation().provider, "claude")
+        XCTAssertEqual(try fixture.dbConversation().harness, "claude")
         XCTAssertEqual(try fixture.dbThread().model, "sonnet")
     }
 
@@ -62,7 +62,7 @@ extension ConversationViewModelTests {
     func testCancelledInitialSetupLeavesNoActiveTurn() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         let state = fixture.viewModel.state
         await fixture.agentsManager.setSpawnPrologue { state.turnState.beginTurn() }

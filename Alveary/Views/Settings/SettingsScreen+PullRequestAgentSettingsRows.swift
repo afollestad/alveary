@@ -14,7 +14,7 @@ struct PullRequestAgentSettingsRows: View {
     var showsFinalDivider = false
 
     var body: some View {
-        pickerRow("Agent", helpText: agentHelp, selection: provider, options: providerOptions, label: providerLabel)
+        pickerRow("Harness", helpText: harnessHelp, selection: harness, options: harnessOptions, label: harnessLabel)
         pickerRow("Model", selection: model, options: modelOptions, label: modelLabel)
         if !effortOptions.isEmpty {
             pickerRow(
@@ -38,16 +38,16 @@ struct PullRequestAgentSettingsRows: View {
 private extension PullRequestAgentSettingsRows {
     var isReview: Bool { route == .review }
 
-    var agentHelp: String {
+    var harnessHelp: String {
         isReview
-            ? "The agent used for single-agent reviews. In team mode, edit the lead in Manage."
-            : "The agent used to address pull request feedback, independent of review settings."
+            ? "The harness used for single-agent reviews. In team mode, edit the lead in Manage."
+            : "The harness used to address pull request feedback, independent of review settings."
     }
 
-    var provider: Binding<String> {
+    var harness: Binding<String> {
         Binding(
-            get: { isReview ? viewModel.pullRequestReviewProviderSelection : viewModel.addressFeedbackProviderSelection },
-            set: { isReview ? viewModel.setPullRequestReviewProvider($0) : viewModel.setAddressFeedbackProvider($0) }
+            get: { isReview ? viewModel.pullRequestReviewHarnessSelection : viewModel.addressFeedbackHarnessSelection },
+            set: { isReview ? viewModel.setPullRequestReviewHarness($0) : viewModel.setAddressFeedbackHarness($0) }
         )
     }
 
@@ -72,8 +72,8 @@ private extension PullRequestAgentSettingsRows {
         )
     }
 
-    var providerOptions: [String] {
-        isReview ? viewModel.pullRequestReviewProviderOptions : viewModel.addressFeedbackProviderOptions
+    var harnessOptions: [String] {
+        isReview ? viewModel.pullRequestReviewHarnessOptions : viewModel.addressFeedbackHarnessOptions
     }
 
     var modelOptions: [String] {
@@ -88,8 +88,8 @@ private extension PullRequestAgentSettingsRows {
         isReview ? viewModel.pullRequestReviewPermissionOptions : viewModel.addressFeedbackPermissionOptions
     }
 
-    func providerLabel(_ value: String) -> String {
-        isReview ? viewModel.pullRequestReviewLabel(forProvider: value) : viewModel.addressFeedbackLabel(forProvider: value)
+    func harnessLabel(_ value: String) -> String {
+        isReview ? viewModel.pullRequestReviewLabel(forHarness: value) : viewModel.addressFeedbackLabel(forHarness: value)
     }
 
     func modelLabel(_ value: String) -> String {

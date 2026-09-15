@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 extension AgentsManagerTests {
-    func testAgentCLIKitSuppressesTrailingGenericTokenNotificationAfterProviderError() async throws {
+    func testAgentCLIKitSuppressesTrailingGenericTokenNotificationAfterHarnessError() async throws {
         let executable = try makeScript(named: "slow-agent", body: "sleep 5\n")
         defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
         let notifications = StubNotificationManager()
@@ -28,13 +28,13 @@ extension AgentsManagerTests {
             .error(message: "Selected model is unavailable."),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
         await manager.handleStreamEvent(
             tokenError(stopReason: "stop_sequence"),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
 
         let handled = try XCTUnwrap(notifications.handledEvents.first)
@@ -44,7 +44,7 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
-    func testAgentCLIKitDoesNotSuppressSpecificTokenNotificationAfterProviderError() async throws {
+    func testAgentCLIKitDoesNotSuppressSpecificTokenNotificationAfterHarnessError() async throws {
         let executable = try makeScript(named: "slow-agent", body: "sleep 5\n")
         defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
         let notifications = StubNotificationManager()
@@ -66,13 +66,13 @@ extension AgentsManagerTests {
             .error(message: "Selected model is unavailable."),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
         await manager.handleStreamEvent(
             tokenError(stopReason: "provider_model_unavailable"),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
 
         XCTAssertEqual(notifications.handledEvents.count, 2)
@@ -115,7 +115,7 @@ extension AgentsManagerTests {
             terminalSuccessTokens(),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
 
         XCTAssertTrue(notifications.handledEvents.isEmpty)
@@ -144,7 +144,7 @@ extension AgentsManagerTests {
             terminalSuccessTokens(),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
 
         XCTAssertEqual(notifications.handledEvents.count, 1)
@@ -186,7 +186,7 @@ extension AgentsManagerTests {
             terminalSuccessTokens(),
             conversationId: conversationId,
             generation: generation,
-            providerId: "claude"
+            harnessId: "claude"
         )
 
         XCTAssertEqual(notifications.handledEvents.count, 1)
@@ -196,41 +196,41 @@ extension AgentsManagerTests {
     }
 
     func testOrdinaryPRReviewProposalNotifiesWhenTurnFinishes() async throws {
-        for providerId in [AgentCLIKit.AgentProviderID.claude, .codex] {
-            try await assertOrdinaryPRReviewProposalNotifies(providerId: providerId)
+        for harnessId in [AgentCLIKit.AgentHarnessID.claude, .codex] {
+            try await assertOrdinaryPRReviewProposalNotifies(harnessId: harnessId)
         }
     }
 
     func testOrdinaryPRReviewProposalNotifiesWhenStatusFinishesBeforeTokens() async throws {
-        for providerId in [AgentCLIKit.AgentProviderID.claude, .codex] {
-            try await assertOrdinaryPRReviewProposalNotifies(providerId: providerId, statusFinishesFirst: true)
+        for harnessId in [AgentCLIKit.AgentHarnessID.claude, .codex] {
+            try await assertOrdinaryPRReviewProposalNotifies(harnessId: harnessId, statusFinishesFirst: true)
         }
     }
 
     private func assertOrdinaryPRReviewProposalNotifies(
-        providerId: AgentCLIKit.AgentProviderID,
+        harnessId: AgentCLIKit.AgentHarnessID,
         statusFinishesFirst: Bool = false
     ) async throws {
         let notifications = StubNotificationManager()
         let manager = makeAgentCLIKitFixture(
-            adapter: ResolvingAgentCLIKitAdapter(providerId: providerId),
+            adapter: ResolvingAgentCLIKitAdapter(harnessId: harnessId),
             detectedPath: "/usr/bin/agent",
             basePath: "/usr/bin:/bin",
             notificationManager: notifications
         ).manager
-        let conversationId = "ordinary-review-\(providerId.rawValue)"
+        let conversationId = "ordinary-review-\(harnessId.rawValue)"
         let events = AsyncStream<AgentCLIKit.AgentEventEnvelope>.makeStream()
         defer { events.continuation.finish() }
         await manager.installAgentCLIKitSubscriptionBuffer(
             conversationId: conversationId,
-            config: spawnConfig(providerId: providerId.rawValue, workingDirectory: "/tmp"),
+            config: spawnConfig(harnessId: harnessId.rawValue, workingDirectory: "/tmp"),
             subscription: AgentCLIKit.AgentEventSubscription(generation: 1, events: events.stream),
             hasImmediateTurn: true,
             initialTurnActivityVisibility: .visible
         )
         let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
         let generation = try XCTUnwrap(maybeGeneration)
-        let receipt = providerId == .claude
+        let receipt = harnessId == .claude
             ? #"{"status":"pending_confirmation","proposal_id":"proposal-1","repository":"owner/repo","number":1}"#
             : "Review proposal opened for confirmation."
         let proposalEvents: [ConversationEvent] = [
@@ -244,23 +244,23 @@ extension AgentsManagerTests {
             .toolResult(id: "review-proposal", output: receipt, isError: false, parentToolUseId: nil, metadata: nil)
         ]
         for event in proposalEvents {
-            await manager.handleStreamEvent(event, conversationId: conversationId, generation: generation, providerId: providerId.rawValue)
+            await manager.handleStreamEvent(event, conversationId: conversationId, generation: generation, harnessId: harnessId.rawValue)
         }
-        XCTAssertTrue(notifications.handledEvents.isEmpty, "Staging alone must not announce turn completion for \(providerId.rawValue)")
+        XCTAssertTrue(notifications.handledEvents.isEmpty, "Staging alone must not announce turn completion for \(harnessId.rawValue)")
 
         if statusFinishesFirst {
             for isTurnActive in [true, false] {
                 await manager.handleRuntimeTurnActiveStatus(
-                    runtimeStatus(conversationId: conversationId, isTurnActive: isTurnActive, providerId: providerId),
+                    runtimeStatus(conversationId: conversationId, isTurnActive: isTurnActive, harnessId: harnessId),
                     conversationId: conversationId
                 )
             }
         }
         await manager.handleStreamEvent(
-            terminalSuccessTokens(), conversationId: conversationId, generation: generation, providerId: providerId.rawValue
+            terminalSuccessTokens(), conversationId: conversationId, generation: generation, harnessId: harnessId.rawValue
         )
 
-        XCTAssertEqual(notifications.handledEvents.count, 1, providerId.rawValue)
+        XCTAssertEqual(notifications.handledEvents.count, 1, harnessId.rawValue)
         XCTAssertEqual(notifications.handledEvents.first?.conversationId, conversationId)
         XCTAssertEqual(notifications.handledEvents.first?.event, terminalSuccessTokens())
     }
@@ -268,15 +268,15 @@ extension AgentsManagerTests {
     private func runtimeStatus(
         conversationId: String,
         isTurnActive: Bool,
-        providerId: AgentCLIKit.AgentProviderID = .claude
+        harnessId: AgentCLIKit.AgentHarnessID = .claude
     ) -> AgentCLIKit.AgentRuntimeStatus {
         AgentCLIKit.AgentRuntimeStatus(
             conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
-            providerId: providerId,
+            harnessId: harnessId,
             generation: 1,
             state: .running,
             lastEventIndex: 1,
-            providerSessionId: nil,
+            harnessSessionId: nil,
             isTurnActive: isTurnActive
         )
     }

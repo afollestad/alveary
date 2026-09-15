@@ -1,6 +1,6 @@
 import Foundation
 
-/// Stable key for a Claude approval interaction in a provider session.
+/// Stable key for a Claude approval interaction in a harness session.
 struct ClaudeToolApprovalKey: Sendable, Hashable {
     let sessionId: String
     let toolUseId: String

@@ -5,21 +5,21 @@ import XCTest
 
 @MainActor
 extension SettingsViewModelTests {
-    func testProviderVersionTrimsAndRejectsEmptyValues() {
+    func testHarnessVersionTrimsAndRejectsEmptyValues() {
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
 
-        XCTAssertNil(viewModel.providerVersion(for: nil))
-        XCTAssertNil(viewModel.providerVersion(for: Self.cardStatus(version: nil)))
-        XCTAssertNil(viewModel.providerVersion(for: Self.cardStatus(version: "   \n")))
-        XCTAssertEqual(viewModel.providerVersion(for: Self.cardStatus(version: " 2.1.0 \n")), "2.1.0")
+        XCTAssertNil(viewModel.harnessVersion(for: nil))
+        XCTAssertNil(viewModel.harnessVersion(for: Self.cardStatus(version: nil)))
+        XCTAssertNil(viewModel.harnessVersion(for: Self.cardStatus(version: "   \n")))
+        XCTAssertEqual(viewModel.harnessVersion(for: Self.cardStatus(version: " 2.1.0 \n")), "2.1.0")
     }
 
-    func testProviderExecutablePathReadsAvailability() {
+    func testHarnessExecutablePathReadsAvailability() {
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
 
-        XCTAssertNil(viewModel.providerExecutablePath(for: nil))
+        XCTAssertNil(viewModel.harnessExecutablePath(for: nil))
         XCTAssertEqual(
-            viewModel.providerExecutablePath(for: Self.cardStatus(version: "1.0.0")),
+            viewModel.harnessExecutablePath(for: Self.cardStatus(version: "1.0.0")),
             "/usr/local/bin/claude"
         )
     }
@@ -27,7 +27,7 @@ extension SettingsViewModelTests {
     func testShowsStatusDescriptionOnlyWhenItAddsInformation() {
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
 
-        // Unregistered and disabled providers have nothing else to show.
+        // Unregistered and disabled harnesses have nothing else to show.
         XCTAssertTrue(viewModel.showsStatusDescription(for: nil))
         XCTAssertTrue(viewModel.showsStatusDescription(for: Self.cardStatus(isEnabled: false)))
 
@@ -47,18 +47,18 @@ extension SettingsViewModelTests {
     }
 
     private static func cardStatus(
-        installation: AgentCLIKit.AgentProviderInstallationState = .installed,
+        installation: AgentCLIKit.AgentHarnessInstallationState = .installed,
         isEnabled: Bool = true,
-        setup: AgentCLIKit.AgentProviderReadinessState = .ready,
+        setup: AgentCLIKit.AgentHarnessReadinessState = .ready,
         version: String? = "1.0.0",
         diagnostics: [String] = []
-    ) -> AgentCLIKit.AgentProviderStatus {
-        AgentCLIKit.AgentProviderStatus(
-            providerId: .claude,
-            definition: AgentCLIKit.ClaudeProviderDefinition.definition,
+    ) -> AgentCLIKit.AgentHarnessStatus {
+        AgentCLIKit.AgentHarnessStatus(
+            harnessId: .claude,
+            definition: AgentCLIKit.ClaudeHarnessDefinition.definition,
             installation: installation,
-            availability: AgentCLIKit.AgentProviderAvailability(
-                providerId: .claude,
+            availability: AgentCLIKit.AgentHarnessAvailability(
+                harnessId: .claude,
                 executablePath: "/usr/local/bin/claude",
                 versionDescription: version
             ),

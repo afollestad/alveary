@@ -59,11 +59,11 @@ final class ComposerLocalCommandParserTests: XCTestCase {
 
     func testParsesModelOnlyWhenMultipleOptionsAreAvailable() {
         let supported = ComposerLocalCommandAvailability(modelOptions: [
-            ComposerModelCommandOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
-            ComposerModelCommandOption(providerID: "claude", value: "opus", shortName: "opus", title: "Opus")
+            ComposerModelCommandOption(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
+            ComposerModelCommandOption(harnessID: "claude", value: "opus", shortName: "opus", title: "Opus")
         ])
         let singleOption = ComposerLocalCommandAvailability(modelOptions: [
-            ComposerModelCommandOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet")
+            ComposerModelCommandOption(harnessID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet")
         ])
 
         XCTAssertEqual(

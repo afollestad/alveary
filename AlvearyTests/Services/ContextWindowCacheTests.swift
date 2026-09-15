@@ -8,14 +8,14 @@ final class ContextWindowCacheTests: XCTestCase {
         let cache = JSONContextWindowCache(fileURL: fileURL)
 
         await cache.update(
-            providerId: "claude",
+            harnessId: "claude",
             selectedModel: "sonnet",
             reportedModelId: "claude-sonnet-4-6",
             contextWindowSize: 200_000
         )
 
-        let aliasSize = await cache.contextWindowSize(providerId: "claude", model: "sonnet")
-        let reportedSize = await cache.contextWindowSize(providerId: "claude", model: "claude-sonnet-4-6")
+        let aliasSize = await cache.contextWindowSize(harnessId: "claude", model: "sonnet")
+        let reportedSize = await cache.contextWindowSize(harnessId: "claude", model: "claude-sonnet-4-6")
         XCTAssertEqual(aliasSize, 200_000)
         XCTAssertEqual(reportedSize, 200_000)
     }
@@ -25,20 +25,20 @@ final class ContextWindowCacheTests: XCTestCase {
         let cache = JSONContextWindowCache(fileURL: fileURL)
 
         await cache.update(
-            providerId: "claude",
+            harnessId: "claude",
             selectedModel: "opus",
             reportedModelId: ClaudeModelIDs.opus,
             contextWindowSize: 200_000
         )
         await cache.update(
-            providerId: "claude",
+            harnessId: "claude",
             selectedModel: "opus",
             reportedModelId: ClaudeModelIDs.opus,
             contextWindowSize: 1_000_000
         )
 
-        let aliasSize = await cache.contextWindowSize(providerId: "claude", model: "opus")
-        let reportedSize = await cache.contextWindowSize(providerId: "claude", model: ClaudeModelIDs.opus)
+        let aliasSize = await cache.contextWindowSize(harnessId: "claude", model: "opus")
+        let reportedSize = await cache.contextWindowSize(harnessId: "claude", model: ClaudeModelIDs.opus)
         XCTAssertEqual(aliasSize, 1_000_000)
         XCTAssertEqual(reportedSize, 1_000_000)
     }

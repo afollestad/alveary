@@ -74,53 +74,53 @@ struct PreservedDraftRuntime {
     let goal: AgentGoalSnapshot
 }
 
-actor PausingDraftProviderDiscoveryService: AgentCLIKit.AgentProviderDiscoveryService {
-    private let statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
+actor PausingDraftHarnessDiscoveryService: AgentCLIKit.AgentHarnessDiscoveryService {
+    private let statuses: [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus]
     private var isPaused: Bool
     private var callCount = 0
-    private var didRequestProviderStatuses = false
+    private var didRequestHarnessStatuses = false
     private var requestWaiters: [CheckedContinuation<Void, Never>] = []
-    private var providerStatusesContinuation: CheckedContinuation<Void, Never>?
+    private var harnessStatusesContinuation: CheckedContinuation<Void, Never>?
 
     /// `startsPaused: false` lets a test seed a cache decorator before arming the hold, so the
     /// probe it blocks is the *refresh* rather than the initial fill.
     init(
-        statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus],
+        statuses: [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus],
         startsPaused: Bool = true
     ) {
         self.statuses = statuses
         isPaused = startsPaused
     }
 
-    func providerStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        didRequestProviderStatuses = true
+    func harnessStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] {
+        didRequestHarnessStatuses = true
         callCount += 1
         requestWaiters.forEach { $0.resume() }
         requestWaiters.removeAll()
         if isPaused {
-            await withCheckedContinuation { providerStatusesContinuation = $0 }
+            await withCheckedContinuation { harnessStatusesContinuation = $0 }
         }
         return statuses
     }
 
-    func installedProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+    func installedHarnessStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] {
         statuses.filter { $0.value.isInstalled }
     }
 
-    func availableProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+    func availableHarnessStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] {
         statuses.filter { $0.value.isEnabled && $0.value.installation != .missing }
     }
 
-    func modelOptions(for providerId: AgentCLIKit.AgentProviderID) async -> [AgentCLIKit.AgentModelOption] {
-        statuses[providerId]?.modelOptions ?? []
+    func modelOptions(for harnessId: AgentCLIKit.AgentHarnessID) async -> [AgentCLIKit.AgentModelOption] {
+        statuses[harnessId]?.modelOptions ?? []
     }
 
-    func stableProviderOrdering() async -> [AgentCLIKit.AgentProviderID] {
+    func stableHarnessOrdering() async -> [AgentCLIKit.AgentHarnessID] {
         [.claude, .codex]
     }
 
-    func waitUntilProviderStatusesRequested() async {
-        guard !didRequestProviderStatuses else {
+    func waitUntilHarnessStatusesRequested() async {
+        guard !didRequestHarnessStatuses else {
             return
         }
         await withCheckedContinuation { requestWaiters.append($0) }
@@ -130,14 +130,14 @@ actor PausingDraftProviderDiscoveryService: AgentCLIKit.AgentProviderDiscoverySe
         isPaused = true
     }
 
-    func providerStatusesCallCount() -> Int {
+    func harnessStatusesCallCount() -> Int {
         callCount
     }
 
-    func resumeProviderStatuses() {
+    func resumeHarnessStatuses() {
         isPaused = false
-        providerStatusesContinuation?.resume()
-        providerStatusesContinuation = nil
+        harnessStatusesContinuation?.resume()
+        harnessStatusesContinuation = nil
     }
 }
 

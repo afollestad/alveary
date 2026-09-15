@@ -86,12 +86,12 @@ final class ChatComposerActionRowTests: XCTestCase {
         #endif
     }
 
-    func testReasoningButtonReplacesProviderModelAndEffortMenus() {
+    func testReasoningButtonReplacesHarnessModelAndEffortMenus() {
         let row = ChatComposerActionRowView()
         row.configure(
             makeConfiguration(
                 mode: .idle,
-                providerOptions: [
+                harnessOptions: [
                     .init(value: "claude", title: "Claude Code"),
                     .init(value: "codex", title: "Codex")
                 ],
@@ -312,7 +312,7 @@ final class ChatComposerActionRowTests: XCTestCase {
 
 func makeConfiguration(
     mode: ComposerMode,
-    providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
+    harnessOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
     modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
     effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
     selectedEffort: String = "medium",
@@ -344,7 +344,7 @@ func makeConfiguration(
 ) -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
         reasoning: makeReasoningConfiguration(
-            providerOptions: providerOptions,
+            harnessOptions: harnessOptions,
             modelOptions: modelOptions,
             effortOptions: effortOptions,
             selectedEffort: selectedEffort,
@@ -383,11 +383,11 @@ func makeConfiguration(
 }
 
 func makeReasoningConfiguration(
-    providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
+    harnessOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
     modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
     modelGroups: [ChatComposerActionRowView.ReasoningModelGroup]? = nil,
     effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
-    selectedProvider: String = "claude",
+    selectedHarness: String = "claude",
     selectedModel: String = "sonnet",
     selectedEffort: String = "medium",
     defaultEffort: String? = nil,
@@ -398,20 +398,20 @@ func makeReasoningConfiguration(
     onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
         -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected }
 ) -> ChatComposerActionRowView.ReasoningConfiguration {
-    let resolvedModelGroups = modelGroups ?? providerOptions.map { provider in
+    let resolvedModelGroups = modelGroups ?? harnessOptions.map { harness in
         ChatComposerActionRowView.ReasoningModelGroup(
-            providerID: provider.value,
-            providerTitle: provider.title,
+            harnessID: harness.value,
+            harnessTitle: harness.title,
             options: modelOptions.map { model in
                 ChatComposerActionRowView.ReasoningModelOption(
-                    providerID: provider.value,
+                    harnessID: harness.value,
                     value: model.value,
                     title: model.title
                 )
             }
         )
     }
-    let selectedGroup = resolvedModelGroups.first { $0.providerID == selectedProvider } ?? resolvedModelGroups.first
+    let selectedGroup = resolvedModelGroups.first { $0.harnessID == selectedHarness } ?? resolvedModelGroups.first
     let selectedModelOption = selectedGroup?.options.first { $0.value == selectedModel } ?? selectedGroup?.options.first
     let selectedEffortOption = effortOptions.first { $0.value == selectedEffort }
     let defaultEffortOption = defaultEffort.flatMap { defaultEffort in
@@ -419,8 +419,8 @@ func makeReasoningConfiguration(
     } ?? effortOptions.first
     return ChatComposerActionRowView.ReasoningConfiguration(
         selection: .init(
-            providerID: selectedGroup?.providerID ?? selectedProvider,
-            providerTitle: selectedGroup?.providerTitle ?? selectedProvider.capitalized,
+            harnessID: selectedGroup?.harnessID ?? selectedHarness,
+            harnessTitle: selectedGroup?.harnessTitle ?? selectedHarness.capitalized,
             modelID: selectedModelOption?.value ?? selectedModel,
             modelTitle: selectedModelOption?.title ?? ChatComposerTextSupport.modelLabel(for: selectedModel),
             effortValue: selectedEffort,

@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 func makeBlockingSuspensionFixture(
-    adapter: any AgentCLIKit.AgentProviderAdapter,
+    adapter: any AgentCLIKit.AgentHarnessAdapter,
     detectedPath: String,
     basePath: String,
     approvalStore: BlockingSuspensionApprovalStore
@@ -20,10 +20,10 @@ func makeBlockingSuspensionFixture(
     let services = AgentCLIKitHostServices(
         runtime: runtime,
         sessionStore: sessionStore,
-        providerDetector: AgentCLIKit.AgentProviderDetector(),
-        providerRegistry: AgentCLIKit.AgentProviderRegistry(definitions: [adapter.definition]),
+        harnessDetector: AgentCLIKit.AgentHarnessDetector(),
+        harnessRegistry: AgentCLIKit.AgentHarnessRegistry(definitions: [adapter.definition]),
         claudeConfigStore: configStore,
-        claudeProviderSetup: AgentCLIKit.ClaudeProviderSetup(configStore: configStore),
+        claudeHarnessSetup: AgentCLIKit.ClaudeHarnessSetup(configStore: configStore),
         interactionStore: AgentCLIKit.InMemoryAgentInteractionStore(),
         approvalPolicyStore: AgentCLIKit.InMemoryAgentApprovalPolicyStore(),
         claudeApprovalPolicyStore: approvalStore,
@@ -31,18 +31,18 @@ func makeBlockingSuspensionFixture(
         contextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache(
             fileURL: suspensionTemporaryFileURL("context.json")
         ),
-        // Route session actions back to the test adapter; the default router would build real provider adapters.
-        sessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter {
-            AgentCLIKit.AgentProviderAdapterSet(adapters: [adapter])
+        // Route session actions back to the test adapter; the default router would build real harness adapters.
+        sessionActionRouter: AgentCLIKit.AgentHarnessSessionActionRouter {
+            AgentCLIKit.AgentHarnessAdapterSet(adapters: [adapter])
         },
         hostAdapter: AgentCLIKitHostAdapter()
     )
     let manager = DefaultAgentsManager(
         agentCLIKitServices: services,
         sessionManager: sessionManager,
-        providerDetection: StubProviderDetectionService(resolvedPath: detectedPath),
+        harnessDetection: StubHarnessDetectionService(resolvedPath: detectedPath),
         environmentBuilder: SuspensionFixedPathEnvironmentBuilder(path: basePath),
-        providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
+        harnessRegistry: DefaultHarnessRegistry(agentRegistry: DefaultAgentRegistry()),
         settingsService: makeSettings(),
         keepAwakeService: RecordingKeepAwakeService(),
         notificationManager: StubNotificationManager()
@@ -70,8 +70,8 @@ func seedBlockingSuspensionSession(
 ) async throws {
     try await fixture.sessionStore.save(AgentCLIKit.AgentSessionRecord(
         conversationId: runtimeConversationId,
-        providerId: .claude,
-        providerSessionId: "provider-session",
+        harnessId: .claude,
+        harnessSessionId: "provider-session",
         workingDirectory: workingDirectory,
         generation: 1
     ))
@@ -92,19 +92,19 @@ struct BlockingSuspensionFixture {
 struct SuspensionFixedPathEnvironmentBuilder: AgentEnvironmentBuilder {
     let path: String
 
-    func buildEnvironment(providerEnv: [String: String]?) -> [String: String] {
+    func buildEnvironment(harnessEnv: [String: String]?) -> [String: String] {
         var environment = ["HOME": NSHomeDirectory(), "PATH": path]
-        for (key, value) in providerEnv ?? [:] {
+        for (key, value) in harnessEnv ?? [:] {
             environment[key] = value
         }
         return environment
     }
 }
 
-struct BlockingSuspensionAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+struct BlockingSuspensionAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let executableName: String
     let terminationGate: SuspensionAsyncGate
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
@@ -175,13 +175,13 @@ actor BlockingSuspensionApprovalStore:
     }
 
     func removeSessionApprovals(
-        providerId: AgentCLIKit.AgentProviderID,
+        harnessId: AgentCLIKit.AgentHarnessID,
         conversationId: AgentCLIKit.AgentConversationID,
         sessionId: AgentCLIKit.AgentSessionID
     ) async {
         await removalGate.enterAndWait()
         await base.removeSessionApprovals(
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: conversationId,
             sessionId: sessionId
         )

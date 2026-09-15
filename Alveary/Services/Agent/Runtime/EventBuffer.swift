@@ -4,7 +4,7 @@ import Foundation
 /// updating live-approval counters does not perform nested dictionary writes.
 final class ManagedEventBuffer: @unchecked Sendable {
     let generation: UUID
-    /// Capture launch roots so background cache invalidation survives project edits and provider restarts.
+    /// Capture launch roots so background cache invalidation survives project edits and harness restarts.
     let fileCompletionRoots: [String]
     var allowsReplay: Bool
     var acceptsLiveEvents: Bool
@@ -12,7 +12,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
     var observedEventCount = 0
     var pendingLiveToolApprovals: Int
     var hasSentPendingUserActionNotification: Bool
-    var hasSentProviderErrorNotification = false
+    var hasSentHarnessErrorNotification = false
     var resolvedLiveToolApprovals: Set<ClaudeToolApprovalKey>
     var deferredToolStopSessionId: String?
     var deferredToolStopToolUseId: String?

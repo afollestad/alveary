@@ -339,7 +339,7 @@ private struct SkillsServiceFixture {
                     installCommand: nil,
                     signInCommand: nil,
                     docUrl: nil,
-                    provider: nil,
+                    harness: nil,
                     skillsDirectory: claudeSkillsDirectory.path,
                     instructionsPath: nil,
                     mcp: nil
@@ -350,7 +350,7 @@ private struct SkillsServiceFixture {
                     installCommand: nil,
                     signInCommand: nil,
                     docUrl: nil,
-                    provider: nil,
+                    harness: nil,
                     skillsDirectory: ampSkillsDirectory.path,
                     instructionsPath: nil,
                     mcp: nil

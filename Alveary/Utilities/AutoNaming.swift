@@ -1,7 +1,7 @@
 import AgentCLIKit
 import Foundation
 
-/// Turns raw provider and user strings into the labels Alveary shows for a thread or conversation.
+/// Turns raw harness and user strings into the labels Alveary shows for a thread or conversation.
 ///
 /// These helpers derive a name; they never decide whether one may be stored. The `hasCustomName`
 /// gate that protects a manual rename lives in the caller
@@ -11,9 +11,9 @@ extension ConversationViewModel {
     /// Stands in when an app-shot turn carries no visible text — the screenshot alone was the ask.
     static let appShotThreadPreviewFallback = "(App shot)"
 
-    /// Collapses a blank or whitespace-only provider name to `nil` so it falls through to the next
+    /// Collapses a blank or whitespace-only harness name to `nil` so it falls through to the next
     /// candidate, rather than blanking a thread that already has a usable title.
-    static func normalizedProviderSessionName(_ name: String?) -> String? {
+    static func normalizedHarnessSessionName(_ name: String?) -> String? {
         let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let trimmedName, !trimmedName.isEmpty else {
             return nil
@@ -21,21 +21,21 @@ extension ConversationViewModel {
         return trimmedName
     }
 
-    /// The provider's title for a session, preferring `name` over `preview`.
+    /// The harness's title for a session, preferring `name` over `preview`.
     ///
-    /// Both arrive together on `providerSessionMetadataChanged`. `name` is the title the provider
+    /// Both arrive together on `harnessSessionMetadataChanged`. `name` is the title the harness
     /// chose to give the session, so it wins whenever it survives normalization; `preview` is the
     /// fallback excerpt. Both go through the app-shot unwrapping, because either can arrive
     /// carrying the generated screenshot preamble instead of what the user actually asked.
-    static func providerSessionTitle(
+    static func harnessSessionTitle(
         name: String?,
         preview: String?,
         appShotTitleFallback: String?
     ) -> String? {
-        if let name = providerSessionTitleCandidate(name, appShotTitleFallback: appShotTitleFallback) {
+        if let name = harnessSessionTitleCandidate(name, appShotTitleFallback: appShotTitleFallback) {
             return name
         }
-        return providerSessionTitleCandidate(preview, appShotTitleFallback: appShotTitleFallback)
+        return harnessSessionTitleCandidate(preview, appShotTitleFallback: appShotTitleFallback)
     }
 
     /// A title built from what the user typed in an app-shot turn, not the preamble wrapped
@@ -49,7 +49,7 @@ extension ConversationViewModel {
         return AgentSessionPreviewGenerator.preview(fromInitialPrompt: trimmedInput) ?? trimmedInput
     }
 
-    /// The prompt answers as a message for the provider, phrased so the model reads them as the
+    /// The prompt answers as a message for the harness, phrased so the model reads them as the
     /// user's reply. Paired with `promptSummary`, which renders the same answers for the human.
     static func formatPromptAnswers(answers: [(question: String, answer: String)]) -> String {
         answers.map { question, answer in
@@ -60,7 +60,7 @@ extension ConversationViewModel {
 
     /// The same answers as transcript text, which replaces the prompt row's content once answered.
     /// Kept distinct from `formatPromptAnswers` because the transcript wants scannable Q/A pairs
-    /// while the provider wants prose.
+    /// while the harness wants prose.
     static func promptSummary(answers: [(question: String, answer: String)]) -> String {
         answers.map { question, answer in
             let trimmedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -71,14 +71,14 @@ extension ConversationViewModel {
 }
 
 private extension ConversationViewModel {
-    static func providerSessionTitleCandidate(
+    static func harnessSessionTitleCandidate(
         _ candidate: String?,
         appShotTitleFallback: String?
     ) -> String? {
-        guard let normalized = normalizedProviderSessionName(candidate) else {
+        guard let normalized = normalizedHarnessSessionName(candidate) else {
             return nil
         }
-        if let appShotTitle = appShotProviderSessionTitle(
+        if let appShotTitle = appShotHarnessSessionTitle(
             from: normalized,
             fallback: appShotTitleFallback
         ) {
@@ -89,24 +89,24 @@ private extension ConversationViewModel {
 
     /// Recovers the user's own request from an app-shot title, or `nil` if this is not one.
     ///
-    /// An app-shot turn reaches the provider wrapped in a generated preamble, so the provider's
+    /// An app-shot turn reaches the harness wrapped in a generated preamble, so the harness's
     /// `name` and `preview` both summarize the wrapper rather than the ask. Either of the two
     /// wrapper markers identifies one; `nil` leaves the caller's normalized title in place.
-    static func appShotProviderSessionTitle(from providerTitle: String, fallback: String?) -> String? {
-        guard providerTitle.hasPrefix("# Applications mentioned by the user:") ||
-            providerTitle.contains("<appshot ") else {
+    static func appShotHarnessSessionTitle(from harnessTitle: String, fallback: String?) -> String? {
+        guard harnessTitle.hasPrefix("# Applications mentioned by the user:") ||
+            harnessTitle.contains("<appshot ") else {
             return nil
         }
 
-        if let requestBody = appShotRequestBody(in: providerTitle),
+        if let requestBody = appShotRequestBody(in: harnessTitle),
            !requestBody.isEmpty {
             return appShotThreadPreviewTitle(fromVisibleUserInput: requestBody)
         }
         return fallback ?? appShotThreadPreviewFallback
     }
 
-    static func appShotRequestBody(in providerTitle: String) -> String? {
-        let lines = providerTitle.components(separatedBy: .newlines)
+    static func appShotRequestBody(in harnessTitle: String) -> String? {
+        let lines = harnessTitle.components(separatedBy: .newlines)
         guard let requestHeaderIndex = lines.firstIndex(where: {
             $0.hasPrefix("## My request for ") && $0.hasSuffix(":")
         }) else {

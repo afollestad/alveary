@@ -47,10 +47,10 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
     }
 
-    func testListRejectsMismatchedProviderAndProposalRequiresRequestIdentity() async throws {
+    func testListRejectsMismatchedHarnessAndProposalRequiresRequestIdentity() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let mismatchedList = await fixture.service.handle(
-            context: fixture.agentContext(providerID: .claude),
+            context: fixture.agentContext(harnessID: .claude),
             call: AgentCLIKit.AgentHostToolCall(name: ScheduledTaskHostToolCatalog.listToolName)
         )
         let missingIdentity = await fixture.service.handle(

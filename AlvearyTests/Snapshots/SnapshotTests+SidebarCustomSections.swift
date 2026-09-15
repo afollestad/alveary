@@ -242,7 +242,7 @@ func makeCustomSectionSidebarSnapshotFixture(
         let conversation = Conversation(
             id: "sidebar-section-task-\(index)",
             title: "Main",
-            provider: "claude",
+            harness: "claude",
             thread: task
         )
         task.conversations = [conversation]

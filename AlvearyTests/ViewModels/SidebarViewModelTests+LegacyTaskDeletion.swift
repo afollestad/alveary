@@ -76,7 +76,7 @@ extension SidebarViewModelTests {
         // Older standalone history predates owned Task workspaces; migration cannot invent a source folder.
         thread.workspaceSnapshot = WorkspaceSnapshot(primarySource: nil, rootsExplicitlyManaged: false)
         thread.conversations = ["main", "side"].enumerated().map { index, id in
-            Conversation(id: id, title: id, provider: "codex", isMain: index == 0, displayOrder: index, thread: thread)
+            Conversation(id: id, title: id, harness: "codex", isMain: index == 0, displayOrder: index, thread: thread)
         }
         fixture.context.insert(thread)
         try fixture.context.save()

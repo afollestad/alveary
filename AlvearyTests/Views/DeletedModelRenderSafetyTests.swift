@@ -150,7 +150,7 @@ final class DeletedModelRenderSafetyTests: XCTestCase {
             Conversation(
                 id: "\(name.lowercased())-main",
                 title: name,
-                provider: "claude",
+                harness: "claude",
                 isMain: true,
                 displayOrder: 0,
                 thread: thread

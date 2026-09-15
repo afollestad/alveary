@@ -4,11 +4,12 @@ import SwiftData
 // Settings pages, coding keys, and tolerant decoding for `AppSettings`.
 extension AppSettings {
     enum SettingsPage: String, Codable, CaseIterable, Identifiable, Sendable, Equatable {
-        case agents
         case interface
         case appShots
         case git
         case handoff
+        /// Preserve the saved page identifier so existing installs reopen Harnesses.
+        case harnesses = "agents"
         case menuBar
         case notifications
         case terminal
@@ -18,14 +19,15 @@ extension AppSettings {
         var id: String { rawValue }
     }
 
+    /// Preserve existing settings keys so harness renames do not discard saved choices.
     enum CodingKeys: String, CodingKey {
         case lastSettingsPage
         case hasCompletedOnboarding
-        case defaultProvider
+        case defaultHarness = "defaultProvider"
         case defaultModel
         case permissionMode
         case effort
-        case disabledProviderIDs
+        case disabledHarnessIDs = "disabledProviderIDs"
         case defaultThreadCleanupAction
         case defaultEnterBehavior
         case reopenLastThreadAndConversationOnLaunch
@@ -66,11 +68,11 @@ extension AppSettings {
         case pullRequestAddressFeedbackPrompt
         case pullRequestReviewMode
         case pullRequestReviewPeers
-        case pullRequestReviewProvider
+        case pullRequestReviewHarness = "pullRequestReviewProvider"
         case pullRequestReviewModel
         case pullRequestReviewEffort
         case pullRequestReviewPermissionMode
-        case pullRequestAddressFeedbackProvider
+        case pullRequestAddressFeedbackHarness = "pullRequestAddressFeedbackProvider"
         case pullRequestAddressFeedbackModel
         case pullRequestAddressFeedbackEffort
         case pullRequestAddressFeedbackPermissionMode
@@ -80,7 +82,7 @@ extension AppSettings {
         case gitCommitIncludeUnstagedChanges
         case worktreesBaseDirectory
         case lastAddProjectParentFolder
-        case providerConfigs
+        case harnessConfigs = "providerConfigs"
         case lastActiveProjectID
         case lastActiveProjectPath
         case lastOpenThreadID
@@ -203,11 +205,11 @@ extension AppSettings {
         from container: KeyedDecodingContainer<CodingKeys>,
         legacyContainer: KeyedDecodingContainer<LegacyCodingKeys>
     ) throws {
-        defaultProvider = try container.decodeIfPresent(String.self, forKey: .defaultProvider) ?? defaultProvider
+        defaultHarness = try container.decodeIfPresent(String.self, forKey: .defaultHarness) ?? defaultHarness
         defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? defaultModel
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? permissionMode
         effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? effort
-        disabledProviderIDs = try container.decodeIfPresent(Set<String>.self, forKey: .disabledProviderIDs) ?? disabledProviderIDs
+        disabledHarnessIDs = try container.decodeIfPresent(Set<String>.self, forKey: .disabledHarnessIDs) ?? disabledHarnessIDs
         defaultThreadCleanupAction = try container.decodeIfPresent(
             ThreadCleanupAction.self,
             forKey: .defaultThreadCleanupAction
@@ -334,8 +336,8 @@ extension AppSettings {
             forKey: .worktreesBaseDirectory
         ) ?? worktreesBaseDirectory
         lastAddProjectParentFolder = try container.decodeIfPresent(String.self, forKey: .lastAddProjectParentFolder)
-        providerConfigs = try container.decodeIfPresent([String: ProviderCustomConfig].self, forKey: .providerConfigs)
-            ?? providerConfigs
+        harnessConfigs = try container.decodeIfPresent([String: HarnessCustomConfig].self, forKey: .harnessConfigs)
+            ?? harnessConfigs
         lastActiveProjectID = try container.decodeIfPresent(String.self, forKey: .lastActiveProjectID)
         lastActiveProjectPath = try container.decodeIfPresent(String.self, forKey: .lastActiveProjectPath)
         lastOpenThreadID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenThreadID)
@@ -365,7 +367,7 @@ extension AppSettings {
         )) ?? pullRequestReviewPeers
         // Absent means "follow the Threads defaults", so these stay nil rather than
         // falling back to the packaged value the way the prompts do.
-        pullRequestReviewProvider = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewProvider)
+        pullRequestReviewHarness = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewHarness)
         pullRequestReviewModel = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewModel)
         pullRequestReviewEffort = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewEffort)
         pullRequestReviewPermissionMode = try? container.decodeIfPresent(String.self, forKey: .pullRequestReviewPermissionMode)
@@ -386,7 +388,7 @@ extension AppSettings {
             }
             return migratesSharedPins ? legacy : nil
         }
-        pullRequestAddressFeedbackProvider = pin(.pullRequestAddressFeedbackProvider, legacy: pullRequestReviewProvider)
+        pullRequestAddressFeedbackHarness = pin(.pullRequestAddressFeedbackHarness, legacy: pullRequestReviewHarness)
         pullRequestAddressFeedbackModel = pin(.pullRequestAddressFeedbackModel, legacy: pullRequestReviewModel)
         pullRequestAddressFeedbackEffort = pin(.pullRequestAddressFeedbackEffort, legacy: pullRequestReviewEffort)
         pullRequestAddressFeedbackPermissionMode = pin(.pullRequestAddressFeedbackPermissionMode, legacy: pullRequestReviewPermissionMode)

@@ -46,7 +46,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
         ChatComposerActionRowView.Configuration(
             reasoning: reasoningConfiguration,
             supportedPermissionModes: ChatComposerPermissionPresentation.options(
-                providerID: reasoningConfiguration.selection.providerID,
+                harnessID: reasoningConfiguration.selection.harnessID,
                 permissionModes: supportedPermissionModes
             ),
             selectedPermissionMode: selectedPermissionMode,

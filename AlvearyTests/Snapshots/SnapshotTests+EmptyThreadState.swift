@@ -172,7 +172,7 @@ extension SnapshotTests {
                     threadID: thread.persistentModelID,
                     canonicalProjectPath: project.path,
                     projectName: project.name,
-                    providerID: "claude"
+                    harnessID: "claude"
                 ),
                 onTrust: {},
                 onDeny: {}
@@ -204,7 +204,7 @@ extension SnapshotTests {
             threadID: thread.persistentModelID,
             canonicalProjectPath: project.path,
             projectName: project.name,
-            providerID: "claude"
+            harnessID: "claude"
         )
 
         XCTAssertEqual(prompt.displayProjectPath, "~/Development/af.codes")
@@ -251,7 +251,7 @@ private extension SnapshotTests {
             isDraft: isDraft,
             project: selectsLongProject ? longProject : project
         )
-        let conversation = Conversation(provider: "claude", thread: thread)
+        let conversation = Conversation(harness: "claude", thread: thread)
         context.insert(project)
         context.insert(duplicate)
         context.insert(longProject)
@@ -288,7 +288,7 @@ private extension SnapshotTests {
                 ownershipMarkerID: UUID().uuidString.lowercased()
             )
         )
-        let conversation = Conversation(provider: "codex", thread: thread)
+        let conversation = Conversation(harness: "codex", thread: thread)
         context.insert(thread)
         context.insert(conversation)
         try context.save()

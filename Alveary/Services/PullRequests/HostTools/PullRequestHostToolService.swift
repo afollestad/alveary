@@ -240,8 +240,8 @@ final class PullRequestHostToolService {
     ) throws -> HostToolCallSource {
         do {
             return try HostToolSourceResolver.resolveSource(context: context, in: modelContext)
-        } catch HostToolSourceError.sourceProviderMismatch {
-            throw PullRequestHostToolServiceError.sourceProviderMismatch
+        } catch HostToolSourceError.sourceHarnessMismatch {
+            throw PullRequestHostToolServiceError.sourceHarnessMismatch
         } catch {
             throw PullRequestHostToolServiceError.sourceConversationUnavailable
         }
@@ -309,7 +309,7 @@ final class PullRequestHostToolService {
 
     // MARK: - Results
 
-    /// The rows go into the text as well as `structuredContent`: a plain-text-fallback provider
+    /// The rows go into the text as well as `structuredContent`: a plain-text-fallback harness
     /// sees only the text, and the transcript's Output section shows the same string.
     func listText(header: String, rows: [String]) -> String {
         rows.isEmpty ? "\(header)." : "\(header):\n\(rows.joined(separator: "\n"))"

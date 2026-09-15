@@ -23,7 +23,7 @@ struct SidebarRenderContext {
     /// coordinator state whose reads must land inside `SidebarView.body`'s observation scope: every
     /// `sidebarThreadRow` call site sits in a `ForEach` content closure, which registers on that
     /// element instead, and nothing else repaints the row when a proposal resolves or its submit
-    /// starts and ends — those happen outside the provider turn, so no `.agentStatusChanged` bumps
+    /// starts and ends — those happen outside the harness turn, so no `.agentStatusChanged` bumps
     /// `statusVersion`, and both proposal coordinators clear through their own `ModelContext`, so
     /// the sidebar's `@Query` never sees it either. And the persisted per-conversation reads must
     /// happen while this pass's liveness-filtered rows are known live — deferring them to a row

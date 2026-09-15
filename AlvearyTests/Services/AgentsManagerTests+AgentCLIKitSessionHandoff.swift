@@ -41,13 +41,13 @@ extension AgentsManagerTests {
         let runtimeStatus = await fixture.runtime.status(conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId))
         let restoredRecord = try await fixture.sessionStore.record(
             conversationId: seededSession.runtimeConversationId,
-            providerId: .claude
+            harnessId: .claude
         )
         let stillAllowsApproval = await fixture.approvalStore.allowsSessionApproval(seededSession.approvalRequest)
 
         XCTAssertEqual(event, .message(role: "assistant", content: "old-after-failed-reconfigure", parentToolUseId: nil))
         XCTAssertEqual(runtimeStatus?.state, .running)
-        XCTAssertEqual(restoredRecord?.providerSessionId, "session-1")
+        XCTAssertEqual(restoredRecord?.harnessSessionId, "session-1")
         XCTAssertTrue(stillAllowsApproval)
         XCTAssertEqual(manager.status(for: conversationId), .error)
         await manager.kill(conversationId: conversationId)
@@ -62,7 +62,7 @@ extension AgentsManagerTests {
         let conversationId = "agentclikit-fresh-session-approvals"
         let runtimeConversationId = AgentCLIKit.AgentConversationID(rawValue: conversationId)
         let approvalRequest = AgentCLIKit.AgentSessionApprovalRequest(
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: runtimeConversationId,
             sessionId: "session-1",
             toolName: "Bash",
@@ -71,8 +71,8 @@ extension AgentsManagerTests {
         let approvalGrant = try XCTUnwrap(approvalRequest.sessionApprovalGrant(for: .exact))
         try await fixture.sessionStore.save(AgentCLIKit.AgentSessionRecord(
             conversationId: runtimeConversationId,
-            providerId: .claude,
-            providerSessionId: "session-1",
+            harnessId: .claude,
+            harnessSessionId: "session-1",
             workingDirectory: URL(fileURLWithPath: "/tmp"),
             generation: 1
         ))
@@ -85,7 +85,7 @@ extension AgentsManagerTests {
         let stillAllowsApproval = await fixture.approvalStore.allowsSessionApproval(approvalRequest)
         let previousRecord = try await fixture.sessionStore.record(
             conversationId: runtimeConversationId,
-            providerId: .claude
+            harnessId: .claude
         )
 
         XCTAssertFalse(stillAllowsApproval)
@@ -94,8 +94,8 @@ extension AgentsManagerTests {
     }
 
     /// A handoff spawns fresh, so the runtime never sees the previous session replaced; the manager itself must
-    /// archive it (and the lineage on its record) with the provider before removing the record.
-    func testAgentCLIKitStartFreshSessionArchivesPreviousProviderSession() async throws {
+    /// archive it (and the lineage on its record) with the harness before removing the record.
+    func testAgentCLIKitStartFreshSessionArchivesPreviousHarnessSession() async throws {
         let adapter = ArchivingModelEchoingAgentCLIKitAdapter()
         let fixture = makeAgentCLIKitFixture(
             adapter: adapter,
@@ -106,8 +106,8 @@ extension AgentsManagerTests {
         let runtimeConversationId = AgentCLIKit.AgentConversationID(rawValue: conversationId)
         try await fixture.sessionStore.save(AgentCLIKit.AgentSessionRecord(
             conversationId: runtimeConversationId,
-            providerId: .claude,
-            providerSessionId: "session-1",
+            harnessId: .claude,
+            harnessSessionId: "session-1",
             workingDirectory: URL(fileURLWithPath: "/tmp"),
             generation: 1
         ))
@@ -119,11 +119,11 @@ extension AgentsManagerTests {
         let archivedSessionIds = await adapter.archiveRecorder.archivedSessionIds()
         let previousRecord = try await fixture.sessionStore.record(
             conversationId: runtimeConversationId,
-            providerId: .claude
+            harnessId: .claude
         )
 
         XCTAssertEqual(archivedSessionIds, ["session-1"])
-        XCTAssertNotEqual(previousRecord?.providerSessionId, "session-1")
+        XCTAssertNotEqual(previousRecord?.harnessSessionId, "session-1")
         await fixture.manager.kill(conversationId: conversationId)
     }
 
@@ -136,7 +136,7 @@ extension AgentsManagerTests {
     ) {
         let runtimeConversationId = AgentCLIKit.AgentConversationID(rawValue: conversationId)
         let approvalRequest = AgentCLIKit.AgentSessionApprovalRequest(
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: runtimeConversationId,
             sessionId: "session-1",
             toolName: "Bash",
@@ -145,8 +145,8 @@ extension AgentsManagerTests {
         let approvalGrant = try XCTUnwrap(approvalRequest.sessionApprovalGrant(for: .exact))
         try await fixture.sessionStore.save(AgentCLIKit.AgentSessionRecord(
             conversationId: runtimeConversationId,
-            providerId: .claude,
-            providerSessionId: "session-1",
+            harnessId: .claude,
+            harnessSessionId: "session-1",
             workingDirectory: URL(fileURLWithPath: "/tmp"),
             generation: 1
         ))
@@ -157,13 +157,13 @@ extension AgentsManagerTests {
 
 /// Echoes the launch model like `ModelEchoingAgentCLIKitAdapter`, but reports session-archiving support and records
 /// which sessions the host archives, so handoff cleanup is observable.
-private struct ArchivingModelEchoingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+private struct ArchivingModelEchoingAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let archiveRecorder = SessionArchiveRecorder()
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"],
-        capabilities: AgentCLIKit.AgentProviderCapabilities(supportsSessionArchiving: true)
+        capabilities: AgentCLIKit.AgentHarnessCapabilities(supportsSessionArchiving: true)
     )
 
     func makeLaunchConfiguration(
@@ -194,7 +194,7 @@ private struct ArchivingModelEchoingAgentCLIKitAdapter: AgentCLIKit.AgentProvide
     }
 
     func archiveSession(_ record: AgentCLIKit.AgentSessionRecord) async throws {
-        await archiveRecorder.record(record.providerSessionId)
+        await archiveRecorder.record(record.harnessSessionId)
     }
 }
 

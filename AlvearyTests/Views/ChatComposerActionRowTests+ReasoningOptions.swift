@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 extension ChatComposerActionRowTests {
-    func testReasoningModelOptionsUseCodexProviderStatusLabelsAndEfforts() {
+    func testReasoningModelOptionsUseCodexHarnessStatusLabelsAndEfforts() {
         let menuItems = AgentModelOptionSelection.menuItems(
             in: AgentModelOptionTestFixtures.codexModelOptions,
             selectedModel: "gpt-5.4-mini",

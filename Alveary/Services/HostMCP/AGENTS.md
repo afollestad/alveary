@@ -1,12 +1,12 @@
 ## Alveary Host MCP Server
 
-The tools Alveary exposes *to* the agent. Not `Alveary/Services/MCP/`, which configures the third-party MCP servers the provider CLIs connect to. Transport, registration, and loopback security live in `AgentCLIKit`'s `Sources/AgentCLIKit/MCP/AGENTS.md`.
+The tools Alveary exposes *to* the agent. Not `Alveary/Services/MCP/`, which configures the third-party MCP servers the harness CLIs connect to. Transport, registration, and loopback security live in `AgentCLIKit`'s `Sources/AgentCLIKit/MCP/AGENTS.md`.
 
 ### Composition
 
 - Keep this folder feature-neutral. A feature owns its catalog and handler in its own folder (`Alveary/Services/Scheduled/`, `Alveary/Services/Threads/`, `Alveary/Services/PullRequests/`) and enrolls here.
 - Enroll a feature in two places: its `HostToolFeatureCatalog` in `AlvearyHostToolCatalog.featureCatalogs`, and its `HostToolFeature` handler in `AppComponent+HostMCP.swift`. Definitions are consumed statically at spawn; handlers need DI, which is why the two lists exist.
-- **Keep the dispatcher's feature list a closure.** `hostToolDispatcher` is constructed while `agentCLIKitRuntime` is being built, so resolving a feature that reaches `agentsManager` — `ThreadHostToolService` does, via `ThreadLifecycleService` — recurses back through the runtime getter and overflows the stack during DI. `HostToolDispatcher` resolves features on the first call instead, by which time a provider process exists.
+- **Keep the dispatcher's feature list a closure.** `hostToolDispatcher` is constructed while `agentCLIKitRuntime` is being built, so resolving a feature that reaches `agentsManager` — `ThreadHostToolService` does, via `ThreadLifecycleService` — recurses back through the runtime getter and overflows the stack during DI. `HostToolDispatcher` resolves features on the first call instead, by which time a harness process exists.
 - `AlvearyHostToolCatalog.serverName` is the only place the server name is spelled. AgentCLIKit registers one server per process, so every feature shares that identity, the composed instructions, and `HostToolDispatcher`'s routing.
 - Tool names are unique across features. Composition traps on a duplicate, and `AlvearyHostToolCatalogTests` proves every advertised tool reaches a handler — that parity is the one real risk of splitting static catalogs from DI-built handlers.
 - Keep each `instructionsFragment` to what its own tools need; the preamble already forbids substitutes, invented tools, and unasked-for calls.
@@ -19,7 +19,7 @@ The tools Alveary exposes *to* the agent. Not `Alveary/Services/MCP/`, which con
 
 ### Handler Contract
 
-- **Bind identity from `AgentHostToolCallContext`, never from arguments.** Conversation, provider, process token, and request ID are trusted runtime state; a tool argument naming any of them is a steering vector.
+- **Bind identity from `AgentHostToolCallContext`, never from arguments.** Conversation, harness, process token, and request ID are trusted runtime state; a tool argument naming any of them is a steering vector.
 - **Resolve the source first, through `HostToolSourceResolver`.** A caller Alveary cannot place reads nothing. Feature eligibility layers on top; it never replaces that check.
 - **Validate every key and type through `StrictHostToolObject`,** whatever the advertised JSON Schema promised. `requireOnly` allowlists keys so an unadvertised field is refused rather than ignored.
 - **Fill `text` and `structuredContent` both.** Codex surfaces only the text fallback.
@@ -30,4 +30,4 @@ The tools Alveary exposes *to* the agent. Not `Alveary/Services/MCP/`, which con
 
 - Exposure is all-or-nothing per turn: `ConversationViewModel.hostToolConfiguration` attaches the whole merged catalog or none of it, and suppresses it for continuations and `ConversationState.hostToolsDisabled`. Automated scheduled turns attach the catalog like ordinary outbound; which tools serve them is each feature's service gate (scheduling refuses, pull requests refuse only `close_pr`, thread tools serve them).
 - Launch failure retries once without tools through `HostToolFallbackClassifier`; only a current accepting event buffer may disable a replacement runtime.
-- Providers report a called tool either bare or prefixed with the server name. Match through `AlvearyHostToolCatalog.matches`; see `Alveary/Services/Agent/Transcript/HostToolWidgets/AGENTS.md` for how descriptors use it.
+- Harnesses report a called tool either bare or prefixed with the server name. Match through `AlvearyHostToolCatalog.matches`; see `Alveary/Services/Agent/Transcript/HostToolWidgets/AGENTS.md` for how descriptors use it.

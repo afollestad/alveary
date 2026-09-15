@@ -7,24 +7,24 @@ typealias PullRequestReviewTeamSettingsValidator = @MainActor @Sendable (AppSett
 struct PullRequestReviewTeamSettingsSignature: Equatable, Sendable {
     let mode: PullRequestReviewMode
     let peers: [PullRequestReviewPeer]
-    let defaultProvider: String
+    let defaultHarness: String
     let defaultModel: String
     let defaultEffort: String
-    let disabledProviderIDs: Set<String>
-    let providerConfigs: [String: ProviderCustomConfig]
-    let leadProvider: String?
+    let disabledHarnessIDs: Set<String>
+    let harnessConfigs: [String: HarnessCustomConfig]
+    let leadHarness: String?
     let leadModel: String?
     let leadEffort: String?
 
     init(settings: AppSettings) {
         mode = settings.pullRequestReviewMode
         peers = settings.pullRequestReviewPeers
-        defaultProvider = settings.defaultProvider
+        defaultHarness = settings.defaultHarness
         defaultModel = settings.defaultModel
         defaultEffort = settings.effort
-        disabledProviderIDs = settings.disabledProviderIDs
-        providerConfigs = settings.providerConfigs
-        leadProvider = settings.pullRequestReviewProvider
+        disabledHarnessIDs = settings.disabledHarnessIDs
+        harnessConfigs = settings.harnessConfigs
+        leadHarness = settings.pullRequestReviewHarness
         leadModel = settings.pullRequestReviewModel
         leadEffort = settings.pullRequestReviewEffort
     }
@@ -88,9 +88,9 @@ extension PullRequestsViewModel {
             return
         }
 
-        // Discovery snapshots include enablement; a newly enabled provider must not reuse its disabled snapshot.
+        // Discovery snapshots include enablement; a newly enabled harness must not reuse its disabled snapshot.
         reviewTeamDiscoveryNeedsRefresh = reviewTeamDiscoveryNeedsRefresh
-            || signature.disabledProviderIDs != reviewTeamSettingsSignature.disabledProviderIDs
+            || signature.disabledHarnessIDs != reviewTeamSettingsSignature.disabledHarnessIDs
         let needsDiscoveryRefresh = refreshDiscovery || reviewTeamDiscoveryNeedsRefresh
         reviewTeamSettingsSignature = signature
         cancelReviewTeamValidation()
@@ -112,13 +112,13 @@ extension PullRequestsViewModel {
         reviewTeamValidationToken = token
         mirroredReviewTeamValidationStatus = .validating
         mirrorPullRequestReviewConfiguration()
-        let refreshProviders = refreshReviewTeamProviderDiscovery
+        let refreshHarnesses = refreshReviewTeamHarnessDiscovery
         reviewTeamValidationTask = Task { [weak self] in
             let status: PullRequestReviewTeamValidationStatus
             do {
                 try Task.checkCancellation()
                 if needsDiscoveryRefresh {
-                    await refreshProviders()
+                    await refreshHarnesses()
                     try Task.checkCancellation()
                     self?.finishReviewTeamDiscoveryRefresh(token: token)
                 }

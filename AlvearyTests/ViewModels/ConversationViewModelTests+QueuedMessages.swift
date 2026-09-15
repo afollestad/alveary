@@ -152,7 +152,7 @@ extension ConversationViewModelTests {
     }
 
     func testCodexSteerRequiresRuntimeActivityTurnId() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
 
         do {
@@ -168,7 +168,7 @@ extension ConversationViewModelTests {
     }
 
     func testCodexSteerSucceedsAfterRuntimeActivityTurnId() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.turnState.beginTurn()
         fixture.viewModel.state.activeRuntimeActivityTurnId = "turn-1"
 
@@ -460,7 +460,7 @@ extension ConversationViewModelTests {
     }
 
     func testCodexSteerQueuedMessageRequiresRuntimeActivityTurnId() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.stagedContext = "Queued context"
         fixture.viewModel.turnState.beginTurn()
         try await fixture.viewModel.queueOrSend("Queued steer")

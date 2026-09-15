@@ -4,7 +4,7 @@ import Foundation
 struct AgentModelOptionMenuItem: Equatable, Sendable {
     let value: String
     let title: String
-    /// Provider-supplied alias users can type; falls back to `value` for synthesized items with no catalog entry.
+    /// Harness-supplied alias users can type; falls back to `value` for synthesized items with no catalog entry.
     let shortName: String
 
     init(value: String, title: String, shortName: String? = nil) {
@@ -34,7 +34,7 @@ enum AgentModelOptionSelection {
         if let exact = options.first(where: { $0.id == trimmed || $0.model == trimmed }) {
             return exact
         }
-        // A selection persisted before a provider listed pinned versions is a family alias such as `opus`, which now
+        // A selection persisted before a harness listed pinned versions is a family alias such as `opus`, which now
         // survives only as the newest version's short name. Without this the stored value reads as unknown and every
         // caller resets it, silently discarding the user's model.
         if let aliased = options.first(where: { $0.shortName == trimmed }) {
@@ -69,7 +69,7 @@ enum AgentModelOptionSelection {
     static func effortOptions(
         in options: [AgentCLIKit.AgentModelOption],
         selectedModel: String?
-    ) -> [AgentCLIKit.AgentProviderOption] {
+    ) -> [AgentCLIKit.AgentHarnessOption] {
         option(in: options, matching: selectedModel)?.supportedEffortOptions ?? []
     }
 

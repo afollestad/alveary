@@ -160,7 +160,7 @@ extension PullRequestAgenticThreadService {
         }
     }
 
-    /// Capture metadata from the exact borrowed folder before provider discovery can suspend.
+    /// Capture metadata from the exact borrowed folder before harness discovery can suspend.
     /// The descriptor carries cleanup provenance; repository controls need the saved source too.
     func workspaceSnapshot(for descriptor: TaskWorkspaceDescriptor, identifier: PullRequestIdentifier) -> WorkspaceSnapshot {
         let threads = (try? lifecycleService.modelContext.fetch(FetchDescriptor<AgentThread>())) ?? []

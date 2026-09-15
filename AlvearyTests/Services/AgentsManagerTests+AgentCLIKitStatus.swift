@@ -332,7 +332,7 @@ extension AgentsManagerTests {
             .runtimeActivity(state: .active, turnId: "turn-1", outcome: .unknown),
             conversationId: conversationId,
             generation: generation,
-            providerId: "codex"
+            harnessId: "codex"
         )
         XCTAssertEqual(manager.status(for: conversationId), .busy)
         await fulfillment(of: [busyNotification], timeout: 1)
@@ -341,7 +341,7 @@ extension AgentsManagerTests {
             .runtimeActivity(state: .idle, turnId: "turn-1", outcome: .completed),
             conversationId: conversationId,
             generation: generation,
-            providerId: "codex"
+            harnessId: "codex"
         )
         XCTAssertEqual(manager.status(for: conversationId), .idle)
 
@@ -369,7 +369,7 @@ extension AgentsManagerTests {
             .runtimeActivity(state: .idle, turnId: "turn-1", outcome: .failed(message: "Codex turn failed.")),
             conversationId: conversationId,
             generation: generation,
-            providerId: "codex"
+            harnessId: "codex"
         )
         XCTAssertEqual(manager.status(for: conversationId), .error)
 
@@ -378,7 +378,7 @@ extension AgentsManagerTests {
             .runtimeActivity(state: .idle, turnId: "turn-1", outcome: .completed),
             conversationId: conversationId,
             generation: generation,
-            providerId: "codex"
+            harnessId: "codex"
         )
         XCTAssertEqual(manager.status(for: conversationId), .error)
 
@@ -412,7 +412,7 @@ extension AgentsManagerTests {
             .toolApprovalRequested(approval),
             conversationId: conversationId,
             generation: generation,
-            providerId: "codex"
+            harnessId: "codex"
         )
         XCTAssertEqual(manager.status(for: conversationId), .waitingForUser)
 
@@ -421,7 +421,7 @@ extension AgentsManagerTests {
             .runtimeActivity(state: .active, turnId: "turn-1", outcome: .unknown),
             conversationId: conversationId,
             generation: generation,
-            providerId: "codex"
+            harnessId: "codex"
         )
         XCTAssertEqual(manager.status(for: conversationId), .waitingForUser)
 
@@ -429,7 +429,7 @@ extension AgentsManagerTests {
             .runtimeActivity(state: .idle, turnId: nil, outcome: .failed(message: "Codex turn failed.")),
             conversationId: conversationId,
             generation: generation,
-            providerId: "codex"
+            harnessId: "codex"
         )
         XCTAssertEqual(manager.status(for: conversationId), .waitingForUser)
 
@@ -437,8 +437,8 @@ extension AgentsManagerTests {
     }
 }
 
-struct TurnStatusAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+struct TurnStatusAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]

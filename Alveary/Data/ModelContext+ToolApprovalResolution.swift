@@ -4,7 +4,7 @@ import SwiftData
 /// Whether a `tool_approval` row with no `toolApprovalStatus` is still actionable.
 ///
 /// A `nil` status means nobody ever answered the prompt, but it does not prove the prompt is
-/// still open: the provider can run the tool anyway, or end the turn, without Alveary stamping
+/// still open: the harness can run the tool anyway, or end the turn, without Alveary stamping
 /// the row. Both the transcript restore path and the sidebar's waiting dot have to tell those
 /// apart, so the fetch shapes live here rather than being copied per caller — see the
 /// **Fetch Predicates** section in this folder's `AGENTS.md` for why a predicate gets one home.

@@ -15,26 +15,26 @@ final class DefaultMCPService: MCPService {
 
     private let claudeConfigStore: AgentCLIKit.ClaudeConfigStore
     private let codexConfigStore: AgentCLIKit.CodexConfigStore
-    private let providerDetection: ProviderDetectionService
+    private let harnessDetection: HarnessDetectionService
     private let agentRegistry: AgentRegistry
     private let bundle: Bundle
 
     init(
         claudeConfigStore: AgentCLIKit.ClaudeConfigStore,
         codexConfigStore: AgentCLIKit.CodexConfigStore,
-        providerDetection: ProviderDetectionService,
+        harnessDetection: HarnessDetectionService,
         agentRegistry: AgentRegistry,
         bundle: Bundle = .main
     ) {
         self.claudeConfigStore = claudeConfigStore
         self.codexConfigStore = codexConfigStore
-        self.providerDetection = providerDetection
+        self.harnessDetection = harnessDetection
         self.agentRegistry = agentRegistry
         self.bundle = bundle
     }
 
     func loadAll() async throws -> [MCPServer] {
-        var serversByName: [String: (server: MCPServer, providers: Set<String>)] = [:]
+        var serversByName: [String: (server: MCPServer, harnesses: Set<String>)] = [:]
 
         for agent in mcpAgents {
             let rawServers = (try? await readRawServers(for: agent)) ?? [:]
@@ -43,7 +43,7 @@ final class DefaultMCPService: MCPService {
 
             for (name, rawEntry) in canonicalServers {
                 if var existing = serversByName[name] {
-                    existing.providers.insert(agent.agentId)
+                    existing.harnesses.insert(agent.agentId)
                     serversByName[name] = existing
                     continue
                 }
@@ -63,7 +63,7 @@ final class DefaultMCPService: MCPService {
                     url: rawEntry["url"] as? String,
                     headers: rawEntry["headers"] as? [String: String],
                     env: rawEntry["env"] as? [String: String],
-                    providers: [agent.agentId]
+                    harnesses: [agent.agentId]
                 )
                 serversByName[name] = (server, [agent.agentId])
             }
@@ -71,7 +71,7 @@ final class DefaultMCPService: MCPService {
 
         return serversByName.values.map { value in
             var server = value.server
-            server.providers = Array(value.providers).sorted()
+            server.harnesses = Array(value.harnesses).sorted()
             return server
         }
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -100,7 +100,7 @@ final class DefaultMCPService: MCPService {
                     url: entry.url,
                     headers: nil,
                     env: nil,
-                    providers: []
+                    harnesses: []
                 ),
                 description: entry.description,
                 headerPrompts: entry.headers ?? []
@@ -147,11 +147,11 @@ final class DefaultMCPService: MCPService {
     }
 
     func availableAgents() async -> [MCPAgentAvailability] {
-        await providerDetection.checkAllProviders()
+        await harnessDetection.checkAllHarnesses()
 
         var available: [MCPAgentAvailability] = []
         for agent in mcpAgents {
-            let status = await providerDetection.status(for: agent.agentId)
+            let status = await harnessDetection.status(for: agent.agentId)
             switch status {
             case .connected, .needsKey, .error:
                 let supportedTransports: [MCPServer.Transport] = agent.config.supportsHttp ? [.stdio, .http] : [.stdio]

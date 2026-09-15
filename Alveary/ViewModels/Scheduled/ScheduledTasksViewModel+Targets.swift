@@ -67,7 +67,7 @@ extension ScheduledTasksViewModel {
         let text = try validatedText(in: draft)
         let destination = try resolvedDestination(in: draft)
         let threadSection = try resolvedThreadSection(in: draft)
-        let options = modelOptions(for: draft.providerID)
+        let options = modelOptions(for: draft.harnessID)
         let storedModel = AgentModelOptionSelection.storedModelValue(
             in: options,
             matching: draft.modelSelection
@@ -94,7 +94,7 @@ extension ScheduledTasksViewModel {
             destination: draft.destination,
             recurrence: draft.recurrence,
             timeZoneIdentifier: currentTimeZone().identifier,
-            providerID: draft.providerID,
+            harnessID: draft.harnessID,
             model: normalizedModel,
             effort: AgentModelOptionSelection.normalizedEffort(
                 draft.effort,

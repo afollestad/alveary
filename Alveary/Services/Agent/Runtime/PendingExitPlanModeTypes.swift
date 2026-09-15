@@ -8,10 +8,10 @@ struct PendingExitPlanModeFollowUp: Equatable, Sendable {
 
     let toolUseId: String
     let sessionId: String
-    let providerId: String
-    let providerSessionId: String?
+    let harnessId: String
+    let harnessSessionId: String?
     let message: String
-    /// Provider-facing text for the next send; this must never be shown in transcript UI.
+    /// Harness-facing text for the next send; this must never be shown in transcript UI.
     let transportText: String?
     let sourceTurnId: String?
     let sourceSubscriptionToken: UUID?
@@ -24,6 +24,6 @@ struct PendingExitPlanModeFollowUp: Equatable, Sendable {
 struct PendingExitPlanModeRevisionGuidance: Equatable, Sendable {
     let toolUseId: String
     let sessionId: String
-    let providerId: String
-    let providerSessionId: String?
+    let harnessId: String
+    let harnessSessionId: String?
 }

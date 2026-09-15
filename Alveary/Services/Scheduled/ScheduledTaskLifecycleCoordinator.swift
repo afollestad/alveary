@@ -165,7 +165,7 @@ final class ScheduledTaskLifecycleCoordinator {
         }
     }
 
-    func activateAfterProviderRefresh() async {
+    func activateAfterHarnessRefresh() async {
         guard !isActivated, !isTerminating else {
             return
         }
@@ -386,7 +386,7 @@ private extension ScheduledTaskLifecycleCoordinator {
             self.scheduledDeadline = nil
             switch action {
             case .activate:
-                await self.activateAfterProviderRefresh()
+                await self.activateAfterHarnessRefresh()
             case .reconcile:
                 self.reconcileDueTasks()
             }
@@ -441,7 +441,7 @@ private extension ScheduledTaskRecoveryReadinessSnapshot {
             scheduledOccurrenceAt: run.occurrenceAt,
             recurrence: .once(run.occurrenceAt),
             timeZoneIdentifier: run.timeZoneIdentifierSnapshot,
-            providerID: run.providerIDSnapshot,
+            harnessID: run.harnessIDSnapshot,
             model: run.modelSnapshot,
             effort: run.effortSnapshot,
             permissionMode: run.permissionModeSnapshot,
@@ -485,7 +485,7 @@ private extension ScheduledTaskRun {
         return ScheduledTaskTargetSnapshot(
             conversationID: conversationID,
             threadName: targetThreadNameSnapshot ?? targetThread?.displayName() ?? "Existing thread",
-            providerID: providerIDSnapshot,
+            harnessID: harnessIDSnapshot,
             model: modelSnapshot,
             effort: effortSnapshot,
             permissionMode: permissionModeSnapshot,

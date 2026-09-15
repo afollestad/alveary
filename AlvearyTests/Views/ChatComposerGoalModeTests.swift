@@ -6,12 +6,12 @@ import XCTest
 @MainActor
 final class ChatComposerGoalModeTests: XCTestCase {
     func testExactGoalClearRunsBeforeArmedGoalSubmitFromSendDraft() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.state.goalSnapshot = activeGoal()
         fixture.viewModel.state.isGoalModeArmed = true
         fixture.viewModel.replaceInputDraft("/goal clear", source: .blockInputMarkdown)
-        let chatView = makeChatView(fixture: fixture, appState: appState, supportsGoalMode: true, providerID: "codex")
+        let chatView = makeChatView(fixture: fixture, appState: appState, supportsGoalMode: true, harnessID: "codex")
 
         chatView.sendDraft()
 
@@ -27,12 +27,12 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testExactGoalClearRunsBeforeArmedGoalSubmitFromSteerDraft() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.state.goalSnapshot = activeGoal()
         fixture.viewModel.state.isGoalModeArmed = true
         fixture.viewModel.replaceInputDraft("/goal clear", source: .blockInputMarkdown)
-        let chatView = makeChatView(fixture: fixture, appState: appState, supportsGoalMode: true, providerID: "codex")
+        let chatView = makeChatView(fixture: fixture, appState: appState, supportsGoalMode: true, harnessID: "codex")
 
         chatView.steerDraft()
 
@@ -46,12 +46,12 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testExactGoalClearRunsBeforeArmedGoalSubmitFromAlternateSteerDraft() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.state.goalSnapshot = activeGoal()
         fixture.viewModel.state.isGoalModeArmed = true
         fixture.viewModel.replaceInputDraft("/goal clear", source: .blockInputMarkdown)
-        let chatView = makeChatView(fixture: fixture, appState: appState, supportsGoalMode: true, providerID: "codex")
+        let chatView = makeChatView(fixture: fixture, appState: appState, supportsGoalMode: true, harnessID: "codex")
 
         chatView.alternateSteerDraft()
 
@@ -65,11 +65,11 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testArmedGoalSubmitTreatsNonExactGoalClearTextAsObjective() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.state.isGoalModeArmed = true
         fixture.viewModel.replaceInputDraft("/goal clear the logs", source: .blockInputMarkdown)
-        let chatView = makeChatView(fixture: fixture, appState: appState, supportsGoalMode: true, providerID: "codex")
+        let chatView = makeChatView(fixture: fixture, appState: appState, supportsGoalMode: true, harnessID: "codex")
 
         chatView.sendDraft()
 
@@ -81,10 +81,10 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testGoalActionCommandWithoutActiveGoalShowsGoalActionErrorOnly() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
         fixture.viewModel.replaceInputDraft("/goal pause", source: .blockInputMarkdown)
-        let chatView = makeChatView(fixture: fixture, appState: appState, supportsGoalMode: true, providerID: "codex")
+        let chatView = makeChatView(fixture: fixture, appState: appState, supportsGoalMode: true, harnessID: "codex")
 
         chatView.sendDraft()
 
@@ -99,7 +99,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testEstablishedThreadGoalToggleRequiresExistingSessionCapability() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.context.insert(ConversationEventRecord(
             conversationId: fixture.conversation.id,
             type: "message",
@@ -112,27 +112,27 @@ final class ChatComposerGoalModeTests: XCTestCase {
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
         let supportedView = makeChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
             supportsExistingSessionGoalStart: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         XCTAssertFalse(unsupportedView.isGoalModeToggleEnabled)
         XCTAssertEqual(
             unsupportedView.goalModeToggleDisabledTooltip,
-            "This agent can only start Goal mode before the first visible user message."
+            "This harness can only start Goal mode before the first visible user message."
         )
         XCTAssertTrue(supportedView.isGoalModeToggleEnabled)
         XCTAssertNil(supportedView.goalModeToggleDisabledTooltip)
     }
 
     func testGoalTogglePrefersProjectTrustBlockedMessage() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.context.insert(ConversationEventRecord(
             conversationId: fixture.conversation.id,
             type: "message",
@@ -145,7 +145,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex",
+            harnessID: "codex",
             isProjectTrustBlocked: true
         )
 
@@ -154,7 +154,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testTerminalGoalRowDoesNotDisableGoalToggle() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = AgentGoalSnapshot(
             objective: "Previous goal",
             status: .achieved
@@ -163,7 +163,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         XCTAssertTrue(chatView.isGoalModeToggleEnabled)
@@ -172,7 +172,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testGoalModeToggleTurnsOffPlanMode() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         try fixture.dbThread().planModeEnabled = true
         try fixture.context.save()
         let chatView = makeChatView(
@@ -180,7 +180,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             appState: AppState(),
             supportsGoalMode: true,
             supportsPlanMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.composerActionRowConfiguration(usageSummary: .unreported).onGoalModeChange(true)
@@ -190,14 +190,14 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testPlanModeToggleDisarmsArmedGoalMode() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.isGoalModeArmed = true
         let chatView = makeChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
             supportsPlanMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.composerActionRowConfiguration(usageSummary: .unreported).onPlanModeChange(true)
@@ -207,14 +207,14 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testActiveGoalDisablesPlanModeToggle() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = activeGoal()
         let chatView = makeChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
             supportsPlanMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         let configuration = chatView.composerActionRowConfiguration(usageSummary: .unreported)
@@ -223,7 +223,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testPlanLocalCommandDoesNotEnablePlanModeWhileGoalIsActive() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = activeGoal()
         fixture.viewModel.replaceInputDraft("/plan", source: .blockInputMarkdown)
         let chatView = makeChatView(
@@ -231,7 +231,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             appState: AppState(),
             supportsGoalMode: true,
             supportsPlanMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -241,7 +241,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testGoalSubmissionTurnsOffPlanModeBeforeStartingGoal() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         try fixture.dbThread().planModeEnabled = true
         try fixture.context.save()
         fixture.viewModel.state.isGoalModeArmed = true
@@ -251,7 +251,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             appState: AppState(),
             supportsGoalMode: true,
             supportsPlanMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         chatView.sendDraft()
@@ -263,13 +263,13 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testGoalChipShowsWhileArmedAndDisarmsComposer() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.isGoalModeArmed = true
         let chatView = makeChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         let configuration = chatView.composerActionRowConfiguration(usageSummary: .unreported)
@@ -282,13 +282,13 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testGoalChipShowsForActiveGoalAndRoutesDeleteAction() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         fixture.viewModel.state.goalSnapshot = activeGoal()
         let chatView = makeChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "codex"
+            harnessID: "codex"
         )
 
         let configuration = chatView.composerActionRowConfiguration(usageSummary: .unreported)
@@ -303,14 +303,14 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     func testGoalChipIsHiddenWhenDeleteIsNotCurrentlyVisible() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+        let fixture = try ConversationViewModelTestFixture(harnessId: "claude")
         fixture.viewModel.state.goalSnapshot = activeGoal()
         fixture.viewModel.turnState.beginTurn()
         let chatView = makeChatView(
             fixture: fixture,
             appState: AppState(),
             supportsGoalMode: true,
-            providerID: "claude"
+            harnessID: "claude"
         )
 
         let configuration = chatView.composerActionRowConfiguration(usageSummary: .unreported)
@@ -339,7 +339,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
         supportsGoalMode: Bool = false,
         supportsExistingSessionGoalStart: Bool = false,
         supportsPlanMode: Bool = false,
-        providerID: String = "claude",
+        harnessID: String = "claude",
         isProjectTrustBlocked: Bool = false
     ) -> ChatView {
         ChatView(
@@ -363,7 +363,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
                 selectedModel: AppSettings.defaultModelValue
             ),
             defaultEnterBehavior: .queue,
-            providerID: providerID,
+            harnessID: harnessID,
             runtimeStatus: .neutral,
             contextWindowCache: fixture.contextWindowCache,
             workingDirectory: fixture.project.path,

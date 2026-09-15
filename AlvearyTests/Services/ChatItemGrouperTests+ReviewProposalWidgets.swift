@@ -69,7 +69,7 @@ extension ChatItemGrouperTests {
         let grouper = ChatItemGrouper()
         let worker = ReviewWorkerConfiguration(
             id: "worker-1",
-            providerID: "codex",
+            harnessID: "codex",
             modelOptionID: "gpt-5",
             launchModel: "gpt-5",
             effort: "high",
@@ -236,7 +236,7 @@ extension ChatItemGrouperTests {
     }
 
     /// Scheduling and pull-request reviews both open confirmations. A keyless marker — what a
-    /// plain-text-fallback provider leaves behind — must not resolve the other feature's card,
+    /// plain-text-fallback harness leaves behind — must not resolve the other feature's card,
     /// or a review would report a decision the user never made.
     func testAKeylessSchedulingMarkerDoesNotResolveAReviewProposal() throws {
         let grouper = ChatItemGrouper()
@@ -295,7 +295,7 @@ extension ChatItemGrouperTests {
         XCTAssertTrue(entry.isUnresolvedProposal)
     }
 
-    /// A plain-text-fallback provider leaves the widget no proposal id, so its own feature's
+    /// A plain-text-fallback harness leaves the widget no proposal id, so its own feature's
     /// marker still has to reach it.
     func testAKeylessReviewMarkerResolvesAPlainTextReviewCard() {
         let grouper = ChatItemGrouper()

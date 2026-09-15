@@ -10,11 +10,11 @@ struct AppDelegateTestFixture {
     let workspaceNotificationCenter = NotificationCenter()
     let appNotificationCenter = NotificationCenter()
     let shellRunner = MockShellRunner()
-    let providerDetection = AppDelegateMockProviderDetectionService()
-    /// The base under `inertProviderDiscoveryCache`, stored so a test can count the probes the
+    let harnessDetection = AppDelegateMockHarnessDetectionService()
+    /// The base under `inertHarnessDiscoveryCache`, stored so a test can count the probes the
     /// cache actually let through — launch's warm, and the wake refresh's re-warm after it drops
     /// the pre-sleep snapshot.
-    let providerDiscoveryProbe = RecordingProviderDiscoveryService(statuses: [:])
+    let harnessDiscoveryProbe = RecordingHarnessDiscoveryService(statuses: [:])
     let sessionManager = AppDelegateMockSessionManager()
     let agentsManager = AppDelegateMockAgentsManager()
     let modelContainer: ModelContainer
@@ -53,7 +53,7 @@ struct AppDelegateTestFixture {
                 conversationId: session.conversationId,
                 entry: SessionEntry(
                     cwd: CanonicalPath.normalize(session.cwd),
-                    providerId: "claude",
+                    harnessId: "claude",
                     appSessionId: session.conversationId.replacingOccurrences(of: "conversation-", with: "session-"),
                     launchSessionId: session.conversationId.replacingOccurrences(of: "conversation-", with: "session-")
                 )
@@ -78,8 +78,8 @@ struct AppDelegateTestFixture {
         AppDelegate(
             dependencies: .init(
                 agentsManager: agentsManager,
-                providerDetection: providerDetection,
-                providerDiscoveryCache: inertProviderDiscoveryCache,
+                harnessDetection: harnessDetection,
+                harnessDiscoveryCache: inertHarnessDiscoveryCache,
                 sessionManager: sessionManager,
                 attachmentStore: attachmentStore,
                 taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
@@ -125,8 +125,8 @@ struct AppDelegateTestFixture {
     }
 
     /// Inert: these are startup-order tests, so launch must not probe the machine.
-    var inertProviderDiscoveryCache: CachingAgentProviderDiscoveryService {
-        CachingAgentProviderDiscoveryService(base: providerDiscoveryProbe)
+    var inertHarnessDiscoveryCache: CachingAgentHarnessDiscoveryService {
+        CachingAgentHarnessDiscoveryService(base: harnessDiscoveryProbe)
     }
 
     /// The real controller on a fake status bar: launch and terminate exercise its lifecycle
@@ -157,9 +157,9 @@ struct AppDelegateTestFixture {
         )
     }
 
-    func waitForProviderChecks(_ count: Int, description: String) async throws {
+    func waitForHarnessChecks(_ count: Int, description: String) async throws {
         try await appDelegateWaitUntil(description) {
-            await providerDetection.checkAllCount() == count
+            await harnessDetection.checkAllCount() == count
         }
     }
 
@@ -198,22 +198,22 @@ func appDelegateWaitUntil(
     throw AppDelegateWaitTimeoutError(description: description)
 }
 
-actor AppDelegateMockProviderDetectionService: ProviderDetectionService {
+actor AppDelegateMockHarnessDetectionService: HarnessDetectionService {
     private var checkAllInvocations = 0
 
-    func resolvedPath(for providerId: String) -> String? {
+    func resolvedPath(for harnessId: String) -> String? {
         nil
     }
 
-    func status(for providerId: String) -> ProviderStatus {
+    func status(for harnessId: String) -> HarnessStatus {
         .unchecked
     }
 
-    func checkAllProviders() async {
+    func checkAllHarnesses() async {
         checkAllInvocations += 1
     }
 
-    func checkProvider(_ providerId: String) async {}
+    func checkHarness(_ harnessId: String) async {}
 
     func checkAllCount() -> Int {
         checkAllInvocations
@@ -225,7 +225,7 @@ actor AppDelegateMockSessionManager: SessionManager {
     private var loadInvocations = 0
     private var persistInvocations = 0
 
-    func createEntry(conversationId: String, cwd: String, providerId: String) -> Bool {
+    func createEntry(conversationId: String, cwd: String, harnessId: String) -> Bool {
         false
     }
 
@@ -241,10 +241,10 @@ actor AppDelegateMockSessionManager: SessionManager {
         entries[conversationId]?.appSessionId ?? ""
     }
 
-    func conversationId(forSessionId sessionId: String, cwd: String, providerId: String) -> String? {
+    func conversationId(forSessionId sessionId: String, cwd: String, harnessId: String) -> String? {
         let normalizedCWD = CanonicalPath.normalize(cwd)
         return entries.first { _, entry in
-            entry.providerId == providerId &&
+            entry.harnessId == harnessId &&
                 entry.cwd == normalizedCWD &&
                 (entry.appSessionId == sessionId || entry.launchSessionId == sessionId)
         }?.key
@@ -303,7 +303,7 @@ actor AppDelegateMockAgentsManager: AgentsManager {
     }
 
     func toolApprovalSelection(
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async -> ToolApprovalSelection? {
@@ -312,7 +312,7 @@ actor AppDelegateMockAgentsManager: AgentsManager {
 
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async {}

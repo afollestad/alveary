@@ -127,7 +127,7 @@ private func scheduledSidebarThread(worktreePath: String? = nil, useWorktree: Bo
         promptSnapshot: "Review the workspace.",
         destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
-        providerIDSnapshot: "codex",
+        harnessIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .project,

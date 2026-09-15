@@ -2,7 +2,7 @@ import Foundation
 
 /// Decisions a conversation is holding that no runtime `ActivitySignal` reports.
 ///
-/// `DefaultAgentsManager` only knows a conversation is waiting when the provider process is
+/// `DefaultAgentsManager` only knows a conversation is waiting when the harness process is
 /// blocked on it — a permission prompt, `AskUserQuestion`, or `ExitPlanMode`. A proposal card or
 /// a link question waits on the user just as much, but its turn completed normally, so the
 /// runtime reports idle and the row would otherwise read as finished.

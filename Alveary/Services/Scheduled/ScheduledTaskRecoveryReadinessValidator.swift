@@ -13,14 +13,14 @@ struct ScheduledTaskRecoveryReadinessValidator: Sendable {
     private let targetIsReady: @MainActor @Sendable (String) -> Bool
 
     init(
-        providerDiscovery: any AgentProviderDiscoveryService,
+        harnessDiscovery: any AgentHarnessDiscoveryService,
         workspaceOwnershipService: any TaskWorkspaceOwnershipService,
         worktreeManager: any WorktreeManager,
         targetIsReady: @escaping @MainActor @Sendable (String) -> Bool = { _ in true },
         fileManager: FileManager = .default
     ) {
         let preflightValidator = DefaultScheduledTaskPreflightValidator(
-            providerDiscovery: providerDiscovery,
+            harnessDiscovery: harnessDiscovery,
             workspaceOwnershipService: workspaceOwnershipService,
             worktreeManager: worktreeManager,
             fileManager: fileManager

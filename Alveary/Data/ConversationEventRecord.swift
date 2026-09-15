@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class ConversationEventRecord {
-    // Provider-driven rows.
+    // Harness-driven rows.
     static let messageType = "message"
     static let toolCallType = "tool_call"
     static let toolResultType = "tool_result"
@@ -26,7 +26,7 @@ final class ConversationEventRecord {
     static let taskListType = "task_list"
     static let steeredConversationType = "steered_conversation"
     static let pullRequestReviewProposalType = "pull_request_review_proposal"
-    /// Hidden JSON snapshot owned by `PullRequestReviewLaunchInstructions`; it never enters provider context directly.
+    /// Hidden JSON snapshot owned by `PullRequestReviewLaunchInstructions`; it never enters harness context directly.
     static let pullRequestReviewLaunchInstructionsType = "pull_request_review_launch_instructions"
 
     static let userRole = "user"
@@ -72,6 +72,12 @@ final class ConversationEventRecord {
     var timestamp: Date
     var conversation: Conversation?
 
+    /// Keeps the existing SwiftData column while exposing harness terminology.
+    var harnessModelId: String? {
+        get { providerModelId }
+        set { providerModelId = newValue }
+    }
+
     init(
         id: String = UUID().uuidString,
         conversationId: String? = nil,
@@ -100,7 +106,7 @@ final class ConversationEventRecord {
         durationMs: Int = 0,
         costUsd: Double = 0,
         costUsdReported: Bool = false,
-        providerModelId: String? = nil,
+        harnessModelId: String? = nil,
         contextWindowSize: Int? = nil,
         notificationType: String? = nil,
         stopReason: String? = nil,
@@ -141,7 +147,7 @@ final class ConversationEventRecord {
         self.durationMs = durationMs
         self.costUsd = costUsd
         self.costUsdReported = costUsdReported
-        self.providerModelId = providerModelId
+        self.providerModelId = harnessModelId
         self.contextWindowSize = contextWindowSize
         self.notificationType = notificationType
         self.stopReason = stopReason

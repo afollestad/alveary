@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 extension AppDelegateTests {
-    func testWakeNotificationCancelsOlderRefreshBeforeRunningProviderCheck() async throws {
+    func testWakeNotificationCancelsOlderRefreshBeforeRunningHarnessCheck() async throws {
         // Every value here is explicitly typed, and every call takes locals rather than nested
         // calls. `.milliseconds(_:)` is generic over `BinaryInteger`, so an integer literal fed
         // straight into a call with nine defaulted parameters left the solver resolving both at
@@ -30,8 +30,8 @@ extension AppDelegateTests {
         )
 
         appDelegate.applicationDidFinishLaunching(launchNotification)
-        try await fixture.waitForProviderChecks(1, description: "expected initial startup provider detection")
-        try await appDelegateWaitUntil("expected scheduled task activation after provider refresh") {
+        try await fixture.waitForHarnessChecks(1, description: "expected initial startup harness detection")
+        try await appDelegateWaitUntil("expected scheduled task activation after harness refresh") {
             lifecycle.activationCount == 1
         }
 
@@ -41,18 +41,18 @@ extension AppDelegateTests {
         try? await Task.sleep(for: betweenWakesPause)
         fixture.workspaceNotificationCenter.post(name: NSWorkspace.didWakeNotification, object: nil)
 
-        try await fixture.waitForProviderChecks(2, description: "expected only latest wake refresh to run")
+        try await fixture.waitForHarnessChecks(2, description: "expected only latest wake refresh to run")
         try? await Task.sleep(for: settlePause)
 
-        let providerCheckCount = await fixture.providerDetection.checkAllCount()
-        XCTAssertEqual(providerCheckCount, 2)
+        let harnessCheckCount = await fixture.harnessDetection.checkAllCount()
+        XCTAssertEqual(harnessCheckCount, 2)
         XCTAssertEqual(lifecycle.reconciliationCount, 1)
         appDelegate.applicationWillTerminate(terminateNotification)
     }
 
-    func testWakeRefreshRewarmsProviderDiscoveryAfterDroppingThePreSleepSnapshot() async throws {
+    func testWakeRefreshRewarmsHarnessDiscoveryAfterDroppingThePreSleepSnapshot() async throws {
         // Invalidating alone would leave the first post-wake thread creation — an agentic review
-        // among them — paying the whole provider fan-out on its own click. Statements stay trivial
+        // among them — paying the whole harness fan-out on its own click. Statements stay trivial
         // and explicitly typed for the reason the suite's first test explains at length.
         let fixture = try AppDelegateTestFixture()
         let wakeRefreshDelay: Duration = .milliseconds(40)
@@ -61,30 +61,30 @@ extension AppDelegateTests {
         let appDelegate: AppDelegate = fixture.makeAppDelegate(wakeRefreshDelay: wakeRefreshDelay)
 
         appDelegate.applicationDidFinishLaunching(launchNotification)
-        try await appDelegateWaitUntil("expected launch to warm provider discovery once") {
-            await fixture.providerDiscoveryProbe.providerStatusesInvocations() == 1
+        try await appDelegateWaitUntil("expected launch to warm harness discovery once") {
+            await fixture.harnessDiscoveryProbe.harnessStatusesInvocations() == 1
         }
 
         fixture.workspaceNotificationCenter.post(name: NSWorkspace.didWakeNotification, object: nil)
 
-        try await appDelegateWaitUntil("expected the wake refresh to re-probe provider discovery") {
-            await fixture.providerDiscoveryProbe.providerStatusesInvocations() == 2
+        try await appDelegateWaitUntil("expected the wake refresh to re-probe harness discovery") {
+            await fixture.harnessDiscoveryProbe.harnessStatusesInvocations() == 2
         }
         appDelegate.applicationWillTerminate(terminateNotification)
     }
 
-    func testStartupActivatesScheduledTasksAfterCleanupSessionRecoveryAndProviderRefresh() async throws {
+    func testStartupActivatesScheduledTasksAfterCleanupSessionRecoveryAndHarnessRefresh() async throws {
         let fixture = try AppDelegateTestFixture()
         let recorder = AppDelegateShutdownOrderRecorder()
         let sessionManager = AppDelegateStartupOrderSessionManager(recorder: recorder)
         let context = try await fixture.prepareStartupOrderingState(sessionManager: sessionManager)
-        let providerDetection = AppDelegateOrderProviderDetection(recorder: recorder)
+        let harnessDetection = AppDelegateOrderHarnessDetection(recorder: recorder)
         let signalState = AppDelegateProcessSignalState(activePIDs: [100])
         let lifecycle = AppDelegateScheduledTaskLifecycleSpy()
         let appDelegate = fixture.makeStartupOrderingAppDelegate(
             recorder: recorder,
             sessionManager: sessionManager,
-            providerDetection: providerDetection,
+            harnessDetection: harnessDetection,
             signalState: signalState,
             scheduledTaskLifecycle: lifecycle
         )

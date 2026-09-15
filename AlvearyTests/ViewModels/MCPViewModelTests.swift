@@ -14,7 +14,7 @@ final class MCPViewModelTests: XCTestCase {
                 url: nil,
                 headers: nil,
                 env: nil,
-                providers: []
+                harnesses: []
             ),
             description: "Browser automation",
             headerPrompts: []
@@ -51,7 +51,7 @@ final class MCPViewModelTests: XCTestCase {
                     url: "https://mcp.context7.com/mcp",
                     headers: nil,
                     env: nil,
-                    providers: ["claude"]
+                    harnesses: ["claude"]
                 )
             ],
             recommended: [
@@ -64,7 +64,7 @@ final class MCPViewModelTests: XCTestCase {
                         url: nil,
                         headers: nil,
                         env: nil,
-                        providers: []
+                        harnesses: []
                     ),
                     description: "Browser automation for testing.",
                     headerPrompts: ["PLAYWRIGHT_TOKEN"]
@@ -98,7 +98,7 @@ final class MCPViewModelTests: XCTestCase {
             url: "https://mcp.context7.com/mcp",
             headers: nil,
             env: nil,
-            providers: ["claude"]
+            harnesses: ["claude"]
         )
         let service = MCPMockService(
             servers: [],
@@ -124,7 +124,7 @@ final class MCPViewModelTests: XCTestCase {
             url: nil,
             headers: nil,
             env: nil,
-            providers: ["claude"]
+            harnesses: ["claude"]
         )
         let service = MCPMockService(
             servers: [server],
@@ -148,7 +148,7 @@ final class MCPViewModelTests: XCTestCase {
             url: nil,
             headers: nil,
             env: nil,
-            providers: ["claude"]
+            harnesses: ["claude"]
         )
         let service = MCPMockService(
             servers: [server],
@@ -191,7 +191,7 @@ final class MCPViewModelTests: XCTestCase {
             url: nil,
             headers: nil,
             env: nil,
-            providers: ["claude"]
+            harnesses: ["claude"]
         )
 
         viewModel.requestAddCustom()
@@ -217,7 +217,7 @@ final class MCPViewModelTests: XCTestCase {
         service.setAvailableAgents([
             MCPAgentAvailability(agentId: "codex", name: "Codex", supportedTransports: [.stdio, .http])
         ])
-        await viewModel.refreshProviders()
+        await viewModel.refreshHarnesses()
 
         XCTAssertEqual(viewModel.paneSessions[.addCustom]?.draft?.name, "keep-me")
         XCTAssertEqual(viewModel.availableAgents.map(\.agentId), ["codex"])
@@ -267,7 +267,7 @@ final class MCPViewModelTests: XCTestCase {
                 url: nil,
                 headers: nil,
                 env: nil,
-                providers: []
+                harnesses: []
             ),
             description: "Browser automation",
             headerPrompts: []
@@ -442,7 +442,7 @@ final class MCPMockService: MCPService {
             try await Task.sleep(for: addDelay)
         }
         var updatedServer = server
-        updatedServer.providers = agents
+        updatedServer.harnesses = agents
         storedServers = [updatedServer]
         storedRecommended.removeAll { $0.template.name == server.name }
     }

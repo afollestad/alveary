@@ -3,9 +3,9 @@ import Foundation
 import SwiftData
 
 /// Settings a new project thread starts with. `name` omitted keeps the placeholder title so
-/// provider auto-naming still applies; `pinned` requests a sidebar pin inside the creating save.
+/// harness auto-naming still applies; `pinned` requests a sidebar pin inside the creating save.
 struct ProjectThreadSeed {
-    let provider: String
+    let harness: String
     let permissionMode: String
     let model: String?
     let effort: String
@@ -17,7 +17,7 @@ struct ProjectThreadSeed {
     let sectionID: String?
 
     init(
-        provider: String,
+        harness: String,
         permissionMode: String,
         model: String?,
         effort: String,
@@ -28,7 +28,7 @@ struct ProjectThreadSeed {
         useWorktree: Bool? = nil,
         sectionID: String? = nil
     ) {
-        self.provider = provider
+        self.harness = harness
         self.permissionMode = permissionMode
         self.model = model
         self.effort = effort
@@ -57,9 +57,9 @@ enum TaskThreadSidebarPlacement: Equatable {
 
 /// Settings a new Task thread starts with. A Task owns a private workspace instead of a Project,
 /// so `grantedRoots` is how it reaches anything outside that workspace; those paths must already
-/// be canonical absolute folders, validated by the caller the way provider and model are.
+/// be canonical absolute folders, validated by the caller the way harness and model are.
 struct TaskThreadSeed {
-    let provider: String
+    let harness: String
     let permissionMode: String
     let model: String?
     let effort: String
@@ -78,7 +78,7 @@ struct TaskThreadSeed {
     let workspaceSnapshot: WorkspaceSnapshot?
 
     init(
-        provider: String,
+        harness: String,
         permissionMode: String,
         model: String?,
         effort: String,
@@ -90,7 +90,7 @@ struct TaskThreadSeed {
         placement: TaskThreadSidebarPlacement = .tasks,
         workspaceSnapshot: WorkspaceSnapshot? = nil
     ) {
-        self.provider = provider
+        self.harness = harness
         self.permissionMode = permissionMode
         self.model = model
         self.effort = effort
@@ -108,7 +108,7 @@ struct TaskThreadSeed {
 ///
 /// `SidebarViewModel` is per-window, so callers with no window — the `alveary_host` MCP tools —
 /// cannot route through it. This service owns the durable half of those lifecycles (persistence,
-/// runtime teardown, provider-session actions, notifications) and returns what the sidebar needs
+/// runtime teardown, harness-session actions, notifications) and returns what the sidebar needs
 /// to finish the UI half; `SidebarViewModel` delegates rather than keeping a second copy.
 /// Drafts, restore, delete, fork, and selection routing stay view-side.
 @MainActor
@@ -119,7 +119,7 @@ final class ThreadLifecycleService {
     private let settingsService: SettingsService
     private let agentsManager: any AgentsManager
     // Reached from `ThreadLifecycleService+Archive.swift`.
-    let providerSessionActionService: any ProviderSessionActionService
+    let harnessSessionActionService: any HarnessSessionActionService
     let notificationManager: any NotificationManager
     let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     private let invalidateConversationController: @MainActor (String) -> Void
@@ -137,7 +137,7 @@ final class ThreadLifecycleService {
         modelContext: ModelContext,
         settingsService: SettingsService,
         agentsManager: any AgentsManager,
-        providerSessionActionService: any ProviderSessionActionService = NoopProviderSessionActionService(),
+        harnessSessionActionService: any HarnessSessionActionService = NoopHarnessSessionActionService(),
         notificationManager: any NotificationManager,
         taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService = DefaultTaskWorkspaceOwnershipService(),
         invalidateConversationController: @escaping @MainActor (String) -> Void = { _ in },
@@ -150,7 +150,7 @@ final class ThreadLifecycleService {
         self.modelContext = modelContext
         self.settingsService = settingsService
         self.agentsManager = agentsManager
-        self.providerSessionActionService = providerSessionActionService
+        self.harnessSessionActionService = harnessSessionActionService
         self.notificationManager = notificationManager
         self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
         self.invalidateConversationController = invalidateConversationController
@@ -183,7 +183,7 @@ final class ThreadLifecycleService {
         let snapshot = seed.workspaceSnapshot ?? project?.workspaceSnapshot() ?? WorkspaceSnapshot(primarySource: nil)
         guard let primary = snapshot.primarySource else {
             return try insertTaskThread(seed: TaskThreadSeed(
-                provider: seed.provider, permissionMode: seed.permissionMode, model: seed.model, effort: seed.effort,
+                harness: seed.harness, permissionMode: seed.permissionMode, model: seed.model, effort: seed.effort,
                 isDraft: seed.isDraft, name: seed.name, pinned: seed.pinned, grantedRoots: snapshot.grants.map(\.path),
                 placement: project.map { .project(id: $0.id) } ?? .tasks, workspaceSnapshot: snapshot
             ))
@@ -205,7 +205,7 @@ final class ThreadLifecycleService {
         thread.mode = .project
         thread.workspaceSnapshot = snapshot
         let conversation = Conversation(
-            provider: seed.provider,
+            harness: seed.harness,
             isMain: true,
             displayOrder: 0,
             thread: thread
@@ -264,7 +264,7 @@ final class ThreadLifecycleService {
         )
         if let snapshot = seed.workspaceSnapshot { thread.workspaceSnapshot = snapshot }
         let conversation = Conversation(
-            provider: seed.provider,
+            harness: seed.harness,
             isMain: true,
             displayOrder: 0,
             thread: thread
@@ -299,24 +299,24 @@ final class ThreadLifecycleService {
             threadID: threadID,
             mode: dbThread.effectiveMode,
             conversationIDs: liveConversationIDs(for: threadID),
-            providerSessionAction: providerSessionActionSnapshot(for: dbThread)
+            harnessSessionAction: harnessSessionActionSnapshot(for: dbThread)
         )
     }
 
-    func providerSessionActionSnapshot(for thread: AgentThread) -> ProviderSessionActionSnapshot {
+    func harnessSessionActionSnapshot(for thread: AgentThread) -> HarnessSessionActionSnapshot {
         let threadID = thread.persistentModelID
         let workingDirectory = thread.primaryWorkingDirectory.map {
             URL(fileURLWithPath: $0, isDirectory: true)
         }
-        return ProviderSessionActionSnapshot(
+        return HarnessSessionActionSnapshot(
             conversations: liveConversations(for: threadID).map {
-                ProviderSessionConversationSnapshot(
+                HarnessSessionConversationSnapshot(
                     conversationID: $0.id,
-                    providerID: $0.provider,
-                    providerSessionID: $0.providerSessionId,
-                    providerSessionProviderID: $0.providerSessionProviderId,
-                    providerSessionWorkingDirectory: $0.providerSessionWorkingDirectory,
-                    hasStartedProviderSession: thread.hasCompletedInitialSetup
+                    harnessID: $0.harness,
+                    harnessSessionID: $0.harnessSessionId,
+                    harnessSessionHarnessID: $0.harnessSessionHarnessId,
+                    harnessSessionWorkingDirectory: $0.harnessSessionWorkingDirectory,
+                    hasStartedHarnessSession: thread.hasCompletedInitialSetup
                 )
             },
             workingDirectory: workingDirectory
@@ -344,7 +344,7 @@ final class ThreadLifecycleService {
         )
     }
 
-    func backfillProviderSessionBindings(from records: [AgentCLIKit.AgentSessionRecord]) throws {
+    func backfillHarnessSessionBindings(from records: [AgentCLIKit.AgentSessionRecord]) throws {
         guard !records.isEmpty else {
             return
         }
@@ -353,9 +353,9 @@ final class ThreadLifecycleService {
             guard let conversation = modelContext.resolveConversation(conversationID: record.conversationId.rawValue) else {
                 continue
             }
-            conversation.providerSessionId = record.providerSessionId.rawValue
-            conversation.providerSessionProviderId = record.providerId.rawValue
-            conversation.providerSessionWorkingDirectory = record.workingDirectory?.path
+            conversation.harnessSessionId = record.harnessSessionId.rawValue
+            conversation.harnessSessionHarnessId = record.harnessId.rawValue
+            conversation.harnessSessionWorkingDirectory = record.workingDirectory?.path
         }
         try modelContext.save()
     }

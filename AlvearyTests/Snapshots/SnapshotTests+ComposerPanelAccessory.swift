@@ -9,8 +9,8 @@ import XCTest
 extension SnapshotTests {
     var exitPlanModeReasoningAccessory: AppKitComposerOverlayAccessory {
         let selection = ChatComposerActionRowView.ReasoningSelection(
-            providerID: "claude",
-            providerTitle: "Claude Code",
+            harnessID: "claude",
+            harnessTitle: "Claude Code",
             modelID: "opus",
             modelTitle: "Opus",
             effortValue: "high",
@@ -29,11 +29,11 @@ extension SnapshotTests {
                 selection: selection,
                 modelGroups: [
                     ChatComposerActionRowView.ReasoningModelGroup(
-                        providerID: "claude",
-                        providerTitle: nil,
+                        harnessID: "claude",
+                        harnessTitle: nil,
                         options: [
-                            .init(providerID: "claude", value: "sonnet", title: "Sonnet"),
-                            .init(providerID: "claude", value: "opus", title: "Opus")
+                            .init(harnessID: "claude", value: "sonnet", title: "Sonnet"),
+                            .init(harnessID: "claude", value: "opus", title: "Opus")
                         ]
                     )
                 ],

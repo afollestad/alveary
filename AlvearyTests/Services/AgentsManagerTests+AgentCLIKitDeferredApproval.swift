@@ -129,7 +129,7 @@ extension AgentsManagerTests {
         let resolutionRecorder = AgentInteractionResolutionRecorder()
         let fixture = makeAgentCLIKitFixture(
             adapter: ParallelApprovalResolutionAdapter(
-                providerId: .codex,
+                harnessId: .codex,
                 resolutionRecorder: resolutionRecorder
             ),
             detectedPath: "/usr/bin/agent",
@@ -138,7 +138,7 @@ extension AgentsManagerTests {
         let manager = fixture.manager
         let conversationId = "agentclikit-fallback-session-resolutions"
 
-        try await manager.spawn(id: conversationId, config: spawnConfig(providerId: "codex", workingDirectory: "/tmp"))
+        try await manager.spawn(id: conversationId, config: spawnConfig(harnessId: "codex", workingDirectory: "/tmp"))
         let maybeSubscription = await manager.subscribe(conversationId: conversationId, afterIndex: 0)
         let subscription = try XCTUnwrap(maybeSubscription)
         let firstEvent = try await nextEvent(from: subscription.stream, description: "first fallback session approval")
@@ -149,7 +149,7 @@ extension AgentsManagerTests {
         }
         let sessionApproval = try XCTUnwrap(firstApproval.sessionApprovalGrant(
             conversationId: conversationId,
-            providerId: "codex",
+            harnessId: "codex",
             scope: .exact
         ))
         try await waitForFallbackApprovalResumeReadiness(manager: manager, conversationId: conversationId)
@@ -160,7 +160,7 @@ extension AgentsManagerTests {
             resolution: ClaudeToolApprovalResolution(decision: .allow),
             additionalApprovals: [secondApproval],
             sessionApproval: sessionApproval,
-            config: spawnConfig(providerId: "codex", workingDirectory: "/tmp")
+            config: spawnConfig(harnessId: "codex", workingDirectory: "/tmp")
         ))
         var resumedSubscription: Alveary.AgentEventSubscription?
         try await waitUntil("expected fallback session approval to install resumed buffer") {
@@ -305,7 +305,7 @@ extension AgentsManagerTests {
             resolution: resolution,
             additionalApprovals: [],
             sessionApproval: nil,
-            config: spawnConfig(providerId: "codex", workingDirectory: "/tmp")
+            config: spawnConfig(harnessId: "codex", workingDirectory: "/tmp")
         ))
 
         var maybeSubscription: Alveary.AgentEventSubscription?
@@ -334,8 +334,8 @@ private func assertCodexSessionResolutionMetadata(
 
 /// Simulates a Codex App Server respawn after an app restart: the fresh process holds no pending
 /// server requests, so the plan decision can only reach it through the recovery user message.
-private struct CodexPlanNudgeAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
+private struct CodexPlanNudgeAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .codex,
         displayName: "Codex",
         executableNames: ["codex"]
@@ -380,9 +380,9 @@ private struct CodexPlanNudgeAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapte
 
 /// First launch defers a tool approval and idles on stdin like the real CLI; the resumed launch only
 /// answers once it receives the deferred-replay recovery user message over stdin.
-private struct NudgeRecoveryAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+private struct NudgeRecoveryAgentCLIKitAdapter: AgentCLIKit.AgentHarnessAdapter {
     let counter = AgentCLIKitLaunchCounter()
-    let definition = AgentCLIKit.AgentProviderDefinition(
+    let definition = AgentCLIKit.AgentHarnessDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]

@@ -38,8 +38,8 @@ extension ConversationViewModel {
     }
 
     var shouldStageInactiveClaudeSettings: Bool {
-        let providerId = dbConversation()?.provider ?? settingsService.current.defaultProvider
-        return providerId == "claude" &&
+        let harnessId = dbConversation()?.harness ?? settingsService.current.defaultHarness
+        return harnessId == "claude" &&
             !state.turnState.isActive &&
             shouldReconfigureOnSettingChange()
     }
@@ -48,23 +48,23 @@ extension ConversationViewModel {
         conversation.thread?.hasCompletedInitialSetup == true
     }
 
-    func applyProviderChange(_ newValue: String) {
+    func applyHarnessChange(_ newValue: String) {
         guard canApplyPreStartupSettingChange,
-              AppSettings.supportedProviderIDs.contains(newValue),
+              AppSettings.supportedHarnessIDs.contains(newValue),
               let dbConversation = modelContext.resolveConversation(id: conversationModelID),
               let dbThread = dbConversation.thread,
               !dbThread.hasCompletedInitialSetup else {
             return
         }
 
-        let snapshot = ProviderSettingSnapshot(conversation: dbConversation, thread: dbThread, state: state)
-        let newPermissionMode = AppSettings.defaultPermissionMode(forProvider: newValue)
-        let currentProvider = snapshot.provider ?? settingsService.current.defaultProvider
-        guard currentProvider != newValue || snapshot.model != nil || snapshot.permissionMode != newPermissionMode else {
+        let snapshot = HarnessSettingSnapshot(conversation: dbConversation, thread: dbThread, state: state)
+        let newPermissionMode = AppSettings.defaultPermissionMode(forHarness: newValue)
+        let currentHarness = snapshot.harness ?? settingsService.current.defaultHarness
+        guard currentHarness != newValue || snapshot.model != nil || snapshot.permissionMode != newPermissionMode else {
             return
         }
 
-        dbConversation.provider = newValue
+        dbConversation.harness = newValue
         dbThread.model = nil
         dbThread.permissionMode = newPermissionMode
         dbThread.planModeEnabled = false
@@ -86,26 +86,26 @@ extension ConversationViewModel {
     }
 
     @discardableResult
-    func applyPreStartupProviderModelChange(
-        providerID: String,
+    func applyPreStartupHarnessModelChange(
+        harnessID: String,
         model: String,
-        effortOptions: [AgentCLIKit.AgentProviderOption],
+        effortOptions: [AgentCLIKit.AgentHarnessOption],
         defaultEffort: String?,
         supportsSpeedMode: Bool = true
     ) -> Bool {
         guard canApplyPreStartupSettingChange,
-              AppSettings.supportedProviderIDs.contains(providerID),
+              AppSettings.supportedHarnessIDs.contains(harnessID),
               let dbConversation = modelContext.resolveConversation(id: conversationModelID),
               let dbThread = dbConversation.thread,
               !dbThread.hasCompletedInitialSetup else {
             return false
         }
 
-        let snapshot = ProviderSettingSnapshot(conversation: dbConversation, thread: dbThread, state: state)
+        let snapshot = HarnessSettingSnapshot(conversation: dbConversation, thread: dbThread, state: state)
         let storedModel = model == AppSettings.defaultModelValue ? nil : model
-        let currentProvider = snapshot.provider ?? settingsService.current.defaultProvider
-        let providerChanged = currentProvider != providerID
-        let newPermissionMode = AppSettings.defaultPermissionMode(forProvider: providerID)
+        let currentHarness = snapshot.harness ?? settingsService.current.defaultHarness
+        let harnessChanged = currentHarness != harnessID
+        let newPermissionMode = AppSettings.defaultPermissionMode(forHarness: harnessID)
         let newEffort = supportedOrDefaultEffort(
             currentEffort: dbThread.effort,
             effortOptions: effortOptions,
@@ -113,24 +113,24 @@ extension ConversationViewModel {
         )
         let newSpeedMode = supportsSpeedMode ? dbThread.normalizedSpeedMode : .standard
         let runtimeSpeedModeChanged = snapshot.runtimeSpeedMode != newSpeedMode
-        guard providerChanged ||
+        guard harnessChanged ||
             snapshot.model != storedModel ||
             snapshot.effort != newEffort ||
             snapshot.speedMode != newSpeedMode ||
             runtimeSpeedModeChanged ||
-            (providerChanged && snapshot.permissionMode != newPermissionMode) else {
+            (harnessChanged && snapshot.permissionMode != newPermissionMode) else {
             return true
         }
 
-        // Pre-start provider switches must save the provider, model, default
+        // Pre-start harness switches must save the harness, model, default
         // permission, plan mode, and effort together so the first spawn sees a
         // coherent agent configuration.
-        dbConversation.provider = providerID
+        dbConversation.harness = harnessID
         dbThread.model = storedModel
         dbThread.effort = newEffort
         dbThread.speedMode = newSpeedMode.rawValue
         state.runtimeSpeedMode = newSpeedMode
-        if providerChanged {
+        if harnessChanged {
             dbThread.permissionMode = newPermissionMode
             dbThread.planModeEnabled = false
             state.runtimePermissionMode = newPermissionMode
@@ -141,7 +141,7 @@ extension ConversationViewModel {
 
         do {
             try modelContext.save()
-            if providerChanged { clearPendingExitPlanModeDenialState() }
+            if harnessChanged { clearPendingExitPlanModeDenialState() }
             return true
         } catch {
             snapshot.restore(conversation: dbConversation, thread: dbThread, state: state)
@@ -153,7 +153,7 @@ extension ConversationViewModel {
     @discardableResult
     func applyModelChange(
         _ newValue: String,
-        effortOptions: [AgentCLIKit.AgentProviderOption] = [],
+        effortOptions: [AgentCLIKit.AgentHarnessOption] = [],
         defaultEffort: String? = nil,
         supportsSpeedMode: Bool = true
     ) -> Task<Void, Never> {
@@ -375,13 +375,13 @@ private extension ConversationViewModel {
     }
 
     func canSelectPermissionMode(_ value: String) -> Bool {
-        let providerId = dbConversation()?.provider ?? settingsService.current.defaultProvider
-        return AppSettings.supportedPermissionModes(forProvider: providerId).contains(value)
+        let harnessId = dbConversation()?.harness ?? settingsService.current.defaultHarness
+        return AppSettings.supportedPermissionModes(forHarness: harnessId).contains(value)
     }
 
     func resetEffortIfNeeded(
         for dbThread: AgentThread,
-        effortOptions: [AgentCLIKit.AgentProviderOption],
+        effortOptions: [AgentCLIKit.AgentHarnessOption],
         defaultEffort: String?
     ) {
         guard !effortOptions.isEmpty else {
@@ -409,7 +409,7 @@ private extension ConversationViewModel {
 
     func supportedOrDefaultEffort(
         currentEffort: String,
-        effortOptions: [AgentCLIKit.AgentProviderOption],
+        effortOptions: [AgentCLIKit.AgentHarnessOption],
         defaultEffort: String?
     ) -> String {
         guard !effortOptions.isEmpty else {
@@ -443,8 +443,8 @@ private extension ConversationViewModel {
     }
 }
 
-private struct ProviderSettingSnapshot {
-    let provider: String?
+private struct HarnessSettingSnapshot {
+    let harness: String?
     let model: String?
     let permissionMode: String
     let planModeEnabled: Bool?
@@ -457,7 +457,7 @@ private struct ProviderSettingSnapshot {
 
     @MainActor
     init(conversation: Conversation, thread: AgentThread, state: ConversationState) {
-        provider = conversation.provider
+        harness = conversation.harness
         model = thread.model
         permissionMode = thread.permissionMode
         planModeEnabled = thread.planModeEnabled
@@ -471,7 +471,7 @@ private struct ProviderSettingSnapshot {
 
     @MainActor
     func restore(conversation: Conversation, thread: AgentThread, state: ConversationState) {
-        conversation.provider = provider
+        conversation.harness = harness
         thread.model = model
         thread.permissionMode = permissionMode
         thread.planModeEnabled = planModeEnabled

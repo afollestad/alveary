@@ -7,13 +7,13 @@ final class SessionManagerTests: XCTestCase {
     func testCreateEntryPreservesIdentityOnlyWhenBindingMatches() async {
         let manager = InMemorySessionManager()
 
-        let firstCreate = await manager.createEntry(conversationId: "c1", cwd: "/tmp/project", providerId: "claude")
+        let firstCreate = await manager.createEntry(conversationId: "c1", cwd: "/tmp/project", harnessId: "claude")
         let original = await manager.sessionId(for: "c1")
 
-        let preservedCreate = await manager.createEntry(conversationId: "c1", cwd: "/tmp/project", providerId: "claude")
+        let preservedCreate = await manager.createEntry(conversationId: "c1", cwd: "/tmp/project", harnessId: "claude")
         let preservedSessionID = await manager.sessionId(for: "c1")
 
-        let rotatedCreate = await manager.createEntry(conversationId: "c1", cwd: "/tmp/project-2", providerId: "claude")
+        let rotatedCreate = await manager.createEntry(conversationId: "c1", cwd: "/tmp/project-2", harnessId: "claude")
         let rotated = await manager.sessionId(for: "c1")
 
         XCTAssertFalse(firstCreate)
@@ -27,14 +27,14 @@ final class SessionManagerTests: XCTestCase {
         let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let manager = DefaultSessionManager(supportDirectory: tempDirectory)
 
-        let created = await manager.createEntry(conversationId: "c1", cwd: "/tmp/project", providerId: "claude")
+        let created = await manager.createEntry(conversationId: "c1", cwd: "/tmp/project", harnessId: "claude")
         let original = await manager.sessionId(for: "c1")
 
         try await manager.updateSessionId(for: "c1", newSessionId: "forked-session")
 
         let sessionID = await manager.sessionId(for: "c1")
-        let originalLookup = await manager.conversationId(forSessionId: original, cwd: "/tmp/project", providerId: "claude")
-        let forkedLookup = await manager.conversationId(forSessionId: "forked-session", cwd: "/tmp/project", providerId: "claude")
+        let originalLookup = await manager.conversationId(forSessionId: original, cwd: "/tmp/project", harnessId: "claude")
+        let forkedLookup = await manager.conversationId(forSessionId: "forked-session", cwd: "/tmp/project", harnessId: "claude")
 
         XCTAssertFalse(created)
         XCTAssertEqual(sessionID, "forked-session")

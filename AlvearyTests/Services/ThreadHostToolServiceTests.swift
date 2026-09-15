@@ -103,9 +103,9 @@ final class ThreadHostToolServiceTests: XCTestCase {
         XCTAssertEqual(content["status"], .string("created"))
         XCTAssertEqual(content["initial_prompt_dispatched"], .bool(true))
         // No placement or settings named, so both inherit the run's thread — placement its
-        // Project, and provider/model/effort the schedule's own snapshotted settings.
+        // Project, and harness/model/effort the schedule's own snapshotted settings.
         XCTAssertEqual(content["project_path"], .string(fixture.project.path))
-        XCTAssertEqual(content["provider"], .string("codex"))
+        XCTAssertEqual(content["harness"], .string("codex"))
         XCTAssertEqual(content["model"], .string("source-model"))
         XCTAssertEqual(content["effort"], .string("high"))
         XCTAssertEqual(fixture.startedPrompts.prompts, ["Fix the flaky test."])
@@ -325,8 +325,8 @@ final class ThreadHostToolFixture {
     var modelContext: ModelContext { sidebar.context }
 
     init(
-        providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
-        providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService(),
+        harnessDiscovery: (any AgentCLIKit.AgentHarnessDiscoveryService)? = nil,
+        harnessSessionActions: RecordingHarnessSessionActionService = RecordingHarnessSessionActionService(),
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_000) },
         resolveSourceFolder: @escaping @MainActor (String) async -> SourceFolderSnapshot = {
@@ -335,7 +335,7 @@ final class ThreadHostToolFixture {
         saveChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) throws {
         sidebar = try SidebarTestFixture(
-            providerSessionActions: providerSessionActions,
+            harnessSessionActions: harnessSessionActions,
             saveThreadCreation: saveThreadCreation
         )
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("alveary-host-\(UUID().uuidString)", isDirectory: true)
@@ -351,7 +351,7 @@ final class ThreadHostToolFixture {
             project: sourceProject
         )
         thread = sourceThread
-        let sourceConversation = Conversation(id: "source-conversation", provider: "codex", thread: sourceThread)
+        let sourceConversation = Conversation(id: "source-conversation", harness: "codex", thread: sourceThread)
         conversation = sourceConversation
         sourceThread.conversations = [sourceConversation]
         sourceProject.threads = [sourceThread]
@@ -374,7 +374,7 @@ final class ThreadHostToolFixture {
             ),
             summaryHandoff: summaryHandoff,
             settingsService: sidebar.settingsService,
-            providerDiscovery: providerDiscovery,
+            harnessDiscovery: harnessDiscovery,
             startInitialPrompt: { conversation, prompt in
                 recorder.record(conversationID: conversation.id, prompt: prompt)
             },
@@ -391,12 +391,12 @@ final class ThreadHostToolFixture {
 
     func agentContext(
         requestID: String? = "request-1",
-        providerID: AgentCLIKit.AgentProviderID = .codex,
+        harnessID: AgentCLIKit.AgentHarnessID = .codex,
         conversationID: String? = nil
     ) -> AgentCLIKit.AgentHostToolCallContext {
         AgentCLIKit.AgentHostToolCallContext(
             conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationID ?? conversation.id),
-            providerId: providerID,
+            harnessId: harnessID,
             processToken: processToken,
             requestId: requestID
         )
@@ -410,7 +410,7 @@ final class ThreadHostToolFixture {
         project: Project? = nil
     ) throws -> AgentThread {
         let target = AgentThread(name: name, mode: mode, project: project)
-        target.conversations = [Conversation(id: conversationID, provider: "codex", thread: target)]
+        target.conversations = [Conversation(id: conversationID, harness: "codex", thread: target)]
         modelContext.insert(target)
         try modelContext.save()
         return target
@@ -441,7 +441,7 @@ final class ThreadHostToolFixture {
             promptSnapshot: "Continue work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "Etc/UTC",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "on-request",
             workspaceKindSnapshot: .project,

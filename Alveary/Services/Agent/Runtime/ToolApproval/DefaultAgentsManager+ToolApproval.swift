@@ -36,15 +36,15 @@ extension DefaultAgentsManager {
     }
 
     /// Returns `true` when a Claude-specific path already handled the resolution, leaving the caller's
-    /// generic `resolveInteraction` fallback for providers without hooks or a deferred respawn.
+    /// generic `resolveInteraction` fallback for harnesses without hooks or a deferred respawn.
     private func dispatchToolApprovalResolution(
         _ request: AgentToolApprovalResolutionRequest,
         approvals: [ToolApprovalRequest],
         context: ToolApprovalResolutionContext,
         services: AgentCLIKitHostServices
     ) async throws -> Bool {
-        if request.requiresProviderRestart {
-            try await restartProviderForToolApproval(
+        if request.requiresHarnessRestart {
+            try await restartHarnessForToolApproval(
                 request,
                 approvals: approvals,
                 context: context,
@@ -93,7 +93,7 @@ extension DefaultAgentsManager {
     /// plan prompt means replacing the process. Releasing each held hook as a deferred decision is how
     /// the 115s hook timeout already ends this wait: Claude flushes its `hook_deferred_tool` marker and
     /// exits, and the deferred respawn below replays the tool against `request.config`.
-    private func restartProviderForToolApproval(
+    private func restartHarnessForToolApproval(
         _ request: AgentToolApprovalResolutionRequest,
         approvals: [ToolApprovalRequest],
         context: ToolApprovalResolutionContext,
@@ -160,7 +160,7 @@ extension DefaultAgentsManager {
             if let sessionScope = sessionApproval.sessionScope {
                 metadata["approval_session_scope"] = .string(sessionScope.rawValue)
             }
-            metadata["approval_provider_id"] = .string(sessionApproval.providerId)
+            metadata["approval_provider_id"] = .string(sessionApproval.harnessId)
             metadata["approval_operation"] = .string(approval.toolName)
         }
         if let updatedInput = resolution.updatedInput {
@@ -244,7 +244,7 @@ extension DefaultAgentsManager {
             for: request.additionalApprovals,
             matching: request.sessionApproval,
             conversationId: request.conversationId,
-            providerId: request.config.providerId
+            harnessId: request.config.harnessId
         )
         let sessionApprovalRecordResult = await recordSessionApprovalIfNeeded(request.sessionApproval)
         let additionalSessionApprovalResults = await recordAdditionalSessionApprovals(additionalSessionApprovals)
@@ -290,7 +290,7 @@ extension DefaultAgentsManager {
         for additionalApprovals: [ToolApprovalRequest],
         matching sessionApproval: AgentSessionApprovalGrant?,
         conversationId: String,
-        providerId: String
+        harnessId: String
     ) -> [AgentSessionApprovalGrant] {
         guard let sessionApproval,
               let scope = sessionApproval.sessionScope else {
@@ -300,7 +300,7 @@ extension DefaultAgentsManager {
         let approvals = additionalApprovals.compactMap {
             $0.sessionApprovalGrant(
                 conversationId: conversationId,
-                providerId: providerId,
+                harnessId: harnessId,
                 scope: scope
             )
         }
@@ -356,12 +356,12 @@ extension DefaultAgentsManager {
     private func agentCLIKitSessionApproval(
         _ approval: AgentSessionApprovalGrant
     ) -> AgentCLIKit.AgentSessionApprovalGrant? {
-        guard let providerId = agentCLIKitServices.hostAdapter.providerId(approval.providerId),
+        guard let harnessId = agentCLIKitServices.hostAdapter.harnessId(approval.harnessId),
               let matchKind = AgentCLIKit.AgentSessionApprovalMatchKind(rawValue: approval.matchKind.rawValue) else {
             return nil
         }
         return AgentCLIKit.AgentSessionApprovalGrant(
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: AgentCLIKit.AgentConversationID(rawValue: approval.conversationId),
             sessionId: AgentCLIKit.AgentSessionID(rawValue: approval.sessionId),
             matchKind: matchKind,
@@ -370,12 +370,12 @@ extension DefaultAgentsManager {
     }
 
     func toolApprovalSelection(
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async -> ToolApprovalSelection? {
         await claudeApprovalPersistenceStore.toolApprovalSelection(
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: conversationId,
             sessionId: sessionId
         )
@@ -383,13 +383,13 @@ extension DefaultAgentsManager {
 
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async {
         await claudeApprovalPersistenceStore.recordToolApprovalSelection(
             selection,
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: conversationId,
             sessionId: sessionId
         )

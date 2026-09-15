@@ -61,7 +61,7 @@ extension ScheduledTaskLifecycleCoordinatorTests {
             prepareRunsForTermination: { _ in Self.emptyRecoveryTerminationPreparation }
         )
 
-        await coordinator.activateAfterProviderRefresh()
+        await coordinator.activateAfterHarnessRefresh()
 
         XCTAssertEqual(validatedRunIDs, ["earlier-run"])
         XCTAssertEqual(recoveredSafeRunIDs, ["earlier-run"])
@@ -92,7 +92,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
                 scheduledOccurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
                 recurrence: .once(Date(timeIntervalSinceReferenceDate: 1_000)),
                 timeZoneIdentifier: "UTC",
-                providerID: "codex",
+                harnessID: "codex",
                 model: nil,
                 effort: "medium",
                 permissionMode: "on-request",
@@ -106,7 +106,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
                 target: ScheduledTaskTargetSnapshot(
                     conversationID: conversationID,
                     threadName: "Pinned target",
-                    providerID: "codex",
+                    harnessID: "codex",
                     model: nil,
                     effort: "medium",
                     permissionMode: "on-request",

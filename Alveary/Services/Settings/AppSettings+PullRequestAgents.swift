@@ -2,7 +2,7 @@ import Foundation
 
 /// Route-local overrides share resolution and picker rules without sharing persisted values.
 struct PullRequestAgentSettings: Equatable {
-    var provider: String?
+    var harness: String?
     var model: String?
     var effort: String?
     var permissionMode: String?
@@ -12,14 +12,14 @@ extension AppSettings {
     var pullRequestReviewAgent: PullRequestAgentSettings {
         get {
             PullRequestAgentSettings(
-                provider: pullRequestReviewProvider,
+                harness: pullRequestReviewHarness,
                 model: pullRequestReviewModel,
                 effort: pullRequestReviewEffort,
                 permissionMode: pullRequestReviewPermissionMode
             )
         }
         set {
-            pullRequestReviewProvider = newValue.provider
+            pullRequestReviewHarness = newValue.harness
             pullRequestReviewModel = newValue.model
             pullRequestReviewEffort = newValue.effort
             pullRequestReviewPermissionMode = newValue.permissionMode
@@ -29,14 +29,14 @@ extension AppSettings {
     var pullRequestAddressFeedbackAgent: PullRequestAgentSettings {
         get {
             PullRequestAgentSettings(
-                provider: pullRequestAddressFeedbackProvider,
+                harness: pullRequestAddressFeedbackHarness,
                 model: pullRequestAddressFeedbackModel,
                 effort: pullRequestAddressFeedbackEffort,
                 permissionMode: pullRequestAddressFeedbackPermissionMode
             )
         }
         set {
-            pullRequestAddressFeedbackProvider = newValue.provider
+            pullRequestAddressFeedbackHarness = newValue.harness
             pullRequestAddressFeedbackModel = newValue.model
             pullRequestAddressFeedbackEffort = newValue.effort
             pullRequestAddressFeedbackPermissionMode = newValue.permissionMode

@@ -5,7 +5,7 @@ struct ThreadArchiveSnapshot {
     let threadID: PersistentIdentifier
     let mode: AgentThreadMode
     let conversationIDs: [String]
-    let providerSessionAction: ProviderSessionActionSnapshot
+    let harnessSessionAction: HarnessSessionActionSnapshot
 }
 
 struct ThreadCleanupSnapshot {
@@ -17,7 +17,7 @@ struct ThreadCleanupSnapshot {
     let pendingScheduledWorktreeCleanup: ScheduledWorktreeCleanupProvenance?
     let scheduledWorktreeCleanup: ScheduledWorktreeCleanupProvenance?
     let conversationIDs: [String]
-    let providerSessionAction: ProviderSessionActionSnapshot
+    let harnessSessionAction: HarnessSessionActionSnapshot
     let pendingCleanupBranches: [String]
     let branch: String?
     let worktreePath: String?
@@ -56,7 +56,7 @@ enum SidebarViewModelError: LocalizedError {
     case threadDeleteCleanupFailed(Error)
     case projectDeleteCleanupFailed(Error)
     case taskProjectAccessUnavailable(String)
-    case noReadyThreadDefaultProvider
+    case noReadyThreadDefaultHarness
 
     var errorDescription: String? {
         switch self {
@@ -94,8 +94,8 @@ enum SidebarViewModelError: LocalizedError {
             return "Project was deleted, but cleanup failed: \(error.localizedDescription)"
         case .taskProjectAccessUnavailable(let reason):
             return reason
-        case .noReadyThreadDefaultProvider:
-            return "No enabled provider is installed and ready for new threads"
+        case .noReadyThreadDefaultHarness:
+            return "No enabled harness is installed and ready for new threads"
         }
     }
 
@@ -107,7 +107,7 @@ enum SidebarViewModelError: LocalizedError {
              .scheduledTaskRunStillActive, .scheduledTaskAttachment, .activeScheduledTaskRunAttachment,
              .activeReviewSubmission,
              .threadForkUnavailable, .threadForkFailed, .forkRollbackBlockedBySchedule, .threadForkRollbackFailed,
-             .threadDeletePreparationFailed, .taskProjectAccessUnavailable, .noReadyThreadDefaultProvider:
+             .threadDeletePreparationFailed, .taskProjectAccessUnavailable, .noReadyThreadDefaultHarness:
             return false
         }
     }
@@ -175,7 +175,7 @@ extension SidebarViewModel {
             pendingScheduledWorktreeCleanup: pendingScheduledWorktreeCleanup,
             scheduledWorktreeCleanup: scheduledWorktreeCleanup,
             conversationIDs: liveConversationIDs(for: threadID),
-            providerSessionAction: providerSessionActionSnapshot(for: thread),
+            harnessSessionAction: harnessSessionActionSnapshot(for: thread),
             pendingCleanupBranches: thread.pendingCleanupBranches,
             branch: thread.branch,
             worktreePath: thread.worktreePath,
@@ -439,8 +439,8 @@ extension SidebarViewModel {
         threadLifecycle.liveConversationIDs(for: threadID)
     }
 
-    private func providerSessionActionSnapshot(for thread: AgentThread) -> ProviderSessionActionSnapshot {
-        threadLifecycle.providerSessionActionSnapshot(for: thread)
+    private func harnessSessionActionSnapshot(for thread: AgentThread) -> HarnessSessionActionSnapshot {
+        threadLifecycle.harnessSessionActionSnapshot(for: thread)
     }
 }
 

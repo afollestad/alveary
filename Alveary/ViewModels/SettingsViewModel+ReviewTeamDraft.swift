@@ -4,10 +4,10 @@ import Foundation
 extension SettingsViewModel {
     func setPullRequestReviewTeam(_ draft: AppSettings) {
         settingsService.update { settings in
-            if settings.pullRequestReviewProvider != draft.pullRequestReviewProvider {
+            if settings.pullRequestReviewHarness != draft.pullRequestReviewHarness {
                 settings.pullRequestReviewPermissionMode = nil
             }
-            settings.pullRequestReviewProvider = draft.pullRequestReviewProvider
+            settings.pullRequestReviewHarness = draft.pullRequestReviewHarness
             settings.pullRequestReviewModel = draft.pullRequestReviewModel
             settings.pullRequestReviewEffort = draft.pullRequestReviewEffort
             settings.pullRequestReviewPeers = draft.pullRequestReviewPeers
@@ -15,11 +15,11 @@ extension SettingsViewModel {
     }
 
     func reviewTeamDraftLead(_ settings: AppSettings) -> PullRequestReviewPeer {
-        let providerID = settings.pullRequestReviewProvider ?? settings.defaultProvider
-        let inheritsDefaults = providerID == settings.defaultProvider
+        let harnessID = settings.pullRequestReviewHarness ?? settings.defaultHarness
+        let inheritsDefaults = harnessID == settings.defaultHarness
         return PullRequestReviewPeer(
             id: "lead",
-            providerID: providerID,
+            harnessID: harnessID,
             model: settings.pullRequestReviewModel
                 ?? (inheritsDefaults ? settings.defaultModel : nil)
                 ?? AppSettings.defaultModelValue,
@@ -28,9 +28,9 @@ extension SettingsViewModel {
         )
     }
 
-    func reviewTeamLeadProviderOptions(_ settings: AppSettings) -> [String] {
+    func reviewTeamLeadHarnessOptions(_ settings: AppSettings) -> [String] {
         [Self.pullRequestReviewInheritValue]
-            + pullRequestReviewPeerProviderOptions(including: reviewTeamDraftLead(settings).providerID)
+            + pullRequestReviewPeerHarnessOptions(including: reviewTeamDraftLead(settings).harnessID)
     }
 
     func reviewTeamLeadModelOptions(_ settings: AppSettings) -> [String] {
@@ -46,10 +46,10 @@ extension SettingsViewModel {
         [Self.pullRequestReviewInheritValue] + pullRequestReviewPeerEffortOptions(reviewTeamDraftLead(settings))
     }
 
-    func reviewTeamLeadProviderLabel(_ value: String, settings: AppSettings) -> String {
+    func reviewTeamLeadHarnessLabel(_ value: String, settings: AppSettings) -> String {
         value == Self.pullRequestReviewInheritValue
-            ? "Default (\(providerDisplayName(for: settings.defaultProvider)))"
-            : providerDisplayName(for: value)
+            ? "Default (\(harnessDisplayName(for: settings.defaultHarness)))"
+            : harnessDisplayName(for: value)
     }
 
     func reviewTeamLeadModelLabel(_ value: String, settings: AppSettings) -> String {
@@ -58,7 +58,7 @@ extension SettingsViewModel {
         let lead = reviewTeamDraftLead(value == Self.pullRequestReviewInheritValue ? inherited : settings)
         let label = pullRequestReviewPeerModelLabel(
             value == Self.pullRequestReviewInheritValue ? lead.model : value,
-            providerID: lead.providerID
+            harnessID: lead.harnessID
         )
         return value == Self.pullRequestReviewInheritValue ? "Default (\(label))" : label
     }
@@ -71,8 +71,8 @@ extension SettingsViewModel {
         return value == Self.pullRequestReviewInheritValue ? "Default (\(label))" : label
     }
 
-    func setReviewTeamLeadProvider(_ value: String, in settings: inout AppSettings) {
-        settings.pullRequestReviewProvider = value == Self.pullRequestReviewInheritValue ? nil : value
+    func setReviewTeamLeadHarness(_ value: String, in settings: inout AppSettings) {
+        settings.pullRequestReviewHarness = value == Self.pullRequestReviewInheritValue ? nil : value
         settings.pullRequestReviewModel = nil
         settings.pullRequestReviewEffort = nil
     }
@@ -82,10 +82,10 @@ extension SettingsViewModel {
             settings.pullRequestReviewModel = nil
             settings.pullRequestReviewEffort = nil
         } else {
-            let providerID = reviewTeamDraftLead(settings).providerID
-            let model = pullRequestReviewPeerStoredModel(providerID: providerID, selection: value)
+            let harnessID = reviewTeamDraftLead(settings).harnessID
+            let model = pullRequestReviewPeerStoredModel(harnessID: harnessID, selection: value)
             settings.pullRequestReviewModel = model
-            settings.pullRequestReviewEffort = pullRequestReviewPeerDefaultEffort(providerID: providerID, model: model)
+            settings.pullRequestReviewEffort = pullRequestReviewPeerDefaultEffort(harnessID: harnessID, model: model)
         }
     }
 }

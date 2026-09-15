@@ -10,14 +10,14 @@ extension SidebarViewTests {
         let fixture = try SidebarTestFixture()
         let project = try fixture.insertProject(name: "Home", path: "/tmp/nested-delete-fallback")
         let sibling = AgentThread(name: "Sibling", project: project)
-        sibling.conversations = [Conversation(id: "nested-delete-sibling", provider: "claude", thread: sibling)]
+        sibling.conversations = [Conversation(id: "nested-delete-sibling", harness: "claude", thread: sibling)]
         project.threads.append(sibling)
         let task = AgentThread(name: "Nested", mode: .task, project: project)
         task.taskWorkspaceDescriptor = TaskWorkspaceDescriptor(
             primaryRoot: "/tmp/nested-delete-workspace",
             ownershipStrategy: .projectLocal
         )
-        task.conversations = [Conversation(id: "nested-delete-task", provider: "claude", thread: task)]
+        task.conversations = [Conversation(id: "nested-delete-task", harness: "claude", thread: task)]
         fixture.context.insert(sibling)
         fixture.context.insert(task)
         try fixture.context.save()

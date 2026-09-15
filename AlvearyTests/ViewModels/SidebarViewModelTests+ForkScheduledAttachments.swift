@@ -8,14 +8,14 @@ import XCTest
 @MainActor
 extension SidebarViewModelTests {
     func testForkRollbackPreservesTargetAndWorktreeWhenScheduleAttachesDuringSpawn() async throws {
-        let setup = try projectForkSetup(providerId: .codex, sessionId: "codex-thread")
+        let setup = try projectForkSetup(harnessId: .codex, sessionId: "codex-thread")
         let fixture = setup.fixture
         let observation = ForkAttachmentObservation()
         await configureAttachedForkFailure(fixture: fixture, observation: observation)
 
         do {
             _ = try await fixture.viewModel.forkThreadIntoWorktree(setup.thread)
-            XCTFail("Expected provider bootstrap failure")
+            XCTFail("Expected harness bootstrap failure")
         } catch let error as SidebarViewModelError {
             guard case .threadForkRollbackFailed(_, let cleanup) = error else {
                 return XCTFail("Expected rollback to fail closed, got \(error)")
@@ -35,9 +35,9 @@ extension SidebarViewModelTests {
         XCTAssertTrue(target.isForkBootstrapPending)
         XCTAssertFalse(target.hasCompletedInitialSetup)
         let removeCalls = await fixture.worktreeManager.removeCalls()
-        let providerActions = await fixture.providerSessionActions.actions
+        let harnessActions = await fixture.harnessSessionActions.actions
         XCTAssertEqual(removeCalls, [])
-        XCTAssertFalse(providerActions.contains { action in
+        XCTAssertFalse(harnessActions.contains { action in
             if case .delete = action {
                 return true
             }
@@ -69,7 +69,7 @@ private func configureAttachedForkFailure(
                 destination: .existingThread,
                 recurrence: .daily(hour: 9, minute: 0),
                 timeZoneIdentifier: "America/Chicago",
-                providerID: "codex",
+                harnessID: "codex",
                 targetThread: target
             )
             fixture.context.insert(definition)

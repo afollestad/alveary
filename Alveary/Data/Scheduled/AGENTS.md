@@ -7,7 +7,7 @@ These instructions cover `Alveary/Data/Scheduled/` — the scheduled task defini
 ### Definitions, Runs, And Proposals
 
 - **Keep recurrence structured.** `ScheduledTask` persists flat recurrence fields plus a pinned IANA timezone; use its `recurrence` bridge, never RRULE text.
-- **Snapshot before execution.** `ScheduledTaskRun.init(snapshotting:...)` makes revision, prompt, provider settings, project path, grants, occurrence identity, and claimed directory identities durable across edits and definition deletion. Missing or malformed identity provenance fails closed for execution and recovery.
+- **Snapshot before execution.** `ScheduledTaskRun.init(snapshotting:...)` makes revision, prompt, harness settings, project path, grants, occurrence identity, and claimed directory identities durable across edits and definition deletion. Missing or malformed identity provenance fails closed for execution and recovery.
 - **Decode persisted run state exactly in safety gates.** Use `decodedStatus` and `hasKnownTerminalStatus`; the `status` bridge's `.failure` fallback is presentation compatibility, not proof an unknown raw value is terminal.
     - Unknown nonterminal status, trigger, or workspace provenance blocks execution and resume and is interrupted during recovery, while known terminal status stays authoritative history.
 - **Scope crash recovery for terminal interactions.** Set `ScheduledTaskRun.requiresFinalizationRecovery` in the same save as executor-owned terminal state, and clear it durably only after interaction cleanup and verified runtime suspension. Startup may supersede terminal-run approvals and questions only while the marker is set.

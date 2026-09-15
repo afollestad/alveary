@@ -394,13 +394,13 @@ extension ChatItemGrouperTests {
         grouper.update(events: [
             messageRecord(id: "user", conversationId: conversationId, role: "user", content: "Try bad model"),
             messageRecord(id: "assistant", conversationId: conversationId, role: "assistant", content: "I could not start."),
-            errorRecord(id: "error", conversationId: conversationId, message: "Provider authentication failed.")
+            errorRecord(id: "error", conversationId: conversationId, message: "Harness authentication failed.")
         ])
 
         XCTAssertEqual(grouper.items, [
             .userMessage(id: "user", text: "Try bad model"),
             .assistantMessage(id: "assistant", text: "I could not start."),
-            .error(id: "error", message: "Provider authentication failed.")
+            .error(id: "error", message: "Harness authentication failed.")
         ])
     }
 

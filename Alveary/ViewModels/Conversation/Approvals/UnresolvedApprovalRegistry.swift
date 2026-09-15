@@ -76,7 +76,7 @@ final class UnresolvedApprovalRegistry {
 }
 
 private extension UnresolvedApprovalRegistry {
-    /// A never-answered row is not proof of an open prompt: the provider can run the tool or end
+    /// A never-answered row is not proof of an open prompt: the harness can run the tool or end
     /// the turn without Alveary stamping the row, and counting those would strand a dot forever.
     func isResolved(_ record: ConversationEventRecord) -> Bool {
         modelContext.hasToolApprovalResolution(

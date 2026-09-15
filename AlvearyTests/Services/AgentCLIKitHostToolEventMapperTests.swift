@@ -8,9 +8,9 @@ final class AgentCLIKitHostToolEventMapperTests: XCTestCase {
         let envelope = AgentCLIKit.AgentEventEnvelope(
             generation: 1,
             index: 0,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: nil,
+            harnessSessionId: nil,
             source: .runtime,
             event: .diagnostic(AgentDiagnosticEvent(
                 code: .hostToolServerUnavailable,

@@ -59,7 +59,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Default AppKit detail code block surfaces use the shared code palette chrome; keep tinted variants as explicit exceptions such as `stderr`.
 - Shared tool-summary parsing lives in `TranscriptToolSummaryFormatter`; update AppKit rows and tests together when chip rules change.
 - Shared tool-content extraction and output paging live in `TranscriptToolDetailPresentation.swift`; keep it UI-free so AppKit rows and tests can reuse the same parsing behavior.
-- Markdown `Write`, `Edit`, and `MultiEdit` previews should also flow through `TranscriptToolDetailPresentation.swift`. Markdown mutation tool rows are manual-expansion-only; completed rows must not auto-expand. Known markdown `Edit` and `MultiEdit` rows should render reconstructed full-document previews from `ToolEntry.previewOverride`; unknown markdown edits should fall back to provider-supplied replacement snippets. `exitPlanModeFollowUp` previews replace the tool row with an assistant-style plan bubble, not a pre-expanded tool detail.
+- Markdown `Write`, `Edit`, and `MultiEdit` previews should also flow through `TranscriptToolDetailPresentation.swift`. Markdown mutation tool rows are manual-expansion-only; completed rows must not auto-expand. Known markdown `Edit` and `MultiEdit` rows should render reconstructed full-document previews from `ToolEntry.previewOverride`; unknown markdown edits should fall back to harness-supplied replacement snippets. `exitPlanModeFollowUp` previews replace the tool row with an assistant-style plan bubble, not a pre-expanded tool detail.
 
 ### Layout And Connectors
 
@@ -82,7 +82,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - `Show N more` extends the window upward.
 - Other tools render full output through the AppKit detail code block.
 - Keep command-tool tail-not-head behavior so streaming shows the latest line at the bottom.
-- Thinking events are dropped by the grouper. Do not add a persisted `ThinkingRow`/`ThinkingBlock`; provider-exposed live thoughts render only as transient AppKit rows.
+- Thinking events are dropped by the grouper. Do not add a persisted `ThinkingRow`/`ThinkingBlock`; harness-exposed live thoughts render only as transient AppKit rows.
 - Live thought rows mirror inline tool summary rows: iconless, statusless, plain text, capped to chat-bubble width, wrapping to fit their text height, and pulsing while visible. Promoted transient thoughts keep the same row style until transcript content replaces them; removed thought rows fade out while surrounding rows reflow instead of snapping away.
 - Tune tool dimensions only in `ChatBlocks.swift`.
 - AppKit tool-row loading states animate the summary text itself with a muted left-to-right pulse.

@@ -32,7 +32,7 @@ extension DefaultScheduledTaskRunMaterializer {
               let conversation = thread.conversations.first(where: {
                   $0.isMain && $0.id == targetConversationID
               }),
-              conversation.provider == snapshot.providerID,
+              conversation.harness == snapshot.harnessID,
               !ScheduledTaskExistingTargetReadiness.hasBlockingPersistedInteraction(in: conversation),
               let workspace = ScheduledTaskReusedThreadWorkspace.descriptor(thread: thread) else {
             return nil

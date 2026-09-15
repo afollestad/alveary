@@ -5,11 +5,11 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testApproveExitPlanModeRestartsProviderWithStagedModelAndEffort() async throws {
+    func testApproveExitPlanModeRestartsHarnessWithStagedModelAndEffort() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "claude"
+            harnessId: "claude"
         )
         try fixture.dbThread().permissionMode = "acceptEdits"
         try fixture.dbThread().model = "sonnet"
@@ -29,7 +29,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(calls.count, 1)
         let call = try XCTUnwrap(calls.first)
         XCTAssertEqual(call.decision, .allow)
-        XCTAssertTrue(call.requiresProviderRestart)
+        XCTAssertTrue(call.requiresHarnessRestart)
         XCTAssertEqual(call.config.model, "opus")
         XCTAssertEqual(call.config.effort, "xhigh")
         // Everything else must match the continuation, and plan mode has to stay on or the replayed
@@ -48,7 +48,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "claude"
+            harnessId: "claude"
         )
         let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
@@ -57,7 +57,7 @@ extension ConversationViewModelTests {
 
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
-        XCTAssertEqual(calls.first?.requiresProviderRestart, false)
+        XCTAssertEqual(calls.first?.requiresHarnessRestart, false)
     }
 
     func testApproveExitPlanModeLeavesReasoningChangeStagedWhenRestartFails() async throws {
@@ -65,7 +65,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: true,
             approvalError: .approvalFailed,
             initialAgentIsRunning: true,
-            providerId: "claude"
+            harnessId: "claude"
         )
         let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
@@ -81,7 +81,7 @@ extension ConversationViewModelTests {
         let call = try XCTUnwrap(calls.first)
         XCTAssertEqual(call.approval.toolUseId, approval.toolUseId)
         XCTAssertEqual(call.decision, .allow)
-        XCTAssertTrue(call.requiresProviderRestart)
+        XCTAssertTrue(call.requiresHarnessRestart)
         XCTAssertEqual(call.config.model, "opus")
 
         XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.model, "opus")
@@ -89,11 +89,11 @@ extension ConversationViewModelTests {
         XCTAssertFalse(fixture.viewModel.state.isReconfiguringSession)
     }
 
-    func testDenyExitPlanModeDoesNotRestartProviderWithStagedReasoningChange() async throws {
+    func testDenyExitPlanModeDoesNotRestartHarnessWithStagedReasoningChange() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "claude"
+            harnessId: "claude"
         )
         let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
@@ -103,7 +103,7 @@ extension ConversationViewModelTests {
 
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
-        XCTAssertEqual(calls.first?.requiresProviderRestart, false)
+        XCTAssertEqual(calls.first?.requiresHarnessRestart, false)
         // Denial keeps planning; the follow-up is a new visible turn and consumes the change there.
         XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.model, "opus")
     }

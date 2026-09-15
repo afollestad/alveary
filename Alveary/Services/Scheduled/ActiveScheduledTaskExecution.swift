@@ -9,8 +9,8 @@ final class ActiveScheduledTaskExecution {
     let lease: ConversationControllerLease
     var isStopRequested = false
     private let conversationCancellationAction: ConversationCancellationAction
-    private var providerStart: (token: UUID, task: Task<Void, Error>)?
-    private var providerOutcomeConsumer: (
+    private var harnessStart: (token: UUID, task: Task<Void, Error>)?
+    private var harnessOutcomeConsumer: (
         token: UUID,
         task: Task<ScheduledTaskRunExecutionResult, Error>
     )?
@@ -27,54 +27,54 @@ final class ActiveScheduledTaskExecution {
         self.conversationCancellationAction = conversationCancellationAction
     }
 
-    func registerProviderStart(_ task: Task<Void, Error>, token: UUID) {
-        precondition(providerStart == nil, "A scheduled provider start is already active")
-        providerStart = (token, task)
+    func registerHarnessStart(_ task: Task<Void, Error>, token: UUID) {
+        precondition(harnessStart == nil, "A scheduled harness start is already active")
+        harnessStart = (token, task)
     }
 
-    func clearProviderStart(token: UUID) {
-        guard providerStart?.token == token else {
+    func clearHarnessStart(token: UUID) {
+        guard harnessStart?.token == token else {
             return
         }
-        providerStart = nil
+        harnessStart = nil
     }
 
-    func registerProviderOutcomeConsumer(
+    func registerHarnessOutcomeConsumer(
         _ task: Task<ScheduledTaskRunExecutionResult, Error>,
         token: UUID
     ) {
-        precondition(providerOutcomeConsumer == nil, "A scheduled provider outcome consumer is already active")
-        providerOutcomeConsumer = (token, task)
+        precondition(harnessOutcomeConsumer == nil, "A scheduled harness outcome consumer is already active")
+        harnessOutcomeConsumer = (token, task)
     }
 
-    func clearProviderOutcomeConsumer(token: UUID) {
-        guard providerOutcomeConsumer?.token == token else {
+    func clearHarnessOutcomeConsumer(token: UUID) {
+        guard harnessOutcomeConsumer?.token == token else {
             return
         }
-        providerOutcomeConsumer = nil
+        harnessOutcomeConsumer = nil
     }
 
-    func runProviderOutcomeConsumer(
+    func runHarnessOutcomeConsumer(
         _ operation: @escaping @MainActor () async throws -> ScheduledTaskRunExecutionResult
     ) async throws -> ScheduledTaskRunExecutionResult {
         let token = UUID()
         let task = Task { @MainActor in
             try await operation()
         }
-        registerProviderOutcomeConsumer(task, token: token)
+        registerHarnessOutcomeConsumer(task, token: token)
         do {
             let result = try await task.value
-            clearProviderOutcomeConsumer(token: token)
+            clearHarnessOutcomeConsumer(token: token)
             return result
         } catch {
-            clearProviderOutcomeConsumer(token: token)
+            clearHarnessOutcomeConsumer(token: token)
             throw error
         }
     }
 
-    func cancelProviderTasks() {
-        providerStart?.task.cancel()
-        providerOutcomeConsumer?.task.cancel()
+    func cancelHarnessTasks() {
+        harnessStart?.task.cancel()
+        harnessOutcomeConsumer?.task.cancel()
     }
 
     /// Coalesces stop and structured-execution cleanup into one retained barrier. Keeping the

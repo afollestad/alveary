@@ -24,7 +24,7 @@ extension ConversationViewModelTests {
         XCTAssertThrowsError(try fixture.viewModel.validatePromptDismissalAvailable())
         do {
             try await fixture.viewModel.approveToolUse(approval)
-            XCTFail("A recovering approval must not reach the provider")
+            XCTFail("A recovering approval must not reach the harness")
         } catch {}
         do {
             try await fixture.viewModel.startAutomatedScheduledTurn("Wait for recovery")
@@ -154,7 +154,7 @@ extension ConversationViewModelTests {
         }
     }
 
-    func testActionTimeApprovalReadRejectsChangedProviderSession() async throws {
+    func testActionTimeApprovalReadRejectsChangedHarnessSession() async throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
         let approval = try insertAsyncRestoreApproval(in: fixture)
         let reader = SuspendedApprovalTranscriptReader()
@@ -162,7 +162,7 @@ extension ConversationViewModelTests {
         let task = Task { try await fixture.viewModel.clearResolvedToolApprovalFromClaudeSessionIfNeeded(approval) }
         try await waitUntil("action-time read started") { await reader.callCount == 1 }
         let record = try XCTUnwrap(fixture.records(type: "tool_approval").first)
-        fixture.conversation.providerSessionId = "replacement-session"
+        fixture.conversation.harnessSessionId = "replacement-session"
         try fixture.context.save()
         await reader.finishRead(at: 0, with: .approved)
         do {
@@ -173,7 +173,7 @@ extension ConversationViewModelTests {
         }
     }
 
-    func testApprovalRestoreAcceptsInitialBindingForTheSameProviderSession() async throws {
+    func testApprovalRestoreAcceptsInitialBindingForTheSameHarnessSession() async throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
         let approval = try insertAsyncRestoreApproval(in: fixture)
         let reader = SuspendedApprovalTranscriptReader()
@@ -181,7 +181,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
         try await waitUntil("restore read started") { await reader.callCount == 1 }
         let task = fixture.viewModel.toolApprovalRestoreTask
-        fixture.conversation.providerSessionId = approval.sessionId
+        fixture.conversation.harnessSessionId = approval.sessionId
         try fixture.context.save()
 
         await reader.finishRead(at: 0, with: .approved)
@@ -245,7 +245,7 @@ extension ConversationViewModelTests {
             modelContext: fixture.context,
             settingsService: fixture.settingsService,
             worktreeManager: fixture.worktreeManager,
-            providerSetup: fixture.providerSetup,
+            harnessSetup: fixture.harnessSetup,
             contextWindowCache: fixture.contextWindowCache
         )
         controller.readToolApprovalTranscript = { await reader.read($0) }

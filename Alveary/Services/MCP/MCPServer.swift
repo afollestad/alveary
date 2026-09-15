@@ -15,5 +15,5 @@ struct MCPServer: Identifiable, Sendable, Equatable {
     let url: String?
     let headers: [String: String]?
     let env: [String: String]?
-    var providers: [String]
+    var harnesses: [String]
 }

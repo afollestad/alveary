@@ -11,7 +11,7 @@ extension ScheduledTaskRunExecutorTests {
         let secondaryConversation = Conversation(
             id: "scheduled-secondary",
             title: "Follow-up",
-            provider: "claude",
+            harness: "claude",
             isMain: false,
             displayOrder: 1,
             thread: fixture.thread
@@ -27,7 +27,7 @@ extension ScheduledTaskRunExecutorTests {
             modelContext: fixture.context,
             settingsService: fixture.settingsService,
             worktreeManager: fixture.worktreeManager,
-            providerSetup: fixture.providerSetup,
+            harnessSetup: fixture.harnessSetup,
             contextWindowCache: fixture.contextWindowCache
         )
         let suspensionGate = ScheduledRuntimeSuspensionGate()
@@ -79,7 +79,7 @@ extension ScheduledTaskRunExecutorTests {
         XCTAssertFalse(secondaryViewModel.defersOrdinaryScheduledOutbound)
     }
 
-    func testControllerFlushRetryPreservesSuccessfulProviderResult() async throws {
+    func testControllerFlushRetryPreservesSuccessfulHarnessResult() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let run = try attachRun(to: fixture, status: .preparing)
         let retryGate = ControllerFlushRetryGate()
@@ -214,10 +214,10 @@ extension ScheduledTaskRunExecutorTests {
         defer { scheduledFixture.removeFiles() }
         let fixture = scheduledFixture.fixture
         let run = try XCTUnwrap(fixture.thread.scheduledTaskRun)
-        let providerStartGate = ScheduledFinalizationProviderStartGate()
+        let harnessStartGate = ScheduledFinalizationHarnessStartGate()
         let suspensionGate = ScheduledRuntimeSuspensionGate()
-        await fixture.providerSetup.setPrepareForSpawnHook {
-            await providerStartGate.waitForRelease()
+        await fixture.harnessSetup.setPrepareForSpawnHook {
+            await harnessStartGate.waitForRelease()
         }
         let registry = DefaultConversationControllerRegistry(
             makeViewModel: { _ in fixture.viewModel },
@@ -233,13 +233,13 @@ extension ScheduledTaskRunExecutorTests {
         let execution = Task {
             try await executor.execute(makeMaterialization(run: run, fixture: fixture))
         }
-        await providerStartGate.waitUntilEntered()
+        await harnessStartGate.waitUntilEntered()
 
         let stop = Task { @MainActor in
             try await executor.stop(runID: run.persistentModelID)
         }
-        await providerStartGate.waitUntilCancellationObserved()
-        await providerStartGate.release()
+        await harnessStartGate.waitUntilCancellationObserved()
+        await harnessStartGate.release()
         try await stop.value
         await suspensionGate.waitUntilEntered()
 
@@ -295,7 +295,7 @@ private final class InitialControllerFlushRecorder {
     }
 }
 
-private actor ScheduledFinalizationProviderStartGate {
+private actor ScheduledFinalizationHarnessStartGate {
     private var entered = false
     private var cancellationObserved = false
     private var released = false

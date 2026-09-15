@@ -66,7 +66,7 @@ extension SnapshotTests {
                 gitBranch: "main", baseRef: "main"
             ),
             SourceFolderSnapshot(
-                path: "\(home)/Development/Workspace/AgentCLIKit-provider-integration-and-runtime",
+                path: "\(home)/Development/Workspace/AgentCLIKit-harness-integration-and-runtime",
                 gitBranch: "develop", baseRef: "develop"
             )
         ]

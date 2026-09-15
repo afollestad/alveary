@@ -12,7 +12,7 @@ func makePullRequestsViewModel(
     attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)? = nil,
     attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
     presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
-    warmAgentProviderDiscovery: @escaping @MainActor () -> Void = {},
+    warmAgentHarnessDiscovery: @escaping @MainActor () -> Void = {},
     agenticThreadStarter: (
         @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
     )? = nil,
@@ -20,7 +20,7 @@ func makePullRequestsViewModel(
     reviewTeamValidationSleeper: @escaping PullRequestReviewTeamValidationSleeper = {
         try await Task.sleep(for: .seconds(30))
     },
-    refreshReviewTeamProviderDiscovery: @escaping @MainActor @Sendable () async -> Void = {},
+    refreshReviewTeamHarnessDiscovery: @escaping @MainActor @Sendable () async -> Void = {},
     openGitSettings: @escaping @MainActor () -> Void = {},
     agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
@@ -46,11 +46,11 @@ func makePullRequestsViewModel(
         attachmentImageSeeder: attachmentImageSeeder,
         attachmentImageRepositoryRegistrar: attachmentImageRepositoryRegistrar,
         presentToast: presentToast,
-        warmAgentProviderDiscovery: warmAgentProviderDiscovery,
+        warmAgentHarnessDiscovery: warmAgentHarnessDiscovery,
         agenticThreadStarter: agenticThreadStarter,
         reviewTeamSettingsValidator: reviewTeamSettingsValidator,
         reviewTeamValidationSleeper: reviewTeamValidationSleeper,
-        refreshReviewTeamProviderDiscovery: refreshReviewTeamProviderDiscovery,
+        refreshReviewTeamHarnessDiscovery: refreshReviewTeamHarnessDiscovery,
         openGitSettings: openGitSettings,
         agenticThreadActivity: agenticThreadActivity,
         reviewProposalCoordinator: reviewProposalCoordinator,
@@ -410,7 +410,7 @@ extension PullRequestsViewModelTests {
         reviewTeamValidationSleeper: @escaping PullRequestReviewTeamValidationSleeper = {
             try await Task.sleep(for: .seconds(30))
         },
-        refreshReviewTeamProviderDiscovery: @escaping @MainActor @Sendable () async -> Void = {},
+        refreshReviewTeamHarnessDiscovery: @escaping @MainActor @Sendable () async -> Void = {},
         openGitSettings: @escaping @MainActor () -> Void = {},
         starter: (
             @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
@@ -435,7 +435,7 @@ extension PullRequestsViewModelTests {
             agenticThreadStarter: starter.map { trackedStarter($0, activity: activity) },
             reviewTeamSettingsValidator: reviewTeamSettingsValidator,
             reviewTeamValidationSleeper: reviewTeamValidationSleeper,
-            refreshReviewTeamProviderDiscovery: refreshReviewTeamProviderDiscovery,
+            refreshReviewTeamHarnessDiscovery: refreshReviewTeamHarnessDiscovery,
             openGitSettings: openGitSettings,
             agenticThreadActivity: activity,
             notificationCenter: notificationCenter

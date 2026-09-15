@@ -14,7 +14,7 @@ extension ConversationViewModel {
         attachments: [LocalImageAttachment] = [],
         fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
-        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:],
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
@@ -40,7 +40,7 @@ extension ConversationViewModel {
             transportMessage,
             initialGoal: initialGoal,
             attachments: attachments,
-            providerMetadata: providerMetadata
+            harnessMetadata: harnessMetadata
         )
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
             state.stagedContext = nil
@@ -75,7 +75,7 @@ extension ConversationViewModel {
         _ message: String,
         initialGoal: String? = nil,
         attachments: [LocalImageAttachment] = [],
-        providerMetadata: [String: AgentCLIKit.JSONValue] = [:]
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:]
     ) async throws {
         let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
         do {
@@ -87,7 +87,7 @@ extension ConversationViewModel {
                     conversationId: conversation.id,
                     activityVisibility: .visible,
                     attachments: attachments,
-                    metadata: providerMetadata
+                    metadata: harnessMetadata
                 ))
             } else {
                 try await agentsManager.sendMessage(
@@ -95,7 +95,7 @@ extension ConversationViewModel {
                     conversationId: conversation.id,
                     activityVisibility: .visible,
                     attachments: attachments,
-                    metadata: providerMetadata
+                    metadata: harnessMetadata
                 )
             }
         } catch {
@@ -108,7 +108,7 @@ extension ConversationViewModel {
         _ message: String,
         steeringInputID: String,
         attachments: [LocalImageAttachment] = [],
-        providerMetadata: [String: AgentCLIKit.JSONValue] = [:]
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:]
     ) async throws {
         let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
         do {
@@ -117,7 +117,7 @@ extension ConversationViewModel {
                 conversationId: conversation.id,
                 steeringInputID: steeringInputID,
                 attachments: attachments,
-                metadata: providerMetadata
+                metadata: harnessMetadata
             )
         } catch {
             restorePromptDismissalNewOutboundTurnStartedIfNeeded(markedPromptDismissalReplacement)
@@ -130,7 +130,7 @@ extension ConversationViewModel {
         guard !state.isNormalSteeringBlockedBySessionHandoff else {
             throw AgentError.spawnFailed("Session handoff is in progress")
         }
-        guard providerCanSteerCurrentTurn else {
+        guard harnessCanSteerCurrentTurn else {
             throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
         }
         guard state.inFlightQueuedMessageID == nil else {
@@ -157,7 +157,7 @@ extension ConversationViewModel {
                     attachments: queuedMessage.attachments,
                     fileAttachments: queuedMessage.fileAttachments,
                     appShots: queuedMessage.appShots,
-                    providerMetadata: queuedMessage.providerMetadata
+                    harnessMetadata: queuedMessage.harnessMetadata
                 )
             }
             state.lastTurnError = "Steer failed: \(error.localizedDescription)"
@@ -188,7 +188,7 @@ extension ConversationViewModel {
                 transportMessage,
                 steeringInputID: localMessage.id,
                 attachments: queuedMessage.attachments,
-                providerMetadata: queuedMessage.providerMetadata
+                harnessMetadata: queuedMessage.harnessMetadata
             )
             markVisibleTurnStarted()
             state.turnState.beginTurn()
@@ -351,7 +351,7 @@ private extension ConversationViewModel {
             throw AgentError.spawnFailed("Plan feedback queued messages send on the next turn")
         }
         if !queuedMessage.appShots.isEmpty,
-           queuedMessage.providerMetadata[AgentCLIKit.CodexInputMetadata.isAppshot] != .bool(true),
+           queuedMessage.harnessMetadata[AgentCLIKit.CodexInputMetadata.isAppshot] != .bool(true),
            !hasClaudeAppShotDirectoryGrant(for: queuedMessage.appShots) {
             throw AgentError.spawnFailed("App-shot queued messages send on the next turn until Claude can read the screenshot directory")
         }
@@ -400,7 +400,7 @@ private extension ConversationViewModel {
                         attachments: queuedMessage.attachments,
                         fileAttachments: queuedMessage.fileAttachments,
                         appShots: queuedMessage.appShots,
-                        providerMetadata: queuedMessage.providerMetadata
+                        harnessMetadata: queuedMessage.harnessMetadata
                     )
                 }
                 throw error
@@ -419,7 +419,7 @@ private extension ConversationViewModel {
             try await ensureSpeedModeForOutbound(requiredSpeedMode)
         }
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-        try await ensureAppShotProviderPrerequisites(appShots: queuedMessage.appShots)
+        try await ensureAppShotHarnessPrerequisites(appShots: queuedMessage.appShots)
     }
 
     func deliverPreparedQueuedMessage(
@@ -433,7 +433,7 @@ private extension ConversationViewModel {
             transportTextOverride: transportText,
             attachments: queuedMessage.attachments,
             appShots: queuedMessage.appShots,
-            providerMetadata: queuedMessage.providerMetadata,
+            harnessMetadata: queuedMessage.harnessMetadata,
             consumedFileAttachments: queuedMessage.fileAttachments,
             consumedExitPlanModeRevisionGuidance: queuedMessage.consumedExitPlanModeRevisionGuidance,
             stagedContextOverride: stagedContext,

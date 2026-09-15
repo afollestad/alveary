@@ -68,7 +68,7 @@ extension PullRequestReviewTeamCoordinatorTests {
 
     private var ioRecoveryTeam: [ReviewWorkerConfiguration] {
         reviewTestTeam().map { member in
-            ReviewWorkerConfiguration(id: member.id, providerID: member.providerID, modelOptionID: member.modelOptionID,
+            ReviewWorkerConfiguration(id: member.id, harnessID: member.harnessID, modelOptionID: member.modelOptionID,
                                       launchModel: member.launchModel, effort: member.effort, executablePath: "/bin/sh")
         }
     }

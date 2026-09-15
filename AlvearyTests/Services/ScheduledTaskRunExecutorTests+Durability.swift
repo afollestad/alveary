@@ -351,16 +351,16 @@ extension ScheduledTaskRunExecutorTests {
         let execution = Task { try await executor.execute(makeMaterialization(run: run, fixture: fixture)) }
         try await waitUntil("expected scheduled run to start") { run.status == .running }
 
-        fixture.viewModel.controllerTerminalFailureMessage = "Provider failed"
+        fixture.viewModel.controllerTerminalFailureMessage = "Harness failed"
         fixture.viewModel.state.endTurn()
         try await waitUntil("expected terminal save retry") { retryGate.waitCount == 1 }
         execution.cancel()
         retryGate.open()
 
         let result = try await execution.value
-        XCTAssertEqual(result, .failed(message: "Provider failed"))
+        XCTAssertEqual(result, .failed(message: "Harness failed"))
         XCTAssertEqual(run.status, .failure)
-        XCTAssertEqual(run.lastError, "Provider failed")
+        XCTAssertEqual(run.lastError, "Harness failed")
         XCTAssertTrue(fixture.conversation.isUnread)
         guard case .error = notifications.handledEvents.first?.event else {
             return XCTFail("Expected one durable failure notification")

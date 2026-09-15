@@ -7,11 +7,11 @@ import SwiftUI
 @Observable
 final class SettingsViewModel {
     @ObservationIgnored let settingsService: any SettingsService
-    @ObservationIgnored let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
+    @ObservationIgnored let harnessDiscovery: (any AgentCLIKit.AgentHarnessDiscoveryService)?
     /// Drops the shared discovery cache before this screen reads. Installing a CLI or finishing
-    /// a provider setup happens here, so this is the one surface that must never see a cached
+    /// a harness setup happens here, so this is the one surface that must never see a cached
     /// readiness snapshot.
-    @ObservationIgnored let invalidateProviderDiscoveryCache: @Sendable () async -> Void
+    @ObservationIgnored let invalidateHarnessDiscoveryCache: @Sendable () async -> Void
     @ObservationIgnored let agentRegistry: AgentRegistry
     /// Built once so the AGENTS.md editor's draft and document store survive re-renders.
     @ObservationIgnored let instructionsEditor: GlobalInstructionsEditorModel
@@ -23,9 +23,9 @@ final class SettingsViewModel {
     @ObservationIgnored private let soundPreviewer: @MainActor (String) -> Void
     @ObservationIgnored private let launchAtStartupService: any LaunchAtStartupService
 
-    var providerStatuses: [String: AgentCLIKit.AgentProviderStatus] = [:]
-    var providerOrdering: [String] = []
-    var hasLoadedProviderStatuses = false
+    var harnessStatuses: [String: AgentCLIKit.AgentHarnessStatus] = [:]
+    var harnessOrdering: [String] = []
+    var hasLoadedHarnessStatuses = false
     /// Mirrors the login-item registration macOS owns; there is no `AppSettings` key behind it.
     private(set) var launchAtStartupStatus: LaunchAtStartupStatus = .disabled
     /// Set when macOS refuses a registration change, so the row can point at System Settings.
@@ -37,8 +37,8 @@ final class SettingsViewModel {
 
     init(
         settingsService: any SettingsService,
-        providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
-        invalidateProviderDiscoveryCache: @escaping @Sendable () async -> Void = {},
+        harnessDiscovery: (any AgentCLIKit.AgentHarnessDiscoveryService)? = nil,
+        invalidateHarnessDiscoveryCache: @escaping @Sendable () async -> Void = {},
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
         globalAgentInstructionsService: GlobalAgentInstructionsService? = nil,
         sidebarSectionOptionsLoader: @escaping @MainActor () -> [SettingsSidebarSectionOption] = { [] },
@@ -47,8 +47,8 @@ final class SettingsViewModel {
         launchAtStartupService: any LaunchAtStartupService = InertLaunchAtStartupService()
     ) {
         self.settingsService = settingsService
-        self.providerDiscovery = providerDiscovery
-        self.invalidateProviderDiscoveryCache = invalidateProviderDiscoveryCache
+        self.harnessDiscovery = harnessDiscovery
+        self.invalidateHarnessDiscoveryCache = invalidateHarnessDiscoveryCache
         self.agentRegistry = agentRegistry
         instructionsEditor = GlobalInstructionsEditorModel(
             service: globalAgentInstructionsService
@@ -71,7 +71,7 @@ final class SettingsViewModel {
     /// section created from the sidebar's menu or the windowless `create_section` host tool while
     /// this screen is up reaches the pickers only through `.sidebarSectionsChanged`.
     ///
-    /// Unlike `refreshProviderStatusesIfNeeded()` this always reloads, because the tab is entered
+    /// Unlike `refreshHarnessStatusesIfNeeded()` this always reloads, because the tab is entered
     /// repeatedly and the rows behind it move; only the observation is started once.
     func refreshSidebarSectionOptions() {
         applyLoadedSidebarSectionOptions()
@@ -131,7 +131,7 @@ final class SettingsViewModel {
     var effort: String {
         get { settingsService.current.effort }
         set {
-            let options = modelOptions(for: settingsService.current.defaultProvider)
+            let options = modelOptions(for: settingsService.current.defaultHarness)
             settingsService.update {
                 $0.effort = AgentModelOptionSelection.normalizedEffort(
                     newValue,
@@ -374,15 +374,15 @@ final class SettingsViewModel {
         set { settingsService.update { $0.worktreesBaseDirectory = newValue } }
     }
 
-    func providerExtraArgs(for providerId: String) -> String? {
-        settingsService.current.providerConfigs[providerId]?.extraArgs
+    func harnessExtraArgs(for harnessId: String) -> String? {
+        settingsService.current.harnessConfigs[harnessId]?.extraArgs
     }
 
-    func updateProviderExtraArgs(for providerId: String, extraArgs: String?) {
+    func updateHarnessExtraArgs(for harnessId: String, extraArgs: String?) {
         settingsService.update { settings in
-            var config = settings.providerConfigs[providerId] ?? ProviderCustomConfig()
+            var config = settings.harnessConfigs[harnessId] ?? HarnessCustomConfig()
             config.extraArgs = extraArgs
-            settings.providerConfigs[providerId] = config
+            settings.harnessConfigs[harnessId] = config
         }
     }
 

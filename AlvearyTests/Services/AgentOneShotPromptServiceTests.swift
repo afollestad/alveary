@@ -8,9 +8,9 @@ private typealias AppOneShotPromptError = Alveary.AgentOneShotPromptError
 
 @MainActor
 final class AgentOneShotPromptServiceTests: XCTestCase {
-    func testGenerateRunsProviderSpecificOneShotWithoutRuntimeCalls() async throws {
+    func testGenerateRunsHarnessSpecificOneShotWithoutRuntimeCalls() async throws {
         var settings = AppSettings()
-        settings.providerConfigs["claude"] = ProviderCustomConfig(extraArgs: "--append-system-prompt 'Use terse output'")
+        settings.harnessConfigs["claude"] = HarnessCustomConfig(extraArgs: "--append-system-prompt 'Use terse output'")
         let fixture = await makeFixture(settings: settings, timeout: .seconds(7))
 
         let output = try await fixture.service.generate(prompt: "Generate subject", workingDirectory: "/tmp/project")
@@ -20,7 +20,7 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         let requests = await fixture.runner.requests()
         XCTAssertEqual(requests.count, 1)
         let request = try XCTUnwrap(requests.first)
-        XCTAssertEqual(request.providerId, .claude)
+        XCTAssertEqual(request.harnessId, .claude)
         XCTAssertEqual(request.workingDirectory.path, "/tmp/project")
         XCTAssertTrue(request.prompt.hasPrefix("Generate subject"))
         XCTAssertTrue(request.prompt.contains("AGENTS.md"))
@@ -37,11 +37,11 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(request.timeout), 7, accuracy: 0.001)
         XCTAssertEqual(request.toolPolicy, .readOnly)
 
-        let providerSetupCalls = await fixture.providerSetup.calls()
-        XCTAssertEqual(providerSetupCalls, [
-            MockProviderSetupService.Call(providerId: "claude", workingDirectory: "/tmp/project", autoTrust: false)
+        let harnessSetupCalls = await fixture.harnessSetup.calls()
+        XCTAssertEqual(harnessSetupCalls, [
+            MockHarnessSetupService.Call(harnessId: "claude", workingDirectory: "/tmp/project", autoTrust: false)
         ])
-        let checkCalls = await fixture.providerDetection.checkCalls()
+        let checkCalls = await fixture.harnessDetection.checkCalls()
         XCTAssertTrue(checkCalls.isEmpty)
         await assertNoRuntimeCalls(fixture.agentsManager)
     }
@@ -70,19 +70,19 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         do {
             _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
             XCTFail("Expected generation to fail")
-        } catch AppOneShotPromptError.untrustedProject(let providerId, let workingDirectory) {
-            XCTAssertEqual(providerId, "claude")
+        } catch AppOneShotPromptError.untrustedProject(let harnessId, let workingDirectory) {
+            XCTAssertEqual(harnessId, "claude")
             XCTAssertEqual(workingDirectory, "/tmp/project")
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
 
-        let providerSetupCalls = await fixture.providerSetup.calls()
-        XCTAssertEqual(providerSetupCalls, [
-            MockProviderSetupService.Call(providerId: "claude", workingDirectory: "/tmp/project", autoTrust: false)
+        let harnessSetupCalls = await fixture.harnessSetup.calls()
+        XCTAssertEqual(harnessSetupCalls, [
+            MockHarnessSetupService.Call(harnessId: "claude", workingDirectory: "/tmp/project", autoTrust: false)
         ])
         let requests = await fixture.runner.requests()
-        let checkCalls = await fixture.providerDetection.checkCalls()
+        let checkCalls = await fixture.harnessDetection.checkCalls()
         XCTAssertTrue(requests.isEmpty)
         XCTAssertTrue(checkCalls.isEmpty)
         await assertNoRuntimeCalls(fixture.agentsManager)
@@ -96,16 +96,16 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         let output = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
 
         XCTAssertEqual(output, "Generated subject")
-        let providerSetupCalls = await fixture.providerSetup.calls()
-        XCTAssertEqual(providerSetupCalls, [
-            MockProviderSetupService.Call(providerId: "claude", workingDirectory: "/tmp/project", autoTrust: true)
+        let harnessSetupCalls = await fixture.harnessSetup.calls()
+        XCTAssertEqual(harnessSetupCalls, [
+            MockHarnessSetupService.Call(harnessId: "claude", workingDirectory: "/tmp/project", autoTrust: true)
         ])
         let requests = await fixture.runner.requests()
         XCTAssertEqual(requests.count, 1)
         await assertNoRuntimeCalls(fixture.agentsManager)
     }
 
-    func testGenerateFailsBeforeLaunchWhenProviderExecutableIsMissing() async {
+    func testGenerateFailsBeforeLaunchWhenHarnessExecutableIsMissing() async {
         let fixture = await makeFixture(detectedPath: nil, detectedPathAfterCheck: nil)
 
         do {
@@ -117,23 +117,23 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
             XCTFail("Unexpected error: \(error)")
         }
 
-        let checkCalls = await fixture.providerDetection.checkCalls()
+        let checkCalls = await fixture.harnessDetection.checkCalls()
         XCTAssertEqual(checkCalls, ["claude"])
         let requests = await fixture.runner.requests()
         XCTAssertTrue(requests.isEmpty)
         await assertNoRuntimeCalls(fixture.agentsManager)
     }
 
-    func testGenerateFailsForInvalidProviderExtraArgsBeforeLaunch() async {
+    func testGenerateFailsForInvalidHarnessExtraArgsBeforeLaunch() async {
         var settings = AppSettings()
-        settings.providerConfigs["claude"] = ProviderCustomConfig(extraArgs: "--bad 'unterminated")
+        settings.harnessConfigs["claude"] = HarnessCustomConfig(extraArgs: "--bad 'unterminated")
         let fixture = await makeFixture(settings: settings)
 
         do {
             _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
             XCTFail("Expected generation to fail")
         } catch AppOneShotPromptError.failed(let message) {
-            XCTAssertTrue(message.contains("Invalid provider extra args"), message)
+            XCTAssertTrue(message.contains("Invalid harness extra args"), message)
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
@@ -145,23 +145,23 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
 
     func testGenerateMapsRunnerErrors() async throws {
         try await assertRunnerFailure(
-            .failure(.approvalRequired(providerId: .claude, message: "approval")),
+            .failure(.approvalRequired(harnessId: .claude, message: "approval")),
             expected: .approvalRequested
         )
         try await assertRunnerFailure(
-            .failure(.promptRequired(providerId: .claude, message: "question")),
+            .failure(.promptRequired(harnessId: .claude, message: "question")),
             expected: .promptRequired
         )
         try await assertRunnerFailure(
-            .failure(.emptyOutput(providerId: .claude, stdout: "", stderr: "")),
+            .failure(.emptyOutput(harnessId: .claude, stdout: "", stderr: "")),
             expected: .emptyOutput
         )
         try await assertRunnerFailure(
-            .failure(.timedOut(providerId: .claude, timeout: 1)),
+            .failure(.timedOut(harnessId: .claude, timeout: 1)),
             expected: .timedOut
         )
         try await assertRunnerFailure(
-            .failure(.cancelled(providerId: .claude)),
+            .failure(.cancelled(harnessId: .claude)),
             expected: .cancelled
         )
         try await assertRunnerFailure(
@@ -169,11 +169,11 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
             expected: .cancelled
         )
         try await assertRunnerFailure(
-            .failure(.commandFailed(providerId: .claude, exitCode: 42, stdout: "", stderr: "stderr diagnostic")),
+            .failure(.commandFailed(harnessId: .claude, exitCode: 42, stdout: "", stderr: "stderr diagnostic")),
             expectedMessageContaining: "stderr diagnostic"
         )
         try await assertRunnerFailure(
-            .failure(.unavailableModel(providerId: .claude, message: "not available")),
+            .failure(.unavailableModel(harnessId: .claude, message: "not available")),
             expectedMessageContaining: "model is unavailable"
         )
     }
@@ -184,8 +184,8 @@ private extension AgentOneShotPromptServiceTests {
         let service: DefaultAgentOneShotPromptService
         let runner: MockAgentOneShotPromptRunner
         let agentsManager: MockAgentsManager
-        let providerSetup: MockProviderSetupService
-        let providerDetection: RecordingProviderDetectionService
+        let harnessSetup: MockHarnessSetupService
+        let harnessDetection: RecordingHarnessDetectionService
     }
 
     func makeFixture(
@@ -195,7 +195,7 @@ private extension AgentOneShotPromptServiceTests {
         detectedPath: String? = "/opt/homebrew/bin/claude",
         detectedPathAfterCheck: String? = nil,
         runnerOutcome: MockAgentOneShotPromptRunner.Outcome = .success(.init(
-            providerId: .claude,
+            harnessId: .claude,
             text: " Generated subject ",
             stdout: "{}\n",
             stderr: ""
@@ -207,9 +207,9 @@ private extension AgentOneShotPromptServiceTests {
             reconfigureError: nil,
             approvalError: nil
         )
-        let providerSetup = MockProviderSetupService()
-        await providerSetup.setTrustedProject("/tmp/project", isTrusted: trusted)
-        let providerDetection = RecordingProviderDetectionService(
+        let harnessSetup = MockHarnessSetupService()
+        await harnessSetup.setTrustedProject("/tmp/project", isTrusted: trusted)
+        let harnessDetection = RecordingHarnessDetectionService(
             resolvedPath: detectedPath,
             resolvedPathAfterCheck: detectedPathAfterCheck
         )
@@ -217,8 +217,8 @@ private extension AgentOneShotPromptServiceTests {
         let service = DefaultAgentOneShotPromptService(
             promptRunner: runner,
             settingsService: InMemorySettingsService(current: settings),
-            providerSetup: providerSetup,
-            providerDetection: providerDetection,
+            harnessSetup: harnessSetup,
+            harnessDetection: harnessDetection,
             environmentBuilder: FixedEnvironmentBuilder(environment: [
                 "PATH": "/usr/bin",
                 "ALVEARY_TEST": "1"
@@ -230,8 +230,8 @@ private extension AgentOneShotPromptServiceTests {
             service: service,
             runner: runner,
             agentsManager: agentsManager,
-            providerSetup: providerSetup,
-            providerDetection: providerDetection
+            harnessSetup: harnessSetup,
+            harnessDetection: harnessDetection
         )
     }
 
@@ -324,7 +324,7 @@ private actor MockAgentOneShotPromptRunner: AgentCLIKit.AgentOneShotPromptRunnin
     }
 }
 
-private actor RecordingProviderDetectionService: ProviderDetectionService {
+private actor RecordingHarnessDetectionService: HarnessDetectionService {
     private var resolvedPath: String?
     private let resolvedPathAfterCheck: String?
     private var recordedCheckCalls: [String] = []
@@ -334,21 +334,21 @@ private actor RecordingProviderDetectionService: ProviderDetectionService {
         self.resolvedPathAfterCheck = resolvedPathAfterCheck
     }
 
-    func resolvedPath(for providerId: String) -> String? {
+    func resolvedPath(for harnessId: String) -> String? {
         resolvedPath
     }
 
-    func status(for providerId: String) -> ProviderStatus {
+    func status(for harnessId: String) -> HarnessStatus {
         if let resolvedPath {
             return .connected(path: resolvedPath, version: "test")
         }
         return .missing
     }
 
-    func checkAllProviders() async {}
+    func checkAllHarnesses() async {}
 
-    func checkProvider(_ providerId: String) async {
-        recordedCheckCalls.append(providerId)
+    func checkHarness(_ harnessId: String) async {
+        recordedCheckCalls.append(harnessId)
         if resolvedPath == nil {
             resolvedPath = resolvedPathAfterCheck
         }
@@ -362,9 +362,9 @@ private actor RecordingProviderDetectionService: ProviderDetectionService {
 private struct FixedEnvironmentBuilder: AgentEnvironmentBuilder {
     let environment: [String: String]
 
-    func buildEnvironment(providerEnv: [String: String]?) -> [String: String] {
+    func buildEnvironment(harnessEnv: [String: String]?) -> [String: String] {
         var values = environment
-        for (key, value) in providerEnv ?? [:] {
+        for (key, value) in harnessEnv ?? [:] {
             values[key] = value
         }
         return values

@@ -15,9 +15,9 @@ struct AgentToolApprovalResolutionRequest: Sendable, Equatable {
     let config: AgentSpawnConfig
     /// Forces the deferred respawn path instead of answering a held live hook, so `config` launch
     /// settings that Claude can only take as flags — model and effort — apply to the resumed tool.
-    let requiresProviderRestart: Bool
+    let requiresHarnessRestart: Bool
 
-    /// Denying an app-native prompt ends its turn; a denied tool can still let the provider continue.
+    /// Denying an app-native prompt ends its turn; a denied tool can still let the harness continue.
     var cancelsInteraction: Bool {
         resolution.decision == .deny && approval.isAppNativeInteractionPrompt
     }
@@ -29,7 +29,7 @@ struct AgentToolApprovalResolutionRequest: Sendable, Equatable {
         additionalApprovals: [ToolApprovalRequest],
         sessionApproval: AgentSessionApprovalGrant?,
         config: AgentSpawnConfig,
-        requiresProviderRestart: Bool = false
+        requiresHarnessRestart: Bool = false
     ) {
         self.conversationId = conversationId
         self.approval = approval
@@ -37,7 +37,7 @@ struct AgentToolApprovalResolutionRequest: Sendable, Equatable {
         self.additionalApprovals = additionalApprovals
         self.sessionApproval = sessionApproval
         self.config = config
-        self.requiresProviderRestart = requiresProviderRestart
+        self.requiresHarnessRestart = requiresHarnessRestart
     }
 }
 
@@ -81,10 +81,10 @@ protocol AgentsManager: Actor {
         metadata: [String: AgentCLIKit.JSONValue]
     ) async throws
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool
-    func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection?
+    func toolApprovalSelection(harnessId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection?
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
-        providerId: String,
+        harnessId: String,
         conversationId: String,
         sessionId: String
     ) async
@@ -155,7 +155,7 @@ extension AgentsManager {
     }
 
     func sendGoalStartMessage(_ request: AgentGoalStartMessageRequest) async throws {
-        throw AgentError.spawnFailed("Goal mode is not supported by this agent.")
+        throw AgentError.spawnFailed("Goal mode is not supported by this harness.")
     }
 
     func sendGoalStartMessage(
@@ -245,11 +245,11 @@ extension AgentsManager {
     }
 
     func startGoal(_ objective: String, conversationId: String) async throws {
-        throw AgentError.spawnFailed("Goal mode is not supported by this agent.")
+        throw AgentError.spawnFailed("Goal mode is not supported by this harness.")
     }
 
     func performGoalAction(_ action: AgentCLIKit.AgentGoalAction, conversationId: String) async throws {
-        throw AgentError.spawnFailed("Goal \(action.rawValue) is not supported by this agent.")
+        throw AgentError.spawnFailed("Goal \(action.rawValue) is not supported by this harness.")
     }
 }
 

@@ -26,7 +26,7 @@ extension ChatTranscriptView {
             )
         }
         configuration.conversationReviewProposal = {
-            // A provider that emits only the text fallback gives the card no proposal id, and a
+            // A harness that emits only the text fallback gives the card no proposal id, and a
             // conversation holds one review proposal at a time.
             guard let proposalID = coordinator.presentations.values
                 .first(where: { $0.sourceConversationID == conversationID })?.id else {

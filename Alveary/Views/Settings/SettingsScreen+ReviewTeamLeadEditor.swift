@@ -15,12 +15,12 @@ struct PullRequestReviewLeadEditor: View {
 
             SettingsFormSection {
                 SettingsFormRow {
-                    SettingsResponsiveControlRow("Agent", horizontalControlSizing: .intrinsic) {
+                    SettingsResponsiveControlRow("Harness", horizontalControlSizing: .intrinsic) {
                         SettingsMenuPicker(
-                            "Lead agent",
-                            selection: provider,
-                            options: viewModel.reviewTeamLeadProviderOptions(draft),
-                            label: { viewModel.reviewTeamLeadProviderLabel($0, settings: draft) }
+                            "Lead harness",
+                            selection: harness,
+                            options: viewModel.reviewTeamLeadHarnessOptions(draft),
+                            label: { viewModel.reviewTeamLeadHarnessLabel($0, settings: draft) }
                         )
                     }
                 }
@@ -52,10 +52,10 @@ struct PullRequestReviewLeadEditor: View {
 }
 
 private extension PullRequestReviewLeadEditor {
-    var provider: Binding<String> {
+    var harness: Binding<String> {
         Binding(
-            get: { draft.pullRequestReviewProvider ?? SettingsViewModel.pullRequestReviewInheritValue },
-            set: { viewModel.setReviewTeamLeadProvider($0, in: &draft) }
+            get: { draft.pullRequestReviewHarness ?? SettingsViewModel.pullRequestReviewInheritValue },
+            set: { viewModel.setReviewTeamLeadHarness($0, in: &draft) }
         )
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 
 final class DefaultAgentEnvironmentBuilder: AgentEnvironmentBuilder, Sendable {
-    func buildEnvironment(providerEnv: [String: String]? = nil) -> [String: String] {
+    func buildEnvironment(harnessEnv: [String: String]? = nil) -> [String: String] {
         let environment = ProcessInfo.processInfo.environment
         var result: [String: String] = [
             "TERM": "xterm-256color",
@@ -27,8 +27,8 @@ final class DefaultAgentEnvironmentBuilder: AgentEnvironmentBuilder, Sendable {
             }
         }
 
-        if let providerEnv {
-            for (key, value) in providerEnv {
+        if let harnessEnv {
+            for (key, value) in harnessEnv {
                 result[key] = value
             }
         }

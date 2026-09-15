@@ -103,7 +103,7 @@ extension ChatItemGrouper {
         guard !didMatchKey else {
             return
         }
-        // Providers that surface only a host tool's text fallback give the widget no
+        // Harnesses that surface only a host tool's text fallback give the widget no
         // correlation key. Immediate actions write their marker between the call and its
         // result, so pair those with marker-awaiting widgets by the definition they name
         // — an immediate marker always names one, and requiring the match keeps a
@@ -136,7 +136,7 @@ extension ChatItemGrouper {
 
 private extension ChatItemGrouper {
     /// Whether a marker and a widget come from the same host tool. The marker records the
-    /// qualified name while a widget carries whatever its provider reported, so both resolve
+    /// qualified name while a widget carries whatever its harness reported, so both resolve
     /// through the descriptor. A marker without a tool name predates this scoping and matches
     /// anything, as it did before.
     static func marker(_ event: ConversationEventRecord, belongsTo entry: HostToolWidgetEntry) -> Bool {

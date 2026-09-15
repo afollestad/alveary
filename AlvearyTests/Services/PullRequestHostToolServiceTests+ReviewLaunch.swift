@@ -34,7 +34,7 @@ extension PullRequestHostToolServiceTests {
         XCTAssertEqual(destination.customSection?.id, sectionID)
         XCTAssertEqual(destination.model, "sonnet")
         XCTAssertEqual(destination.effort, "high")
-        XCTAssertEqual(conversation.provider, "claude")
+        XCTAssertEqual(conversation.harness, "claude")
         XCTAssertNil(destination.project)
         let workspace = try XCTUnwrap(destination.taskWorkspaceDescriptor)
         XCTAssertEqual(workspace.ownershipStrategy, .privateOwned)

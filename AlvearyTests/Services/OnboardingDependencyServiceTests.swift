@@ -90,17 +90,17 @@ final class OnboardingDependencyServiceTests: XCTestCase {
     }
 
     func testCodexInstallUsesRegistryCommandCodexEnvAndNullStdin() async throws {
-        let providerDetection = OnboardingProviderDetectionFake(
+        let harnessDetection = OnboardingHarnessDetectionFake(
             snapshots: [
                 "codex": [
-                    ProviderSnapshot(status: .missing, path: nil),
-                    ProviderSnapshot(status: .needsKey, path: "/Users/alveary/.codex/bin/codex")
+                    HarnessSnapshot(status: .missing, path: nil),
+                    HarnessSnapshot(status: .needsKey, path: "/Users/alveary/.codex/bin/codex")
                 ]
             ]
         )
         let shell = MockShellRunner()
         await shell.enqueue(.success(shellResult(stdout: "codex installed")))
-        let service = makeService(providerDetection: providerDetection, shell: shell)
+        let service = makeService(harnessDetection: harnessDetection, shell: shell)
 
         let status = try await service.install(.codex)
 
@@ -111,8 +111,8 @@ final class OnboardingDependencyServiceTests: XCTestCase {
                 state: .installed(detail: "/Users/alveary/.codex/bin/codex")
             )
         )
-        let providerChecks = await providerDetection.recordedChecks()
-        XCTAssertEqual(providerChecks, ["codex", "codex"])
+        let harnessChecks = await harnessDetection.recordedChecks()
+        XCTAssertEqual(harnessChecks, ["codex", "codex"])
 
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
@@ -123,17 +123,17 @@ final class OnboardingDependencyServiceTests: XCTestCase {
     }
 
     func testClaudeInstallDoesNotApplyNonInteractiveEnvironment() async throws {
-        let providerDetection = OnboardingProviderDetectionFake(
+        let harnessDetection = OnboardingHarnessDetectionFake(
             snapshots: [
                 "claude": [
-                    ProviderSnapshot(status: .missing, path: nil),
-                    ProviderSnapshot(status: .needsKey, path: "/Users/alveary/.claude/local/claude")
+                    HarnessSnapshot(status: .missing, path: nil),
+                    HarnessSnapshot(status: .needsKey, path: "/Users/alveary/.claude/local/claude")
                 ]
             ]
         )
         let shell = MockShellRunner()
         await shell.enqueue(.success(shellResult(stdout: "claude installed")))
-        let service = makeService(providerDetection: providerDetection, shell: shell)
+        let service = makeService(harnessDetection: harnessDetection, shell: shell)
 
         _ = try await service.install(.claude)
 
@@ -145,15 +145,15 @@ final class OnboardingDependencyServiceTests: XCTestCase {
         assertInstallerOptions(invocation)
     }
 
-    func testOptionalStatusTreatsResolvedPathAsInstalledEvenWhenProviderNeedsSetup() async {
-        let providerDetection = OnboardingProviderDetectionFake(
+    func testOptionalStatusTreatsResolvedPathAsInstalledEvenWhenHarnessNeedsSetup() async {
+        let harnessDetection = OnboardingHarnessDetectionFake(
             snapshots: [
                 "claude": [
-                    ProviderSnapshot(status: .needsKey, path: "/Users/alveary/.claude/local/claude")
+                    HarnessSnapshot(status: .needsKey, path: "/Users/alveary/.claude/local/claude")
                 ]
             ]
         )
-        let service = makeService(providerDetection: providerDetection)
+        let service = makeService(harnessDetection: harnessDetection)
 
         let status = await service.status(for: .claude)
 
@@ -185,10 +185,10 @@ final class OnboardingDependencyServiceTests: XCTestCase {
     }
 
     func testCommandFailureIncludesExitCodeOutputAndTruncationNotice() async throws {
-        let providerDetection = OnboardingProviderDetectionFake(
+        let harnessDetection = OnboardingHarnessDetectionFake(
             snapshots: [
                 "codex": [
-                    ProviderSnapshot(status: .missing, path: nil)
+                    HarnessSnapshot(status: .missing, path: nil)
                 ]
             ]
         )
@@ -196,7 +196,7 @@ final class OnboardingDependencyServiceTests: XCTestCase {
         await shell.enqueue(
             .success(shellResult(stderr: "curl failed", exitCode: 7, stdoutWasTruncated: true))
         )
-        let service = makeService(providerDetection: providerDetection, shell: shell)
+        let service = makeService(harnessDetection: harnessDetection, shell: shell)
 
         do {
             _ = try await service.install(.codex)
@@ -211,14 +211,14 @@ final class OnboardingDependencyServiceTests: XCTestCase {
     }
 
     func testCancellationPropagatesWithoutWrapping() async {
-        let providerDetection = OnboardingProviderDetectionFake(
+        let harnessDetection = OnboardingHarnessDetectionFake(
             snapshots: [
                 "codex": [
-                    ProviderSnapshot(status: .missing, path: nil)
+                    HarnessSnapshot(status: .missing, path: nil)
                 ]
             ]
         )
-        let service = makeService(providerDetection: providerDetection, shell: CancellingShellRunner())
+        let service = makeService(harnessDetection: harnessDetection, shell: CancellingShellRunner())
 
         do {
             _ = try await service.install(.codex)
@@ -232,7 +232,7 @@ final class OnboardingDependencyServiceTests: XCTestCase {
 
     private func makeService(
         gitHubCLI: GitHubCLIService = OnboardingGitHubCLIFake(installedVersions: [nil]),
-        providerDetection: any ProviderDetectionService = OnboardingProviderDetectionFake(),
+        harnessDetection: any HarnessDetectionService = OnboardingHarnessDetectionFake(),
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
         shell: any ShellRunner = MockShellRunner(),
         executableResolver: any ExecutablePathResolving = OnboardingExecutablePathResolverFake(),
@@ -240,7 +240,7 @@ final class OnboardingDependencyServiceTests: XCTestCase {
     ) -> DefaultOnboardingDependencyService {
         DefaultOnboardingDependencyService(
             gitHubCLI: gitHubCLI,
-            providerDetection: providerDetection,
+            harnessDetection: harnessDetection,
             agentRegistry: agentRegistry,
             shell: shell,
             executableResolver: executableResolver,
@@ -311,48 +311,48 @@ private final class OnboardingGitHubCLIFake: GitHubCLIService, @unchecked Sendab
     func cancelAuthentication() {}
 }
 
-private struct ProviderSnapshot: Sendable {
-    let status: ProviderStatus
+private struct HarnessSnapshot: Sendable {
+    let status: HarnessStatus
     let path: String?
 }
 
-private actor OnboardingProviderDetectionFake: ProviderDetectionService {
-    private var snapshots: [String: [ProviderSnapshot]]
+private actor OnboardingHarnessDetectionFake: HarnessDetectionService {
+    private var snapshots: [String: [HarnessSnapshot]]
     private var checkCounts: [String: Int] = [:]
     private var checks: [String] = []
 
-    init(snapshots: [String: [ProviderSnapshot]] = [:]) {
+    init(snapshots: [String: [HarnessSnapshot]] = [:]) {
         self.snapshots = snapshots
     }
 
-    func resolvedPath(for providerId: String) -> String? {
-        snapshot(for: providerId).path
+    func resolvedPath(for harnessId: String) -> String? {
+        snapshot(for: harnessId).path
     }
 
-    func status(for providerId: String) -> ProviderStatus {
-        snapshot(for: providerId).status
+    func status(for harnessId: String) -> HarnessStatus {
+        snapshot(for: harnessId).status
     }
 
-    func checkAllProviders() async {
-        for providerId in snapshots.keys.sorted() {
-            await checkProvider(providerId)
+    func checkAllHarnesses() async {
+        for harnessId in snapshots.keys.sorted() {
+            await checkHarness(harnessId)
         }
     }
 
-    func checkProvider(_ providerId: String) async {
-        checks.append(providerId)
-        checkCounts[providerId, default: 0] += 1
+    func checkHarness(_ harnessId: String) async {
+        checks.append(harnessId)
+        checkCounts[harnessId, default: 0] += 1
     }
 
     func recordedChecks() -> [String] {
         checks
     }
 
-    private func snapshot(for providerId: String) -> ProviderSnapshot {
-        let providerSnapshots = snapshots[providerId] ?? [ProviderSnapshot(status: .missing, path: nil)]
-        let checkCount = checkCounts[providerId, default: 0]
-        let index = min(max(checkCount - 1, 0), providerSnapshots.count - 1)
-        return providerSnapshots[index]
+    private func snapshot(for harnessId: String) -> HarnessSnapshot {
+        let harnessSnapshots = snapshots[harnessId] ?? [HarnessSnapshot(status: .missing, path: nil)]
+        let checkCount = checkCounts[harnessId, default: 0]
+        let index = min(max(checkCount - 1, 0), harnessSnapshots.count - 1)
+        return harnessSnapshots[index]
     }
 }
 

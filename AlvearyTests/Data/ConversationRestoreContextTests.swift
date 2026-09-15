@@ -39,7 +39,7 @@ final class ConversationRestoreContextTests: XCTestCase {
 
         let pendingRestoreContext = try XCTUnwrap(conversation.pendingRestoreContext)
         XCTAssertTrue(pendingRestoreContext.contains("Restoring context from local history."))
-        XCTAssertTrue(pendingRestoreContext.contains("This is a fresh provider session; do not assume memory from earlier turns."))
+        XCTAssertTrue(pendingRestoreContext.contains("This is a fresh harness session; do not assume memory from earlier turns."))
         XCTAssertTrue(pendingRestoreContext.contains("User: Please continue the auth rollback investigation"))
         XCTAssertTrue(pendingRestoreContext.contains("Assistant: I narrowed it down to the session recreation path."))
         XCTAssertTrue(pendingRestoreContext.contains("Read: succeeded. Opened the runtime lifecycle code"))
@@ -48,7 +48,7 @@ final class ConversationRestoreContextTests: XCTestCase {
         XCTAssertTrue(pendingRestoreContext.contains("Agent turn failed after the permission denial"))
     }
 
-    /// A fresh provider session should know a prompt came from another thread, not the user.
+    /// A fresh harness session should know a prompt came from another thread, not the user.
     func testRefreshPendingRestoreContextNamesTheThreadARelayedPromptCameFrom() throws {
         let fixture = try ConversationRestoreContextFixture()
         let conversation = fixture.conversation
@@ -283,7 +283,7 @@ private struct ConversationRestoreContextFixture {
 
         project = Project(path: "/tmp/restore-context-project", name: "Restore Context")
         thread = AgentThread(name: "Restore Thread", project: project)
-        conversation = Conversation(title: "Main", provider: "claude", thread: thread)
+        conversation = Conversation(title: "Main", harness: "claude", thread: thread)
         project.threads = [thread]
         thread.conversations = [conversation]
 

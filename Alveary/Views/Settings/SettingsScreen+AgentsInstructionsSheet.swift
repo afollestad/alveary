@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The modal editor for the shared `AGENTS.md` file, opened from the Agents tab's
+/// The modal editor for the shared `AGENTS.md` file, opened from the Harnesses tab's
 /// `Edit` row.
 ///
 /// Internal rather than file-private so snapshots can host it; `AgentsInstructionsSection`

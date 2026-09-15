@@ -46,7 +46,7 @@ struct ConversationUsageSummary: Equatable, Sendable {
         }
 
         // Model changes only invalidate the reported max size. The latest token row
-        // still describes the current provider window until a new result replaces it.
+        // still describes the current harness window until a new result replaces it.
         let currentWindowTokenEvents = currentWindowEvents.filter { $0.type == ConversationEventRecord.tokensType }
         let latestTokenEvent = tokenEvents.last
         let reportedContextWindowSize = currentWindowTokenEvents.reversed().compactMap { record -> Int? in

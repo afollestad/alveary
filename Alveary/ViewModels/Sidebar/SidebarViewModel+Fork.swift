@@ -95,9 +95,9 @@ private extension SidebarViewModel {
         guard let workspace = dbThread.workspaceSnapshot, let sourceFolder = workspace.primarySource,
               let sourceWorkingDirectory = dbThread.primaryWorkingDirectory else { throw WorkspaceFolderError.invalidSnapshot }
         let projectPath = sourceFolder.path
-        let sourceProviderID = sourceConversation.provider
-            ?? sourceConversation.providerSessionProviderId
-            ?? settingsService.current.defaultProvider
+        let sourceHarnessID = sourceConversation.harness
+            ?? sourceConversation.harnessSessionHarnessId
+            ?? settingsService.current.defaultHarness
 
         return ThreadForkSourceSnapshot(
             threadID: dbThread.persistentModelID,
@@ -108,10 +108,10 @@ private extension SidebarViewModel {
             projectRemoteName: sourceFolder.remoteName,
             isGitRepository: sourceFolder.isGitRepository,
             sourceConversationID: sourceConversation.id,
-            sourceProviderID: sourceProviderID,
-            sourceProviderSessionID: sourceConversation.providerSessionId,
-            sourceProviderSessionProviderID: sourceConversation.providerSessionProviderId,
-            sourceProviderSessionWorkingDirectory: sourceConversation.providerSessionWorkingDirectory,
+            sourceHarnessID: sourceHarnessID,
+            sourceHarnessSessionID: sourceConversation.harnessSessionId,
+            sourceHarnessSessionHarnessID: sourceConversation.harnessSessionHarnessId,
+            sourceHarnessSessionWorkingDirectory: sourceConversation.harnessSessionWorkingDirectory,
             sourceWorkingDirectory: sourceWorkingDirectory,
             threadConversationIDs: conversationIDs(for: dbThread),
             threadName: dbThread.displayName(),
@@ -151,14 +151,14 @@ private extension SidebarViewModel {
     func resolveForkSourceRecord(
         _ source: ThreadForkSourceSnapshot
     ) async throws -> AgentCLIKit.AgentSessionRecord {
-        let resolution = await providerSessionActionService.resolveSessions(matching: source.providerSessionActionSnapshot)
+        let resolution = await harnessSessionActionService.resolveSessions(matching: source.harnessSessionActionSnapshot)
         if let matchingRecord = resolution.records.first(where: { $0.conversationId.rawValue == source.sourceConversationID }) {
             return matchingRecord
         }
         if let firstRecord = resolution.records.first {
             return firstRecord
         }
-        throw SidebarViewModelError.threadForkUnavailable("Thread has no provider session binding to fork")
+        throw SidebarViewModelError.threadForkUnavailable("Thread has no harness session binding to fork")
     }
 
     func createForkWorktreeIfNeeded(_ source: ThreadForkSourceSnapshot) async throws -> ForkCreatedWorktree? {
@@ -293,7 +293,7 @@ private extension SidebarViewModel {
                 fallbackName: AgentThread.untitledName,
                 hasCustomTitle: false
             ),
-            provider: sourceRecord.providerId.rawValue,
+            harness: sourceRecord.harnessId.rawValue,
             isMain: true,
             displayOrder: 0,
             thread: thread
@@ -306,16 +306,16 @@ private extension SidebarViewModel {
         worktree: ForkCreatedWorktree?
     ) -> AgentSpawnConfig {
         AgentSpawnConfig(
-            providerId: sourceRecord.providerId.rawValue,
+            harnessId: sourceRecord.harnessId.rawValue,
             workingDirectory: worktree?.info.path ?? source.projectPath,
             permissionMode: source.permissionMode,
             planModeEnabled: source.planModeEnabled,
             model: source.model,
             effort: source.effort,
-            reasoningSummaryMode: sourceRecord.providerId.rawValue == "codex" ? .concise : nil,
+            reasoningSummaryMode: sourceRecord.harnessId.rawValue == "codex" ? .concise : nil,
             speedMode: source.speedMode,
             sessionFork: AgentSessionForkRequest(
-                sourceSessionId: sourceRecord.providerSessionId.rawValue,
+                sourceSessionId: sourceRecord.harnessSessionId.rawValue,
                 sourceWorkingDirectory: sourceRecord.workingDirectory?.path ?? source.sourceWorkingDirectory,
                 mode: source.mode.sessionForkMode
             ),
@@ -402,7 +402,7 @@ private extension SidebarViewModel {
             durationMs: record.durationMs,
             costUsd: 0,
             costUsdReported: false,
-            providerModelId: record.providerModelId,
+            harnessModelId: record.harnessModelId,
             contextWindowSize: record.contextWindowSize,
             notificationType: record.notificationType,
             stopReason: record.stopReason,

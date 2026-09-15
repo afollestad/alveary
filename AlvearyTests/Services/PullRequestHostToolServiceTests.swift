@@ -229,7 +229,7 @@ final class PullRequestHostToolFixture {
         project = sourceProject
         let sourceThread = AgentThread(name: "Source thread", project: sourceProject)
         thread = sourceThread
-        let sourceConversation = Conversation(id: "source-conversation", provider: "codex", thread: sourceThread)
+        let sourceConversation = Conversation(id: "source-conversation", harness: "codex", thread: sourceThread)
         conversation = sourceConversation
         sourceThread.conversations = [sourceConversation]
         sourceProject.threads = [sourceThread]
@@ -289,12 +289,12 @@ final class PullRequestHostToolFixture {
 
     func agentContext(
         requestID: String? = "request-1",
-        providerID: AgentCLIKit.AgentProviderID = .codex,
+        harnessID: AgentCLIKit.AgentHarnessID = .codex,
         conversationID: String? = nil
     ) -> AgentCLIKit.AgentHostToolCallContext {
         AgentCLIKit.AgentHostToolCallContext(
             conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationID ?? conversation.id),
-            providerId: providerID,
+            harnessId: harnessID,
             processToken: processToken,
             requestId: requestID
         )
@@ -395,7 +395,7 @@ final class PullRequestHostToolFixture {
     /// spawns — a proposal belongs to the conversation that opened it, so cross-conversation
     /// behaviour needs two.
     func makeSecondConversation(id: String = "other-conversation") throws -> Conversation {
-        let conversation = Conversation(id: id, provider: "codex", thread: thread)
+        let conversation = Conversation(id: id, harness: "codex", thread: thread)
         thread.conversations.append(conversation)
         modelContext.insert(conversation)
         try modelContext.save()
@@ -463,7 +463,7 @@ final class PullRequestHostToolFixture {
             promptSnapshot: "Continue work.",
             destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "Etc/UTC",
-            providerIDSnapshot: "codex",
+            harnessIDSnapshot: "codex",
             effortSnapshot: "high",
             permissionModeSnapshot: "on-request",
             workspaceKindSnapshot: .project,

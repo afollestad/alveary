@@ -52,7 +52,7 @@ struct MCPServerDraft: Equatable {
         url = server.url ?? ""
         headersText = Self.serialize(dictionary: server.headers)
         envText = Self.serialize(dictionary: server.env)
-        selectedAgents = Set(server.providers)
+        selectedAgents = Set(server.harnesses)
     }
 
     init(recommended: RecommendedMCPServer, availableAgents: [MCPAgentAvailability]) {
@@ -76,7 +76,7 @@ struct MCPServerDraft: Equatable {
             url: url.isEmpty ? nil : url,
             headers: Self.parse(lines: headersText),
             env: Self.parse(lines: envText),
-            providers: Array(selectedAgents).sorted()
+            harnesses: Array(selectedAgents).sorted()
         )
     }
 
@@ -136,7 +136,7 @@ final class MCPViewModel {
     private(set) var activePaneTarget: MCPPaneTarget?
     private(set) var paneSessions: [MCPPaneTarget: MCPPaneSession] = [:]
     private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<MCPPaneTarget>> = []
-    private(set) var isRefreshingProviders = false
+    private(set) var isRefreshingHarnesses = false
     private(set) var paneDismissalGeneration = 0
     private(set) var paneFocusRestorationID = MCPPaneTarget.addCustom.defaultFocusRestorationID
     private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<MCPPaneTarget>> = []
@@ -226,13 +226,13 @@ final class MCPViewModel {
         }
     }
 
-    func refreshProviders() async {
-        guard !isRefreshingProviders else {
+    func refreshHarnesses() async {
+        guard !isRefreshingHarnesses else {
             return
         }
-        isRefreshingProviders = true
+        isRefreshingHarnesses = true
         defer {
-            isRefreshingProviders = false
+            isRefreshingHarnesses = false
         }
         await load()
     }

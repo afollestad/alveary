@@ -9,7 +9,7 @@ struct ScheduledTaskRunSnapshot {
     let threadSectionID: String?
     let occurrenceAt: Date
     let timeZone: TimeZone
-    let providerID: String
+    let harnessID: String
     let model: String?
     let effort: String
     let permissionMode: String
@@ -86,7 +86,7 @@ extension DefaultScheduledTaskRunMaterializer {
             threadSectionID: run.threadSectionIDSnapshot,
             occurrenceAt: run.occurrenceAt,
             timeZone: timeZone,
-            providerID: run.providerIDSnapshot,
+            harnessID: run.harnessIDSnapshot,
             model: run.modelSnapshot,
             effort: run.effortSnapshot,
             permissionMode: run.permissionModeSnapshot,

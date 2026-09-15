@@ -10,7 +10,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
             initialAgentIsRunning: false,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.setGoalModeArmed(true)
 
@@ -30,7 +30,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.setGoalModeArmed(true)
 
@@ -59,7 +59,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "codex"
+            harnessId: "codex"
         )
         let existingMessage = ConversationEventRecord(
             conversationId: fixture.conversation.id,
@@ -119,7 +119,7 @@ extension ConversationViewModelTests {
             try await fixture.viewModel.startGoal("Audit remaining failures")
             XCTFail("Expected existing-session goal start to be rejected.")
         } catch AgentError.spawnFailed(let message) {
-            XCTAssertEqual(message, "This agent can only start Goal mode before the first visible user message.")
+            XCTAssertEqual(message, "This harness can only start Goal mode before the first visible user message.")
         }
 
         let existingGoalStarts = await fixture.agentsManager.existingGoalStartCalls()
@@ -131,7 +131,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.state.goalSnapshot = AgentGoalSnapshot(
             objective: "Old goal",
@@ -151,7 +151,7 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true,
-            providerId: "codex"
+            harnessId: "codex"
         )
         fixture.viewModel.state.goalSnapshot = AgentGoalSnapshot(
             objective: "Current goal",

@@ -96,7 +96,7 @@ struct MCPServerPane: View, Equatable {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Sync to agents")
+                        Text("Sync to harnesses")
                             .font(.headline)
 
                         ForEach(viewModel.availableAgents) { agent in

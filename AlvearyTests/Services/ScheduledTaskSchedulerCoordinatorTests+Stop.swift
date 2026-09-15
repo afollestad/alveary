@@ -315,7 +315,7 @@ extension ScheduledTaskSchedulerCoordinatorTests {
                 await stopCompletionProbe.enter("stop-complete")
             }
             stopTask = stop
-            try await waitUntil("expected provider stop to block") {
+            try await waitUntil("expected harness stop to block") {
                 await stopProbe.snapshot().entryCount == 1
             }
             await stopProbe.release()

@@ -49,7 +49,7 @@ final class ScheduledTaskSchedulerEngineTests: XCTestCase {
         )
         XCTAssertEqual(definition.nextOccurrenceAt, fixture.date(900))
         XCTAssertEqual(capturedSnapshot?.scheduledOccurrenceAt, fixture.date(600))
-        XCTAssertEqual(capturedSnapshot?.providerID, "codex")
+        XCTAssertEqual(capturedSnapshot?.harnessID, "codex")
         XCTAssertEqual(capturedSnapshot?.model, "gpt-5")
         XCTAssertEqual(capturedSnapshot?.effort, "high")
         XCTAssertEqual(capturedSnapshot?.permissionMode, "acceptEdits")
@@ -90,7 +90,7 @@ final class ScheduledTaskSchedulerEngineTests: XCTestCase {
             nextOccurrenceAt: occurrence
         )
         let engine = fixture.makeEngine { _ in
-            .invalid(reason: "Provider is unavailable.")
+            .invalid(reason: "Harness is unavailable.")
         }
 
         let result = try await engine.claimDue(
@@ -101,7 +101,7 @@ final class ScheduledTaskSchedulerEngineTests: XCTestCase {
         guard case let .paused(reason) = result else {
             return XCTFail("Expected invalid preflight to pause the definition")
         }
-        XCTAssertEqual(reason, "Provider is unavailable.")
+        XCTAssertEqual(reason, "Harness is unavailable.")
         XCTAssertEqual(definition.state, .paused)
         XCTAssertNil(definition.nextOccurrenceAt)
         XCTAssertEqual(definition.pauseReason, reason)
@@ -345,7 +345,7 @@ private extension ScheduledTaskSchedulerEngineTests {
         expectedProjectPath: String
     ) -> DefaultScheduledTaskPreflightValidator {
         DefaultScheduledTaskPreflightValidator(
-            loadProviderStatus: { _, _ in nil },
+            loadHarnessStatus: { _, _ in nil },
             canonicalizeRoots: { roots, primaryRoot in
                 roots.map(CanonicalPath.normalize).filter { $0 != primaryRoot }
             },
@@ -417,7 +417,7 @@ struct ScheduledTaskSchedulerFixture {
             state: state,
             recurrence: recurrence,
             timeZoneIdentifier: "UTC",
-            providerID: "codex",
+            harnessID: "codex",
             model: "gpt-5",
             effort: "high",
             permissionMode: "acceptEdits",

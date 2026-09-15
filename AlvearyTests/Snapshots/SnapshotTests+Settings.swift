@@ -31,7 +31,7 @@ extension SnapshotTests {
 
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
+            harnessDiscovery: SnapshotHarnessDiscoveryService.defaultStatuses()
         )
         let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
 
@@ -57,7 +57,7 @@ extension SnapshotTests {
 
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
+            harnessDiscovery: SnapshotHarnessDiscoveryService.defaultStatuses()
         )
         let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
 
@@ -85,7 +85,7 @@ extension SnapshotTests {
 
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
+            harnessDiscovery: SnapshotHarnessDiscoveryService.defaultStatuses()
         )
         let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
 

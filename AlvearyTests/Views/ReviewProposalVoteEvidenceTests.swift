@@ -79,8 +79,8 @@ struct ReviewProposalVoteEvidenceTests {
 
     private var reviewers: [PullRequestReviewProposalRecord.Reviewer] {
         [
-            PullRequestReviewProposalRecord.Reviewer(id: "lead", providerID: "codex", modelOptionID: "gpt-5.6-sol"),
-            PullRequestReviewProposalRecord.Reviewer(id: "peer", providerID: "claude", modelOptionID: "claude-fable-5-1")
+            PullRequestReviewProposalRecord.Reviewer(id: "lead", harnessID: "codex", modelOptionID: "gpt-5.6-sol"),
+            PullRequestReviewProposalRecord.Reviewer(id: "peer", harnessID: "claude", modelOptionID: "claude-fable-5-1")
         ]
     }
 
