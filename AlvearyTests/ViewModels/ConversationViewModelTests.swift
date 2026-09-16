@@ -1,4 +1,5 @@
 import Foundation
+import protocol AgentCLIKit.AgentHarnessDiscoveryService
 import SwiftData
 import XCTest
 
@@ -321,6 +322,7 @@ struct ConversationViewModelTestFixture {
         pausesWorktreeCreate: Bool = false,
         initialAgentIsRunning: Bool? = nil,
         harnessId: String = "claude",
+        harnessDiscovery: (any AgentHarnessDiscoveryService)? = nil,
         threadMode: AgentThreadMode = .project,
         taskWorkspaceDescriptor: TaskWorkspaceDescriptor? = nil,
         autoTrustProjects: Bool = true,
@@ -395,6 +397,7 @@ struct ConversationViewModelTestFixture {
             taskWorkspaceOwnershipService: resolvedTaskWorkspaceOwnershipService,
             harnessSetup: harnessSetup,
             contextWindowCache: contextWindowCache,
+            harnessDiscovery: harnessDiscovery,
             attachmentStore: resolvedAttachmentStore,
             threadActivityRecorder: threadActivityRecorder ?? NoopThreadActivityRecorder(),
             draftMaterializationSaver: draftMaterializationSaver,
@@ -462,38 +465,5 @@ struct ConversationViewModelTestFixture {
         try context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
             $0.conversationId == conversation.id && $0.type == type
         }
-    }
-}
-
-struct MockContextWindowCacheUpdate: Equatable {
-    let harnessId: String
-    let selectedModel: String
-    let reportedModelId: String?
-    let contextWindowSize: Int
-}
-
-actor MockContextWindowCache: ContextWindowCache {
-    private(set) var updates: [MockContextWindowCacheUpdate] = []
-    var sizes: [String: Int] = [:]
-
-    func contextWindowSize(harnessId: String, model: String) async -> Int? {
-        guard let key = JSONContextWindowCache.cacheKey(harnessId: harnessId, model: model) else {
-            return nil
-        }
-        return sizes[key]
-    }
-
-    func update(
-        harnessId: String,
-        selectedModel: String,
-        reportedModelId: String?,
-        contextWindowSize: Int
-    ) async {
-        updates.append(MockContextWindowCacheUpdate(
-            harnessId: harnessId,
-            selectedModel: selectedModel,
-            reportedModelId: reportedModelId,
-            contextWindowSize: contextWindowSize
-        ))
     }
 }

@@ -172,7 +172,19 @@ extension SettingsViewModel {
         await refreshHarnessStatuses()
     }
 
+    /// Returning from an external install or sign-in repairs visible unavailable harnesses without probing on every app switch when ready.
+    func refreshHarnessStatusesAfterActivation() async {
+        guard hasLoadedHarnessStatuses,
+              harnessStatuses.values.contains(where: {
+                  $0.isEnabled && settingsService.current.isHarnessEnabled($0.harnessId.rawValue)
+                      && (!$0.isInstalled || !$0.isSetupReady)
+              }) else { return }
+        await refreshHarnessStatuses()
+    }
+
     func refreshHarnessStatuses() async {
+        harnessRefreshGeneration &+= 1
+        let generation = harnessRefreshGeneration
         guard let harnessDiscovery else {
             harnessStatuses = [:]
             harnessOrdering = AppSettings.supportedHarnessIDs
@@ -181,17 +193,21 @@ extension SettingsViewModel {
         }
 
         hasLoadedHarnessStatuses = false
+        defer {
+            if generation == harnessRefreshGeneration { hasLoadedHarnessStatuses = true }
+        }
         // Re-probe rather than reading the shared cache: this screen is where a CLI gets
         // installed or a setup completed, so it is the one place staleness would be visible.
         await invalidateHarnessDiscoveryCache()
+        guard generation == harnessRefreshGeneration, !Task.isCancelled else { return }
         let ordering = await harnessDiscovery.stableHarnessOrdering().map(\.rawValue)
         let statuses = await harnessDiscovery.harnessStatuses(projectURL: nil)
+        guard generation == harnessRefreshGeneration, !Task.isCancelled else { return }
 
         harnessOrdering = ordering
         harnessStatuses = Dictionary(
             uniqueKeysWithValues: statuses.map { ($0.key.rawValue, $0.value) }
         )
-        hasLoadedHarnessStatuses = true
         persistResolvedThreadDefaultsIfNeeded()
     }
 

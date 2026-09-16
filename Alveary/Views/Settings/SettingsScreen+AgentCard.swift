@@ -33,11 +33,27 @@ struct SettingsAgentCard: View {
             )
 
             SettingsFormRow(showsDivider: false) {
-                SettingsTextFieldRow(
-                    "Extra args",
-                    text: $extraArgs,
-                    horizontalControlSizing: .expandsToFitText
-                )
+                if harnessID == "opencode" {
+                    SettingsResponsiveControlRow(
+                        "Extra args",
+                        helpText: "OpenCode uses its native configuration. Additional launch arguments are unavailable.",
+                        horizontalControlSizing: .intrinsic
+                    ) {
+                        if extraArgs.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Unavailable").foregroundStyle(.secondary)
+                        } else {
+                            Button("Clear saved arguments") { extraArgs = "" }
+                                .secondaryActionButtonStyle()
+                                .help("Clear these unsupported saved arguments before starting an OpenCode task.")
+                        }
+                    }
+                } else {
+                    SettingsTextFieldRow(
+                        "Extra args",
+                        text: $extraArgs,
+                        horizontalControlSizing: .expandsToFitText
+                    )
+                }
             }
         }
     }
@@ -93,6 +109,14 @@ private extension SettingsAgentCard {
             installCommandSection(for: status)
 
             diagnosticsSection(for: status)
+
+            if viewModel.isHarnessEnabled(harnessID), status?.isEnabled == true,
+               status?.installation == .installed, status?.setup == .failed {
+                Text("After updating or fixing \(viewModel.harnessDisplayName(for: harnessID)), use Refresh above to check again.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             signInSection(for: status)
         }

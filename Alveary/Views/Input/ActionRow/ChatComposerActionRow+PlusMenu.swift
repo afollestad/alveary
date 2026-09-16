@@ -20,6 +20,7 @@ extension ChatComposerActionRowView {
         popover.animates = false
         popover.delegate = self
         popover.contentViewController = ComposerPlusMenuViewController(configuration: .init(
+            showsGoalMode: configuration.showsGoalMode,
             isGoalModeArmed: configuration.isGoalModeArmed,
             isGoalModeToggleEnabled: configuration.isGoalModeToggleEnabled,
             goalModeDisabledTooltip: configuration.goalModeDisabledTooltip,
@@ -33,6 +34,7 @@ extension ChatComposerActionRowView {
                 closePlusMenu()
                 self.configuration?.onAddPhotosAndFiles()
             },
+            allowsPhotoAttachments: configuration.allowsPhotoAttachments,
             // Both values are already resolved, so opening the menu performs no icon work.
             appShotAppName: configuration.appShotAttachment?.appName,
             appShotAppIcon: configuration.appShotAttachment?.icon,

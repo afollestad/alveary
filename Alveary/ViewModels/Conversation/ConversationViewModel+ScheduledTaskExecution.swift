@@ -203,7 +203,7 @@ extension ConversationViewModel {
             case .existingThread:
                 guard run.targetThread?.persistentModelID == thread.persistentModelID,
                       run.targetConversationIDSnapshot == conversation.id,
-                      run.harnessIDSnapshot == (dbConversation()?.harness ?? settingsService.current.defaultHarness),
+                      run.harnessIDSnapshot == (capabilityHarnessID),
                       run.modelSnapshot == thread.model,
                       run.effortSnapshot == thread.effort,
                       run.permissionModeSnapshot == thread.permissionMode,
@@ -221,7 +221,7 @@ extension ConversationViewModel {
                 // comparing them against the thread would always fail.
                 guard run.targetThread?.persistentModelID == thread.persistentModelID,
                       run.targetConversationIDSnapshot == conversation.id,
-                      run.harnessIDSnapshot == (dbConversation()?.harness ?? settingsService.current.defaultHarness),
+                      run.harnessIDSnapshot == (capabilityHarnessID),
                       run.modelSnapshot == thread.model,
                       run.effortSnapshot == thread.effort,
                       run.permissionModeSnapshot == thread.permissionMode else {

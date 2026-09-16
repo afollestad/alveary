@@ -10,6 +10,7 @@ extension DefaultAgentsManager {
         dropsPreStartTerminalLifecycle: Bool = false,
         resumingTurn: Bool = false
     ) async throws {
+        try HarnessRequestValidation.validate(config)
         let services = agentCLIKitServices
         try assertAgentCLIKitSpawnPreflightAllowed(id: id)
         spawningIds.insert(id)
@@ -72,8 +73,13 @@ extension DefaultAgentsManager {
               status.isProcessRunning else {
             throw AgentError.stdinClosed
         }
+        if metadata[AgentCLIKit.AgentGoalMetadata.isInitialGoalTransport] == .bool(true),
+           !HarnessFeaturePolicy.declared(harnessID: status.harnessId.rawValue).supportsGoalMode {
+            throw AgentError.spawnFailed("This harness does not support goals.")
+        }
         cancelledInteractionsByConversation.removeValue(forKey: conversationId)
         markCurrentTurnActivityVisibility(activityVisibility, conversationId: conversationId)
+        if status.harnessId == .opencode { updateStatus(.busy, for: conversationId) }
         do {
             try await services.runtime.send(
                 .userMessage(AgentCLIKit.AgentMessageInput(
@@ -84,6 +90,12 @@ extension DefaultAgentsManager {
                 conversationId: runtimeConversationId
             )
         } catch {
+            // HTTP submission can succeed before its response is lost. Turning that error into
+            // stdinClosed would make Alveary replay the prompt in its respawn recovery path.
+            if status.harnessId == .opencode {
+                await refreshAgentCLIKitStatus(conversationId: conversationId, services: services)
+                throw error
+            }
             guard let status = await services.runtime.status(conversationId: runtimeConversationId),
                   !status.isTerminal,
                   status.isProcessRunning else {
@@ -98,7 +110,18 @@ extension DefaultAgentsManager {
               !closingConversationIds.contains(conversationId) else {
             return
         }
-        updateStatus(.busy, for: conversationId)
+        await updateStatusAfterAcceptedAgentCLIKitMessage(harnessID: status.harnessId, conversationId: conversationId, services: services)
+    }
+
+    private func updateStatusAfterAcceptedAgentCLIKitMessage(
+        harnessID: AgentCLIKit.AgentHarnessID, conversationId: String, services: AgentCLIKitHostServices
+    ) async {
+        if harnessID == .opencode {
+            // Reconciliation can complete the turn before send returns; its terminal status must keep ownership.
+            await refreshAgentCLIKitStatus(conversationId: conversationId, services: services)
+        } else {
+            updateStatus(.busy, for: conversationId)
+        }
     }
 
     func sendGoalStartMessageWithAgentCLIKit(_ request: AgentGoalStartMessageRequest) async throws {
@@ -126,6 +149,9 @@ extension DefaultAgentsManager {
               !status.isTerminal,
               status.isProcessRunning else {
             throw AgentError.stdinClosed
+        }
+        guard HarnessFeaturePolicy.declared(harnessID: status.harnessId.rawValue).supportsExistingSessionGoalStart else {
+            throw AgentError.spawnFailed("This harness does not support starting a goal in an existing session.")
         }
         try await services.runtime.startGoal(objective, conversationId: runtimeConversationId)
         // A goal start is new harness work, so it supersedes the previous turn's settled error.
@@ -160,6 +186,7 @@ extension DefaultAgentsManager {
     }
 
     func startFreshSessionWithAgentCLIKit(conversationId: String, config: AgentSpawnConfig) async throws {
+        try HarnessRequestValidation.validate(config)
         let services = agentCLIKitServices
         await installAgentCLIKitLiveHookHandlerIfNeeded(services: services)
         guard !spawningIds.contains(conversationId) else {

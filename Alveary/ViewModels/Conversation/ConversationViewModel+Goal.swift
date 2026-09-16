@@ -128,6 +128,9 @@ extension ConversationViewModel {
     }
 
     func performGoalAction(_ action: AgentGoalAction) async throws {
+        guard declaredHarnessFeatures.supportsGoalMode else {
+            throw AgentError.spawnFailed("This harness does not support goal controls.")
+        }
         guard let goal = state.goalSnapshot,
               !goal.status.isTerminal else {
             let message = "No active goal is available."
@@ -150,6 +153,10 @@ extension ConversationViewModel {
 
     func setGoalModeArmed(_ isArmed: Bool) {
         if isArmed {
+            guard declaredHarnessFeatures.supportsGoalMode else {
+                lastTurnError = "This harness does not support goals. Choose a supported harness explicitly."
+                return
+            }
             guard state.goalSnapshot?.status.isTerminal != false else {
                 lastTurnError = "A goal is already active."
                 return
@@ -212,6 +219,9 @@ extension ConversationViewModel {
 
 private extension ConversationViewModel {
     func validateGoalStartAvailability(_ trimmedObjective: String) throws {
+        guard declaredHarnessFeatures.supportsGoalMode else {
+            throw AgentError.spawnFailed("This harness does not support goals. Choose a supported harness explicitly.")
+        }
         guard !trimmedObjective.isEmpty else {
             throw AgentError.spawnFailed("Provide a goal before starting Goal mode.")
         }

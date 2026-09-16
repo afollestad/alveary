@@ -19,6 +19,8 @@ extension ChatComposerActionRowView {
         let isPlanModeEnabled: Bool
         let isPlanModeToggleEnabled: Bool
         let planModeDisabledTooltip: String?
+        let showsGoalMode: Bool
+        let allowsPhotoAttachments: Bool
         let isGoalModeArmed: Bool
         let isGoalModeToggleEnabled: Bool
         let goalModeDisabledTooltip: String?
@@ -56,6 +58,8 @@ extension ChatComposerActionRowView {
             isPlanModeEnabled = configuration.isPlanModeEnabled
             isPlanModeToggleEnabled = configuration.isPlanModeToggleEnabled
             planModeDisabledTooltip = configuration.planModeDisabledTooltip
+            showsGoalMode = configuration.showsGoalMode
+            allowsPhotoAttachments = configuration.allowsPhotoAttachments
             isGoalModeArmed = configuration.isGoalModeArmed
             isGoalModeToggleEnabled = configuration.isGoalModeToggleEnabled
             goalModeDisabledTooltip = configuration.goalModeDisabledTooltip

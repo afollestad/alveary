@@ -13,7 +13,7 @@ App-scoped pull-request services live here; collective runs are owned by `Collec
 `PullRequestAgenticThreadService` spawns both footer routes; add a caller by using the service, never by copying it.
 
 - **Keep `.review` tasks projectless and `grantedRoots` empty.** Single-agent reviews use host tools; collective workers use app-prepared packets. Neither should inspect an unrelated checkout.
-- **Preserve fallback seed resolution for single-agent review and Address feedback only.** Collective configuration is strict: unavailable pins block launch rather than silently replacing a reviewer.
+- **Preserve legacy fallback seed resolution for single-agent review and Address feedback only.** OpenCode selections and collective reviewer pins must pass launch validation instead of silently switching harnesses, models, or effort.
 - **Keep single-agent workflows behind the instructions tool.** Dedicated tasks persist their launch-time instructions before dispatch; ordinary conversations read current settings. Collective reviews use fixed phase contracts and frozen review criteria.
 - **A section pick seeds creation and never moves an existing thread.** `insertTaskThread` throws on a vanished section, so `resolvedPlacement` validates first and degrades to `Tasks`; its doc comment owns why. Never `.project` — both kinds stay projectless, which is what makes a section render at all.
 - **Keep preparation behind `start`'s return except launch validation.** Checkout and collective configuration/capability preflights may refuse before creating a task; packet acquisition and paid worker execution may not.

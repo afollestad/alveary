@@ -189,7 +189,7 @@ extension ConversationViewModel {
     }
 
     func toolApprovalHarnessId() -> String {
-        conversation.harness ?? settingsService.current.defaultHarness
+        capabilityHarnessID
     }
 
     func shouldResolveInactiveLiveToolApproval(_ pendingApproval: PendingToolApproval) -> Bool {

@@ -290,13 +290,11 @@ private struct ViewRawTranscriptCommandButton: View {
     @FocusedValue(\.rawTranscriptWindowRequest) private var rawTranscriptWindowRequest
 
     var body: some View {
-        Button("View raw transcript") {
-            guard let request = rawTranscriptWindowRequest?() else {
-                return
+        if let rawTranscriptWindowRequest {
+            Button("View raw transcript") {
+                openWindow(id: RawTranscriptWindowRequest.sceneID, value: rawTranscriptWindowRequest())
             }
-            openWindow(id: RawTranscriptWindowRequest.sceneID, value: request)
         }
-        .disabled(rawTranscriptWindowRequest == nil)
     }
 }
 

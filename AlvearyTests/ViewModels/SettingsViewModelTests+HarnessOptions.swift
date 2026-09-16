@@ -16,7 +16,7 @@ extension SettingsViewModelTests {
 
         await viewModel.refreshHarnessStatuses()
 
-        XCTAssertEqual(viewModel.availableHarnessIDs, ["claude", "codex"])
+        XCTAssertEqual(viewModel.availableHarnessIDs, ["claude", "codex", "opencode"])
         XCTAssertEqual(viewModel.supportedModels, ["sonnet", "fable", "opus", "haiku"])
         XCTAssertEqual(viewModel.permissionModeOptions(for: "claude"), AppSettings.supportedPermissionModes(forHarness: "claude"))
         XCTAssertEqual(viewModel.permissionModeOptions(for: "codex"), AppSettings.supportedPermissionModes(forHarness: "codex"))

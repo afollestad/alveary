@@ -206,6 +206,7 @@ final class ComposerPlusButton: NSView {
 @MainActor
 final class ComposerPlusMenuViewController: NSViewController {
     struct Configuration {
+        var showsGoalMode = true
         let isGoalModeArmed: Bool
         let isGoalModeToggleEnabled: Bool
         let goalModeDisabledTooltip: String?
@@ -213,6 +214,7 @@ final class ComposerPlusMenuViewController: NSViewController {
         let isPlanModeToggleEnabled: Bool
         let planModeDisabledTooltip: String?
         let onAddPhotosAndFiles: () -> Void
+        var allowsPhotoAttachments = true
         /// Name of the app the app-shot row offers to attach; `nil` hides the row entirely.
         var appShotAppName: String?
         /// Icon for that app, resolved upstream so opening the menu performs no icon lookup.
@@ -228,7 +230,8 @@ final class ComposerPlusMenuViewController: NSViewController {
         self.configuration = configuration
         super.init(nibName: nil, bundle: nil)
         preferredContentSize = ComposerPlusMenuMetrics.contentSize(
-            includesAppShotRow: configuration.appShotAppName != nil
+            includesAppShotRow: configuration.appShotAppName != nil,
+            includesGoalRow: configuration.showsGoalMode
         )
     }
 
@@ -256,9 +259,14 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
         self.configuration = configuration
         super.init(frame: NSRect(
             origin: .zero,
-            size: ComposerPlusMenuMetrics.contentSize(includesAppShotRow: configuration.appShotAppName != nil)
+            size: ComposerPlusMenuMetrics.contentSize(
+                includesAppShotRow: configuration.appShotAppName != nil,
+                includesGoalRow: configuration.showsGoalMode
+            )
         ))
         setup()
+        // The rows contain required child constraints; give them their manual frames before AppKit measures the menu.
+        layout()
     }
 
     required init?(coder: NSCoder) {
@@ -266,7 +274,6 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
     }
 
     override func layout() {
-        super.layout()
         addFilesRow.frame = NSRect(
             x: ComposerPlusMenuMetrics.horizontalInset,
             y: ComposerPlusMenuMetrics.verticalInset,
@@ -297,10 +304,11 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
         )
         planRow.frame = NSRect(
             x: ComposerPlusMenuMetrics.horizontalInset,
-            y: goalRow.frame.maxY + ComposerPlusMenuMetrics.dividerSpacing,
+            y: (configuration.showsGoalMode ? goalRow.frame.maxY : divider.frame.maxY) + ComposerPlusMenuMetrics.dividerSpacing,
             width: bounds.width - ComposerPlusMenuMetrics.horizontalInset * 2,
             height: ComposerPlusMenuMetrics.rowHeight
         )
+        super.layout()
     }
 
     private func setup() {
@@ -314,9 +322,9 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
     private func setupAddFilesButton() {
         addSubview(addFilesRow)
         addFilesRow.configure(.init(
-            title: "Add photos & files",
+            title: configuration.allowsPhotoAttachments ? "Add photos & files" : "Add files",
             icon: symbolImage(named: "paperclip", pointSize: ComposerPlusMenuMetrics.iconPointSize),
-            accessibilityLabel: "Add photos and files",
+            accessibilityLabel: configuration.allowsPhotoAttachments ? "Add photos and files" : "Add files",
             isEnabled: true,
             toolTip: nil,
             trailingView: nil,
@@ -380,6 +388,7 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
     }
 
     private func setupGoalRow() {
+        guard configuration.showsGoalMode else { return }
         goalRow.toolTip = configuration.goalModeDisabledTooltip
         addSubview(goalRow)
 

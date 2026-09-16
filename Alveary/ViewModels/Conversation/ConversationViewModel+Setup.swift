@@ -181,6 +181,7 @@ extension ConversationViewModel {
     }
 
     func prepareForSpawn(config: AgentSpawnConfig) async throws {
+        try await validateHarnessConfiguration(config)
         cancelToolApprovalRestoration()
         try Task.checkCancellation()
         try validateAutomatedScheduledWorkspaceIfNeeded(
@@ -252,6 +253,7 @@ extension ConversationViewModel {
         hostToolExposure: HostToolExposure = .ordinaryOutbound,
         relayedFrom: RelayedPromptAttribution? = nil
     ) async throws {
+        try await validateOutboundCapabilities(attachments: attachments, appShots: appShots, initialGoal: initialGoal)
         try repairMissingWorktreeIfNeeded()
         let resolvedStagedContext = try await prepareRuntimeAndResolveSessionRecoveryContext(
             stagedContextOverride: stagedContextOverride,

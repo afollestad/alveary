@@ -190,7 +190,8 @@ extension ChatItemGrouper {
     func appendStandaloneToolToCurrentApprovalBatchIfNeeded(_ tool: ToolEntry) -> Bool {
         // Parallel tool_use rows can arrive before their PreToolUse hooks; keep those rows in the
         // same approval batch so one eventual prompt honestly represents every held tool.
-        guard let currentToolApprovalBatch,
+        guard !tool.usesSeparateInteractionIDs,
+              let currentToolApprovalBatch,
               let index = items.firstIndex(where: { $0.id == currentToolApprovalBatch.itemId }),
               ClaudeApprovalDisplayPolicy.canBatchPotentialApprovalToolCall(
                   toolName: tool.name,
@@ -323,6 +324,16 @@ extension ChatItemGrouper {
             status: status
         )
         return true
+    }
+}
+
+private extension ToolEntry {
+    /// The bridge persists this marker when native approvals have IDs distinct from tool calls.
+    /// Inferring an approval from such a row would create a button for a nonexistent request.
+    var usesSeparateInteractionIDs: Bool {
+        guard let data = input.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+        return object["agent_separate_interaction_ids"] as? Bool == true
     }
 }
 

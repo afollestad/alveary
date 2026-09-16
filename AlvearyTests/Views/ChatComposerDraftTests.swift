@@ -412,11 +412,13 @@ final class ChatComposerDraftTests: XCTestCase {
             composerCapabilities: ComposerCapabilities(
                 supportedPermissionModes: [],
                 supportsMidTurnSteering: true,
+                hasConfirmedHarnessDefinition: true,
                 supportsGoalMode: supportsGoalMode,
                 supportsExistingSessionGoalStart: supportsExistingSessionGoalStart,
                 supportsPlanMode: supportsPlanMode,
                 supportsSpeedMode: supportsSpeedMode,
-                supportsLocalImageInput: supportsLocalImageInput
+                supportsLocalImageInput: supportsLocalImageInput,
+                supportsContextCompaction: HarnessFeaturePolicy.declared(harnessID: harnessID).supportsContextCompaction
             ),
             reasoningConfiguration: makeReasoningConfiguration(
                 modelOptions: [

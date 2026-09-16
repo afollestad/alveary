@@ -322,10 +322,17 @@ enum TranscriptToolOutputPaging {
     }
 }
 
-func prettyPrintedJSON(_ content: String) -> String {
+/// Internal approval-routing metadata stays persisted for regrouping, but is not a tool argument users need to inspect.
+func prettyPrintedJSON(_ content: String, hidingToolMetadata: Bool = false) -> String {
     guard let data = content.data(using: .utf8),
-          let object = try? JSONSerialization.jsonObject(with: data),
-          let prettyData = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+          var object = try? JSONSerialization.jsonObject(with: data) else {
+        return content
+    }
+    if hidingToolMetadata, var dictionary = object as? [String: Any] {
+        dictionary.removeValue(forKey: "agent_separate_interaction_ids")
+        object = dictionary
+    }
+    guard let prettyData = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
           let pretty = String(data: prettyData, encoding: .utf8) else {
         return content
     }

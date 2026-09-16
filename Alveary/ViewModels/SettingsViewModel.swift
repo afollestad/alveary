@@ -26,6 +26,8 @@ final class SettingsViewModel {
     var harnessStatuses: [String: AgentCLIKit.AgentHarnessStatus] = [:]
     var harnessOrdering: [String] = []
     var hasLoadedHarnessStatuses = false
+    /// A superseded discovery read may finish, but must not restore an older error or overwrite a newer model catalog.
+    @ObservationIgnored var harnessRefreshGeneration = 0
     /// Mirrors the login-item registration macOS owns; there is no `AppSettings` key behind it.
     private(set) var launchAtStartupStatus: LaunchAtStartupStatus = .disabled
     /// Set when macOS refuses a registration change, so the row can point at System Settings.
@@ -129,7 +131,10 @@ final class SettingsViewModel {
     }
 
     var effort: String {
-        get { settingsService.current.effort }
+        get {
+            let settings = settingsService.current
+            return settings.defaultHarness == "opencode" ? AppSettings.openCodePickerEffort(stored: settings.effort) : settings.effort
+        }
         set {
             let options = modelOptions(for: settingsService.current.defaultHarness)
             settingsService.update {

@@ -1,7 +1,35 @@
+import AgentCLIKit
 import Foundation
 
 extension ConversationViewModel {
+    func sendVisibleSteeringMessage(
+        _ message: String,
+        steeringInputID: String,
+        attachments: [LocalImageAttachment] = [],
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:]
+    ) async throws {
+        guard declaredHarnessFeatures.supportsMidTurnSteering else {
+            throw AgentError.spawnFailed("This harness does not support steering.")
+        }
+        try await validateOutboundCapabilities(attachments: attachments, usingLiveSettings: true)
+        let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
+        if capabilityHarnessID == "opencode" { markVisibleTurnStarted() }
+        do {
+            try await agentsManager.sendSteeringMessage(
+                message,
+                conversationId: conversation.id,
+                steeringInputID: steeringInputID,
+                attachments: attachments,
+                metadata: harnessMetadata
+            )
+        } catch {
+            restorePromptDismissalNewOutboundTurnStartedIfNeeded(markedPromptDismissalReplacement)
+            throw error
+        }
+    }
+
     func steer(_ message: String, supportsLocalImageInput: Bool = true) async throws {
+        try await validateStagedOptionalFeatures(supportsLocalImageInput: supportsLocalImageInput, usingLiveSettings: true)
         try ensureOrdinaryScheduledOutboundAvailable()
         guard !state.isNormalSteeringBlockedBySessionHandoff else {
             throw AgentError.spawnFailed("Session handoff is in progress")
@@ -19,7 +47,7 @@ extension ConversationViewModel {
             fallbackText: fallbackText(visibleText:fileAttachments:)
         ).resolvingAppShots(
             state.stagedAppShots,
-            harnessID: conversation.harness ?? settingsService.current.defaultHarness
+            harnessID: capabilityHarnessID
         )
         try await ensureAppShotHarnessPrerequisites(appShots: outbound.appShots)
 
@@ -45,8 +73,10 @@ private extension ConversationViewModel {
                 attachments: outbound.attachments,
                 harnessMetadata: outbound.harnessMetadata
             )
-            markVisibleTurnStarted()
-            state.turnState.beginTurn()
+            if capabilityHarnessID != "opencode" {
+                markVisibleTurnStarted()
+                state.turnState.beginTurn()
+            }
             state.clearRetryableFailedMessage(id: localMessage.id)
             state.markTranscriptImageAttachments(id: localMessage.id, attachments: outbound.attachments)
             state.markTranscriptFileAttachments(id: localMessage.id, attachments: outbound.consumedFileAttachments)

@@ -111,7 +111,8 @@ enum ReviewTeamRunPresentation {
     }
 
     static func requestedModel(_ member: ReviewWorkerConfiguration) -> String {
-        "\(member.harnessID) · \(member.launchModel) · \(member.effort)"
+        let effort = member.harnessID == "opencode" ? AppSettings.openCodeNativeEffort(stored: member.effort) ?? "Default" : member.effort
+        return "\(member.harnessID) · \(member.launchModel) · \(effort)"
     }
 
     static func decision(_ finding: ReviewCanonicalFinding, in run: ReviewTeamRun) -> String {

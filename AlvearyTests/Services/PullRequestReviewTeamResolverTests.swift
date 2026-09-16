@@ -4,6 +4,67 @@ import XCTest
 @testable import Alveary
 
 final class PullRequestReviewTeamResolverTests: XCTestCase {
+    func testUnavailableInheritedOrPinnedOpenCodeLeadDoesNotFallBack() {
+        for pinned in [false, true] {
+            var settings = AppSettings()
+            settings.defaultHarness = pinned ? "claude" : "opencode"
+            settings.pullRequestReviewHarness = pinned ? "opencode" : nil
+            XCTAssertThrowsError(try PullRequestReviewTeamResolver.resolveLead(settings: settings, harnessStatuses: Self.readyStatuses)) {
+                XCTAssertEqual(
+                    $0 as? PullRequestReviewTeamResolutionError,
+                    .harnessUnavailable(memberID: "lead", memberName: "Lead", harnessID: "opencode")
+                )
+            }
+        }
+    }
+
+    func testOpenCodeTeamResolvesExactModelsWithOptionalNativeVariants() throws {
+        let variant = " native "
+        var statuses = Self.readyStatuses
+        statuses[.opencode] = Self.status(harnessID: .opencode, options: [
+            AgentModelOption(harnessId: .opencode, id: "provider/text", model: "provider/text", label: "Text"),
+            AgentModelOption(
+                harnessId: .opencode, id: "provider/reasoning", model: "provider/reasoning", label: "Reasoning",
+                supportedEffortOptions: [.init(value: variant, label: "Native", description: "")]
+            )
+        ])
+        var settings = AppSettings()
+        settings.pullRequestReviewHarness = "opencode"
+        settings.pullRequestReviewModel = "provider/text"
+        settings.pullRequestReviewPeers = [PullRequestReviewPeer(
+            id: "peer", harnessID: "opencode", model: "provider/reasoning", effort: AppSettings.openCodeStoredEffort(nativeVariant: variant)
+        )]
+
+        let workers = try PullRequestReviewTeamResolver.resolve(settings: settings, harnessStatuses: statuses)
+
+        XCTAssertEqual(workers.map(\.launchModel), ["provider/text", "provider/reasoning"])
+        XCTAssertEqual(workers[0].effort, AppSettings.openCodeDefaultEffort)
+        XCTAssertNil(AppSettings.openCodeNativeEffort(stored: workers[0].effort))
+        XCTAssertEqual(AppSettings.openCodeNativeEffort(stored: workers[1].effort), variant)
+        XCTAssertEqual(workers[1].executablePath, "/usr/local/bin/opencode")
+    }
+
+    func testOpenCodeTeamRejectsDefaultAliasesAndUndeclaredVariants() {
+        var settings = AppSettings()
+        settings.pullRequestReviewHarness = "opencode"
+        var statuses = Self.readyStatuses
+        statuses[.opencode] = Self.status(harnessID: .opencode, options: [
+            AgentModelOption(harnessId: .opencode, id: "provider/text", model: "provider/text", label: "Text", isDefault: true)
+        ])
+        XCTAssertThrowsError(try PullRequestReviewTeamResolver.resolveLead(settings: settings, harnessStatuses: statuses)) {
+            XCTAssertEqual($0 as? PullRequestReviewTeamResolutionError, .modelUnavailable(
+                memberID: "lead", memberName: "Lead", harnessID: "opencode", model: "default"
+            ))
+        }
+        settings.pullRequestReviewModel = "provider/text"
+        settings.pullRequestReviewEffort = "medium"
+        XCTAssertThrowsError(try PullRequestReviewTeamResolver.resolveLead(settings: settings, harnessStatuses: statuses)) {
+            XCTAssertEqual($0 as? PullRequestReviewTeamResolutionError, .effortUnavailable(
+                memberID: "lead", memberName: "Lead", effort: "medium"
+            ))
+        }
+    }
+
     func testResolvesLeadFirstAndFreezesConcreteLaunchSettings() throws {
         var settings = AppSettings()
         settings.defaultHarness = "claude"
@@ -245,9 +306,14 @@ private extension PullRequestReviewTeamResolverTests {
         installation: AgentHarnessInstallationState = .installed,
         options: [AgentModelOption]
     ) -> AgentHarnessStatus {
-        AgentHarnessStatus(
+        let definition: AgentHarnessDefinition = switch harnessID {
+        case .claude: ClaudeHarnessDefinition.definition
+        case .codex: CodexHarnessDefinition.definition
+        case .opencode: OpenCodeHarnessDefinition.definition
+        }
+        return AgentHarnessStatus(
             harnessId: harnessID,
-            definition: harnessID == .claude ? ClaudeHarnessDefinition.definition : CodexHarnessDefinition.definition,
+            definition: definition,
             installation: installation,
             availability: AgentHarnessAvailability(
                 harnessId: harnessID,

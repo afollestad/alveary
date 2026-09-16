@@ -16,10 +16,11 @@ enum AlvearyHostToolCatalog {
         "mcp__\(serverName)__\(hostToolName)"
     }
 
-    /// Harnesses disagree on whether a reported tool name carries the server prefix, and both
-    /// shapes reach the transcript, so name matching has to answer to either.
+    /// Match only complete tool names: OpenCode joins server and tool with an underscore,
+    /// Claude uses MCP separators, and Codex reports the bare name.
     static func matches(reportedName: String, hostToolName: String) -> Bool {
         reportedName == hostToolName || reportedName == qualifiedToolName(hostToolName)
+            || reportedName == "\(serverName)_\(hostToolName)"
     }
 
     /// Enrollment order, which is also the order feature instructions appear in.

@@ -229,9 +229,9 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         )
     }
 
-    /// Returns `AskUserQuestion` updated input containing user answers.
+    /// Indexed native answers preserve multi-select values and repeated question text; legacy hooks retain their text map.
     func askUserQuestionUpdatedInput(
-        answers: [(question: String, answer: String)]
+        answers: [(question: String, answer: String)], indexedAnswers: [[String]]? = nil
     ) -> String? {
         guard toolName == "AskUserQuestion",
               let data = toolInput.data(using: .utf8),
@@ -239,11 +239,17 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             return nil
         }
 
-        var answerMap: [String: String] = [:]
-        for answer in answers {
-            answerMap[answer.question] = answer.answer
+        if let indexedAnswers {
+            guard let questions = object["questions"] as? [Any], questions.count == indexedAnswers.count,
+                  indexedAnswers.allSatisfy({ !$0.isEmpty }) else { return nil }
+            object["answers"] = Dictionary(uniqueKeysWithValues: indexedAnswers.enumerated().map { (String($0.offset), $0.element) })
+        } else {
+            var answerMap: [String: String] = [:]
+            for answer in answers {
+                answerMap[answer.question] = answer.answer
+            }
+            object["answers"] = answerMap
         }
-        object["answers"] = answerMap
 
         guard let updatedData = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else {
             return nil

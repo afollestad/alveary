@@ -48,7 +48,7 @@ enum ChatComposerPermissionPresentation {
             return "hand.raised"
         case ("claude", "acceptEdits"), ("codex", "on-request"):
             return "lock.shield"
-        case ("claude", "auto"), ("claude", "bypassPermissions"), ("codex", "never"):
+        case ("claude", "auto"), ("claude", "bypassPermissions"), ("codex", "never"), ("opencode", "fullAccess"):
             return "exclamationmark.shield"
         default:
             return "hand.raised"
@@ -58,6 +58,7 @@ enum ChatComposerPermissionPresentation {
     static func isWarning(harnessID: String, value: String) -> Bool {
         (harnessID == "claude" && value == "bypassPermissions")
             || (harnessID == "codex" && value == "never")
+            || (harnessID == "opencode" && value == "fullAccess")
     }
 
     private static func title(for option: PermissionModeOption) -> String {

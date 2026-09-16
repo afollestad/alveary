@@ -1,4 +1,5 @@
 import Foundation
+import protocol AgentCLIKit.AgentHarnessDiscoveryService
 import SwiftData
 
 @testable import Alveary
@@ -19,6 +20,7 @@ final class AppShotCaptureControllerFixture {
 
     init(
         settings: AppSettings = AppSettings(),
+        harnessDiscovery: (any AgentHarnessDiscoveryService)? = nil,
         prepareError: AppShotCaptureError? = nil,
         pausesPreparation: Bool = false,
         storageError: AppShotRoutingTestError? = nil,
@@ -61,6 +63,7 @@ final class AppShotCaptureControllerFixture {
             settingsService: settingsService,
             runtimeStore: runtimeStore,
             attachmentStore: attachmentStore,
+            harnessDiscovery: harnessDiscovery,
             isVoiceInputLocked: { voiceInputLock.isLocked },
             prepareCapture: { try await prepareGate.prepare() },
             openDraft: { try await draftOpener.open(projectID: $0) },

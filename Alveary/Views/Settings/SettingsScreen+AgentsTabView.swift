@@ -1,4 +1,5 @@
 import AgentCLIKit
+import AppKit
 import SwiftUI
 
 struct AgentsSettingsTabView: View {
@@ -29,6 +30,9 @@ struct AgentsSettingsTabView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .task {
             await viewModel.refreshHarnessStatuses()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await viewModel.refreshHarnessStatusesAfterActivation() }
         }
     }
 

@@ -15,6 +15,7 @@ final class DefaultMCPService: MCPService {
 
     private let claudeConfigStore: AgentCLIKit.ClaudeConfigStore
     private let codexConfigStore: AgentCLIKit.CodexConfigStore
+    private let openCodeConfigStore: AgentCLIKit.OpenCodeConfigStore
     private let harnessDetection: HarnessDetectionService
     private let agentRegistry: AgentRegistry
     private let bundle: Bundle
@@ -22,12 +23,14 @@ final class DefaultMCPService: MCPService {
     init(
         claudeConfigStore: AgentCLIKit.ClaudeConfigStore,
         codexConfigStore: AgentCLIKit.CodexConfigStore,
+        openCodeConfigStore: AgentCLIKit.OpenCodeConfigStore,
         harnessDetection: HarnessDetectionService,
         agentRegistry: AgentRegistry,
         bundle: Bundle = .main
     ) {
         self.claudeConfigStore = claudeConfigStore
         self.codexConfigStore = codexConfigStore
+        self.openCodeConfigStore = openCodeConfigStore
         self.harnessDetection = harnessDetection
         self.agentRegistry = agentRegistry
         self.bundle = bundle
@@ -115,12 +118,14 @@ final class DefaultMCPService: MCPService {
         var pendingWrites: [(entry: MCPAgentEntry, servers: ServerMap)] = []
 
         for agent in mcpAgents {
-            var existingServers = (try? await readRawServers(for: agent)) ?? [:]
+            var existingServers = try await readRawServers(for: agent)
             if selectedAgents.contains(agent.agentId), supports(server: server, on: agent) {
                 let adapter = MCPAdapterType(rawValue: agent.config.adapterId) ?? .passthrough
                 let adapted = MCPAdapter.adaptForward(adapter, servers: [server.name: rawServer])
                 if let adaptedEntry = adapted[server.name] {
-                    existingServers[server.name] = adaptedEntry
+                    existingServers[server.name] = MCPAdapter.mergingEdit(
+                        adaptedEntry, into: existingServers[server.name] ?? [:], type: adapter
+                    )
                 }
                 pendingWrites.append((agent, existingServers))
             } else if existingServers[server.name] != nil {
@@ -135,14 +140,18 @@ final class DefaultMCPService: MCPService {
     }
 
     func removeServer(_ server: MCPServer) async throws {
+        var pendingWrites: [(entry: MCPAgentEntry, servers: ServerMap)] = []
         for agent in mcpAgents {
-            var existingServers = (try? await readRawServers(for: agent)) ?? [:]
+            var existingServers = try await readRawServers(for: agent)
             guard existingServers[server.name] != nil else {
                 continue
             }
 
             existingServers.removeValue(forKey: server.name)
-            try await writeRawServers(existingServers, to: agent)
+            pendingWrites.append((agent, existingServers))
+        }
+        for pendingWrite in pendingWrites {
+            try await writeRawServers(pendingWrite.servers, to: pendingWrite.entry)
         }
     }
 
@@ -196,12 +205,21 @@ private extension DefaultMCPService {
             return try await readClaudeRawServers()
         case "codex":
             return try await readCodexRawServers()
+        case "opencode":
+            let data = try JSONEncoder().encode(await openCodeConfigStore.readMCPServers())
+            return try JSONSerialization.jsonObject(with: data) as? ServerMap ?? [:]
         default:
             return try MCPConfigIO.readServers(from: agent.config)
         }
     }
 
     func writeRawServers(_ servers: ServerMap, to agent: MCPAgentEntry) async throws {
+        if agent.agentId == "opencode" {
+            let data = try JSONSerialization.data(withJSONObject: servers)
+            let native = try JSONDecoder().decode([String: AgentCLIKit.OpenCodeMCPServerConfig].self, from: data)
+            try await openCodeConfigStore.writeMCPServers(native)
+            return
+        }
         if agent.agentId == "claude" {
             let claudeServers = servers.mapValues { server in
                 AgentCLIKit.ClaudeMCPServerConfig(

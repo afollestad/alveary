@@ -13,6 +13,9 @@ extension AppComponent {
                     ),
                     codex: AgentCLIKit.CodexHarnessAdapter.Configuration(
                         executableResolver: executableResolver
+                    ),
+                    opencode: AgentCLIKit.OpenCodeHarnessAdapter.Configuration(
+                        executableResolver: executableResolver
                     )
                 ),
                 shellRunner: AgentCLIKit.ProcessShellRunner()

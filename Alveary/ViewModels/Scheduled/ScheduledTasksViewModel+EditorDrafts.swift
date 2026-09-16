@@ -8,7 +8,7 @@ extension ScheduledTasksViewModel {
         let modelOptions = modelOptions(for: harnessID)
         let storedModel = resolution.harnessID == harnessID ? resolution.storedThreadModel : nil
         let modelSelection = AgentModelOptionSelection.pickerValue(in: modelOptions, matching: storedModel)
-        let effort = AgentModelOptionSelection.normalizedEffort(
+        let effort = harnessID == "opencode" ? resolution.effort : AgentModelOptionSelection.normalizedEffort(
             resolution.effort,
             options: modelOptions,
             selectedModel: storedModel

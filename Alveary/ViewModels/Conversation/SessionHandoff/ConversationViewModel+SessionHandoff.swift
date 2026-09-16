@@ -55,8 +55,9 @@ extension ConversationViewModel {
                 state.respawnAttempts = 0
             }
 
+            if capabilityHarnessID == "opencode" { beginHiddenActivityTurn() }
             try await agentsManager.sendMessage(makeHiddenSessionHandoffPrompt(), conversationId: conversation.id, activityVisibility: .hidden)
-            beginHiddenActivityTurn()
+            if capabilityHarnessID != "opencode" { beginHiddenActivityTurn() }
         } catch {
             if await recoverHiddenSessionHandoffFromLocalHistoryIfNeeded(error) {
                 return

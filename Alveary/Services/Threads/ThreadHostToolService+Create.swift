@@ -33,14 +33,7 @@ extension ThreadHostToolService {
             return replayedCreateResult(receipt: receipt)
         }
 
-        // Snapshot before the resolver's suspension; SwiftData models must not be read across it.
-        let placement = ThreadHostToolSourcePlacement(thread: source.thread)
-        let defaults = try await resolvedSettingDefaults(
-            source: source,
-            fallbackHarness: context.harnessId.rawValue,
-            requestedHarness: parsed.harness
-        )
-        let request = try await validatedCreateRequest(parsed, placement: placement, defaults: defaults)
+        let request = try await resolvedCreateRequest(source: source, fallbackHarness: context.harnessId.rawValue, parsed: parsed)
         try Task.checkCancellation()
         // Discovery may leave unrelated edits pending; receipt maintenance must not roll them back.
         try flushPendingChanges()
@@ -76,6 +69,24 @@ extension ThreadHostToolService {
 }
 
 private extension ThreadHostToolService {
+    /// Freeze caller settings before workspace and harness discovery can suspend.
+    func resolvedCreateRequest(
+        source: HostToolCallSource, fallbackHarness: String, parsed: ThreadHostToolParsedCreateRequest
+    ) async throws -> ThreadHostToolCreateRequest {
+        // Snapshot before the resolver's suspension; SwiftData models must not be read across it.
+        let placement = ThreadHostToolSourcePlacement(thread: source.thread)
+        let sourceSettings = ThreadHostToolSourceSettings(
+            harness: source.conversation.harness ?? fallbackHarness, model: source.thread.model, effort: source.thread.effort
+        )
+        let scopedWorkspace = (parsed.harness ?? sourceSettings.harness) == "opencode"
+            ? try await validatedWorkspace(parsed.workspace, placement: placement) : nil
+        let projectURL = scopedWorkspace?.snapshot.primarySource.map { URL(fileURLWithPath: $0.path, isDirectory: true) }
+        let defaults = try await resolvedSettingDefaults(
+            sourceSettings: sourceSettings, requestedHarness: parsed.harness, projectURL: projectURL
+        )
+        return try await validatedCreateRequest(parsed, placement: placement, defaults: defaults, scopedWorkspace: scopedWorkspace)
+    }
+
     /// Re-resolves every model after the defaults resolver's suspension — the Project or the
     /// calling conversation could have been removed while it awaited — then inserts.
     func insert(
@@ -165,7 +176,8 @@ private extension ThreadHostToolService {
     func validatedCreateRequest(
         _ parsed: ThreadHostToolParsedCreateRequest,
         placement: ThreadHostToolSourcePlacement,
-        defaults: ThreadSettingDefaults
+        defaults: ThreadSettingDefaults,
+        scopedWorkspace: ThreadHostToolCreateWorkspace?
     ) async throws -> ThreadHostToolCreateRequest {
         let model = try validatedModel(parsed.model, defaults: defaults)
         let effort = try validatedEffort(parsed.effort, defaults: defaults, model: model)
@@ -174,8 +186,12 @@ private extension ThreadHostToolService {
             harness: defaults.harness,
             resolution: defaults.resolution
         )
+        let workspace = try await validatedWorkspace(parsed.workspace, placement: placement)
+        if let scopedWorkspace, scopedWorkspace.snapshot.primarySource?.path != workspace.snapshot.primarySource?.path {
+            throw AgentError.spawnFailed("The target workspace changed during OpenCode discovery. Try creating the task again.")
+        }
         return ThreadHostToolCreateRequest(
-            workspace: try await validatedWorkspace(parsed.workspace, placement: placement),
+            workspace: workspace,
             name: parsed.name,
             harness: defaults.harness,
             model: model,

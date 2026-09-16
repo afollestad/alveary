@@ -12,22 +12,37 @@ extension ThreadHostToolService {
     /// caller's settings are snapshotted before the resolver's suspension — SwiftData models must
     /// not be read across it.
     func resolvedSettingDefaults(
-        source: HostToolCallSource,
-        fallbackHarness: String,
-        requestedHarness: String?
+        sourceSettings: ThreadHostToolSourceSettings,
+        requestedHarness: String?,
+        projectURL: URL? = nil
     ) async throws -> ThreadSettingDefaults {
-        let sourceSettings = ThreadHostToolSourceSettings(
-            harness: source.conversation.harness ?? fallbackHarness,
-            model: source.thread.model,
-            effort: source.thread.effort
-        )
-        let resolution = await resolvedThreadDefaults(settings: settingsService.current)
+        let scopedStatuses: [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus]?
+        if let projectURL {
+            scopedStatuses = await harnessDiscovery?.harnessStatuses(projectURL: projectURL)
+        } else {
+            scopedStatuses = nil
+        }
+        let resolution: ThreadDefaultResolution
+        if let scopedStatuses {
+            resolution = ThreadDefaultResolver.resolve(
+                settings: settingsService.current, harnessOrdering: AppSettings.supportedHarnessIDs,
+                harnessStatuses: Dictionary(uniqueKeysWithValues: scopedStatuses.map { ($0.key.rawValue, $0.value) })
+            )
+        } else {
+            resolution = await resolvedThreadDefaults(settings: settingsService.current)
+        }
         let harness = try validatedHarness(requestedHarness, source: sourceSettings, resolution: resolution)
+        let options: [AgentCLIKit.AgentModelOption]
+        if let scopedStatuses {
+            options = scopedStatuses[.opencode]?.modelOptions ?? []
+        } else {
+            options = await modelOptions(for: harness, resolution: resolution)
+        }
         return ThreadSettingDefaults(
             source: sourceSettings,
             resolution: resolution,
             harness: harness,
-            options: await modelOptions(for: harness, resolution: resolution)
+            options: options
         )
     }
 
@@ -67,8 +82,8 @@ extension ThreadHostToolService {
         return ThreadDefaultResolver.modelOptions(for: harness, harnessStatuses: [:])
     }
 
-    /// An omitted harness means the caller's own — the harness executing this very call — and
-    /// only falls back to the user's default if discovery no longer reports the caller's as ready.
+    /// An omitted harness inherits the caller. OpenCode refuses unavailable inheritance rather than
+    /// silently switching providers; existing harnesses retain their default fallback.
     func validatedHarness(
         _ requested: String?,
         source: ThreadHostToolSourceSettings,
@@ -78,8 +93,17 @@ extension ThreadHostToolService {
             if resolution.readyHarnessIDs.contains(source.harness) {
                 return source.harness
             }
+            guard source.harness != "opencode" else {
+                throw ThreadHostToolServiceError.harnessNotReady(
+                    harnessID: source.harness,
+                    ready: resolution.readyHarnessIDs
+                )
+            }
             guard let harnessID = resolution.harnessID else {
                 throw ThreadHostToolServiceError.noReadyHarness
+            }
+            guard resolution.readyHarnessIDs.contains(harnessID) else {
+                throw ThreadHostToolServiceError.harnessNotReady(harnessID: harnessID, ready: resolution.readyHarnessIDs)
             }
             return harnessID
         }
@@ -92,19 +116,28 @@ extension ThreadHostToolService {
         return requested
     }
 
-    /// `nil` means "the harness's default model". An omitted `model` inherits the caller's own
-    /// while the harness matches — trusted host state a running thread already uses, so it is
-    /// deliberately not re-validated against live options, which change independently of it. A
-    /// request naming a different harness cannot inherit and falls back to the user's settings.
+    /// `nil` means the harness's default. Matching harnesses inherit the caller's model; OpenCode
+    /// revalidates that selection so an unavailable provider is explicit before creating the task.
+    /// Existing harnesses retain trusted inheritance; changing harnesses uses that harness's defaults.
     func validatedModel(
         _ requested: String?,
         defaults: ThreadSettingDefaults
     ) throws -> String? {
         guard let requested else {
             if defaults.harness == defaults.source.harness {
-                return normalizedInheritedModel(defaults.source.model)
+                let inherited = normalizedInheritedModel(defaults.source.model)
+                if defaults.harness == "opencode", let inherited,
+                   AgentModelOptionSelection.option(in: defaults.options, matching: inherited) == nil {
+                    throw ThreadHostToolServiceError.modelUnavailable(model: inherited)
+                }
+                return inherited
             }
-            return defaults.harness == defaults.resolution.harnessID ? defaults.resolution.storedThreadModel : nil
+            let inherited = defaults.harness == defaults.resolution.harnessID ? defaults.resolution.storedThreadModel : nil
+            if defaults.harness == "opencode", let inherited,
+               AgentModelOptionSelection.option(in: defaults.options, matching: inherited) == nil {
+                throw ThreadHostToolServiceError.modelUnavailable(model: inherited)
+            }
+            return inherited
         }
         guard let option = AgentModelOptionSelection.option(in: defaults.options, matching: requested) else {
             throw ThreadHostToolServiceError.modelUnavailable(model: requested)
@@ -118,6 +151,9 @@ extension ThreadHostToolService {
         defaults: ThreadSettingDefaults,
         model: String?
     ) throws -> String {
+        if defaults.harness == "opencode" {
+            return try validatedOpenCodeEffort(requested, defaults: defaults, model: model)
+        }
         guard let requested else {
             let inherited: String
             if defaults.harness == defaults.source.harness, !defaults.source.effort.isEmpty {
@@ -164,6 +200,20 @@ extension ThreadHostToolService {
 }
 
 private extension ThreadHostToolService {
+    func validatedOpenCodeEffort(_ requested: String?, defaults: ThreadSettingDefaults, model: String?) throws -> String {
+        let inherited = defaults.harness == defaults.source.harness
+            ? defaults.source.effort
+            : (defaults.harness == defaults.resolution.harnessID ? defaults.resolution.effort : AppSettings.openCodeDefaultEffort)
+        let effort = requested ?? (inherited.isEmpty ? AppSettings.openCodeDefaultEffort : inherited)
+        let supported = [AppSettings.openCodeDefaultEffort] + AgentModelOptionSelection.effortOptions(
+            in: defaults.options, selectedModel: model
+        ).map(\.value).filter { $0 != AppSettings.openCodeDefaultEffort }
+        guard supported.contains(effort) else {
+            throw ThreadHostToolServiceError.effortUnavailable(effort: effort, supported: supported)
+        }
+        return effort
+    }
+
     /// The caller's "harness default" stays exactly that: `nil`, an empty string, and the UI's
     /// `"default"` sentinel all read as nil rather than resolving to the settings model.
     func normalizedInheritedModel(_ model: String?) -> String? {

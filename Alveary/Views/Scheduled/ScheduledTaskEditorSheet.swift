@@ -111,12 +111,6 @@ struct ScheduledTaskEditorContent: View {
                 promptDraft.resetContent(to: prompt)
             }
         }
-        .onChange(of: draft.harnessID) { _, _ in
-            viewModel.normalizeHarnessDependentFields(&draft)
-        }
-        .onChange(of: draft.modelSelection) { _, _ in
-            viewModel.normalizeHarnessDependentFields(&draft)
-        }
         .onChange(of: viewModel.existingThreadTargets) { _, options in
             guard draft.destination == .existingThread,
                   let targetConversationID = draft.targetConversationID,

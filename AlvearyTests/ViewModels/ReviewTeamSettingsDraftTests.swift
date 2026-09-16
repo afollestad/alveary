@@ -5,6 +5,43 @@ import Testing
 
 @MainActor
 struct ReviewTeamSettingsDraftTests {
+    @Test func `registered read only harnesses reach utility and review selections and resolve their models`() async throws {
+        for definition in AgentHarnessRegistry.builtInDefinitions {
+            let harnessID = definition.id.rawValue
+            let supported = definition.capabilities.supportsReadOnlyOneShotPrompts
+            #expect(HarnessFeaturePolicy.supportsReadOnlyOneShotPrompts(harnessID: harnessID) == supported)
+            #expect(HarnessFeaturePolicy.supportsIsolatedReviewWorkers(harnessID: harnessID) == supported)
+            #expect(HarnessFeaturePolicy.declared(harnessID: harnessID).supportsReadOnlyOneShotPrompts == supported)
+            guard supported else { continue }
+            let efforts: [AgentHarnessOption] = definition.id == .opencode ? [] : [.init(value: "medium", label: "Medium", description: "")]
+            let model = AgentModelOption(
+                harnessId: definition.id, id: "provider/exact-model", model: "provider/exact-model", label: "Exact model",
+                supportedEffortOptions: efforts
+            )
+            let status = SettingsViewModelTests.harnessStatus(for: definition.id, modelOptions: [model])
+            var settings = AppSettings()
+            settings.defaultHarness = harnessID
+            settings.defaultModel = model.id
+            settings.effort = definition.id == .opencode ? AppSettings.openCodeDefaultEffort : "medium"
+            let viewModel = SettingsViewModel(
+                settingsService: InMemorySettingsService(current: settings),
+                harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [definition.id: status])
+            )
+            await viewModel.refreshHarnessStatuses()
+
+            #expect(viewModel.utilityHarnessOptions.contains(harnessID))
+            #expect(viewModel.utilityUnavailableMessage == nil)
+            #expect(viewModel.reviewTeamLeadHarnessOptions(settings).contains(harnessID))
+            #expect(viewModel.pullRequestReviewPeerHarnessOptions(including: harnessID).contains(harnessID))
+            let worker = try PullRequestReviewTeamResolver.resolveLead(settings: settings, harnessStatuses: [definition.id: status])
+            #expect(worker.harnessID == harnessID)
+            #expect(worker.launchModel == model.model)
+            #expect(worker.effort == settings.effort)
+        }
+        #expect(!HarnessFeaturePolicy.supportsReadOnlyOneShotPrompts(harnessID: "unregistered"))
+        #expect(!HarnessFeaturePolicy.supportsIsolatedReviewWorkers(harnessID: "unregistered"))
+    }
+
     @Test func `lead edits stay local until the whole team is saved`() async {
         var settings = AppSettings()
         settings.pullRequestReviewPermissionMode = "acceptEdits"
@@ -108,13 +145,48 @@ struct ReviewTeamSettingsDraftTests {
         #expect(suggested.model != "gpt-5.5")
     }
 
+    @Test func `openCode lead and peer choices retain exact models and optional variants`() async throws {
+        var settings = AppSettings()
+        settings.defaultHarness = "opencode"
+        settings.defaultModel = "provider/text"
+        settings.effort = AppSettings.openCodeDefaultEffort
+        let (viewModel, service) = await makeViewModel(settings: settings)
+        let original = service.current
+        var draft = viewModel.reviewTeamEditorSettings()
+
+        #expect(draft.pullRequestReviewHarness == nil)
+        #expect(viewModel.reviewTeamDraftLead(draft).model == "provider/text")
+        #expect(viewModel.reviewTeamLeadHarnessOptions(draft).contains("opencode"))
+        #expect(viewModel.pullRequestReviewPeerHarnessOptions(including: "opencode").contains("opencode"))
+        #expect(viewModel.reviewTeamLeadModelOptions(draft).contains("provider/text"))
+        let peer = try #require(viewModel.defaultPullRequestReviewPeer(harnessID: "opencode", excluding: [], settings: draft))
+        #expect(peer.model == "provider/reasoning")
+        #expect(peer.effort == AppSettings.openCodeDefaultEffort)
+        #expect(viewModel.pullRequestReviewPeerEffortOptions(peer) == [AppSettings.openCodeDefaultEffort, "native"])
+        #expect(viewModel.pullRequestReviewPeerEffortLabel(peer.effort, peer: peer) == "Default")
+        draft.pullRequestReviewPeers = [peer]
+        #expect(viewModel.pullRequestReviewTeamSettingsStatus(peers: [peer], settings: draft) == .ready)
+
+        viewModel.setReviewTeamLeadModel("provider/reasoning", in: &draft)
+        #expect(draft.pullRequestReviewEffort == AppSettings.openCodeDefaultEffort)
+        #expect(viewModel.pullRequestReviewTeamSettingsStatus(peers: [peer], settings: draft) != .ready)
+        #expect(service.current == original)
+    }
+
     private func makeViewModel(settings: AppSettings = AppSettings()) async -> (SettingsViewModel, InMemorySettingsService) {
         let service = InMemorySettingsService(current: settings)
         let viewModel = SettingsViewModel(
             settingsService: service,
             harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
                 .claude: SettingsViewModelTests.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
-                .codex: SettingsViewModelTests.harnessStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
+                .codex: SettingsViewModelTests.harnessStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions),
+                .opencode: SettingsViewModelTests.harnessStatus(for: .opencode, modelOptions: [
+                    AgentModelOption(harnessId: .opencode, id: "provider/text", model: "provider/text", label: "Text"),
+                    AgentModelOption(
+                        harnessId: .opencode, id: "provider/reasoning", model: "provider/reasoning", label: "Reasoning",
+                        supportedEffortOptions: [.init(value: "native", label: "Native", description: "")]
+                    )
+                ])
             ])
         )
         await viewModel.refreshHarnessStatuses()

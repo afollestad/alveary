@@ -451,9 +451,8 @@ extension SettingsViewModelTests {
     ) -> AgentCLIKit.AgentHarnessStatus {
         AgentCLIKit.AgentHarnessStatus(
             harnessId: harnessId,
-            definition: harnessId == .claude
-                ? AgentCLIKit.ClaudeHarnessDefinition.definition
-                : AgentCLIKit.CodexHarnessDefinition.definition,
+            definition: harnessId == .opencode ? AgentCLIKit.OpenCodeHarnessDefinition.definition
+                : harnessId == .claude ? AgentCLIKit.ClaudeHarnessDefinition.definition : AgentCLIKit.CodexHarnessDefinition.definition,
             installation: installation,
             availability: AgentCLIKit.AgentHarnessAvailability(harnessId: harnessId, executablePath: "/usr/local/bin/\(harnessId.rawValue)"),
             isEnabled: isEnabled,
@@ -466,6 +465,7 @@ extension SettingsViewModelTests {
 actor RecordingHarnessDiscoveryService: AgentCLIKit.AgentHarnessDiscoveryService {
     private let statuses: [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus]
     private var harnessStatusesCallCount = 0
+    private(set) var requestedProjectURLs: [URL?] = []
 
     init(statuses: [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus]) {
         self.statuses = statuses
@@ -473,6 +473,7 @@ actor RecordingHarnessDiscoveryService: AgentCLIKit.AgentHarnessDiscoveryService
 
     func harnessStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentHarnessID: AgentCLIKit.AgentHarnessStatus] {
         harnessStatusesCallCount += 1
+        requestedProjectURLs.append(projectURL)
         return statuses
     }
 
@@ -489,7 +490,7 @@ actor RecordingHarnessDiscoveryService: AgentCLIKit.AgentHarnessDiscoveryService
     }
 
     func stableHarnessOrdering() async -> [AgentCLIKit.AgentHarnessID] {
-        [.claude, .codex]
+        [.claude, .codex, .opencode]
     }
 
     func harnessStatusesInvocations() -> Int {

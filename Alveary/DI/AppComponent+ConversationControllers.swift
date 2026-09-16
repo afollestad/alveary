@@ -13,6 +13,7 @@ extension AppComponent {
             let taskWorkspaceOwnershipService = self.taskWorkspaceOwnershipService
             let harnessSetup = self.harnessSetupService
             let contextWindowCache = self.contextWindowCache
+            let harnessDiscovery = self.cachedAgentHarnessDiscoveryService
             let attachmentStore = self.conversationAttachmentStore
             let threadActivityRecorder = self.threadActivityRecorder
             return DefaultConversationControllerRegistry { conversation in
@@ -27,6 +28,7 @@ extension AppComponent {
                     taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
                     harnessSetup: harnessSetup,
                     contextWindowCache: contextWindowCache,
+                    harnessDiscovery: harnessDiscovery,
                     attachmentStore: attachmentStore,
                     threadActivityRecorder: threadActivityRecorder
                 )

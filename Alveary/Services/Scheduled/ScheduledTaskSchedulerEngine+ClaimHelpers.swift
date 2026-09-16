@@ -46,7 +46,8 @@ extension ScheduledTaskSchedulerEngine {
         return ScheduledTaskReusedTarget(
             conversationID: conversation.id,
             threadName: thread.name,
-            threadID: thread.persistentModelID
+            threadID: thread.persistentModelID,
+            harnessDiscoveryDirectory: definition.harnessID == "opencode" ? thread.primaryWorkingDirectory : nil
         )
     }
 

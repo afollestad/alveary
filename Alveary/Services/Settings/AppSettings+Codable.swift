@@ -27,6 +27,9 @@ extension AppSettings {
         case defaultModel
         case permissionMode
         case effort
+        case utilityHarness
+        case utilityModel
+        case utilityEffort
         case disabledHarnessIDs = "disabledProviderIDs"
         case defaultThreadCleanupAction
         case defaultEnterBehavior
@@ -209,6 +212,9 @@ extension AppSettings {
         defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? defaultModel
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? permissionMode
         effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? effort
+        utilityHarness = try container.decodeIfPresent(String.self, forKey: .utilityHarness)
+        utilityModel = try container.decodeIfPresent(String.self, forKey: .utilityModel)
+        utilityEffort = try container.decodeIfPresent(String.self, forKey: .utilityEffort)
         disabledHarnessIDs = try container.decodeIfPresent(Set<String>.self, forKey: .disabledHarnessIDs) ?? disabledHarnessIDs
         defaultThreadCleanupAction = try container.decodeIfPresent(
             ThreadCleanupAction.self,

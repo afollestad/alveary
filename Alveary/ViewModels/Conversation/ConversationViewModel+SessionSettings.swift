@@ -39,7 +39,7 @@ extension ConversationViewModel {
         }
 
         let settingsContext = spawnSettingsContext(settingsSource: settingsSource)
-        let harnessId = settingsContext.liveConfig?.harnessId ?? dbConversation.harness ?? settingsService.current.defaultHarness
+        let harnessId = settingsContext.liveConfig?.harnessId ?? capabilityHarnessID
         let workingDirectory = overrideWorkingDirectory
             ?? settingsContext.liveConfig?.workingDirectory
             ?? dbConversation.thread?.primaryWorkingDirectory
@@ -51,7 +51,7 @@ extension ConversationViewModel {
         let permissionModeOverride = spawnPermissionModeOverride(settingsSource: settingsSource, context: settingsContext)
         let planModeOverride = spawnPlanModeOverride(settingsSource: settingsSource, context: settingsContext)
         let speedModeOverride = spawnSpeedModeOverride(settingsSource: settingsSource, context: settingsContext)
-        let modelAndEffort = spawnModelAndEffort(context: settingsContext, thread: dbConversation.thread)
+        let modelAndEffort = spawnModelAndEffort(context: settingsContext, thread: dbConversation.thread, harnessId: harnessId)
         let additionalWorkspaceRoots = try effectiveAdditionalWorkspaceRoots(
             in: dbConversation.thread, workingDirectory: workingDirectory
         )
@@ -130,10 +130,6 @@ extension ConversationViewModel {
 
     func pendingPlanModeForDisplay() -> Bool? {
         state.pendingSessionSettingsChange?.pending.planModeEnabled
-    }
-
-    func pendingSpeedModeForDisplay() -> AgentSpeedMode? {
-        state.pendingSessionSettingsChange?.pending.speedMode
     }
 
     func applyPendingSessionSettingsForNextTurn() async throws {
@@ -292,11 +288,6 @@ extension ConversationViewModel {
             ?? state.runtimePlanModeEnabled
             ?? dbThread.planModeEnabled
             ?? false
-    }
-
-    func displayedSpeedModeSetting(for dbThread: AgentThread) -> AgentSpeedMode {
-        state.pendingSessionSettingsChange?.pending.speedMode
-            ?? dbThread.normalizedSpeedMode
     }
 
     func refreshPendingSessionSettingsChange(
@@ -487,13 +478,21 @@ extension ConversationViewModel {
         return state.runtimeSpeedMode
     }
 
-    private func spawnModelAndEffort(context: SpawnSettingsContext, thread: AgentThread?) -> (model: String?, effort: String?) {
+    private func spawnModelAndEffort(
+        context: SpawnSettingsContext, thread: AgentThread?, harnessId: String
+    ) -> (model: String?, effort: String?) {
         if let liveConfig = context.liveConfig {
             return (liveConfig.model, liveConfig.effort)
         }
+        let effort = context.currentContinuationSnapshot?.effort ?? thread?.effort
+        if harnessId == "opencode" {
+            // A captured nil is the native default, even if the stored next-turn selection changed.
+            let model = context.currentContinuationSnapshot.map(\.model) ?? thread?.model
+            return (model, AppSettings.openCodeNativeEffort(stored: effort))
+        }
         return (
             context.currentContinuationSnapshot?.model ?? thread?.model,
-            AppSettings.normalizedEffortLevel(context.currentContinuationSnapshot?.effort ?? thread?.effort)
+            AppSettings.normalizedEffortLevel(effort)
         )
     }
 

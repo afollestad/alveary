@@ -169,7 +169,8 @@ extension AppComponent {
         return shared {
             AgentCLIKit.AgentHarnessAdapterSet.default(
                 claude: agentCLIKitClaudeHarnessConfiguration,
-                codex: agentCLIKitCodexHarnessConfiguration
+                codex: agentCLIKitCodexHarnessConfiguration,
+                opencode: agentCLIKitOpenCodeHarnessConfiguration
             )
         }
     }
@@ -231,7 +232,8 @@ extension AppComponent {
         return shared {
             AgentCLIKit.DefaultAgentProjectTrustService(setups: [
                 agentCLIKitHarnessSetup,
-                agentCLIKitCodexHarnessSetup
+                agentCLIKitCodexHarnessSetup,
+                agentCLIKitOpenCodeHarnessSetup
             ])
         }
     }
@@ -381,6 +383,7 @@ extension AppComponent {
             demoMCPService ?? DefaultMCPService(
                 claudeConfigStore: agentCLIKitClaudeConfigStore,
                 codexConfigStore: agentCLIKitCodexConfigStore,
+                openCodeConfigStore: agentCLIKitOpenCodeConfigStore,
                 harnessDetection: harnessDetectionService,
                 agentRegistry: agentRegistry
             )

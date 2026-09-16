@@ -3,9 +3,7 @@ import XCTest
 
 @testable import Alveary
 
-/// The agentic review's seed resolution. Its contract is to degrade rather than fail: a
-/// pinned harness, model, effort, or permission mode that a harness no longer offers falls back to what a
-/// typed thread would get, because a footer button has nowhere to explain a refusal.
+/// Legacy agentic review defaults retain fallback behavior; OpenCode preserves pins for explicit launch validation.
 @MainActor
 final class PullRequestAgenticThreadServiceTests: XCTestCase {
     private func resolution(

@@ -4,6 +4,7 @@ import Foundation
 enum PullRequestReviewTeamResolutionError: LocalizedError, Equatable, Sendable {
     case invalidTeamSize(Int)
     case duplicateMemberID(String)
+    case harnessUnsupported(memberID: String, memberName: String, harnessID: String)
     case harnessUnavailable(memberID: String, memberName: String, harnessID: String)
     case modelUnavailable(memberID: String, memberName: String, harnessID: String, model: String)
     case effortUnavailable(memberID: String, memberName: String, effort: String)
@@ -16,6 +17,8 @@ enum PullRequestReviewTeamResolutionError: LocalizedError, Equatable, Sendable {
             "Review teams need 2–5 reviewers; this team has \(count)."
         case .duplicateMemberID:
             "The review team contains duplicate saved reviewer identities."
+        case .harnessUnsupported(_, let memberName, let harnessID):
+            "\(memberName): \(HarnessFeaturePolicy.unavailableReviewMessage(harnessID: harnessID))"
         case .harnessUnavailable(_, let memberName, let harnessID):
             "\(memberName) uses \(harnessID), which is not ready."
         case .modelUnavailable(_, let memberName, _, let model):
@@ -134,7 +137,8 @@ private extension PullRequestReviewTeamResolver {
                 ?? (inheritsDefaults ? settings.defaultModel : nil)
                 ?? AppSettings.defaultModelValue,
             effort: settings.pullRequestReviewEffort
-                ?? (inheritsDefaults ? settings.effort : AppSettings.defaultEffortLevel)
+                ?? (inheritsDefaults ? settings.effort : harnessID == "opencode"
+                    ? AppSettings.openCodeDefaultEffort : AppSettings.defaultEffortLevel)
         )
     }
 
@@ -143,6 +147,11 @@ private extension PullRequestReviewTeamResolver {
         settings: AppSettings,
         statuses: [AgentHarnessID: AgentHarnessStatus]
     ) throws -> ReviewWorkerConfiguration {
+        guard HarnessFeaturePolicy.supportsIsolatedReviewWorkers(harnessID: member.harnessID) else {
+            throw PullRequestReviewTeamResolutionError.harnessUnsupported(
+                memberID: member.id, memberName: member.name, harnessID: member.harnessID
+            )
+        }
         guard let harnessID = AgentHarnessID(rawValue: member.harnessID),
               let status = statuses[harnessID],
               settings.isHarnessEnabled(member.harnessID),
@@ -180,7 +189,7 @@ private extension PullRequestReviewTeamResolver {
         let exactOption = status.modelOptions.first {
             ($0.id == member.model || $0.model == member.model) && Self.concreteLaunchModel($0) != nil
         }
-        let defaultOption = member.model == AppSettings.defaultModelValue
+        let defaultOption = member.harnessID != "opencode" && member.model == AppSettings.defaultModelValue
             ? status.modelOptions.first(where: { $0.isDefault && Self.concreteLaunchModel($0) != nil })
             : nil
         guard let option = exactOption ?? defaultOption,
@@ -201,7 +210,15 @@ private extension PullRequestReviewTeamResolver {
     ) throws -> String {
         let requested = member.effort.trimmingCharacters(in: .whitespacesAndNewlines)
         let supported = model.option.supportedEffortOptions
+        if member.harnessID == "opencode" {
+            if requested == AppSettings.openCodeDefaultEffort { return requested }
+            if let variant = AppSettings.openCodeNativeEffort(stored: requested),
+               supported.contains(where: { $0.value == variant }) {
+                return AppSettings.openCodeStoredEffort(nativeVariant: variant)
+            }
+        }
         guard !requested.isEmpty,
+              member.harnessID != "opencode",
               !supported.isEmpty,
               supported.contains(where: { $0.value == requested }) else {
             throw PullRequestReviewTeamResolutionError.effortUnavailable(

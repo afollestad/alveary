@@ -33,6 +33,7 @@ struct AgentCLIKitHostAdapter: Sendable {
         environment: [String: String] = [:],
         forkSession: Bool = false
     ) throws -> AgentCLIKit.AgentSpawnConfig {
+        try HarnessRequestValidation.validate(config)
         guard let harnessId = harnessId(config.harnessId) else {
             throw AgentCLIKitHostAdapterError.unsupportedHarness(config.harnessId)
         }
@@ -129,7 +130,11 @@ struct AgentCLIKitShellRunnerAdapter: AgentCLIKit.ShellRunning {
             executable: command.executable,
             args: command.arguments,
             in: command.workingDirectory?.path,
-            options: ShellRunOptions(environment: command.environment.isEmpty ? nil : command.environment)
+            options: ShellRunOptions(
+                environment: command.environment.isEmpty ? nil : command.environment,
+                environmentPolicy: command.inheritsEnvironment ? .inherit : .replace,
+                standardInput: command.standardInput.map(ShellStandardInput.text) ?? .inherit
+            )
         )
         return AgentCLIKit.ShellCommandResult(
             exitCode: result.exitCode,

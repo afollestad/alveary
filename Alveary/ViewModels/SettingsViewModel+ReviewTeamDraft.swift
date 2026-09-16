@@ -24,13 +24,15 @@ extension SettingsViewModel {
                 ?? (inheritsDefaults ? settings.defaultModel : nil)
                 ?? AppSettings.defaultModelValue,
             effort: settings.pullRequestReviewEffort
-                ?? (inheritsDefaults ? settings.effort : AppSettings.defaultEffortLevel)
+                ?? (inheritsDefaults ? settings.effort : harnessID == "opencode"
+                    ? AppSettings.openCodeDefaultEffort : AppSettings.defaultEffortLevel)
         )
     }
 
     func reviewTeamLeadHarnessOptions(_ settings: AppSettings) -> [String] {
-        [Self.pullRequestReviewInheritValue]
-            + pullRequestReviewPeerHarnessOptions(including: reviewTeamDraftLead(settings).harnessID)
+        let inherited = HarnessFeaturePolicy.supportsIsolatedReviewWorkers(harnessID: settings.defaultHarness)
+            ? [Self.pullRequestReviewInheritValue] : []
+        return inherited + pullRequestReviewPeerHarnessOptions(including: reviewTeamDraftLead(settings).harnessID)
     }
 
     func reviewTeamLeadModelOptions(_ settings: AppSettings) -> [String] {
@@ -44,6 +46,11 @@ extension SettingsViewModel {
 
     func reviewTeamLeadEffortOptions(_ settings: AppSettings) -> [String] {
         [Self.pullRequestReviewInheritValue] + pullRequestReviewPeerEffortOptions(reviewTeamDraftLead(settings))
+    }
+
+    func reviewTeamLeadEffortSelection(_ settings: AppSettings) -> String {
+        guard settings.pullRequestReviewEffort != nil else { return Self.pullRequestReviewInheritValue }
+        return pullRequestReviewPeerEffortSelection(reviewTeamDraftLead(settings))
     }
 
     func reviewTeamLeadHarnessLabel(_ value: String, settings: AppSettings) -> String {
@@ -87,5 +94,9 @@ extension SettingsViewModel {
             settings.pullRequestReviewModel = model
             settings.pullRequestReviewEffort = pullRequestReviewPeerDefaultEffort(harnessID: harnessID, model: model)
         }
+    }
+
+    func setReviewTeamLeadEffort(_ value: String, in settings: inout AppSettings) {
+        settings.pullRequestReviewEffort = value == Self.pullRequestReviewInheritValue ? nil : value
     }
 }

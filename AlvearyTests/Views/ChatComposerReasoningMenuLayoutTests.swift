@@ -83,7 +83,7 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
         )
     }
 
-    func testZeroEffortOptionsRemoveSliderAndShrinkCollapsedMenu() throws {
+    func testZeroEffortOptionsRemoveSliderAndOpenModelList() throws {
         let withSlider = makeReasoningConfiguration(effortOptions: reasoningEffortOptions)
         let withoutSlider = makeReasoningConfiguration(effortOptions: [])
         let controller = makeController(configuration: withSlider)
@@ -98,10 +98,10 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
         XCTAssertTrue(slider.isHidden)
         XCTAssertEqual(slider.frame, .zero)
         XCTAssertEqual(models.frame.minY, ComposerReasoningMenuMetrics.topInset)
-        XCTAssertEqual(
-            withSliderHeight - controller.preferredContentSize.height,
-            ComposerReasoningMenuMetrics.sliderHeight + ComposerReasoningMenuMetrics.sliderBottomSpacing
-        )
+        XCTAssertTrue(controller.isModelsExpanded)
+        XCTAssertGreaterThan(try XCTUnwrap(controller.debugModelsSection).frame.height, 0)
+        XCTAssertFalse(try XCTUnwrap(controller.debugModelList).focusableRows.isEmpty)
+        XCTAssertGreaterThan(controller.preferredContentSize.height, withSliderHeight)
     }
 
     func testExpansionResizesTopAlignedContentAndPinsControls() throws {

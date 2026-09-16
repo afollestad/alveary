@@ -5,6 +5,58 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskSchedulerEngineTests {
+    func testReuseClaimScopesOnlyOpenCodeDiscoveryToItsExecutionDirectory() async throws {
+        for harnessID in ["opencode", "codex"] {
+            let fixture = try ScheduledTaskSchedulerFixture()
+            let thread = AgentThread(
+                name: "Reused", mode: .task,
+                taskWorkspaceDescriptor: TaskWorkspaceDescriptor(primaryRoot: "/tmp/reused-workspace", ownershipStrategy: .privateOwned)
+            )
+            thread.conversations = [Conversation(id: "reused-main", harness: harnessID, thread: thread)]
+            fixture.context.insert(thread)
+            let definition = try fixture.insertDefinition(nextOccurrenceAt: fixture.date(300))
+            definition.destination = .reusedThread
+            definition.harnessID = harnessID
+            definition.reusedThread = thread
+            try fixture.context.save()
+            let engine = fixture.makeEngine(preflight: { snapshot in
+                XCTAssertNil(snapshot.projectPath)
+                XCTAssertEqual(snapshot.workspaceKind, .privateWorkspace)
+                XCTAssertEqual(snapshot.reusedTarget?.harnessDiscoveryDirectory, harnessID == "opencode" ? "/tmp/reused-workspace" : nil)
+                return scheduledTaskReadyOutcome(for: snapshot)
+            })
+
+            guard case .claimed = try await engine.claimDue(definitionID: definition.id, at: fixture.date(301)) else {
+                return XCTFail("Expected the reused claim to keep its workspace")
+            }
+        }
+    }
+
+    func testReusedOpenCodeDirectoryChangeDuringPreflightCannotClaim() async throws {
+        let fixture = try ScheduledTaskSchedulerFixture()
+        let thread = AgentThread(
+            name: "Reused", mode: .task,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(primaryRoot: "/tmp/reused-workspace", ownershipStrategy: .privateOwned)
+        )
+        thread.conversations = [Conversation(id: "reused-main", harness: "opencode", thread: thread)]
+        fixture.context.insert(thread)
+        let definition = try fixture.insertDefinition(nextOccurrenceAt: fixture.date(300))
+        definition.destination = .reusedThread
+        definition.harnessID = "opencode"
+        definition.reusedThread = thread
+        try fixture.context.save()
+        let engine = fixture.makeEngine(preflight: { snapshot in
+            XCTAssertEqual(snapshot.reusedTarget?.harnessDiscoveryDirectory, "/tmp/reused-workspace")
+            thread.taskWorkspaceDescriptor = TaskWorkspaceDescriptor(primaryRoot: "/tmp/replacement-workspace", ownershipStrategy: .privateOwned)
+            return scheduledTaskReadyOutcome(for: snapshot)
+        })
+
+        let outcome = try await engine.claimDue(definitionID: definition.id, at: fixture.date(301))
+
+        guard case .changedDuringPreflight = outcome else { return XCTFail("Expected the stale discovery scope to prevent claiming") }
+        XCTAssertEqual(try fixture.runCount(), 0)
+    }
+
     func testReuseClaimTargetsTheLinkedUnpinnedThreadWithDefinitionSettings() async throws {
         let fixture = try ScheduledTaskSchedulerFixture()
         let thread = AgentThread(

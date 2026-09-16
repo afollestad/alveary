@@ -92,6 +92,7 @@ struct DefaultScheduledTaskPreflightValidator: Sendable {
                 snapshot,
                 projectPath: projectPath
             )
+            let discoveryRoot = try captureReusedHarnessDiscoveryRoot(snapshot)
             if snapshot.workspaceKind == .project,
                snapshot.workspaceStrategy == .worktree {
                 guard let projectPath,
@@ -113,7 +114,7 @@ struct DefaultScheduledTaskPreflightValidator: Sendable {
             guard let harnessID = AgentHarnessID(rawValue: snapshot.harnessID) else {
                 throw ScheduledTaskPreflightValidationError.unsupportedHarness(snapshot.harnessID)
             }
-            let projectURL = projectPath.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            let projectURL = (discoveryRoot?.path ?? projectPath).map { URL(fileURLWithPath: $0, isDirectory: true) }
             guard let status = await loadHarnessStatus(harnessID, projectURL),
                   status.isReadyInProject else {
                 throw ScheduledTaskPreflightValidationError.harnessUnavailable(snapshot.harnessID)
@@ -124,7 +125,8 @@ struct DefaultScheduledTaskPreflightValidator: Sendable {
                 snapshot,
                 projectPath: revalidatedProjectPath
             )
-            guard revalidatedIdentities == workspaceIdentities else {
+            guard revalidatedIdentities == workspaceIdentities,
+                  try captureReusedHarnessDiscoveryRoot(snapshot) == discoveryRoot else {
                 throw ScheduledTaskPreflightValidationError.workspaceRootsChanged
             }
             return .ready(workspaceIdentities)
@@ -143,6 +145,21 @@ private final class ScheduledTaskFileManagerBox: @unchecked Sendable {
 }
 
 private extension DefaultScheduledTaskPreflightValidator {
+    /// Catalog scope is separate from the source roots retained for ownership and worktree validation.
+    func captureReusedHarnessDiscoveryRoot(_ snapshot: ScheduledTaskPreflightSnapshot) throws -> ScheduledTaskRootIdentitySnapshot? {
+        guard snapshot.harnessID == "opencode", snapshot.destination == .reusedThread,
+              let directory = snapshot.reusedTarget?.harnessDiscoveryDirectory else { return nil }
+        do {
+            guard try canonicalizeRoots([directory], nil) == [directory],
+                  checkDirectoryAccess(directory, true) else {
+                throw ScheduledTaskPreflightValidationError.workspaceRootsChanged
+            }
+            return try ScheduledTaskRootIdentitySnapshot(path: directory, identity: loadDirectoryIdentity(directory))
+        } catch {
+            throw ScheduledTaskPreflightValidationError.workspaceRootsChanged
+        }
+    }
+
     func validateSchedule(_ snapshot: ScheduledTaskPreflightSnapshot) throws {
         try ScheduledTaskRecurrenceCalculator().validate(
             snapshot.recurrence,
@@ -205,9 +222,23 @@ private extension DefaultScheduledTaskPreflightValidator {
         _ snapshot: ScheduledTaskPreflightSnapshot,
         status: AgentHarnessStatus
     ) throws {
+        let policy = HarnessFeaturePolicy(harnessID: snapshot.harnessID, status: status, selectedModel: snapshot.model)
+        if snapshot.target?.speedMode == AgentSpeedMode.fast.rawValue && !policy.supportsSpeedMode {
+            throw ScheduledTaskPreflightValidationError.unsupportedSpeedMode
+        }
+        if snapshot.target?.planModeEnabled == true && !policy.supportsPlanMode {
+            throw ScheduledTaskPreflightValidationError.unsupportedPlanMode
+        }
         let supportedPermissionModes = AppSettings.supportedPermissionModes(forHarness: snapshot.harnessID)
         guard supportedPermissionModes.contains(snapshot.permissionMode) else {
             throw ScheduledTaskPreflightValidationError.unsupportedPermissionMode(snapshot.permissionMode)
+        }
+
+        if snapshot.harnessID == "opencode" {
+            try HarnessRequestValidation.validateOpenCodeModel(
+                model: snapshot.model, effort: AppSettings.openCodeNativeEffort(stored: snapshot.effort), hasImages: false, status: status
+            )
+            return
         }
 
         guard !status.modelOptions.isEmpty else {
@@ -240,6 +271,8 @@ private enum ScheduledTaskPreflightValidationError: LocalizedError {
     case unsupportedPermissionMode(String)
     case unsupportedModel(String)
     case unsupportedEffort(String)
+    case unsupportedSpeedMode
+    case unsupportedPlanMode
 
     var errorDescription: String? {
         switch self {
@@ -269,6 +302,10 @@ private enum ScheduledTaskPreflightValidationError: LocalizedError {
             return "The scheduled task model is unavailable: \(model)."
         case .unsupportedEffort(let effort):
             return "The scheduled task effort is unavailable: \(effort)."
+        case .unsupportedSpeedMode:
+            return "The scheduled task harness does not support Fast mode. Select Standard on the target task before running."
+        case .unsupportedPlanMode:
+            return "The scheduled task harness does not support Plan mode."
         }
     }
 }

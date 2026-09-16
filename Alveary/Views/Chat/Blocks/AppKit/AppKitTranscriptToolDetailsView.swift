@@ -115,7 +115,7 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
 
         var views: [NSView] = []
         let inputBlock = AppKitTranscriptDetailCodeBlockView()
-        inputBlock.configure(.init(title: "Input", content: prettyPrintedJSON(tool.input), typography: typography))
+        inputBlock.configure(.init(title: "Input", content: prettyPrintedJSON(tool.input, hidingToolMetadata: true), typography: typography))
         views.append(inputBlock)
 
         if let output = tool.output {

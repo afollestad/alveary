@@ -8,7 +8,7 @@ extension ConversationViewModel {
             return
         }
 
-        let harnessId = conversation.harness ?? settingsService.current.defaultHarness
+        let harnessId = capabilityHarnessID
         let selectedModel = conversation.thread?.model ?? AppSettings.defaultModelValue
         let reportedModelId = record.harnessModelId
         let cache = contextWindowCache

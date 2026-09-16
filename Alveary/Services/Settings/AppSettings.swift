@@ -23,18 +23,24 @@ struct PullRequestReviewPeer: Codable, Equatable, Identifiable, Sendable {
 
 struct AppSettings: Codable, Sendable, Equatable {
     static let currentSettingsSchemaVersion = 1
-    static let supportedHarnessIDs = ["claude", "codex"]
+    static let supportedHarnessIDs = ["claude", "codex", "opencode"]
     static let supportedPermissionModesByHarness = [
         "claude": ["default", "acceptEdits", "auto", "bypassPermissions"],
-        "codex": ["untrusted", "on-request", "never"]
+        "codex": ["untrusted", "on-request", "never"],
+        "opencode": ["configured", "ask", "fullAccess"]
     ]
-    static let supportedPermissionModes = ["default", "acceptEdits", "auto", "bypassPermissions", "untrusted", "on-request", "never"]
+    static let supportedPermissionModes = [
+        "default", "acceptEdits", "auto", "bypassPermissions", "untrusted", "on-request", "never", "configured", "ask", "fullAccess"
+    ]
     static let defaultPermissionModeByHarness = [
         "claude": "default",
-        "codex": "on-request"
+        "codex": "on-request",
+        "opencode": "ask"
     ]
     static let defaultEffortLevel = "medium"
     static let defaultModelValue = "default"
+    /// Picker-only inheritance must stay distinct from native names, including OpenCode variants.
+    static let inheritedSelectionValue = "alveary.inherit"
     static let supportedThemes = ["system", "light", "dark"]
     static let defaultCodeFontFamily = "SF Mono"
     static let supportedCodeFontSizeRange = 10...24
@@ -58,6 +64,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     var defaultModel = Self.defaultModelValue
     var permissionMode = "default"
     var effort = Self.defaultEffortLevel
+    /// Nil follows thread defaults; explicit utility pins survive unavailable or unsupported harnesses for repair.
+    var utilityHarness: String?
+    var utilityModel: String?
+    var utilityEffort: String?
     var disabledHarnessIDs: Set<String> = []
     var defaultThreadCleanupAction = ThreadCleanupAction.archive
     var defaultEnterBehavior = Self.defaultEnterBehavior
@@ -222,7 +232,8 @@ struct AppSettings: Codable, Sendable, Equatable {
         if !Self.supportedHarnessIDs.contains(defaultHarness) {
             defaultHarness = Self.supportedHarnessIDs[0]
         }
-        if !isHarnessEnabled(defaultHarness),
+        // Keep a disabled OpenCode choice visible for recovery instead of silently switching its model provider.
+        if defaultHarness != "opencode", !isHarnessEnabled(defaultHarness),
            let fallbackHarness = Self.supportedHarnessIDs.first(where: { isHarnessEnabled($0) }) {
             defaultHarness = fallbackHarness
         }

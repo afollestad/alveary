@@ -34,11 +34,11 @@ extension ConversationViewModel {
     /// Keeps every continuation setting — permission mode, speed, host-tool exposure, workspace
     /// authorization — and overrides only what the user changed at the plan prompt.
     private func exitPlanModeRestartConfig(_ pending: PendingSessionSettingsChange) throws -> AgentSpawnConfig {
-        try makeSpawnConfig(settingsSource: .currentContinuation)
-            .withModel(
-                pending.pending.model,
-                effort: AppSettings.normalizedEffortLevel(pending.pending.effort)
-            )
+        let config = try makeSpawnConfig(settingsSource: .currentContinuation)
+        let effort = config.harnessId == "opencode"
+            ? AppSettings.openCodeNativeEffort(stored: pending.pending.effort)
+            : AppSettings.normalizedEffortLevel(pending.pending.effort)
+        return config.withModel(pending.pending.model, effort: effort)
     }
 
     func denyExitPlanMode(toolUseId: String, followUp: String? = nil) async throws {
@@ -208,8 +208,7 @@ extension ConversationViewModel {
     func exitPlanModeRevisionHarnessSnapshot() -> ExitPlanModeRevisionHarnessSnapshot {
         let dbConversation = dbConversation()
         let harnessId = state.liveSessionConfig?.harnessId
-            ?? dbConversation?.harness
-            ?? settingsService.current.defaultHarness
+            ?? capabilityHarnessID
         let harnessSessionId: String?
         if dbConversation?.harnessSessionHarnessId == harnessId {
             harnessSessionId = dbConversation?.harnessSessionId

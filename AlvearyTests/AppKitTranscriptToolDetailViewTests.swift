@@ -183,6 +183,14 @@ final class AppKitTranscriptToolDetailViewTests: XCTestCase {
         XCTAssertTrue(prettyPrintedJSON("{\"a\":1}").contains("\"a\" : 1"))
     }
 
+    func testToolInputPresentationHidesOnlyInternalApprovalRoutingMetadata() throws {
+        let input = #"{"agent_separate_interaction_ids":true,"command":"pwd","agent_custom_option":"keep"}"#
+        let displayed = prettyPrintedJSON(input, hidingToolMetadata: true)
+        let values = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(displayed.utf8)) as? [String: String])
+        XCTAssertEqual(values, ["command": "pwd", "agent_custom_option": "keep"])
+        XCTAssertTrue(prettyPrintedJSON(input).contains("agent_separate_interaction_ids"))
+    }
+
     func testToolOutputPagingReportsUserHeightChangeBeforeInvalidation() {
         let output = (1...20).map { "line \($0)" }.joined(separator: "\n")
         let view = AppKitTranscriptToolOutputView()

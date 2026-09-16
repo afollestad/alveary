@@ -13,6 +13,7 @@ extension DefaultAgentsManager {
     @discardableResult
     // swiftlint:disable:next function_body_length
     func reconfigureSessionWithAgentCLIKit(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
+        try HarnessRequestValidation.validate(config)
         let services = agentCLIKitServices
         await installAgentCLIKitLiveHookHandlerIfNeeded(services: services)
         guard !spawningIds.contains(conversationId) else {

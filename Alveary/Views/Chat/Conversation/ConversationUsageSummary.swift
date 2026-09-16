@@ -35,7 +35,8 @@ struct ConversationUsageSummary: Equatable, Sendable {
     static func derive(
         from events: [ConversationEventRecord],
         cachedContextWindowSize: Int?,
-        accounting: ContextTokenAccounting = .additiveCacheRead
+        accounting: ContextTokenAccounting = .additiveCacheRead,
+        harnessID: String? = nil
     ) -> ConversationUsageSummary? {
         let tokenEvents = events.filter { $0.type == ConversationEventRecord.tokensType }
         let currentWindowEvents: ArraySlice<ConversationEventRecord>
@@ -48,7 +49,11 @@ struct ConversationUsageSummary: Equatable, Sendable {
         // Model changes only invalidate the reported max size. The latest token row
         // still describes the current harness window until a new result replaces it.
         let currentWindowTokenEvents = currentWindowEvents.filter { $0.type == ConversationEventRecord.tokensType }
-        let latestTokenEvent = tokenEvents.last
+        // OpenCode's count-free terminal rows are durable completion evidence for approval
+        // restoration and scheduling, but do not replace the last measured context window.
+        let latestTokenEvent = tokenEvents.last { record in
+            harnessID != "opencode" || !isOpenCodeTurnBoundary(record)
+        }
         let reportedContextWindowSize = currentWindowTokenEvents.reversed().compactMap { record -> Int? in
             guard let contextWindowSize = record.contextWindowSize, contextWindowSize > 0 else {
                 return nil
@@ -82,5 +87,11 @@ struct ConversationUsageSummary: Equatable, Sendable {
             hasReportedUsage: latestTokenEvent != nil,
             isUsingCachedContextWindow: reportedContextWindowSize == nil && positiveCachedContextWindowSize != nil
         )
+    }
+
+    private static func isOpenCodeTurnBoundary(_ record: ConversationEventRecord) -> Bool {
+        (record.stopReason == "end_turn" || record.stopReason == "error") &&
+            record.contextWindowSize == nil && record.harnessModelId == nil &&
+            record.tokenInput == 0 && record.tokenOutput == 0 && record.tokenCacheRead == 0 && record.tokenCacheCreation == 0
     }
 }

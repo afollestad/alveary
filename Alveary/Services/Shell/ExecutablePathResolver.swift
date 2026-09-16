@@ -6,6 +6,7 @@ enum ExecutableSearchPath {
     static let defaultFallbackExecutableDirectories = [
         "~/.local/bin",
         "~/.claude/local",
+        "~/.opencode/bin",
         "/opt/homebrew/bin",
         "/usr/local/bin"
     ]

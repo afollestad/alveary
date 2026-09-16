@@ -31,6 +31,7 @@ struct SettingsScreenHeader: View {
                     }
                     .iconActionButtonStyle()
                     .accessibilityLabel(refresh.accessibilityLabel)
+                    .help(refresh.accessibilityLabel)
                 }
             }
 

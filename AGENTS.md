@@ -1,5 +1,6 @@
 ## Keep Guidance Current
 
+- Keep `docs/` focused on durable behavior and usage; omit work tracking, validation histories, and commit hashes.
 - Keep `AGENTS.md` accurate when changes create useful future-agent context; put new rules in the narrowest `AGENTS.md` that covers the affected files.
 - **Default to not writing the bullet.** A rule belongs here only when the code that would violate it is not the code that documents it; mechanism whose only reader is its own file belongs in that file's doc comment instead.
     - Keep what the code cannot show: cross-file couplings, deliberate absences, and prohibitions against reintroducing removed behavior.

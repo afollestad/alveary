@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import Observation
 import SwiftData
@@ -31,6 +32,7 @@ final class ConversationViewModel {
     let resolveSourceFolder: @Sendable (String) async -> SourceFolderSnapshot
     let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     let harnessSetup: HarnessSetupService
+    let harnessDiscovery: (any AgentHarnessDiscoveryService)?
     let contextWindowCache: any ContextWindowCache
     let attachmentStore: any ConversationAttachmentStore
     @ObservationIgnored var readToolApprovalTranscript: ToolApprovalTranscriptReader = readClaudeToolApprovalTranscript
@@ -77,7 +79,7 @@ final class ConversationViewModel {
     }
 
     var harnessCanSteerCurrentTurn: Bool {
-        let harnessId = conversation.harness ?? settingsService.current.defaultHarness
+        let harnessId = capabilityHarnessID
         if harnessId == "codex" {
             return state.turnState.isActive && state.activeRuntimeActivityTurnId != nil
         }
@@ -155,6 +157,7 @@ final class ConversationViewModel {
         taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService = DefaultTaskWorkspaceOwnershipService(),
         harnessSetup: HarnessSetupService,
         contextWindowCache: any ContextWindowCache,
+        harnessDiscovery: (any AgentHarnessDiscoveryService)? = nil,
         attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
         draftMaterializationSaver: (() throws -> Void)? = nil,
@@ -173,6 +176,7 @@ final class ConversationViewModel {
         self.resolveSourceFolder = resolveSourceFolder
         self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
         self.harnessSetup = harnessSetup
+        self.harnessDiscovery = harnessDiscovery
         self.contextWindowCache = contextWindowCache
         self.attachmentStore = attachmentStore
         self.threadActivityRecorder = threadActivityRecorder
@@ -209,7 +213,9 @@ final class ConversationViewModel {
         }
     }
 
-    func answerPrompt(promptId: String, answers: [(question: String, answer: String)]) async throws -> String {
+    func answerPrompt(
+        promptId: String, answers: [(question: String, answer: String)], answerSelections: [[String]]? = nil
+    ) async throws -> String {
         try ensureToolApprovalRestorationFinished()
         let approvalCandidate = latestUnresolvedAskUserQuestionApprovalCandidate(promptId: promptId)
         let promptPendingApproval = pendingApprovalForPromptAnswer(promptId: promptId, approvalCandidate: approvalCandidate)
@@ -241,7 +247,7 @@ final class ConversationViewModel {
                     )
                 }
             } else {
-                try await answerDeferredAskUserQuestion(promptPendingApproval, answers: answers)
+                try await answerDeferredAskUserQuestion(promptPendingApproval, answers: answers, answerSelections: answerSelections)
             }
         } else {
             try await deliverMessageReserved(

@@ -233,7 +233,7 @@ private extension PullRequestReviewTeamEditorSheet {
                 } else {
                     peers[index].harnessID = harnessID
                     peers[index].model = ""
-                    peers[index].effort = AppSettings.defaultEffortLevel
+                    peers[index].effort = viewModel.pullRequestReviewPeerDefaultEffort(harnessID: harnessID, model: "")
                 }
             }
         )
@@ -258,7 +258,7 @@ private extension PullRequestReviewTeamEditorSheet {
 
     func effortBinding(index: Int) -> Binding<String> {
         Binding(
-            get: { peers[index].effort },
+            get: { viewModel.pullRequestReviewPeerEffortSelection(peers[index]) },
             set: { peers[index].effort = $0 }
         )
     }

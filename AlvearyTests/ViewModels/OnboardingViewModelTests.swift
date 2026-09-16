@@ -18,7 +18,7 @@ final class OnboardingViewModelTests: XCTestCase {
 
         XCTAssertTrue(viewModel.isPresented)
         try await waitUntil("all onboarding statuses refresh") {
-            service.statusRequests == [.commandLineTools, .githubCLI, .claude, .codex]
+            service.statusRequests == [.commandLineTools, .githubCLI, .claude, .codex, .opencode]
         }
         XCTAssertFalse(viewModel.canContinue)
     }
@@ -87,7 +87,7 @@ final class OnboardingViewModelTests: XCTestCase {
         try await waitUntil("onboarding reappears after required dependency is confirmed missing") {
             viewModel.isPresented
         }
-        XCTAssertEqual(service.statusRequests, [.commandLineTools, .githubCLI, .claude, .codex])
+        XCTAssertEqual(service.statusRequests, [.commandLineTools, .githubCLI, .claude, .codex, .opencode])
     }
 
     func testCompletedOnboardingDoesNotReappearWhenOnlyOptionalDependenciesAreMissing() async throws {

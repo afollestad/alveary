@@ -93,7 +93,17 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
         try Task.checkCancellation()
 
         let settings = await settingsService.current.normalized()
-        let harnessId = settings.defaultHarness
+        let harnessId = settings.effectiveUtilityHarness
+        guard HarnessFeaturePolicy.supportsReadOnlyOneShotPrompts(harnessID: harnessId) else {
+            throw AgentOneShotPromptError.failed(HarnessFeaturePolicy.unavailableUtilityMessage(harnessID: harnessId))
+        }
+        guard settings.isHarnessEnabled(harnessId) else {
+            throw AgentOneShotPromptError.failed("The selected utility harness is disabled. Enable it or choose another harness in Utility settings.")
+        }
+        let model = Self.normalizedModel(settings.effectiveUtilityModel)
+        guard harnessId != "opencode" || model != nil else {
+            throw AgentOneShotPromptError.failed("Choose an available OpenCode model in Utility settings. Utility prompts require a concrete model.")
+        }
         let normalizedWorkingDirectory = CanonicalPath.normalize(workingDirectory)
 
         try await prepareTrustedProject(
@@ -119,8 +129,9 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
             prompt: Self.promptWithReadOnlyProjectGuidance(prompt),
             arguments: arguments,
             environment: environment,
-            model: Self.normalizedModel(settings.defaultModel),
-            effort: settings.effort,
+            model: model,
+            effort: harnessId == "opencode"
+                ? AppSettings.openCodeNativeEffort(stored: settings.effectiveUtilityEffort) : settings.effectiveUtilityEffort,
             timeout: Self.timeInterval(from: timeout),
             toolPolicy: .readOnly
         )
@@ -210,6 +221,7 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
              .unsupportedToolPolicy,
              .commandLaunchFailed,
              .commandFailed,
+             .cleanupFailed,
              .unavailableModel,
              .malformedOutput,
              .harnessReportedError:

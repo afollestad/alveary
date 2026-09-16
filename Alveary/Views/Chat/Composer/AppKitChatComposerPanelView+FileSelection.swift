@@ -53,13 +53,15 @@ extension AppKitChatComposerPanelView {
         guard configuration?.bodyConfiguration.isVoiceInteractionLocked != true else {
             return
         }
-        let panel = NSOpenPanel()
+        let panel = ComposerAttachmentOpenPanel()
+        panel.allowsPhotoAttachments = configuration?.actionRowConfiguration?.allowsPhotoAttachments != false
+        panel.delegate = panel
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
         panel.resolvesAliases = true
         panel.prompt = "Add"
-        panel.message = "Choose photos or files to add to the message."
+        panel.message = panel.allowsPhotoAttachments ? "Choose photos or files to add to the message." : "Choose files to add to the message."
 
         guard let window else {
             let response = panel.runModal()
@@ -96,6 +98,20 @@ extension AppKitChatComposerPanelView {
             _ = remainingURLs
         }
         editorController.view?.focusEditor()
+    }
+}
+
+/// The native picker excludes image inputs when the selected model cannot accept them while retaining ordinary file references.
+@MainActor
+final class ComposerAttachmentOpenPanel: NSOpenPanel, NSOpenSavePanelDelegate {
+    var allowsPhotoAttachments = true
+
+    func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
+        Self.allowsURL(url, allowsPhotoAttachments: allowsPhotoAttachments)
+    }
+
+    static func allowsURL(_ url: URL, allowsPhotoAttachments: Bool) -> Bool {
+        allowsPhotoAttachments || !DefaultConversationAttachmentStore.isSupportedImageURL(url)
     }
 }
 

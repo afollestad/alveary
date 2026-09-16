@@ -113,6 +113,7 @@ extension ChatItemGrouper {
             guard let text = question["question"] as? String else {
                 return nil
             }
+            let allowsCustomResponse = question["allowCustomResponse"] as? Bool ?? question["custom"] as? Bool ?? true
 
             let options = (question["options"] as? [[String: Any]] ?? []).compactMap { option -> PromptEntry.PromptOption? in
                 guard let label = option["label"] as? String else {
@@ -122,8 +123,8 @@ extension ChatItemGrouper {
                 return PromptEntry.PromptOption(
                     label: label,
                     description: option["description"] as? String ?? "",
-                    isCustomResponse: (option["allowCustomResponse"] as? Bool ?? false)
-                        || label.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare("Other") == .orderedSame
+                    isCustomResponse: allowsCustomResponse && ((option["allowCustomResponse"] as? Bool ?? false)
+                        || label.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare("Other") == .orderedSame)
                 )
             }
 
@@ -132,7 +133,7 @@ extension ChatItemGrouper {
                 header: question["header"] as? String,
                 options: options,
                 multiSelect: question["multiSelect"] as? Bool ?? false,
-                allowsCustomResponse: question["allowCustomResponse"] as? Bool ?? true
+                allowsCustomResponse: allowsCustomResponse
             )
         }
     }

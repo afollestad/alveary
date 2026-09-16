@@ -5,6 +5,68 @@ import XCTest
 @testable import Alveary
 
 final class ScheduledTaskPreflightValidatorTests: XCTestCase {
+    func testOpenCodeSchedulePreservesNativeDefaultAndRejectsUnknownVariant() async {
+        let status = AgentHarnessStatus(
+            harnessId: .opencode, definition: OpenCodeHarnessDefinition.definition,
+            installation: .installed, isEnabled: true, setup: .ready,
+            modelOptions: [.init(harnessId: .opencode, id: "test/model", model: "test/model", label: "Test")]
+        )
+        let validator = makeValidator(loadHarnessStatus: { _, _ in status })
+        let valid = makeSnapshot(harnessID: "opencode", model: "test/model", effort: AppSettings.openCodeDefaultEffort, permissionMode: "ask")
+        let ready = await validator.validate(valid)
+        XCTAssertEqual(ready, .ready(expectedIdentities(for: valid)))
+        let invalid = makeSnapshot(harnessID: "opencode", model: "test/model", effort: "max", permissionMode: "ask")
+        let result = await validator.validate(invalid)
+        guard case .invalid(let reason) = result else { return XCTFail("Expected invalid variant") }
+        XCTAssertTrue(reason.contains("reasoning option max"))
+    }
+
+    @MainActor
+    func testReusedOpenCodeScheduleValidatesWorkspaceModelAndVariantWithoutChangingSourceOwnership() async {
+        let thread = AgentThread(name: "Reused")
+        let reusedTarget = ScheduledTaskReusedTarget(
+            conversationID: "reused", threadName: "Reused", threadID: thread.persistentModelID,
+            harnessDiscoveryDirectory: "/tmp/reused-workspace"
+        )
+        let snapshot = makeSnapshot(
+            harnessID: "opencode", model: "project/model", effort: "project-variant", permissionMode: "ask", reusedTarget: reusedTarget
+        )
+        let validator = makeValidator(loadHarnessStatus: { _, directory in
+            Self.openCodeStatus(in: directory)
+        })
+
+        let outcome = await validator.validate(snapshot)
+
+        XCTAssertEqual(outcome, .ready(expectedIdentities(for: snapshot)))
+        XCTAssertEqual(snapshot.projectPath, "/tmp/project")
+    }
+
+    @MainActor
+    func testReusedOpenCodeWorkspaceReplacementDuringDiscoveryIsRejected() async {
+        let identitySource = PreflightIdentitySource()
+        let thread = AgentThread(name: "Reused")
+        let snapshot = makeSnapshot(
+            harnessID: "opencode", model: "project/model", effort: "project-variant", permissionMode: "ask",
+            reusedTarget: ScheduledTaskReusedTarget(
+                conversationID: "reused", threadName: "Reused", threadID: thread.persistentModelID,
+                harnessDiscoveryDirectory: "/tmp/reused-workspace"
+            )
+        )
+        let validator = makeValidator(
+            loadHarnessStatus: { _, directory in
+                identitySource.replaceDirectories()
+                return Self.openCodeStatus(in: directory)
+            },
+            loadDirectoryIdentity: { path in
+                path == "/tmp/reused-workspace" ? identitySource.identity(at: path) : Self.identity(at: path)
+            }
+        )
+
+        let outcome = await validator.validate(snapshot)
+
+        XCTAssertEqual(outcome, .invalid(reason: "The scheduled task workspace or folder access changed during preflight."))
+    }
+
     func testWorktreeScheduleCanExplicitlyGrantItsSourceCheckout() async {
         let snapshot = makeSnapshot(grantedRoots: ["/tmp/project", "/tmp/grant"])
 
@@ -262,11 +324,13 @@ private extension ScheduledTaskPreflightValidatorTests {
     }
 
     func makeSnapshot(
+        harnessID: String = "claude",
         model: String? = nil,
         effort: String = "high",
         permissionMode: String = "default",
         projectPath: String = "/tmp/project",
-        grantedRoots: [String] = ["/tmp/grant"]
+        grantedRoots: [String] = ["/tmp/grant"],
+        reusedTarget: ScheduledTaskReusedTarget? = nil
     ) -> ScheduledTaskPreflightSnapshot {
         ScheduledTaskPreflightSnapshot(
             definitionID: "definition",
@@ -274,7 +338,7 @@ private extension ScheduledTaskPreflightValidatorTests {
             scheduledOccurrenceAt: Date(timeIntervalSince1970: 1_700_000_000),
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
-            harnessID: "claude",
+            harnessID: harnessID,
             model: model,
             effort: effort,
             permissionMode: permissionMode,
@@ -284,7 +348,8 @@ private extension ScheduledTaskPreflightValidatorTests {
             projectBaseRef: "main",
             projectRemoteName: "upstream",
             grantedRoots: grantedRoots,
-        destination: .newThreadPerRun,
+            destination: reusedTarget == nil ? .newThreadPerRun : .reusedThread,
+            reusedTarget: reusedTarget
         )
     }
 
@@ -297,6 +362,17 @@ private extension ScheduledTaskPreflightValidatorTests {
             isEnabled: true,
             setup: .ready,
             modelOptions: modelOptions
+        )
+    }
+
+    static func openCodeStatus(in directory: URL?) -> AgentHarnessStatus {
+        AgentHarnessStatus(
+            harnessId: .opencode, definition: OpenCodeHarnessDefinition.definition,
+            installation: .installed, isEnabled: true, setup: .ready,
+            modelOptions: directory?.path == "/tmp/reused-workspace" ? [AgentModelOption(
+                harnessId: .opencode, id: "project/model", model: "project/model", label: "Workspace model",
+                supportedEffortOptions: [AgentHarnessOption(value: "project-variant", label: "Workspace variant", description: "")]
+            )] : AgentDefaultModelOptions.staticOptions(for: .opencode)
         )
     }
 

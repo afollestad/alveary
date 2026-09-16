@@ -5,6 +5,41 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskLifecycleCoordinatorTests {
+    func testRecoveryRejectsReusedOpenCodeDirectoryChangedDuringDiscovery() async {
+        let thread = AgentThread(name: "Reused")
+        let originalTarget = ScheduledTaskReusedTarget(
+            conversationID: "reused-main", threadName: "Reused", threadID: thread.persistentModelID,
+            harnessDiscoveryDirectory: "/tmp/reused-workspace"
+        )
+        let changedTarget = ScheduledTaskReusedTarget(
+            conversationID: "reused-main", threadName: "Reused", threadID: thread.persistentModelID,
+            harnessDiscoveryDirectory: "/tmp/replacement-workspace"
+        )
+        let original = recoveryTargetSnapshot(runID: "reused-run", conversationID: "reused-main", reusedTarget: originalTarget)
+        let changed = recoveryTargetSnapshot(runID: "reused-run", conversationID: "reused-main", reusedTarget: changedTarget)
+        var hasChanged = false
+        var recoveredSafeRunIDs = Set<String>()
+        let coordinator = ScheduledTaskLifecycleCoordinator(
+            notificationCenter: NotificationCenter(), now: { Date(timeIntervalSinceReferenceDate: 20_000) }, sleep: { _ in },
+            loadRecoverySnapshots: { [hasChanged ? changed : original] },
+            validateRecoveryReadiness: { _ in
+                hasChanged = true
+                return true
+            },
+            recoverPersistedRuns: { _, safeRunIDs in
+                recoveredSafeRunIDs = safeRunIDs
+                return ScheduledTaskRunRecoveryResult(resumedRunIDs: [], interruptedRunIDs: [])
+            },
+            resumeRecoveredRuns: { _ in 0 }, startDueTasks: { _ in 0 },
+            loadClaimingDefinitionIDs: { [] }, loadNextDeadline: { _, _ in nil }, beginSchedulerShutdown: {},
+            prepareRunsForTermination: { _ in Self.emptyRecoveryTerminationPreparation }
+        )
+
+        await coordinator.activateAfterHarnessRefresh()
+
+        XCTAssertTrue(recoveredSafeRunIDs.isEmpty)
+    }
+
     func testRecoveryReadinessRechecksTargetAfterPreflight() async {
         let state = ScheduledRecoveryReadinessTestState()
         let snapshot = recoveryTargetSnapshot(runID: "target-run", conversationID: "target-main")
@@ -80,7 +115,8 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
     func recoveryTargetSnapshot(
         runID: String,
         conversationID: String,
-        claimedAt: Date = Date(timeIntervalSinceReferenceDate: 900)
+        claimedAt: Date = Date(timeIntervalSinceReferenceDate: 900),
+        reusedTarget: ScheduledTaskReusedTarget? = nil
     ) -> ScheduledTaskRecoveryReadinessSnapshot {
         let workspaceIdentities = ScheduledTaskWorkspaceIdentitySnapshot(projectRoot: nil, grantedRoots: [])
         return ScheduledTaskRecoveryReadinessSnapshot(
@@ -92,7 +128,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
                 scheduledOccurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
                 recurrence: .once(Date(timeIntervalSinceReferenceDate: 1_000)),
                 timeZoneIdentifier: "UTC",
-                harnessID: "codex",
+                harnessID: reusedTarget == nil ? "codex" : "opencode",
                 model: nil,
                 effort: "medium",
                 permissionMode: "on-request",
@@ -102,8 +138,8 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
                 projectBaseRef: nil,
                 projectRemoteName: nil,
                 grantedRoots: [],
-                destination: .existingThread,
-                target: ScheduledTaskTargetSnapshot(
+                destination: reusedTarget == nil ? .existingThread : .reusedThread,
+                target: reusedTarget == nil ? ScheduledTaskTargetSnapshot(
                     conversationID: conversationID,
                     threadName: "Pinned target",
                     harnessID: "codex",
@@ -116,7 +152,8 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
                     workspaceStrategy: .worktree,
                     projectPath: nil,
                     grantedRoots: []
-                )
+                ) : nil,
+                reusedTarget: reusedTarget
             ),
             claimedWorkspaceIdentities: workspaceIdentities
         )

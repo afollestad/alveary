@@ -201,7 +201,9 @@ final class PullRequestAgenticThreadService {
             throw StartError.projectMissing(repository: identifier.nameWithOwner)
         }
         let borrowedSnapshot = borrowed.map { workspaceSnapshot(for: $0, identifier: identifier) }
-        let seed = try await resolvedSeedSettings(settings: settings, kind: kind)
+        let scopedDirectory = kind.needsCheckout && (kind.agentSettings(in: settings).harness ?? settings.defaultHarness) == "opencode"
+            ? borrowed?.primaryRoot ?? resolvedProjectFolder(for: identifier, preferredProjectID: preferredProjectID)?.folder.path : nil
+        let seed = try await resolvedSeedSettings(settings: settings, kind: kind, directory: scopedDirectory)
         try Task.checkCancellation()
         try authorization.validateSource()
         if let existing = try unfinishedReviewStart(kind: kind, identifier: identifier, checkpoint: authorization.checkpoint) {
@@ -318,7 +320,7 @@ final class PullRequestAgenticThreadService {
     /// footer button with nowhere to explain a refusal. `AppSettings` stores a bare id with no
     /// relationship nullifying it, so a removed section — or an id naming a builtin row, which
     /// `Pinned` and `Projects` must never accept — is the ordinary case rather than a corruption;
-    /// it degrades to `Tasks` like every other seed setting here.
+    /// it degrades to `Tasks` without changing the selected agent.
     ///
     /// Never `.project`: a `.review` thread is project-less by design, and an `.addressFeedback`
     /// thread carries its checkout in the workspace descriptor, so both stay projectless — which
@@ -350,110 +352,63 @@ final class PullRequestAgenticThreadService {
         return try? await pullRequestsService.fetchDetail(identifier)
     }
 
-    private func resolvedSeedSettings(settings: AppSettings, kind: Kind) async throws -> SeedSettings {
-        let resolution = await resolvedThreadDefaults(settings: settings)
+    private func resolvedSeedSettings(settings: AppSettings, kind: Kind, directory: String?) async throws -> SeedSettings {
+        let scopedStatuses: [AgentHarnessID: AgentHarnessStatus]?
+        if let directory {
+            scopedStatuses = await harnessDiscovery?.harnessStatuses(projectURL: URL(fileURLWithPath: directory, isDirectory: true))
+        } else {
+            scopedStatuses = nil
+        }
+        let resolution: ThreadDefaultResolution
+        if let scopedStatuses {
+            resolution = ThreadDefaultResolver.resolve(
+                settings: settings, harnessOrdering: AppSettings.supportedHarnessIDs,
+                harnessStatuses: Dictionary(uniqueKeysWithValues: scopedStatuses.map { ($0.key.rawValue, $0.value) })
+            )
+        } else {
+            resolution = await resolvedThreadDefaults(settings: settings)
+        }
         let harness = try resolvedHarness(agent: kind.agentSettings(in: settings), resolution: resolution)
-        let options = await modelOptions(for: harness, resolution: resolution)
-        return Self.resolveSeedSettings(
+        let options: [AgentModelOption]
+        if let scopedStatuses {
+            options = scopedStatuses[.opencode]?.modelOptions ?? []
+        } else {
+            options = await modelOptions(for: harness, resolution: resolution)
+        }
+        let seed = Self.resolveSeedSettings(
             settings: settings,
             resolution: resolution,
             harness: harness,
             modelOptions: options,
             kind: kind
         )
-    }
-
-    /// Degrade, never fail. A model, effort, or permission mode the harness stopped offering falls back to what a
-    /// typed thread would get, because refusing to start would leave the user with an error and no
-    /// way to see why from the footer. Only "nothing can run at all" is an error, and that is
-    /// caught before this runs.
-    static func resolveSeedSettings(
-        settings: AppSettings,
-        resolution: ThreadDefaultResolution,
-        harness: String,
-        modelOptions: [AgentModelOption],
-        kind: Kind = .review
-    ) -> SeedSettings {
-        let agent = kind.agentSettings(in: settings)
-        let inheritsResolution = harness == resolution.harnessID
-        let model = resolvedModel(
-            agent: agent,
-            resolution: resolution,
-            options: modelOptions,
-            inheritsResolution: inheritsResolution
-        )
-        let effort = resolvedEffort(
-            agent: agent,
-            resolution: resolution,
-            options: modelOptions,
-            model: model,
-            inheritsResolution: inheritsResolution
-        )
-        let permissionMode = resolvedPermissionMode(
-            agent: agent,
-            resolution: resolution,
-            harness: harness,
-            inheritsResolution: inheritsResolution
-        )
-        return SeedSettings(harness: harness, model: model, effort: effort, permissionMode: permissionMode)
-    }
-
-    private static func resolvedPermissionMode(
-        agent: PullRequestAgentSettings,
-        resolution: ThreadDefaultResolution,
-        harness: String,
-        inheritsResolution: Bool
-    ) -> String {
-        if let requested = agent.permissionMode,
-           AppSettings.supportedPermissionModes(forHarness: harness).contains(requested) {
-            return requested
+        if harness == "opencode" {
+            let status: AgentHarnessStatus?
+            if let scopedStatuses {
+                status = scopedStatuses[.opencode]
+            } else {
+                status = await harnessDiscovery?.harnessStatuses(projectURL: nil)[.opencode]
+            }
+            guard let status, ThreadDefaultResolver.isReadyHarness(harnessID: harness, settings: settings, status: status) else {
+                throw AgentError.spawnFailed("OpenCode is not ready. Check Harnesses settings before starting this task.")
+            }
+            try HarnessRequestValidation.validateOpenCodeModel(
+                model: seed.model, effort: AppSettings.openCodeNativeEffort(stored: seed.effort), hasImages: false, status: status
+            )
         }
-        return inheritsResolution ? resolution.permissionMode : AppSettings.defaultPermissionMode(forHarness: harness)
+        return seed
     }
 
-    private static func resolvedModel(
-        agent: PullRequestAgentSettings,
-        resolution: ThreadDefaultResolution,
-        options: [AgentModelOption],
-        inheritsResolution: Bool
-    ) -> String? {
-        let inherited = inheritsResolution ? resolution.storedThreadModel : nil
-        guard let requested = agent.model,
-              let option = AgentModelOptionSelection.option(in: options, matching: requested) else {
-            return inherited
-        }
-        let stored = AgentModelOptionSelection.storedModelValue(for: option)
-        return stored == AppSettings.defaultModelValue ? nil : stored
-    }
-
-    private static func resolvedEffort(
-        agent: PullRequestAgentSettings,
-        resolution: ThreadDefaultResolution,
-        options: [AgentModelOption],
-        model: String?,
-        inheritsResolution: Bool
-    ) -> String {
-        let inherited = inheritsResolution ? resolution.effort : AppSettings.defaultEffortLevel
-        guard let requested = agent.effort else {
-            return AgentModelOptionSelection.normalizedEffort(inherited, options: options, selectedModel: model)
-        }
-        // An empty supported list means the harness reports no effort catalog, which is not the
-        // same as rejecting the value.
-        let supported = AgentModelOptionSelection.effortOptions(in: options, selectedModel: model)
-        guard supported.isEmpty || supported.contains(where: { $0.value == requested }) else {
-            return AgentModelOptionSelection.normalizedEffort(inherited, options: options, selectedModel: model)
-        }
-        return requested
-    }
-
-    /// The pinned harness only applies while it is actually ready; otherwise the thread follows
-    /// the Threads defaults, like every other setting here.
+    /// Legacy harness pins fall back to Threads defaults; OpenCode selections must be explicitly changed when unavailable.
     private func resolvedHarness(agent: PullRequestAgentSettings, resolution: ThreadDefaultResolution) throws -> String {
+        if agent.harness == "opencode", !resolution.readyHarnessIDs.contains("opencode") {
+            throw AgentError.spawnFailed("OpenCode is not ready. Check Harnesses settings before starting this task.")
+        }
         if let requested = agent.harness,
            resolution.readyHarnessIDs.contains(requested) {
             return requested
         }
-        guard let harnessID = resolution.harnessID else {
+        guard let harnessID = resolution.harnessID, resolution.hasReadyHarness else {
             throw StartError.noReadyHarness
         }
         return harnessID

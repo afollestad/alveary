@@ -209,6 +209,13 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executableURL.path)
         let argumentsURL = directory.appendingPathComponent("arguments.txt")
         let registry = PullRequestReviewWorkerProcessRegistry()
+        var environment = environment
+        if harnessID == "opencode" {
+            for key in ["HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "OPENCODE_CONFIG_DIR"] { environment[key] = directory.path }
+            environment["OPENCODE_CONFIG"] = ""
+            environment["OPENCODE_CONFIG_CONTENT"] = "{}"
+            environment["OPENCODE_AUTH_CONTENT"] = "{}"
+        }
         let executor = DefaultPullRequestReviewWorkerExecutor(
             environmentBuilder: ReviewWorkerTestEnvironmentBuilder(values: environment),
             processRegistry: registry,
@@ -227,8 +234,8 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
             id: "reviewer-\(harnessID)",
             harnessID: harnessID,
             modelOptionID: "model-option",
-            launchModel: harnessID == "codex" ? "gpt-test" : "claude-test",
-            effort: "medium",
+            launchModel: harnessID == "opencode" ? "provider/model" : harnessID == "codex" ? "gpt-test" : "claude-test",
+            effort: harnessID == "opencode" ? AppSettings.openCodeDefaultEffort : "medium",
             executablePath: executableURL.path
         )
         return Fixture(
@@ -263,7 +270,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         }
     }
 
-    private func waitForFile(at url: URL) async throws {
+    func waitForFile(at url: URL) async throws {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: .seconds(2))
         while !FileManager.default.fileExists(atPath: url.path) {

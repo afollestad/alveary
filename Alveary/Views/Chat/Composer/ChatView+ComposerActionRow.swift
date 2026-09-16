@@ -21,6 +21,7 @@ extension ChatView {
             isPlanModeEnabled: selectedPlanModeBinding.wrappedValue,
             isPlanModeToggleEnabled: isPlanModeToggleEnabled,
             planModeDisabledTooltip: planModeToggleDisabledTooltip,
+            showsGoalMode: composerCapabilities.supportsGoalMode,
             isGoalModeArmed: viewModel.state.isGoalModeArmed,
             isGoalModeToggleEnabled: isGoalModeToggleEnabled,
             goalModeDisabledTooltip: goalModeToggleDisabledTooltip,
@@ -50,6 +51,7 @@ extension ChatView {
             },
             onSubmit: { submitDraftFromComposer(presentation: presentation) },
             onStop: stopActiveWork,
+            allowsPhotoAttachments: reasoningConfiguration.selection.harnessID != "opencode" || composerCapabilities.supportsLocalImageInput,
             appShotAttachment: composerAppShotAttachment,
             // Only raises the trigger; the app root observes it and owns capture routing.
             onAttachAppShot: { appShotCoordinator?.requestCapture() }

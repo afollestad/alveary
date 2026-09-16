@@ -121,7 +121,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         guard let selection else {
             return 0
         }
-        let modelWidth = textWidth(selection.modelTitle, attributes: [.font: modelFont])
+        let modelWidth = textWidth(selection.compactModelTitle, attributes: [.font: modelFont])
         let trailingWidth = max(Self.progressIndicatorSize, chevronDrawingWidth)
         let trailingSpacing = Self.caretTextSpacing + trailingWidth
         guard !selection.effortOptions.isEmpty else {
@@ -189,7 +189,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
             return
         }
         modelLabel.isHidden = false
-        modelLabel.stringValue = selection.modelTitle
+        modelLabel.stringValue = selection.compactModelTitle
         modelLabel.textColor = NSColor.labelColor.appKitResolvedColor(in: self, alpha: reasoningTextAlpha)
         effortLabel.isHidden = selection.effortOptions.isEmpty
         effortLabel.stringValue = selection.effortTitle
@@ -216,12 +216,12 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         let effortSpacing = selection.effortOptions.isEmpty ? 0 : Self.modelEffortSpacing
         let fixedTrailingWidth = naturalEffortWidth + effortSpacing + Self.caretTextSpacing + trailingWidth
         let modelMaxWidth = max(0, contentRect.maxX - modelStartX - fixedTrailingWidth)
-        let displayedModelTitle = displayedModelTitle(for: selection.modelTitle, maxWidth: modelMaxWidth)
+        let displayedModelTitle = displayedModelTitle(for: selection.compactModelTitle, maxWidth: modelMaxWidth)
         let modelWidth = textWidth(displayedModelTitle, attributes: [.font: modelFont])
         var nextX = modelStartX
 
         modelLabel.stringValue = displayedModelTitle
-        isModelTitleTruncated = displayedModelTitle != selection.modelTitle
+        isModelTitleTruncated = displayedModelTitle != selection.compactModelTitle
         modelLabel.frame = centeredFrame(
             originX: nextX,
             width: modelWidth,

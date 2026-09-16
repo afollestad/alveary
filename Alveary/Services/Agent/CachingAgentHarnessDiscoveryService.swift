@@ -8,16 +8,15 @@ import Foundation
 /// session — and nothing cached the result, so creating a thread paid the whole fan-out before
 /// its row could exist.
 ///
-/// Only the `projectURL == nil` shape is cached, which is what `ThreadDefaultResolver` asks for.
-/// A project-scoped read carries that project's trust state and must never be served stale, and
-/// the two filtered accessors have no callers here, so all of them pass straight through.
+/// Only global metadata is cached. A project-aware decorator can reuse that metadata while
+/// refreshing trust and applying its own catalog scope; other project reads pass through.
 ///
-/// `timeToLive` bounds *staleness*, not latency: an aged snapshot is returned on the caller's own
+/// For global UI reads, `timeToLive` bounds *staleness*, not latency: an aged snapshot is returned on the caller's own
 /// cycle and refreshed behind the answer. A TTL that instead made the read block turned every New
 /// Thread click past the session's first minute back into the full fan-out, with no UI feedback
 /// because selection only moves once `SidebarViewModel.openDraftThread` returns. The one read that
 /// still blocks is the first after launch or after `invalidate()`, which is what the `warm()` call
-/// sites front-run.
+/// sites front-run. Project reads wait for fresh global metadata because they also gate execution.
 ///
 /// Status snapshots retain harness enablement alongside installation, setup readiness, and model catalogs.
 /// `ThreadDefaultResolver` checks current `AppSettings`; strict review-team resolution refreshes the snapshot
@@ -33,6 +32,8 @@ actor CachingAgentHarnessDiscoveryService: AgentHarnessDiscoveryService {
     /// Every caller waiting on a probe shares this one; without it a burst of thread creations
     /// each spawns the full subprocess fan-out.
     private var inFlight: Task<[AgentHarnessID: AgentHarnessStatus], Never>?
+    /// Probes must wait until configuration-dependent caches are cleared, including during actor hops.
+    private var scopedInvalidation: Task<Void, Never>?
     /// Bumped when a probe is disowned so its late answer cannot replace a newer snapshot or clear its task.
     private var generation = 0
 
@@ -47,7 +48,15 @@ actor CachingAgentHarnessDiscoveryService: AgentHarnessDiscoveryService {
     }
 
     func harnessStatuses(projectURL: URL?) async -> [AgentHarnessID: AgentHarnessStatus] {
-        guard projectURL == nil else {
+        if let projectURL {
+            if let scoped = base as? any AgentHarnessProjectScopeApplying {
+                while true {
+                    let readGeneration = generation
+                    let statuses = await freshGlobalStatuses()
+                    let result = await scoped.applyingProjectScope(to: statuses, projectURL: projectURL)
+                    if generation == readGeneration { return result }
+                }
+            }
             return await base.harnessStatuses(projectURL: projectURL)
         }
         guard let snapshot else {
@@ -63,11 +72,11 @@ actor CachingAgentHarnessDiscoveryService: AgentHarnessDiscoveryService {
     }
 
     func installedHarnessStatuses(projectURL: URL?) async -> [AgentHarnessID: AgentHarnessStatus] {
-        await base.installedHarnessStatuses(projectURL: projectURL)
+        await harnessStatuses(projectURL: projectURL).filter { $0.value.isInstalled }
     }
 
     func availableHarnessStatuses(projectURL: URL?) async -> [AgentHarnessID: AgentHarnessStatus] {
-        await base.availableHarnessStatuses(projectURL: projectURL)
+        await harnessStatuses(projectURL: projectURL).filter { $0.value.isEnabled && $0.value.installation != .missing }
     }
 
     func modelOptions(for harnessId: AgentHarnessID) async -> [AgentModelOption] {
@@ -79,10 +88,11 @@ actor CachingAgentHarnessDiscoveryService: AgentHarnessDiscoveryService {
     }
 
     /// Drops the cache and disowns any probe already running, so the next read re-probes.
-    func invalidate() {
+    func invalidate() async {
         snapshot = nil
         inFlight = nil
         generation &+= 1
+        await beginScopedInvalidation().value
     }
 
     /// Explicit repair must escape a stalled shared probe without making ordinary reads lose their last answer.
@@ -91,6 +101,7 @@ actor CachingAgentHarnessDiscoveryService: AgentHarnessDiscoveryService {
         inFlight = nil
         generation &+= 1
         superseded?.cancel()
+        _ = beginScopedInvalidation()
         var awaitedGeneration = generation
         _ = await probe().value
         // Another window may supersede this refresh. Join its probe instead of letting this caller
@@ -102,12 +113,29 @@ actor CachingAgentHarnessDiscoveryService: AgentHarnessDiscoveryService {
         }
     }
 
-    /// Blocks until the snapshot is fresh, unlike `harnessStatuses(projectURL:)`, which never
-    /// waits once it has any snapshot at all. Launch, wake, and each opened pull request call this
+    /// Blocks until the snapshot is fresh, unlike global `harnessStatuses(projectURL: nil)` reads, which never
+    /// wait once they have any snapshot at all. Launch, wake, and each opened pull request call this
     /// so the session's one genuinely blocking read happens off the click path.
     func warm() async {
         guard !isSnapshotFresh else { return }
         _ = await probe().value
+    }
+
+    /// Project reads gate execution as well as presentation: expired metadata must finish refreshing,
+    /// and an explicit repair already in progress must finish before its old snapshot is reused.
+    private func freshGlobalStatuses() async -> [AgentHarnessID: AgentHarnessStatus] {
+        while true {
+            let readGeneration = generation
+            let statuses: [AgentHarnessID: AgentHarnessStatus]
+            if let inFlight {
+                statuses = await inFlight.value
+            } else if isSnapshotFresh, let snapshot {
+                return snapshot.statuses
+            } else {
+                statuses = await probe().value
+            }
+            if generation == readGeneration { return statuses }
+        }
     }
 
     /// Returns the shared probe, starting one when none is running.
@@ -121,12 +149,23 @@ actor CachingAgentHarnessDiscoveryService: AgentHarnessDiscoveryService {
             return inFlight
         }
         let startedAt = generation
-        let task = Task { [self] in
+        let task = Task { [self, scopedInvalidation] in
+            await scopedInvalidation?.value
             let statuses = await base.harnessStatuses(projectURL: nil)
             store(statuses, generation: startedAt)
             return statuses
         }
         inFlight = task
+        return task
+    }
+
+    /// Publish the fence before yielding, so project reads cannot bypass an explicit repair's actor hop.
+    private func beginScopedInvalidation() -> Task<Void, Never> {
+        let task = Task { [base, scopedInvalidation] in
+            await scopedInvalidation?.value
+            await (base as? any AgentHarnessDiscoveryCacheInvalidating)?.invalidateDiscoveryCaches()
+        }
+        scopedInvalidation = task
         return task
     }
 

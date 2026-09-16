@@ -37,6 +37,11 @@ extension ConversationViewModel {
             in: orderedEvents[bounds.lowerBound..<bounds.upperBound],
             completedToolIds: completedToolIds
         )
+        // Only Claude hooks can approve a future tool call by tool ID. Native request/response
+        // harnesses use separate interaction IDs, so fabricating a sibling would resolve the wrong request.
+        guard capabilityHarnessID == "claude" else {
+            return relatedApprovals
+        }
         relatedApprovals.append(contentsOf: relatedApprovalToolCalls(
             for: approval,
             in: orderedEvents[bounds.lowerBound..<bounds.upperBound],

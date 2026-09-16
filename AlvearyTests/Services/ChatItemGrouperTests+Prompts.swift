@@ -194,6 +194,18 @@ extension ChatItemGrouperTests {
         XCTAssertFalse(questions.first?.renderedOptions.contains(where: { $0.isCustomResponse }) ?? true)
     }
 
+    func testOpenCodeClosedQuestionKeepsOtherAsALiteralChoice() throws {
+        let grouper = ChatItemGrouper()
+        let questions = grouper.parseAskUserQuestionInput(
+            #"{"questions":[{"question":"Choose","custom":false,"multiSelect":true,"options":[{"label":"A"},{"label":"Other"}]}]}"#
+        )
+        let question = try XCTUnwrap(questions.first)
+        XCTAssertFalse(question.allowsCustomResponse)
+        XCTAssertTrue(question.multiSelect)
+        XCTAssertEqual(question.renderedOptions.map(\.label), ["A", "Other"])
+        XCTAssertFalse(question.renderedOptions.contains(where: \.isCustomResponse))
+    }
+
     func testReplayedAnsweredPromptWithSameToolIdDoesNotAppendDuplicateBlock() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"

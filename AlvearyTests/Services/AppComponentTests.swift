@@ -179,10 +179,12 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.agentCLIKitInteractionStore, component.agentCLIKitInteractionStore)
         assertSameInstance(component.agentCLIKitApprovalPolicyStore, component.agentCLIKitApprovalPolicyStore)
         assertSameInstance(component.agentCLIKitClaudeApprovalPolicyStore, component.agentCLIKitClaudeApprovalPolicyStore)
-        XCTAssertEqual(component.agentCLIKitHarnessAdapterSet.definitions.map(\.id.rawValue), ["claude", "codex"])
+        XCTAssertEqual(component.agentCLIKitHarnessAdapterSet.definitions.map(\.id.rawValue), ["claude", "codex", "opencode"])
         _ = component.agentCLIKitOneShotPromptRunner
         assertSameInstance(component.agentCLIKitClaudeConfigStore, component.agentCLIKitClaudeConfigStore)
         assertSameInstance(component.agentCLIKitCodexConfigStore, component.agentCLIKitCodexConfigStore)
+        assertSameInstance(component.agentCLIKitOpenCodeConfigStore, component.agentCLIKitOpenCodeConfigStore)
+        assertSameInstance(component.agentCLIKitOpenCodeDiscoveryProbe, component.agentCLIKitOpenCodeDiscoveryProbe)
         assertSameInstance(component.agentCLIKitHarnessRegistry, component.agentCLIKitHarnessRegistry)
         _ = component.agentCLIKitProjectTrustService
         _ = component.agentCLIKitHarnessDiscoveryService

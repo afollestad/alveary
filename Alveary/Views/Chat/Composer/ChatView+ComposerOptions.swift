@@ -49,7 +49,8 @@ extension ChatView {
     }
 
     var passthroughSlashCommands: [ComposerPassthroughSlashCommand] {
-        guard harnessID == "claude",
+        guard composerCapabilities.supportsContextCompaction,
+              harnessID == "claude" || harnessID == "opencode",
               !viewModel.state.hasActiveSessionHandoff else {
             return []
         }
@@ -58,9 +59,9 @@ extension ChatView {
             ComposerPassthroughSlashCommand(
                 command: "compact",
                 subtitle: "Compact context",
-                detailText: "Claude",
-                uri: "alveary://harness-commands/claude/compact",
-                argumentHint: "Optional compact instructions"
+                detailText: harnessID == "opencode" ? "OpenCode" : "Claude",
+                uri: "alveary://harness-commands/\(harnessID)/compact",
+                argumentHint: harnessID == "claude" ? "Optional compact instructions" : nil
             )
         ]
     }
@@ -96,7 +97,8 @@ extension ChatView {
 
     /// The app the composer `+` menu offers to attach, or `nil` when nothing can be captured.
     var composerAppShotAttachment: ChatComposerActionRowView.AppShotAttachmentOption? {
-        appShotCoordinator?.attachableApp.map { .init(appName: $0.appName, icon: $0.icon) }
+        guard composerCapabilities.supportsAppShots else { return nil }
+        return appShotCoordinator?.attachableApp.map { .init(appName: $0.appName, icon: $0.icon) }
     }
 
     var isGoalModeChipVisible: Bool {

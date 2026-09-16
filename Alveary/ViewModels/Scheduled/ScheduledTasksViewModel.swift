@@ -31,6 +31,7 @@ final class ScheduledTasksViewModel {
     private(set) var existingThreadTargets: [ScheduledTaskThreadOption] = []
     private(set) var sectionOptions: [ScheduledTaskSectionOption] = []
     var harnessStatuses: [String: AgentCLIKit.AgentHarnessStatus] = [:]
+    var openCodeEditorCatalogs: [String: ScheduledTaskOpenCodeCatalog] = [:]
     var harnessOrdering: [String] = []
     var isLoadingHarnesses = false
     var pendingRunNowDefinitionIDs = Set<String>()

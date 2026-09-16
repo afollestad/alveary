@@ -8,6 +8,80 @@ private typealias AppOneShotPromptError = Alveary.AgentOneShotPromptError
 
 @MainActor
 final class AgentOneShotPromptServiceTests: XCTestCase {
+    func testOpenCodeDefaultModelFailsBeforeTrustOrLaunch() async {
+        var settings = AppSettings()
+        settings.defaultHarness = "opencode"
+        let fixture = await makeFixture(settings: settings)
+        do {
+            _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
+            XCTFail("Expected a concrete utility model")
+        } catch AppOneShotPromptError.failed(let message) {
+            XCTAssertTrue(message.contains("require a concrete model"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        let requests = await fixture.runner.requests()
+        let setup = await fixture.harnessSetup.calls()
+        let detection = await fixture.harnessDetection.checkCalls()
+        XCTAssertTrue(requests.isEmpty)
+        XCTAssertTrue(setup.isEmpty)
+        XCTAssertTrue(detection.isEmpty)
+    }
+
+    func testOpenCodeUtilityPreservesExactModelAndNativeVariant() async throws {
+        for variant in [nil, " native "] as [String?] {
+            var settings = AppSettings()
+            settings.utilityHarness = "opencode"
+            settings.utilityModel = "provider/model"
+            settings.utilityEffort = variant.map(AppSettings.openCodeStoredEffort)
+            let fixture = await makeFixture(settings: settings)
+
+            _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
+
+            let requests = await fixture.runner.requests()
+            let request = try XCTUnwrap(requests.first)
+            XCTAssertEqual(request.harnessId, .opencode)
+            XCTAssertEqual(request.model, "provider/model")
+            XCTAssertEqual(request.effort, variant)
+            XCTAssertEqual(request.toolPolicy, .readOnly)
+            await assertNoRuntimeCalls(fixture.agentsManager)
+        }
+    }
+
+    func testDisabledUtilityPinFailsBeforeTrustOrLaunch() async {
+        var settings = AppSettings()
+        settings.utilityHarness = "codex"
+        settings.setHarness("codex", enabled: false)
+        let fixture = await makeFixture(settings: settings)
+        do {
+            _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
+            XCTFail("Expected disabled utility harness")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("disabled"))
+        }
+        let requests = await fixture.runner.requests()
+        let setup = await fixture.harnessSetup.calls()
+        XCTAssertTrue(requests.isEmpty)
+        XCTAssertTrue(setup.isEmpty)
+    }
+
+    func testExplicitUtilityPinWorksWithOpenCodeThreadDefault() async throws {
+        var settings = AppSettings()
+        settings.defaultHarness = "opencode"
+        settings.defaultModel = "provider/text"
+        settings.effort = "native-variant"
+        settings.utilityHarness = "claude"
+        settings.utilityModel = "sonnet"
+        settings.utilityEffort = "high"
+        let fixture = await makeFixture(settings: settings)
+        _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
+        let requests = await fixture.runner.requests()
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.harnessId, .claude)
+        XCTAssertEqual(request.model, "sonnet")
+        XCTAssertEqual(request.effort, "high")
+    }
+
     func testGenerateRunsHarnessSpecificOneShotWithoutRuntimeCalls() async throws {
         var settings = AppSettings()
         settings.harnessConfigs["claude"] = HarnessCustomConfig(extraArgs: "--append-system-prompt 'Use terse output'")

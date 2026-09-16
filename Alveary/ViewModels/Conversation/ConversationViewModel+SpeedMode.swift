@@ -1,6 +1,15 @@
 import Foundation
 
 extension ConversationViewModel {
+    func pendingSpeedModeForDisplay() -> AgentSpeedMode? {
+        state.pendingSessionSettingsChange?.pending.speedMode
+    }
+
+    func displayedSpeedModeSetting(for dbThread: AgentThread) -> AgentSpeedMode {
+        state.pendingSessionSettingsChange?.pending.speedMode
+            ?? dbThread.normalizedSpeedMode
+    }
+
     @discardableResult
     func applySpeedModeChange(_ newValue: AgentSpeedMode, supportsSpeedMode: Bool = true) -> Task<Void, Never> {
         guard canApplySettingsChange,
@@ -8,7 +17,7 @@ extension ConversationViewModel {
             return Task {}
         }
 
-        guard newValue != .fast || supportsSpeedMode else {
+        guard newValue != .fast || (supportsSpeedMode && declaredHarnessFeatures.harnessID != "opencode") else {
             state.lastTurnError = "Fast mode is not supported by this harness."
             return Task {}
         }
@@ -64,6 +73,7 @@ extension ConversationViewModel {
     }
 
     func normalizeUnsupportedSpeedModeIfNeeded(supportsSpeedMode: Bool) {
+        guard capabilityHarnessID != "opencode" else { return }
         guard !supportsSpeedMode,
               canApplySettingsChange,
               let dbThread = dbThread(),

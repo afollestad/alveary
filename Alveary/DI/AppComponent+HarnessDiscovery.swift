@@ -18,22 +18,35 @@ extension AppComponent {
                 featureSupportChecker: AgentCLIKit.DefaultCodexFeatureSupportChecker(shellRunner: runner),
                 executableResolver: resolver
             )
-            return AgentCLIKit.DefaultAgentHarnessDiscoveryService(
+            let base = AgentCLIKit.DefaultAgentHarnessDiscoveryService(
                 harnessRegistry: agentCLIKitHarnessRegistry,
                 executableDetector: detector,
                 projectTrustService: agentCLIKitProjectTrustService,
                 harnessSetups: [
                     discoveryClaudeHarnessSetup(runner: runner, resolver: resolver),
-                    agentCLIKitCodexHarnessSetup
+                    agentCLIKitCodexHarnessSetup,
+                    agentCLIKitOpenCodeHarnessSetup
                 ],
                 enablementSource: SettingsAgentHarnessEnablementSource(settingsService: settingsService),
                 modelOptionSource: AgentCLIKit.DefaultAgentModelOptionSource(
-                    codexSource: AgentCLIKit.CodexAppServerModelOptionSource(configuration: configuration)
+                    codexSource: AgentCLIKit.CodexAppServerModelOptionSource(configuration: configuration),
+                    openCodeSource: AgentCLIKit.OpenCodeModelOptionSource(probe: agentCLIKitOpenCodeDiscoveryProbe)
                 ),
                 capabilitySource: AgentCLIKit.DefaultAgentHarnessCapabilitySource(
                     codexSource: AgentCLIKit.CodexHarnessCapabilitySource(configuration: configuration)
                 )
             )
+            let environment = ["PATH": ExecutableSearchPath.augmentedPath(ProcessInfo.processInfo.environment["PATH"])]
+            return ProjectScopedOpenCodeDiscoveryService(base: base, projectTrustService: agentCLIKitProjectTrustService) { directory in
+                let probe = AgentCLIKit.OpenCodeDiscoveryProbe(
+                    configuration: AgentCLIKit.OpenCodeServerConfiguration(
+                        executablePath: "/usr/bin/env", workingDirectory: directory,
+                        environment: environment, startupTimeout: 5, requestTimeout: 5, shutdownTimeout: 1
+                    ),
+                    executableResolver: resolver
+                )
+                return await probe.refresh()
+            }
         }
     }
 

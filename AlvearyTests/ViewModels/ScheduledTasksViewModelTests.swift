@@ -1,3 +1,4 @@
+import AgentCLIKit
 import SwiftData
 import XCTest
 
@@ -402,10 +403,10 @@ final class ScheduledTasksViewModelFixture {
     let settingsService = InMemorySettingsService()
     let mutationService: ScheduledTaskMutationService
     let viewModel: ScheduledTasksViewModel
-
     init(
         runNow: @escaping @MainActor (ScheduledTaskRunNowRequest) -> Bool = { _ in true },
         currentTimeZone: TimeZone = TimeZone(identifier: "America/Chicago") ?? .current,
+        harnessDiscovery: (any AgentCLIKit.AgentHarnessDiscoveryService)? = nil,
         configureSettings: ((inout AppSettings) -> Void)? = nil
     ) throws {
         self.currentTimeZone = currentTimeZone
@@ -431,6 +432,7 @@ final class ScheduledTasksViewModelFixture {
         viewModel = ScheduledTasksViewModel(
             modelContext: context,
             mutationService: mutationService,
+            harnessDiscovery: harnessDiscovery,
             settingsService: settingsService,
             notificationCenter: notificationCenter,
             runNow: runNow,

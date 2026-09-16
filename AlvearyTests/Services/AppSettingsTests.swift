@@ -363,7 +363,7 @@ final class AppSettingsTests: XCTestCase {
 
     func testNormalizedKeepsAtLeastOneHarnessEnabled() {
         var settings = AppSettings()
-        settings.disabledHarnessIDs = ["claude", "codex", "unknown"]
+        settings.disabledHarnessIDs = ["claude", "codex", "opencode", "unknown"]
 
         let normalized = settings.normalized()
 

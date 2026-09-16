@@ -5,6 +5,19 @@ import XCTest
 @testable import Alveary
 
 final class AgentHarnessDiscoveryShellRunnerTests: XCTestCase {
+    func testSDKCommandsCanRequireEnvironmentReplacement() async throws {
+        let shell = DiscoveryRecordingShellRunner()
+        let command = AgentCLIKit.ShellCommand(
+            executable: "/test/provider", environment: ["HOME": "/isolated"], inheritsEnvironment: false,
+            standardInput: "Read-only prompt"
+        )
+        _ = try await AgentHarnessDiscoveryShellRunner(shellRunner: shell).run(command)
+        _ = try await AgentCLIKitShellRunnerAdapter(shellRunner: shell).run(command)
+        let calls = await shell.calls
+        XCTAssertEqual(calls.map(\.options.environmentPolicy), [.replace, .replace])
+        XCTAssertEqual(calls.last?.options.standardInput, .text("Read-only prompt"))
+    }
+
     func testDiscoveryBoundsCommandsWithoutChangingTheGeneralSDKRunner() async throws {
         let shell = DiscoveryRecordingShellRunner()
         let command = AgentCLIKit.ShellCommand(

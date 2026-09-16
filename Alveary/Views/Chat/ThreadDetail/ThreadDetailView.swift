@@ -297,7 +297,9 @@ private extension ThreadDetailView {
 
     #if DEBUG
     func rawTranscriptWindowRequest(for conversation: Conversation?) -> RawTranscriptWindowRequestKey.Value? {
-        guard let conversation, let liveThread else {
+        guard let conversation, let liveThread,
+              let harnessID = conversation.harnessSessionHarnessId ?? conversation.harness,
+              HarnessFeaturePolicy.supportsRawTranscriptLog(harnessID: harnessID) else {
             return nil
         }
 
@@ -340,8 +342,9 @@ private extension ThreadDetailView {
         }
 
         let existingConversations = conversations
+        let sourceConversation = existingConversations.first(where: { $0.isMain }) ?? existingConversations.first
         let conversation = Conversation(
-            harness: existingConversations.first(where: { $0.isMain })?.harness ?? existingConversations.first?.harness,
+            harness: sourceConversation?.harness ?? sourceConversation?.harnessSessionHarnessId,
             isMain: false,
             displayOrder: (existingConversations.map(\.displayOrder).max() ?? -1) + 1,
             thread: dbThread

@@ -59,6 +59,7 @@ extension ContentView {
             settingsService: dependencies.settingsService,
             runtimeStore: dependencies.runtimeStore,
             attachmentStore: dependencies.attachmentStore,
+            harnessDiscovery: dependencies.harnessDiscovery,
             isVoiceInputLocked: {
                 dependencies.voiceInputLifecycleController.isComposerInteractionLocked
             },

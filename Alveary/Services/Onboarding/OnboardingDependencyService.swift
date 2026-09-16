@@ -6,6 +6,7 @@ enum OnboardingDependency: String, CaseIterable, Identifiable, Sendable, Equatab
     case githubCLI
     case claude
     case codex
+    case opencode
 
     static var requiredCases: [OnboardingDependency] {
         allCases.filter(\.required)
@@ -23,6 +24,8 @@ enum OnboardingDependency: String, CaseIterable, Identifiable, Sendable, Equatab
             return "Claude Code"
         case .codex:
             return "Codex"
+        case .opencode:
+            return "OpenCode"
         }
     }
 
@@ -30,7 +33,7 @@ enum OnboardingDependency: String, CaseIterable, Identifiable, Sendable, Equatab
         switch self {
         case .commandLineTools, .githubCLI:
             return true
-        case .claude, .codex:
+        case .claude, .codex, .opencode:
             return false
         }
     }
@@ -43,6 +46,8 @@ enum OnboardingDependency: String, CaseIterable, Identifiable, Sendable, Equatab
             return "claude"
         case .codex:
             return "codex"
+        case .opencode:
+            return "opencode"
         }
     }
 
@@ -56,6 +61,8 @@ enum OnboardingDependency: String, CaseIterable, Identifiable, Sendable, Equatab
             return "curl -fsSL https://claude.ai/install.sh | bash"
         case .codex:
             return "curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+        case .opencode:
+            return "curl -fsSL https://opencode.ai/install | bash"
         }
     }
 
@@ -67,7 +74,7 @@ enum OnboardingDependency: String, CaseIterable, Identifiable, Sendable, Equatab
         case .githubCLI:
             // `brew install gh` only helps if Homebrew exists, so always offer the download page too.
             return (fallbackInstallCommand, URL(string: "https://cli.github.com"))
-        case .claude, .codex:
+        case .claude, .codex, .opencode:
             return nil
         }
     }
@@ -146,7 +153,7 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
                 return OnboardingDependencyStatus(dependency: dependency, state: .installed(detail: version))
             }
             return OnboardingDependencyStatus(dependency: dependency, state: .missing)
-        case .claude, .codex:
+        case .claude, .codex, .opencode:
             guard let harnessID = dependency.harnessID else {
                 return OnboardingDependencyStatus(dependency: dependency, state: .missing)
             }
@@ -159,6 +166,8 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
             case .connected(path: _, version: let version):
                 let trimmedVersion = version.trimmingCharacters(in: .whitespacesAndNewlines)
                 detail = trimmedVersion.isEmpty ? path : "\(trimmedVersion) at \(path)"
+            case .error(let message) where dependency == .opencode:
+                detail = message
             default:
                 detail = path
             }
@@ -177,7 +186,7 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
             return try await installCommandLineTools()
         case .githubCLI:
             return try await installGitHubCLI()
-        case .claude, .codex:
+        case .claude, .codex, .opencode:
             return try await installAgentDependency(dependency)
         }
     }

@@ -5,7 +5,7 @@ extension ConversationViewModel {
         guard !appShots.isEmpty else {
             return
         }
-        let harnessID = conversation.harness ?? settingsService.current.defaultHarness
+        let harnessID = capabilityHarnessID
         guard AppShotHarnessStrategy(harnessID: harnessID) != nil else {
             throw AppShotCaptureError.unsupportedHarness(harnessID)
         }
@@ -19,7 +19,7 @@ extension ConversationViewModel {
     }
 
     func claudeAppShotDirectoriesIfNeeded(appShots: [AppShotAttachment]) -> [String] {
-        let harnessID = conversation.harness ?? settingsService.current.defaultHarness
+        let harnessID = capabilityHarnessID
         guard harnessID == "claude" else {
             return []
         }

@@ -5,6 +5,21 @@ import XCTest
 
 @MainActor
 final class OnboardingDependencyServiceTests: XCTestCase {
+    func testInstalledIncompatibleOpenCodeShowsGuidanceWithoutUpgrading() async throws {
+        let guidance = "OpenCode requires >=1.18.31 and <2.0.0. Upgrade it manually."
+        let detection = OnboardingHarnessDetectionFake(snapshots: [
+            "opencode": [HarnessSnapshot(status: .error(guidance), path: "/tmp/opencode")]
+        ])
+        let shell = MockShellRunner()
+        let service = makeService(harnessDetection: detection, shell: shell)
+
+        let status = try await service.install(.opencode)
+
+        XCTAssertEqual(status, OnboardingDependencyStatus(dependency: .opencode, state: .installed(detail: guidance)))
+        let calls = await shell.invocations
+        XCTAssertTrue(calls.isEmpty)
+    }
+
     func testGitHubCLIInstallUsesStandaloneInstallerWhenBrewIsMissing() async throws {
         let gitHubCLI = OnboardingGitHubCLIFake(installedVersions: [nil, "gh version 2.89.0"])
         let shell = MockShellRunner()

@@ -5,12 +5,44 @@ extension ChatView {
     var composerTopContentConfiguration: AppKitChatComposerTopContentView.Configuration {
         var items: [AppKitChatComposerTopContentView.Item] = []
         appendHarnessAuthenticationNotice(to: &items)
+        appendUnsupportedSpeedNotice(to: &items)
+        appendUnavailableEffortNotice(to: &items)
         appendLastTurnError(to: &items)
         appendVoiceInputNotice(to: &items)
         appendSessionContinuityNotice(to: &items)
         appendGoalStatus(to: &items)
         appendStagedContext(to: &items)
         return AppKitChatComposerTopContentView.Configuration(items: items)
+    }
+
+    /// A persisted Fast selection must be repaired explicitly even when this harness has no speed menu.
+    private func appendUnsupportedSpeedNotice(to items: inout [AppKitChatComposerTopContentView.Item]) {
+        guard harnessID == "opencode", !HarnessFeaturePolicy.declared(harnessID: harnessID).supportsSpeedMode,
+              conversation.thread?.normalizedSpeedMode == .fast else { return }
+        let canChange = viewModel.canApplySettingsChange && !voiceInputCoordinator.isDraftInteractionLocked
+        items.append(.inlineBanner(.init(
+            message: "Fast mode is unavailable for this harness. Select Standard to continue.",
+            severity: .warning,
+            actionTitle: canChange ? "Use Standard" : nil,
+            onAction: canChange ? { _ = viewModel.applySpeedModeChange(.standard, supportsSpeedMode: false) } : nil,
+            onDismiss: nil
+        )))
+    }
+
+    /// Keep invalid native variants visible and recoverable when their model no longer has an effort control.
+    private func appendUnavailableEffortNotice(to items: inout [AppKitChatComposerTopContentView.Item]) {
+        guard harnessID == "opencode", composerCapabilities.hasConfirmedHarnessDefinition,
+              let effort = conversation.thread?.effort,
+              effort != AppSettings.openCodeDefaultEffort,
+              !reasoningConfiguration.selection.effortOptions.contains(where: { $0.value == effort }) else { return }
+        let canChange = viewModel.canApplySettingsChange && !voiceInputCoordinator.isDraftInteractionLocked
+        items.append(.inlineBanner(.init(
+            message: "The saved reasoning setting is unavailable for this model. Select the model default to continue.",
+            severity: .warning,
+            actionTitle: canChange ? "Use model default" : nil,
+            onAction: canChange ? { _ = viewModel.applyEffortChange(AppSettings.openCodeDefaultEffort) } : nil,
+            onDismiss: nil
+        )))
     }
 
     private func appendVoiceInputNotice(to items: inout [AppKitChatComposerTopContentView.Item]) {

@@ -10,7 +10,7 @@ struct ThreadDefaultResolution: Equatable {
     let modelOptions: [AgentCLIKit.AgentModelOption]
 
     var hasReadyHarness: Bool {
-        harnessID != nil
+        harnessID.map(readyHarnessIDs.contains) ?? false
     }
 }
 
@@ -27,12 +27,14 @@ enum ThreadDefaultResolver {
                 return false
             }
             guard let status = harnessStatuses[harnessID] else {
-                return allowStaticFallback
+                return allowStaticFallback && harnessID != "opencode"
             }
             return isReadyHarness(harnessID: harnessID, settings: settings, status: status)
         }
 
-        let resolvedHarnessID: String? = readyHarnessIDs.contains(settings.defaultHarness)
+        // An unavailable OpenCode installation must keep the selected provider/model visible for setup.
+        let keepsOpenCodeSelection = settings.defaultHarness == "opencode"
+        let resolvedHarnessID: String? = keepsOpenCodeSelection || readyHarnessIDs.contains(settings.defaultHarness)
             ? settings.defaultHarness
             : readyHarnessIDs.first
         guard let harnessID = resolvedHarnessID else {
@@ -47,12 +49,15 @@ enum ThreadDefaultResolver {
         }
 
         let options = modelOptions(for: harnessID, harnessStatuses: harnessStatuses)
-        let storedModel = normalizedStoredModel(settings.defaultModel, options: options)
+        let inheritsOpenCodeDefaults = settings.defaultHarness == "opencode"
+        let storedModel = harnessID == "opencode"
+            ? (inheritsOpenCodeDefaults ? AppSettings.normalizedModelSelection(settings.defaultModel) : AppSettings.defaultModelValue)
+            : normalizedStoredModel(settings.defaultModel, options: options)
         let permissionMode = normalizedPermissionMode(settings.permissionMode, harnessID: harnessID)
-        let effort = AgentModelOptionSelection.normalizedEffort(
-            settings.effort,
-            options: options,
-            selectedModel: storedModel
+        // A restored native variant is a user selection, even if its provider is temporarily disconnected.
+        let effort = harnessID == "opencode"
+            ? (inheritsOpenCodeDefaults ? settings.effort : AppSettings.openCodeDefaultEffort) : AgentModelOptionSelection.normalizedEffort(
+            settings.effort, options: options, selectedModel: storedModel
         )
 
         return ThreadDefaultResolution(

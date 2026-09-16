@@ -35,7 +35,7 @@ extension ConversationViewModel {
     }
 
     func restoreToolApproval(_ approval: ToolApprovalRequest) {
-        guard (conversation.harness ?? settingsService.current.defaultHarness) == "claude" else {
+        guard capabilityHarnessID == "claude" else {
             state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
             return
         }
@@ -72,7 +72,7 @@ extension ConversationViewModel {
     func resolvedToolApprovalStatusFromClaudeSession(_ approval: ToolApprovalRequest) async throws -> ToolApprovalStatus? {
         try Task.checkCancellation()
         guard let dbConversation = dbConversation(),
-              (dbConversation.harness ?? settingsService.current.defaultHarness) == "claude",
+              capabilityHarnessID == "claude",
               let workingDirectory = dbConversation.thread?.primaryWorkingDirectory else {
             return nil
         }
@@ -91,7 +91,7 @@ extension ConversationViewModel {
               state.pendingToolApproval == pendingApproval,
               let currentConversation = fetchToolApprovalConversation(),
               (currentConversation.harnessSessionId ?? approval.sessionId) == harnessSessionID,
-              (currentConversation.harness ?? settingsService.current.defaultHarness) == "claude",
+              capabilityHarnessID == "claude",
               currentConversation.thread?.primaryWorkingDirectory == workingDirectory,
               unresolvedToolApproval(toolUseId: approval.toolUseId, sessionId: approval.sessionId) == persistedApproval else {
             throw CancellationError()
@@ -111,7 +111,7 @@ extension ConversationViewModel {
         state.isRestoringToolApproval = false
         guard let conversation = fetchToolApprovalConversation(),
               (conversation.harnessSessionId ?? harnessSessionID) == harnessSessionID,
-              (conversation.harness ?? settingsService.current.defaultHarness) == "claude" else { return }
+              capabilityHarnessID == "claude" else { return }
         // A live result can settle this row while its file read is pending. Discover the next
         // unresolved interaction synchronously, before allowing the parked queue to continue.
         hydratePendingToolApprovalIfNeeded()

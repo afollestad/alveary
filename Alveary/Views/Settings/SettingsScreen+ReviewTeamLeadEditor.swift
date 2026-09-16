@@ -68,8 +68,8 @@ private extension PullRequestReviewLeadEditor {
 
     var effort: Binding<String> {
         Binding(
-            get: { draft.pullRequestReviewEffort ?? SettingsViewModel.pullRequestReviewInheritValue },
-            set: { draft.pullRequestReviewEffort = $0 == SettingsViewModel.pullRequestReviewInheritValue ? nil : $0 }
+            get: { viewModel.reviewTeamLeadEffortSelection(draft) },
+            set: { viewModel.setReviewTeamLeadEffort($0, in: &draft) }
         )
     }
 }

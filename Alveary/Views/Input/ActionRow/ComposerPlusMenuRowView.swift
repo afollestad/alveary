@@ -221,16 +221,12 @@ enum ComposerPlusMenuMetrics {
     static let trailingSpacing: CGFloat = 8
     @MainActor static var itemFont: NSFont { NSFont.preferredFont(forTextStyle: .body) }
 
-    /// Content size for a menu that may include the optional app-shot row.
-    ///
-    /// The extra row costs one row plus its leading spacing; without this the row is clipped.
-    static func contentSize(includesAppShotRow: Bool) -> NSSize {
-        guard includesAppShotRow else {
-            return contentSize
-        }
+    /// Each optional row changes height by one row plus spacing, keeping hidden controls out of the keyboard tree.
+    static func contentSize(includesAppShotRow: Bool, includesGoalRow: Bool = true) -> NSSize {
+        let rowAdjustment = (includesAppShotRow ? 1 : 0) - (includesGoalRow ? 0 : 1)
         return NSSize(
             width: contentSize.width,
-            height: contentSize.height + rowHeight + dividerSpacing
+            height: contentSize.height + CGFloat(rowAdjustment) * (rowHeight + dividerSpacing)
         )
     }
 }

@@ -70,7 +70,16 @@ enum AgentModelOptionSelection {
         in options: [AgentCLIKit.AgentModelOption],
         selectedModel: String?
     ) -> [AgentCLIKit.AgentHarnessOption] {
-        option(in: options, matching: selectedModel)?.supportedEffortOptions ?? []
+        guard let selected = option(in: options, matching: selectedModel) else { return [] }
+        let variants = selected.supportedEffortOptions
+        guard selected.harnessId == .opencode, !variants.isEmpty else { return variants }
+        return [AgentCLIKit.AgentHarnessOption(
+            value: AppSettings.openCodeDefaultEffort, label: "Default", description: "Use the model's configured defaults."
+        )] + variants.map { variant in
+            AgentCLIKit.AgentHarnessOption(
+                value: AppSettings.openCodeStoredEffort(nativeVariant: variant.value), label: variant.label, description: variant.description
+            )
+        }
     }
 
     static func defaultEffortValue(
@@ -78,6 +87,7 @@ enum AgentModelOptionSelection {
         selectedModel: String?
     ) -> String {
         let selectedOption = option(in: options, matching: selectedModel)
+        if selectedOption?.harnessId == .opencode { return AppSettings.openCodeDefaultEffort }
         return selectedOption?.defaultEffortOption?.value
             ?? selectedOption?.supportedEffortOptions.first?.value
             ?? AppSettings.defaultEffortLevel
@@ -89,6 +99,13 @@ enum AgentModelOptionSelection {
         selectedModel: String?
     ) -> String {
         let normalized = AppSettings.normalizedEffortLevel(effort)
+        if let selected = option(in: options, matching: selectedModel), selected.harnessId == .opencode {
+            guard let native = AppSettings.openCodeNativeEffort(stored: normalized),
+                  selected.supportedEffortOptions.contains(where: { $0.value == native }) else {
+                return AppSettings.openCodeDefaultEffort
+            }
+            return AppSettings.openCodeStoredEffort(nativeVariant: native)
+        }
         let effortOptions = effortOptions(in: options, selectedModel: selectedModel)
         guard !effortOptions.isEmpty else {
             return normalized

@@ -62,10 +62,17 @@ struct AskUserQuestionOverlayState: Equatable {
     }
 
     func answers(for prompt: PromptEntry) -> [(question: String, answer: String)] {
-        prompt.questions.indices.compactMap { questionIndex in
-            let question = prompt.questions[questionIndex]
+        zip(prompt.questions, answerSelections(for: prompt)).compactMap { question, selections in
+            guard !selections.isEmpty else { return nil }
+            return (question: question.question, answer: selections.joined(separator: ", "))
+        }
+    }
+
+    /// Native question protocols need separate values; a comma can belong to a selected label or freeform response.
+    func answerSelections(for prompt: PromptEntry) -> [[String]] {
+        prompt.questions.indices.map { questionIndex in
             let selectedIDs = selections[questionIndex] ?? []
-            let answers = question.renderedOptions.compactMap { option -> String? in
+            return prompt.questions[questionIndex].renderedOptions.compactMap { option -> String? in
                 guard selectedIDs.contains(option.id) else {
                     return nil
                 }
@@ -75,10 +82,6 @@ struct AskUserQuestionOverlayState: Equatable {
                 }
                 return option.label
             }
-            guard !answers.isEmpty else {
-                return nil
-            }
-            return (question: question.question, answer: answers.joined(separator: ", "))
         }
     }
 }
@@ -366,7 +369,9 @@ extension ChatView {
 
         Task {
             do {
-                _ = try await viewModel.answerPrompt(promptId: prompt.id, answers: answers)
+                _ = try await viewModel.answerPrompt(
+                    promptId: prompt.id, answers: answers, answerSelections: state.answerSelections(for: prompt)
+                )
                 askUserQuestionOverlayStates[prompt.id] = nil
                 requestScrollToBottom()
             } catch {

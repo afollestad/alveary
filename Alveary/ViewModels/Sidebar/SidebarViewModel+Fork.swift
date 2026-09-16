@@ -311,7 +311,7 @@ private extension SidebarViewModel {
             permissionMode: source.permissionMode,
             planModeEnabled: source.planModeEnabled,
             model: source.model,
-            effort: source.effort,
+            effort: sourceRecord.harnessId == .opencode ? AppSettings.openCodeNativeEffort(stored: source.effort) : source.effort,
             reasoningSummaryMode: sourceRecord.harnessId.rawValue == "codex" ? .concise : nil,
             speedMode: source.speedMode,
             sessionFork: AgentSessionForkRequest(

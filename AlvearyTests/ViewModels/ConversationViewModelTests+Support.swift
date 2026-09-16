@@ -124,6 +124,8 @@ actor MockAgentsManager: AgentsManager {
     /// Runs inside `spawn` before it can fail, so a test can reproduce the runtime's ordering:
     /// installing the spawn's event buffer arms the turn before the harness process starts.
     private var spawnPrologue: (@MainActor @Sendable () -> Void)?
+    /// Native HTTP submissions can publish a terminal boundary before their accepted response returns.
+    private var sendEpilogue: (@MainActor @Sendable () -> Void)?
     private var spawnEntered = false
     private var spawnCancellationObserved = false
     private var spawnEntryContinuation: CheckedContinuation<Void, Never>?
@@ -237,8 +239,10 @@ actor MockAgentsManager: AgentsManager {
                 recordedSentAttachments.append(attachments)
                 recordedSentMetadata.append(metadata)
                 recordedSendVisibilities.append(activityVisibility)
+                if let sendEpilogue { await MainActor.run { sendEpilogue() } }
                 return
             case .failure(let error):
+                if let sendEpilogue { await MainActor.run { sendEpilogue() } }
                 if let mockError = error as? MockError, mockError == .stdinClosed {
                     throw AgentError.stdinClosed
                 }
@@ -247,12 +251,14 @@ actor MockAgentsManager: AgentsManager {
         }
 
         if let sendError {
+            if let sendEpilogue { await MainActor.run { sendEpilogue() } }
             throw sendError
         }
         recordedSentMessages.append(message)
         recordedSentAttachments.append(attachments)
         recordedSentMetadata.append(metadata)
         recordedSendVisibilities.append(activityVisibility)
+        if let sendEpilogue { await MainActor.run { sendEpilogue() } }
     }
 
     func sendGoalStartMessage(_ request: AgentGoalStartMessageRequest) async throws {
@@ -348,6 +354,8 @@ actor MockAgentsManager: AgentsManager {
     func enqueueSpawnError(_ error: Error) { queuedSpawnErrors.append(error) }
 
     func setSpawnPrologue(_ prologue: (@MainActor @Sendable () -> Void)?) { spawnPrologue = prologue }
+
+    func setSendEpilogue(_ epilogue: (@MainActor @Sendable () -> Void)?) { sendEpilogue = epilogue }
 
     func enqueueDestroyError(_ error: Error) { queuedDestroyErrors.append(error) }
 

@@ -56,7 +56,9 @@ extension ConversationViewModel {
             return .persistSyntheticAssistant(message: slashCommandNotice)
         }
 
-        if isConfirmedTurnInterruption(
+        // Native abort can settle as a successful count-free boundary; preserve the user's pending cancellation.
+        let isOpenCodeCancellation = capabilityHarnessID == "opencode" && state.isCancellingTurn && payload.isTerminal
+        if isOpenCodeCancellation || isConfirmedTurnInterruption(
             isError: payload.isError,
             stopReason: payload.stopReason,
             permissionDenials: payload.permissionDenials

@@ -13,8 +13,13 @@ extension ChatComposerActionRowView {
         let speedMode: AgentSpeedMode
         let supportsSpeedMode: Bool
 
+        /// The compact selection names the active choice; the menu keeps its action-oriented default label.
+        var compactModelTitle: String {
+            harnessID == "opencode" && modelID == AppSettings.defaultModelValue ? "OpenCode default" : modelTitle
+        }
+
         var accessibilityValue: String {
-            let reasoningValue = effortOptions.isEmpty ? modelTitle : "\(modelTitle), \(effortTitle)"
+            let reasoningValue = effortOptions.isEmpty ? compactModelTitle : "\(compactModelTitle), \(effortTitle)"
             guard supportsSpeedMode, speedMode == .fast else {
                 return reasoningValue
             }

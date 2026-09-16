@@ -38,7 +38,7 @@ extension ConversationViewModel {
         supportsLocalImageInput: Bool = true
     ) async throws {
         try validateQueueOrSendAvailability()
-        let outbound = try outboundText(
+        let outbound = try await outboundText(
             for: message,
             requiredPlanModeEnabled: requiredPlanModeEnabled,
             requiredSpeedMode: requiredSpeedMode,
@@ -104,7 +104,7 @@ extension ConversationViewModel {
 
         try validateQueueOrSendAvailability()
         try ensureCanSendBeforePausedQueuedMessages()
-        let outbound = try outboundText(
+        let outbound = try await outboundText(
             for: message,
             requiredPlanModeEnabled: nil,
             requiredSpeedMode: nil,
@@ -180,7 +180,8 @@ private extension ConversationViewModel {
         requiredPlanModeEnabled: Bool?,
         requiredSpeedMode: AgentSpeedMode?,
         supportsLocalImageInput: Bool
-    ) throws -> OutboundMessageText {
+    ) async throws -> OutboundMessageText {
+        try await validateStagedOptionalFeatures(supportsLocalImageInput: supportsLocalImageInput)
         let base: OutboundMessageText
         if requiredPlanModeEnabled != nil || requiredSpeedMode != nil {
             base = OutboundMessageText(visibleText: message)
@@ -196,7 +197,7 @@ private extension ConversationViewModel {
             fallbackText: fallbackText(visibleText:fileAttachments:)
         ).resolvingAppShots(
             state.stagedAppShots,
-            harnessID: conversation.harness ?? settingsService.current.defaultHarness
+            harnessID: capabilityHarnessID
         )
     }
 
@@ -205,6 +206,7 @@ private extension ConversationViewModel {
         stagedContextOverride: String? = nil,
         supportsLocalImageInput: Bool = true
     ) async throws {
+        try await validateStagedOptionalFeatures(supportsLocalImageInput: supportsLocalImageInput)
         let outbound = try preparedNormalUserOutboundText(message).resolvingImageAttachments(
             state.stagedImageAttachments,
             supportsLocalImageInput: supportsLocalImageInput,
@@ -214,7 +216,7 @@ private extension ConversationViewModel {
             fallbackText: fallbackText(visibleText:fileAttachments:)
         ).resolvingAppShots(
             state.stagedAppShots,
-            harnessID: conversation.harness ?? settingsService.current.defaultHarness
+            harnessID: capabilityHarnessID
         )
         try await deliverMessageReserved(
             outbound.visibleText,

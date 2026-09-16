@@ -21,12 +21,10 @@ struct AppOnboardingOverlay: View {
     }
 
     private func panel(width: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            dependencyList
-                .padding(.top, 22)
-            footer
-                .padding(.top, 24)
+        ViewThatFits(in: .vertical) {
+            panelContents(scrollsDependencies: false)
+                .fixedSize(horizontal: false, vertical: true)
+            panelContents(scrollsDependencies: true)
         }
         .padding(.top, 28)
         .padding(.horizontal, 30)
@@ -43,6 +41,27 @@ struct AppOnboardingOverlay: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Alveary setup")
+    }
+
+    /// Keep required failure instructions readable in short windows while the Continue action remains reachable.
+    private func panelContents(scrollsDependencies: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .fixedSize(horizontal: false, vertical: true)
+            Group {
+                if scrollsDependencies {
+                    ScrollView(.vertical) {
+                        dependencyList
+                    }
+                } else {
+                    dependencyList
+                }
+            }
+            .padding(.top, 22)
+            footer
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 24)
+        }
     }
 
     private var header: some View {
@@ -136,6 +155,7 @@ struct AppOnboardingDependencyCard: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(minHeight: 78)
+        .fixedSize(horizontal: false, vertical: true)
         .background(
             RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
                 .fill(Color.primary.opacity(0.045))

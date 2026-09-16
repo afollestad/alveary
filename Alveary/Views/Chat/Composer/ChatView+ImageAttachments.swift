@@ -48,6 +48,10 @@ extension ChatView {
             voiceInputCoordinator.invalidatePendingActivationIntent()
         }
         let imageURLs = urls.filter(DefaultConversationAttachmentStore.isSupportedImageURL(_:))
+        guard reasoningConfiguration.selection.harnessID != "opencode" || composerCapabilities.supportsLocalImageInput || imageURLs.isEmpty else {
+            viewModel.lastTurnError = "Choose an image-capable OpenCode model before attaching photos."
+            return .handled
+        }
         let fileURLs = urls.filter { !DefaultConversationAttachmentStore.isSupportedImageURL($0) }
         let existingImageIDs = Set(viewModel.stagedImageAttachments.map(\.id))
 

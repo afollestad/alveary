@@ -143,6 +143,7 @@ private struct MCPServiceFixture {
         service = DefaultMCPService(
             claudeConfigStore: claudeStore,
             codexConfigStore: codexStore,
+            openCodeConfigStore: AgentCLIKit.OpenCodeConfigStore(fileURL: rootDirectory.appendingPathComponent("opencode.jsonc")),
             harnessDetection: harnessDetection,
             agentRegistry: registry,
             bundle: Bundle(for: MCPServiceTests.self)

@@ -78,6 +78,11 @@ extension ChatComposerActionRowView {
         var onEffortChange: (String) -> Bool
         var onSpeedChange: (AgentSpeedMode) -> Bool
         var onModelChange: (ReasoningModelSelectionRequest) -> ReasoningModelSelectionOutcome
+
+        /// Model selection is the only useful content when neither effort nor speed controls are available.
+        var showsOnlyModels: Bool {
+            selection.effortOptions.isEmpty && !selection.supportsSpeedMode
+        }
     }
 
     func toggleReasoningMenu() {

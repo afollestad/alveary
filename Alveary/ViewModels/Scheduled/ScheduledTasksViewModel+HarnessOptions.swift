@@ -20,21 +20,32 @@ extension ScheduledTasksViewModel {
             ?? harnessID.capitalized
     }
 
-    func modelOptions(for harnessID: String) -> [AgentCLIKit.AgentModelOption] {
-        ThreadDefaultResolver.modelOptions(for: harnessID, harnessStatuses: harnessStatuses)
+    func modelOptions(for harnessID: String, draft: ScheduledTaskEditorDraft? = nil) -> [AgentCLIKit.AgentModelOption] {
+        if harnessID == "opencode", let draft, harnessDiscovery != nil,
+           let directory = openCodeDiscoveryDirectory(for: draft) {
+            if case .loaded(let status) = openCodeEditorCatalogs[directory], let status {
+                return status.modelOptions
+            }
+            return AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .opencode)
+        }
+        return ThreadDefaultResolver.modelOptions(for: harnessID, harnessStatuses: harnessStatuses)
     }
 
-    func modelPickerOptions(for harnessID: String, including selection: String) -> [ScheduledTaskPickerOption] {
+    func modelPickerOptions(
+        for harnessID: String, including selection: String, draft: ScheduledTaskEditorDraft? = nil
+    ) -> [ScheduledTaskPickerOption] {
         AgentModelOptionSelection.menuItems(
-            in: modelOptions(for: harnessID),
+            in: modelOptions(for: harnessID, draft: draft),
             selectedModel: selection,
             fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
         ).map { ScheduledTaskPickerOption(value: $0.value, label: $0.title) }
     }
 
-    func effortOptions(for harnessID: String, modelSelection: String) -> [ScheduledTaskPickerOption] {
+    func effortOptions(
+        for harnessID: String, modelSelection: String, draft: ScheduledTaskEditorDraft? = nil
+    ) -> [ScheduledTaskPickerOption] {
         AgentModelOptionSelection.effortOptions(
-            in: modelOptions(for: harnessID),
+            in: modelOptions(for: harnessID, draft: draft),
             selectedModel: modelSelection
         ).map { ScheduledTaskPickerOption(value: $0.value, label: $0.label) }
     }
@@ -69,20 +80,23 @@ extension ScheduledTasksViewModel {
         return pickerOptions
     }
 
-    func normalizeHarnessDependentFields(_ draft: inout ScheduledTaskEditorDraft) {
-        let modelOptions = modelPickerOptions(for: draft.harnessID, including: AppSettings.defaultModelValue)
+    /// Discovery and unrelated edits must preserve native selections so preflight can explain unavailable variants.
+    func normalizeHarnessDependentFields(_ draft: inout ScheduledTaskEditorDraft, explicitSelectionChange: Bool = false) {
+        guard draft.harnessID != "opencode" || explicitSelectionChange else { return }
+        let modelOptions = modelPickerOptions(for: draft.harnessID, including: AppSettings.defaultModelValue, draft: draft)
         if !modelOptions.contains(where: { $0.value == draft.modelSelection }) {
             // Resolve the harness's own default rather than taking the first row: a harness is free to list its
             // strongest model first, and falling into that would silently upgrade the task's cost on a harness switch.
             draft.modelSelection = AgentModelOptionSelection.pickerValue(
-                in: self.modelOptions(for: draft.harnessID),
+                in: self.modelOptions(for: draft.harnessID, draft: draft),
                 matching: AppSettings.defaultModelValue
             )
         }
 
-        let effortOptions = effortOptions(for: draft.harnessID, modelSelection: draft.modelSelection)
+        let effortOptions = effortOptions(for: draft.harnessID, modelSelection: draft.modelSelection, draft: draft)
         if !effortOptions.contains(where: { $0.value == draft.effort }) {
-            draft.effort = effortOptions.first?.value ?? AppSettings.defaultEffortLevel
+            draft.effort = draft.harnessID == "opencode"
+                ? AppSettings.openCodeDefaultEffort : effortOptions.first?.value ?? AppSettings.defaultEffortLevel
         }
 
         let permissionOptions = permissionModeOptions(for: draft.harnessID)

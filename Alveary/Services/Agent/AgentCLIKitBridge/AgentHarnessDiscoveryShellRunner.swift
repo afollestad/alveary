@@ -19,6 +19,7 @@ struct AgentHarnessDiscoveryShellRunner: AgentCLIKit.ShellRunning {
             in: command.workingDirectory?.path,
             options: ShellRunOptions(
                 environment: command.environment.isEmpty ? nil : command.environment,
+                environmentPolicy: command.inheritsEnvironment ? .inherit : .replace,
                 processGroupPolicy: .create,
                 timeout: timeout,
                 stdoutLimitBytes: 256 * 1024,

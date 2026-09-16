@@ -118,6 +118,7 @@ final class ChatComposerActionRowView: NSView {
         var isPlanModeEnabled = false
         var isPlanModeToggleEnabled = false
         var planModeDisabledTooltip: String?
+        var showsGoalMode = true
         var isGoalModeArmed = false
         var isGoalModeToggleEnabled = false
         var goalModeDisabledTooltip: String?
@@ -143,6 +144,7 @@ final class ChatComposerActionRowView: NSView {
         let onSubmit: () -> Void
         let onStop: () -> Void
         var onAddPhotosAndFiles: () -> Void = {}
+        var allowsPhotoAttachments = true
         // Deliberately absent from `AppliedConfigurationSnapshot`: the `+` menu is rebuilt from the
         // stored configuration on every open, so the row itself never paints these. Including them
         // would force a full `applyConfiguration` relayout on every foreground app switch.

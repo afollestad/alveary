@@ -3,6 +3,38 @@ import XCTest
 @testable import Alveary
 
 final class HarnessDetectionServiceTests: XCTestCase {
+    func testAllHarnessVersionChecksStartBeforeAnyFinishes() async {
+        let registry = DefaultHarnessRegistry(agentRegistry: DefaultAgentRegistry())
+        let shell = MockShellRunner()
+        let gate = MockShellRunnerGate()
+        let started = expectation(description: "All independent version checks started")
+        started.expectedFulfillmentCount = registry.harnesses.count
+        await shell.setGate(gate)
+        await shell.setResponder { invocation in
+            started.fulfill()
+            let needsKey = invocation.executable.hasSuffix("/codex")
+            return .success(ShellResult(
+                stdout: "1.18.31", stderr: needsKey ? "not authenticated" : "", exitCode: needsKey ? 1 : 0,
+                stdoutWasTruncated: false, stderrWasTruncated: false
+            ))
+        }
+        let service = DefaultHarnessDetectionService(
+            shell: shell, registry: registry, executableResolver: HarnessDetectionPathResolver()
+        )
+
+        let check = Task { await service.checkAllHarnesses() }
+        await fulfillment(of: [started], timeout: 3)
+        gate.open()
+        await check.value
+
+        for harness in registry.harnesses {
+            let status = await service.status(for: harness.id)
+            let path = await service.resolvedPath(for: harness.id)
+            XCTAssertEqual(path, "/tmp/\(harness.commands[0])")
+            XCTAssertEqual(status, harness.id == "codex" ? .needsKey : .connected(path: path ?? "", version: "1.18.31"))
+        }
+    }
+
     func testUncheckedHarnessesRemainUncheckedUntilProbeRuns() async {
         let shell = MockShellRunner()
         let service = DefaultHarnessDetectionService(
@@ -143,4 +175,8 @@ final class HarnessDetectionServiceTests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
         return executable
     }
+}
+
+private struct HarnessDetectionPathResolver: ExecutablePathResolving {
+    func resolveExecutablePath(for candidate: String) async -> String? { "/tmp/\(candidate)" }
 }

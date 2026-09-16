@@ -24,8 +24,9 @@ final class ComposerReasoningMenuViewController: NSViewController {
         self.onDisplaySelectionChanged = onDisplaySelectionChanged
         self.onContentSizeChanged = onContentSizeChanged
         self.reducesMotion = reducesMotion
+        isModelsExpanded = configuration.showsOnlyModels
         super.init(nibName: nil, bundle: nil)
-        preferredContentSize = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
+        preferredContentSize = ComposerReasoningMenuMetrics.mainContentSize(for: configuration, isModelsExpanded: isModelsExpanded)
     }
 
     required init?(coder: NSCoder) {
@@ -62,6 +63,7 @@ final class ComposerReasoningMenuViewController: NSViewController {
         self.configuration = configuration
 
         guard previousVisualState != visualState else { return }
+        if configuration.showsOnlyModels { isModelsExpanded = true }
         menuView?.update(configuration: configuration, isModelsExpanded: isModelsExpanded)
         applyContentSize()
     }

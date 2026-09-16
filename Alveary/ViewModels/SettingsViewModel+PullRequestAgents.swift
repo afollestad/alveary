@@ -39,6 +39,7 @@ struct PullRequestAgentSettingsEditor {
     let path: WritableKeyPath<AppSettings, PullRequestAgentSettings>
 
     var effectiveHarnessID: String {
+        if settings.harness == "opencode" { return "opencode" }
         guard let pinned = settings.harness, viewModel.threadDefaultHarnessIDs.contains(pinned) else {
             return viewModel.threadDefaultHarnessSelection
         }
@@ -80,21 +81,28 @@ struct PullRequestAgentSettingsEditor {
         }
         let options = viewModel.modelOptions(for: effectiveHarnessID)
         let storedModel = AgentModelOptionSelection.storedModelValue(in: options, matching: value)
-        update {
-            $0.model = storedModel
+        let usesNativeVariants = effectiveHarnessID == "opencode"
+        update { agent in
+            agent.model = storedModel
             let supported = AgentModelOptionSelection.effortOptions(in: options, selectedModel: storedModel)
-            if let effort = $0.effort, !supported.isEmpty, !supported.contains(where: { $0.value == effort }) {
-                $0.effort = nil
+            if usesNativeVariants, !supported.contains(where: { $0.value == agent.effort }) {
+                agent.effort = AppSettings.openCodeDefaultEffort
+            } else if let effort = agent.effort, !supported.isEmpty, !supported.contains(where: { $0.value == effort }) {
+                agent.effort = nil
             }
         }
     }
 
-    var effortSelection: String { settings.effort ?? inheritValue }
+    var effortSelection: String {
+        guard let stored = settings.effort else { return inheritValue }
+        return effectiveHarnessID == "opencode" ? AppSettings.openCodePickerEffort(stored: stored) : stored
+    }
 
     var effortOptions: [AgentHarnessOption] {
         AgentModelOptionSelection.effortOptions(
             in: viewModel.modelOptions(for: effectiveHarnessID),
-            selectedModel: settings.model
+            selectedModel: settings.model ?? (effectiveHarnessID == viewModel.settingsService.current.defaultHarness
+                ? viewModel.settingsService.current.defaultModel : nil)
         )
     }
 
@@ -125,8 +133,10 @@ struct PullRequestAgentSettingsEditor {
     }
 
     func label(forEffort value: String) -> String {
-        guard value != inheritValue else { return "Default" }
-        return effortOptions.first { $0.value == value }?.label ?? ChatComposerTextSupport.effortLabel(for: value)
+        guard value != inheritValue else { return effectiveHarnessID == "opencode" ? "Follow defaults" : "Default" }
+        let fallback = effectiveHarnessID == "opencode" ? AppSettings.openCodeNativeEffort(stored: value) ?? "Default"
+            : ChatComposerTextSupport.effortLabel(for: value)
+        return effortOptions.first { $0.value == value }?.label ?? fallback
     }
 
     func label(forPermission value: String) -> String {

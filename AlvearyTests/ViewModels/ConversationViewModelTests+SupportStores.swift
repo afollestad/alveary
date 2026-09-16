@@ -46,3 +46,36 @@ final class MockHarnessSetupTrustCache: @unchecked Sendable {
         }
     }
 }
+
+struct MockContextWindowCacheUpdate: Equatable {
+    let harnessId: String
+    let selectedModel: String
+    let reportedModelId: String?
+    let contextWindowSize: Int
+}
+
+actor MockContextWindowCache: ContextWindowCache {
+    private(set) var updates: [MockContextWindowCacheUpdate] = []
+    var sizes: [String: Int] = [:]
+
+    func contextWindowSize(harnessId: String, model: String) async -> Int? {
+        guard let key = JSONContextWindowCache.cacheKey(harnessId: harnessId, model: model) else {
+            return nil
+        }
+        return sizes[key]
+    }
+
+    func update(
+        harnessId: String,
+        selectedModel: String,
+        reportedModelId: String?,
+        contextWindowSize: Int
+    ) async {
+        updates.append(MockContextWindowCacheUpdate(
+            harnessId: harnessId,
+            selectedModel: selectedModel,
+            reportedModelId: reportedModelId,
+            contextWindowSize: contextWindowSize
+        ))
+    }
+}

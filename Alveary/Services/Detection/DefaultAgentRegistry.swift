@@ -1,5 +1,20 @@
+import AgentCLIKit
+import Foundation
+
 final class DefaultAgentRegistry: AgentRegistry, Sendable {
-    let agents: [AgentDefinition] = [
+    let agents: [AgentDefinition]
+
+    init(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) {
+        let openCodeConfigURL = OpenCodeConfigStore.configFileURL(environment: environment, homeDirectory: homeDirectory)
+        let openCodeDirectory = Self.displayPath(openCodeConfigURL.deletingLastPathComponent(), homeDirectory: homeDirectory)
+        let openCodeConfigPath = Self.displayPath(openCodeConfigURL, homeDirectory: homeDirectory)
+        agents = Self.baseAgents + [Self.openCodeAgent(configDirectory: openCodeDirectory, configPath: openCodeConfigPath)]
+    }
+
+    private static let baseAgents: [AgentDefinition] = [
         AgentDefinition(
             id: "claude",
             name: "Claude Code",
@@ -85,8 +100,50 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
         )
     ]
 
+    private static func openCodeAgent(configDirectory: String, configPath: String) -> AgentDefinition {
+        AgentDefinition(
+            id: "opencode",
+            name: "OpenCode",
+            installCommand: "curl -fsSL https://opencode.ai/install | bash",
+            signInCommand: "opencode auth login",
+            docUrl: "https://opencode.ai/docs/",
+            harness: HarnessDefinition(
+                id: "opencode",
+                commands: ["opencode"],
+                versionArgs: ["--version"],
+                supportsMidTurnSteering: true,
+                supportedPermissionModes: [
+                    PermissionModeOption(
+                        value: "configured", label: "Configured", description: "Use the permissions configured in OpenCode."
+                    ),
+                    PermissionModeOption(
+                        value: "ask", label: "Ask", description: "Ask before tool actions that require permission."
+                    ),
+                    PermissionModeOption(
+                        value: "fullAccess", label: "Full access", description: "Allow tool actions without asking for approval."
+                    )
+                ]
+            ),
+            skillsDirectory: "\(configDirectory)/skills",
+            instructionsPath: "\(configDirectory)/AGENTS.md",
+            mcp: MCPIntegrationDefinition(
+                configPath: configPath,
+                serversKeyPath: ["mcp"],
+                format: .json,
+                adapterId: "opencode",
+                supportsHttp: true
+            )
+        )
+    }
+
     func agent(for id: String) -> AgentDefinition? {
         agents.first { $0.id == id }
+    }
+
+    /// Keep familiar home-relative display paths while respecting an explicit native XDG location.
+    private static func displayPath(_ url: URL, homeDirectory: URL) -> String {
+        let prefix = homeDirectory.path + "/"
+        return url.path.hasPrefix(prefix) ? "~/" + url.path.dropFirst(prefix.count) : url.path
     }
 }
 

@@ -18,7 +18,7 @@ struct RawTranscriptSource: Hashable {
     }
 
     init?(harnessID: String?, harnessSessionID: String?, workingDirectory: String?) {
-        guard let harnessID, !harnessID.isEmpty,
+        guard let harnessID, HarnessFeaturePolicy.supportsRawTranscriptLog(harnessID: harnessID),
               let harnessSessionID, !harnessSessionID.isEmpty else {
             return nil
         }

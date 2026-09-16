@@ -12,12 +12,15 @@ struct AgentCLIKitEventMapper: Sendable {
         case .reasoning(let event):
             return reasoningEvents(from: event)
         case .toolCall(let event):
-            return toolCallEvents(from: event)
+            return toolCallEvents(from: event, harnessId: envelope.harnessId)
         case .toolResult(let event):
+            if envelope.harnessId == .opencode, hidesOpenCodeTool(event.metadata.stringValue("tool_name")) { return [] }
             return toolResultEvents(from: event)
         case .subAgent(let event):
-            return subAgentEvents(from: event)
+            return subAgentEvents(from: event, harnessId: envelope.harnessId)
         case .usage(let event):
+            // Child sessions have independent context windows; their usage cannot replace root context or trigger its handoff.
+            if envelope.harnessId == .opencode, event.metadata.stringValue("parent_tool_use_id") != nil { return [] }
             return usageEvents(from: event)
         case .permissionMode(let event):
             return [.permissionModeChanged(event.mode)]
@@ -121,8 +124,15 @@ struct AgentCLIKitEventMapper: Sendable {
         )]
     }
 
-    private func toolCallEvents(from event: AgentCLIKit.AgentToolCallEvent) -> [ConversationEvent] {
-        [.toolCall(
+    private func toolCallEvents(from incoming: AgentCLIKit.AgentToolCallEvent, harnessId: AgentHarnessID) -> [ConversationEvent] {
+        let event: AgentToolCallEvent
+        if harnessId == .opencode {
+            guard let normalized = openCodeToolCall(incoming) else { return [] }
+            event = normalized
+        } else {
+            event = incoming
+        }
+        return [.toolCall(
             id: event.id,
             name: event.name,
             input: Self.serialized(event.input),

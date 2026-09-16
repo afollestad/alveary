@@ -103,7 +103,8 @@ struct ChatView: View {
         ConversationUsageSummary.derive(
             from: events,
             cachedContextWindowSize: cachedContextWindowSize,
-            accounting: ContextTokenAccounting(harnessID: harnessID)
+            accounting: ContextTokenAccounting(harnessID: harnessID),
+            harnessID: harnessID
         ) ?? .unreported
     }
 

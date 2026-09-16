@@ -96,7 +96,7 @@ extension ScheduledTasksViewModel {
             timeZoneIdentifier: currentTimeZone().identifier,
             harnessID: draft.harnessID,
             model: normalizedModel,
-            effort: AgentModelOptionSelection.normalizedEffort(
+            effort: draft.harnessID == "opencode" ? draft.effort : AgentModelOptionSelection.normalizedEffort(
                 draft.effort,
                 options: options,
                 selectedModel: normalizedModel

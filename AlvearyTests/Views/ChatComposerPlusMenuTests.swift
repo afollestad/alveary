@@ -5,6 +5,17 @@ import XCTest
 
 @MainActor
 final class ChatComposerPlusMenuTests: XCTestCase {
+    func testUnsupportedGoalControlIsAbsentFromMenuAndKeyboardTree() {
+        var configuration = makePlusMenuConfiguration()
+        configuration.showsGoalMode = false
+        let controller = ComposerPlusMenuViewController(configuration: configuration)
+        controller.loadViewIfNeeded()
+        let labels = controller.view.descendants(of: ComposerPlusMenuRowView.self).map { $0.accessibilityLabel() }
+        XCTAssertFalse(labels.contains("Toggle goal mode"))
+        XCTAssertTrue(labels.contains("Toggle plan mode"))
+        XCTAssertEqual(controller.preferredContentSize.height, 85)
+    }
+
     func testPlusButtonMatchesMenuHeightAndPinsToLeadingEdge() throws {
         let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
         row.configure(makeConfiguration(mode: .idle))
@@ -272,7 +283,7 @@ final class ChatComposerPlusMenuTests: XCTestCase {
         XCTAssertEqual(slider.accessibilityValueDescription(), "Medium")
     }
 
-    func testReasoningMenuWithNoEffortOptionsHasNoReasoningHeaderOrSlider() throws {
+    func testReasoningMenuWithoutEffortOrSpeedOpensDirectlyToModels() throws {
         let controller = ComposerReasoningMenuViewController(
             configuration: makeReasoningConfiguration(effortOptions: []),
             onRequestCloseMainMenu: {}
@@ -282,6 +293,9 @@ final class ChatComposerPlusMenuTests: XCTestCase {
 
         XCTAssertTrue(try XCTUnwrap(controller.debugEffortSlider).isHidden)
         XCTAssertTrue(controller.view.descendants(of: ComposerReasoningHeaderView.self).isEmpty)
+        XCTAssertTrue(controller.isModelsExpanded)
+        XCTAssertFalse(try XCTUnwrap(controller.debugModelList).focusableRows.isEmpty)
+        XCTAssertGreaterThan(try XCTUnwrap(controller.debugModelsSection).frame.height, 0)
     }
 
     func testFastToggleAcceptedChangeUpdatesPresentationAndKeepsMenuOpen() throws {

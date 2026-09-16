@@ -2,9 +2,11 @@ import AgentCLIKit
 import Foundation
 
 extension AgentCLIKitEventMapper {
-    func subAgentEvents(from event: AgentCLIKit.AgentSubAgentEvent) -> [ConversationEvent] {
+    func subAgentEvents(from event: AgentCLIKit.AgentSubAgentEvent, harnessId: AgentHarnessID) -> [ConversationEvent] {
         switch event.phase {
         case .started:
+            // OpenCode also emits the native task call; it owns the single Agent row, including snapshot recovery.
+            if harnessId == .opencode { return [] }
             return [.toolCall(
                 id: event.id,
                 name: "Agent",
@@ -31,7 +33,7 @@ extension AgentCLIKitEventMapper {
                     durationMs: event.durationMs ?? 0
                 )
             ]
-            if let result = Self.nonEmptyString(event.result) {
+            if harnessId != .opencode, let result = Self.nonEmptyString(event.result) {
                 events.append(.toolResult(
                     id: event.id,
                     output: result,

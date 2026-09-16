@@ -51,6 +51,8 @@ struct ThreadsSettingsTabView: View {
                 )
             }
 
+            UtilitySettingsSection(viewModel: viewModel)
+
             SettingsFormSection("Voice Input") {
                 SettingsFormRow(showsDivider: false) {
                     SettingsResponsiveControlRow(
@@ -84,7 +86,7 @@ private extension ThreadsSettingsTabView {
                     selection: threadDefaultHarnessBinding,
                     options: viewModel.threadDefaultHarnessIDs,
                     placeholder: harnessPlaceholder,
-                    isDisabled: threadDefaultControlsDisabled,
+                    isDisabled: viewModel.isCheckingThreadDefaultHarnesses || viewModel.threadDefaultHarnessIDs.isEmpty,
                     label: { viewModel.harnessDisplayName(for: $0) }
                 )
             }
@@ -173,7 +175,7 @@ private extension ThreadsSettingsTabView {
         if viewModel.isCheckingThreadDefaultHarnesses {
             return "Checking harnesses..."
         }
-        return viewModel.hasReadyThreadDefaultHarness ? nil : "No ready harnesses"
+        return viewModel.threadDefaultHarnessIDs.isEmpty ? "No ready harnesses" : nil
     }
 
     var dependentPlaceholder: String? {

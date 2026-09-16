@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 actor DefaultHarnessDetectionService: HarnessDetectionService {
@@ -39,8 +40,10 @@ actor DefaultHarnessDetectionService: HarnessDetectionService {
     }
 
     func checkAllHarnesses() async {
-        for harness in registry.harnesses {
-            await checkHarness(harness.id)
+        await withTaskGroup(of: Void.self) { group in
+            for harness in registry.harnesses {
+                group.addTask { await self.checkHarness(harness.id) }
+            }
         }
     }
 
@@ -66,6 +69,9 @@ actor DefaultHarnessDetectionService: HarnessDetectionService {
 
                 if result.succeeded {
                     let version = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if harness.id == "opencode" {
+                        try OpenCodeVersionSupport.validate(version)
+                    }
                     statuses[harness.id] = .connected(path: path, version: version)
                     resolvedPaths[harness.id] = path
                     return

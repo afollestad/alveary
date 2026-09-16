@@ -9,6 +9,53 @@ import XCTest
 /// thread, requested ones validate against live host state.
 @MainActor
 extension ThreadHostToolServiceTests {
+    func testCreateOpenCodeThreadUsesTargetWorkspaceCatalogBeforeInsertion() async throws {
+        let discovery = ProjectOnlyOpenCodeDiscoveryStub()
+        let fixture = try ThreadHostToolFixture(harnessDiscovery: discovery)
+        let result = await fixture.create(arguments: [
+            "project_path": .string(fixture.project.path), "harness": .string("opencode"), "model": .string("project/model")
+        ])
+
+        XCTAssertFalse(result.isError, result.text)
+        let thread = try fixture.createdThread(in: result)
+        XCTAssertEqual(thread.model, "project/model")
+        XCTAssertEqual(thread.soleMainConversation?.harness, "opencode")
+        XCTAssertEqual(thread.effort, AppSettings.openCodeDefaultEffort)
+        let paths = await discovery.paths
+        XCTAssertEqual(paths, [fixture.project.path])
+    }
+
+    func testExplicitOpenCodeSwitchRejectsUnavailableInheritedGlobalModel() throws {
+        let fixture = try ThreadHostToolFixture()
+        let defaults = ThreadSettingDefaults(
+            source: .init(harness: "claude", model: nil, effort: "medium"),
+            resolution: .init(
+                harnessID: "opencode", storedThreadModel: "removed/model", permissionMode: "ask",
+                effort: AppSettings.openCodeDefaultEffort, readyHarnessIDs: ["opencode"], modelOptions: []
+            ),
+            harness: "opencode", options: []
+        )
+        XCTAssertThrowsError(try fixture.service.validatedModel(nil, defaults: defaults)) { error in
+            XCTAssertTrue(error.localizedDescription.contains("removed/model"))
+        }
+    }
+
+    func testCreateThreadDoesNotSilentlyReplaceUnavailableOpenCode() async throws {
+        let fixture = try ThreadHostToolFixture(harnessDiscovery: ClaudeOnlyHarnessDiscoveryStub())
+        fixture.thread.soleMainConversation?.harness = "opencode"
+        try fixture.modelContext.save()
+        let result = await fixture.service.handle(
+            context: fixture.agentContext(harnessID: .opencode),
+            call: .init(
+                name: ThreadHostToolCatalog.createThreadToolName,
+                arguments: ["project_path": .string(fixture.project.path)]
+            )
+        )
+        XCTAssertTrue(result.isError, result.text)
+        XCTAssertTrue(result.text.contains("opencode"), result.text)
+        XCTAssertEqual(try fixture.threadCount(), 1)
+    }
+
     /// Omitted settings inherit the caller's own thread — codex with "source-model" at high effort
     /// in this fixture — not the user's defaults, whose harness here is claude.
     func testCreateThreadAppliesImmediatelyWithTheCallersInheritedSettings() async throws {

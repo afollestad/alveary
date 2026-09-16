@@ -70,6 +70,7 @@ final class AskUserQuestionOverlayStateTests: XCTestCase {
         XCTAssertEqual(answers.count, 1)
         XCTAssertEqual(answers.first?.question, "Pick work")
         XCTAssertEqual(answers.first?.answer, "Fix tests, Update docs, Add release notes")
+        XCTAssertEqual(state.answerSelections(for: prompt), [["Fix tests", "Update docs", "Add release notes"]])
     }
 
     func testReturnStyleSelectionDoesNotToggleSelectedMultiSelectOptionOff() {

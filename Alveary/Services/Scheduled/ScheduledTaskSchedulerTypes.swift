@@ -22,7 +22,7 @@ struct ScheduledTaskPreflightSnapshot: Equatable, Sendable {
     /// A `.reusedThread` schedule's healthy claimed thread, by its main conversation. Deliberately
     /// not a `target`: `target != nil` means "read agent settings from the thread", which reuse
     /// mode must never do — the definition created the thread and stays authoritative. This field
-    /// contributes only conversation identity, through `gatedConversationID`.
+    /// contributes conversation identity and any native catalog directory, without replacing source-workspace ownership.
     let reusedTarget: ScheduledTaskReusedTarget?
 
     /// The conversation whose availability gates claiming — an existing target's or a reused
@@ -78,6 +78,15 @@ struct ScheduledTaskReusedTarget: Equatable, Sendable {
     let conversationID: String
     let threadName: String
     let threadID: PersistentIdentifier
+    /// OpenCode catalogs follow the existing execution workspace; equality fences directory changes during discovery.
+    let harnessDiscoveryDirectory: String?
+
+    init(conversationID: String, threadName: String, threadID: PersistentIdentifier, harnessDiscoveryDirectory: String? = nil) {
+        self.conversationID = conversationID
+        self.threadName = threadName
+        self.threadID = threadID
+        self.harnessDiscoveryDirectory = harnessDiscoveryDirectory
+    }
 }
 
 struct ScheduledTaskTargetSnapshot: Equatable, Sendable {

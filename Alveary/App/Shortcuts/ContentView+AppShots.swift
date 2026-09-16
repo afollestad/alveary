@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import SwiftData
 
@@ -13,6 +14,7 @@ final class AppShotCaptureController {
     private let settingsService: any SettingsService
     private let runtimeStore: any ConversationRuntimeStore
     private let attachmentStore: any ConversationAttachmentStore
+    private let harnessDiscovery: (any AgentHarnessDiscoveryService)?
     private let isVoiceInputLocked: IsVoiceInputLocked
     private let prepareCapture: PrepareCapture
     private let openDraft: OpenDraft
@@ -28,6 +30,7 @@ final class AppShotCaptureController {
         settingsService: any SettingsService,
         runtimeStore: any ConversationRuntimeStore,
         attachmentStore: any ConversationAttachmentStore,
+        harnessDiscovery: (any AgentHarnessDiscoveryService)? = nil,
         isVoiceInputLocked: @escaping IsVoiceInputLocked = { false },
         prepareCapture: @escaping PrepareCapture,
         openDraft: @escaping OpenDraft,
@@ -43,6 +46,7 @@ final class AppShotCaptureController {
         self.settingsService = settingsService
         self.runtimeStore = runtimeStore
         self.attachmentStore = attachmentStore
+        self.harnessDiscovery = harnessDiscovery
         self.isVoiceInputLocked = isVoiceInputLocked
         self.prepareCapture = prepareCapture
         self.openDraft = openDraft
@@ -74,15 +78,39 @@ final class AppShotCaptureController {
 private extension AppShotCaptureController {
     func capture() async {
         guard !isVoiceInputLocked(),
-              let intent = resolveIntent(),
-              let preparedCapture = await resolvePreparedCapture() else {
+              let intent = resolveIntent() else {
             return
         }
+        do {
+            let destinationID: PersistentIdentifier?
+            let draftProjectID: PersistentIdentifier?
+            switch intent.route {
+            case .conversation(let snapshot):
+                destinationID = snapshot.conversationPersistentID
+                draftProjectID = nil
+            case .draft(let projectID):
+                destinationID = nil
+                draftProjectID = projectID
+            }
+            try await validateCaptureModel(conversationID: destinationID, draftProjectID: draftProjectID)
+        } catch {
+            presentAppLevelError(error)
+            return
+        }
+        guard !isVoiceInputLocked(),
+              intent.isCurrent(appState: appState, modelContext: modelContext, settingsService: settingsService),
+              let preparedCapture = await resolvePreparedCapture() else { return }
         guard !isVoiceInputLocked(),
               intent.isCurrent(appState: appState, modelContext: modelContext, settingsService: settingsService) else {
             return
         }
         guard let claim = await resolveClaim(for: intent) else {
+            return
+        }
+        do {
+            try await validateCaptureModel(conversationID: claim.conversationPersistentID)
+        } catch {
+            presentAppLevelError(error)
             return
         }
         guard !isVoiceInputLocked(),
@@ -146,28 +174,36 @@ private extension AppShotCaptureController {
             return false
         }
 
-        guard let state = resolvedState(for: claim) else {
-            let error = await errorAfterRemovingStoredAttachment(
-                appShot,
-                originalError: AppShotRoutingError.destinationDeleted
-            )
-            presentStorageOrStagingError(error, claim: claim)
-            return false
-        }
-
         guard !isVoiceInputLocked() else {
             await removeStoredAttachmentSuppressedByVoiceInput(appShot, claim: claim)
             return false
         }
 
         do {
-            try stageAppShot(state, appShot)
+            try await validateCaptureModel(conversationID: claim.conversationPersistentID)
+            guard !isVoiceInputLocked() else {
+                await removeStoredAttachmentSuppressedByVoiceInput(appShot, claim: claim)
+                return false
+            }
+            try stageStoredAppShot(appShot, claim: claim)
             return true
         } catch {
-            state.removeStagedAppShot(id: appShot.id)
             let reportedError = await errorAfterRemovingStoredAttachment(appShot, originalError: error)
             presentStorageOrStagingError(reportedError, claim: claim)
             return false
+        }
+    }
+
+    /// Setup cancellation can replace composer state during discovery; resolve the claim after the final await.
+    func stageStoredAppShot(_ appShot: AppShotAttachment, claim: AppShotDestinationClaim) throws {
+        guard let state = resolvedState(for: claim) else {
+            throw AppShotRoutingError.destinationDeleted
+        }
+        do {
+            try stageAppShot(state, appShot)
+        } catch {
+            state.removeStagedAppShot(id: appShot.id)
+            throw error
         }
     }
 
@@ -286,196 +322,48 @@ private extension AppShotCaptureController {
         })
         return try? modelContext.fetch(descriptor).first
     }
-}
 
-private struct AppShotDestinationIntent {
-    enum Route {
-        case conversation(AppShotConversationSnapshot)
-        case draft(PersistentIdentifier?)
+    /// Keyboard capture shares the model gate with the composer, including changes while capture or storage is suspended.
+    func validateCaptureModel(conversationID: PersistentIdentifier?, draftProjectID: PersistentIdentifier? = nil) async throws {
+        let selection = try captureModelSelection(conversationID: conversationID, draftProjectID: draftProjectID)
+        guard AppShotHarnessStrategy(harnessID: selection.harness) != nil else {
+            throw AppShotCaptureError.unsupportedHarness(selection.harness)
+        }
+        guard selection.harness == "opencode" else { return }
+        let projectURL = selection.directory.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let status = await harnessDiscovery?.harnessStatuses(projectURL: projectURL)[.opencode]
+        let current = try captureModelSelection(conversationID: conversationID, draftProjectID: draftProjectID)
+        guard selection == current else { throw AppShotRoutingError.destinationUnavailable }
+        try HarnessRequestValidation.validateOpenCodeModel(model: selection.model, effort: nil, hasImages: true, status: status)
     }
 
-    let navigationToken: AppShotNavigationToken
-    let route: Route
-
-    @MainActor
-    static func resolve(
-        appState: AppState,
-        modelContext: ModelContext,
-        settingsService: any SettingsService
-    ) throws -> AppShotDestinationIntent {
-        let navigationToken = AppShotNavigationToken(appState: appState)
-        if case .thread(let selectedThread) = appState.selectedSidebarItem {
-            guard let thread = modelContext.resolveThread(id: selectedThread.persistentModelID),
-                  thread.archivedAt == nil else {
-                throw AppShotRoutingError.destinationUnavailable
-            }
-            let conversation: Conversation?
-            if thread.isDraft {
-                let threadID = thread.persistentModelID
-                let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { candidate in
-                    candidate.thread?.persistentModelID == threadID && candidate.isMain
-                })
-                conversation = try? modelContext.fetch(descriptor).first
+    func captureModelSelection(
+        conversationID: PersistentIdentifier?, draftProjectID: PersistentIdentifier?
+    ) throws -> AppShotCaptureModelSelection {
+        guard let conversationID else {
+            let directory: String?
+            if let draftProjectID, let current = modelContext.resolveProject(id: draftProjectID) {
+                directory = current.path
             } else {
-                conversation = selectedConversation(in: thread, modelContext: modelContext, appState: appState)
+                directory = nil
             }
-            guard let conversation else {
-                throw AppShotRoutingError.destinationUnavailable
-            }
-            return AppShotDestinationIntent(
-                navigationToken: navigationToken,
-                route: .conversation(AppShotConversationSnapshot(thread: thread, conversation: conversation))
+            return AppShotCaptureModelSelection(
+                harness: settingsService.current.defaultHarness, model: settingsService.current.defaultModel, directory: directory
             )
         }
-
-        let resolution = NewThreadProjectResolver.resolve(
-            selection: appState.selectedSidebarItem,
-            previousSelection: appState.previousSelection,
-            lastActiveProjectID: settingsService.current.lastActiveProjectID,
-            legacyProjectPath: settingsService.current.lastActiveProjectPath,
-            modelContext: modelContext
-        )
-        settingsService.updateLastActiveProjectID(resolution.lastActiveProjectID)
-        return AppShotDestinationIntent(
-            navigationToken: navigationToken,
-            route: .draft(resolution.project?.persistentModelID)
-        )
-    }
-
-    @MainActor
-    func isCurrent(
-        appState: AppState,
-        modelContext: ModelContext,
-        settingsService: any SettingsService
-    ) -> Bool {
-        guard navigationToken == AppShotNavigationToken(appState: appState) else {
-            return false
+        guard let conversation = modelContext.resolveConversation(id: conversationID) else {
+            throw AppShotRoutingError.destinationDeleted
         }
-
-        switch route {
-        case .conversation(let snapshot):
-            guard let thread = modelContext.resolveThread(id: snapshot.threadID),
-                  thread.archivedAt == nil,
-                  let conversation = modelContext.resolveConversation(id: snapshot.conversationPersistentID),
-                  conversation.thread?.persistentModelID == snapshot.threadID else {
-                return false
-            }
-            if thread.isDraft {
-                return conversation.isMain && thread.project?.persistentModelID == snapshot.draftProjectID
-            }
-            return selectedConversation(in: thread, modelContext: modelContext, appState: appState)?.persistentModelID ==
-                snapshot.conversationPersistentID
-        case .draft(let projectID):
-            let resolution = NewThreadProjectResolver.resolve(
-                selection: appState.selectedSidebarItem,
-                previousSelection: appState.previousSelection,
-                lastActiveProjectID: settingsService.current.lastActiveProjectID,
-                legacyProjectPath: settingsService.current.lastActiveProjectPath,
-                modelContext: modelContext
-            )
-            return resolution.project?.persistentModelID == projectID
-        }
-    }
-}
-
-private struct AppShotConversationSnapshot {
-    let threadID: PersistentIdentifier
-    let conversationPersistentID: PersistentIdentifier
-    let conversationID: String
-    let draftProjectID: PersistentIdentifier?
-    let destinationName: String
-
-    @MainActor
-    init(thread: AgentThread, conversation: Conversation) {
-        threadID = thread.persistentModelID
-        conversationPersistentID = conversation.persistentModelID
-        conversationID = conversation.id
-        draftProjectID = thread.isDraft ? thread.project?.persistentModelID : nil
-        if thread.isDraft, let projectName = thread.project?.name {
-            destinationName = "the new thread in \(projectName)"
-        } else {
-            destinationName = thread.displayName()
-        }
-    }
-
-    func claim(opensDraftOnSuccess: Bool) -> AppShotDestinationClaim {
-        AppShotDestinationClaim(
-            threadID: threadID,
-            conversationPersistentID: conversationPersistentID,
-            conversationID: conversationID,
-            destinationName: destinationName,
-            opensDraftOnSuccess: opensDraftOnSuccess
+        return AppShotCaptureModelSelection(
+            harness: conversation.harness ?? conversation.harnessSessionHarnessId ?? settingsService.current.defaultHarness,
+            model: conversation.thread?.model,
+            directory: conversation.thread?.primaryWorkingDirectory
         )
     }
 }
 
-private struct AppShotDestinationClaim {
-    let threadID: PersistentIdentifier
-    let conversationPersistentID: PersistentIdentifier
-    let conversationID: String
-    let destinationName: String
-    let opensDraftOnSuccess: Bool
-}
-
-private enum AppShotNavigationToken: Equatable {
-    case none
-    case skills
-    case mcp
-    case scheduled
-    case pullRequests
-    case archived
-    case project(PersistentIdentifier)
-    // Effective conversation selection is checked in `isCurrent`; the raw selection cache may be repaired without changing destinations.
-    case thread(PersistentIdentifier)
-    case settings(previousSelection: AppState.SidebarBookmark?)
-
-    @MainActor
-    init(appState: AppState) {
-        switch appState.selectedSidebarItem {
-        case .skills:
-            self = .skills
-        case .mcp:
-            self = .mcp
-        case .scheduled:
-            self = .scheduled
-        case .pullRequests:
-            self = .pullRequests
-        case .archived:
-            self = .archived
-        case .project(let project):
-            self = .project(project.persistentModelID)
-        case .thread(let thread):
-            self = .thread(thread.persistentModelID)
-        case .settings:
-            self = .settings(previousSelection: appState.previousSelection)
-        case nil:
-            self = .none
-        }
-    }
-}
-
-enum AppShotRoutingError: LocalizedError, Equatable {
-    case destinationUnavailable
-    case draftUnavailable
-    case destinationDeleted
-
-    var errorDescription: String? {
-        switch self {
-        case .destinationUnavailable:
-            return "Could not resolve a conversation for the app shot."
-        case .draftUnavailable:
-            return "Could not create a new thread for the app shot."
-        case .destinationDeleted:
-            return "The app-shot destination was deleted before the capture finished."
-        }
-    }
-}
-
-struct AppShotAttachmentCleanupError: LocalizedError, Equatable {
-    let originalError: String
-    let cleanupError: String
-
-    var errorDescription: String? {
-        "\(originalError) Removing the stored app-shot screenshot also failed: \(cleanupError)"
-    }
+private struct AppShotCaptureModelSelection: Equatable {
+    let harness: String
+    let model: String?
+    let directory: String?
 }

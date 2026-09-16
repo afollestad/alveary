@@ -5,6 +5,17 @@ import Testing
 
 @MainActor
 struct ReviewTeamRunWidgetTests {
+    @Test func `openCode review details show native effort instead of persistence markers`() {
+        for variant in [nil, " native "] as [String?] {
+            let member = ReviewWorkerConfiguration(
+                id: "lead", harnessID: "opencode", modelOptionID: "provider/model", launchModel: "provider/model",
+                effort: variant.map(AppSettings.openCodeStoredEffort) ?? AppSettings.openCodeDefaultEffort,
+                executablePath: "/usr/local/bin/opencode"
+            )
+            #expect(ReviewTeamRunPresentation.requestedModel(member) == "opencode · provider/model · \(variant ?? "Default")")
+        }
+    }
+
     @Test
     func `vote disclosure is an accessible button and includes missing reviewers`() throws {
         let reviewers = testReviewers()

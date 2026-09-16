@@ -72,7 +72,7 @@ extension ConversationViewModel {
            storedMode != "plan" {
             return storedMode
         }
-        let harnessId = dbConversation()?.harness ?? settingsService.current.defaultHarness
+        let harnessId = capabilityHarnessID
         return AppSettings.defaultPermissionMode(forHarness: harnessId)
     }
 }

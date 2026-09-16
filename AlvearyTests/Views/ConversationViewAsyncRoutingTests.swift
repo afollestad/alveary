@@ -35,6 +35,20 @@ final class ConversationViewAsyncRoutingTests: XCTestCase {
         )
     }
 
+    func testOpenCodeComposerUsesExistingWorktreeAndOnlyFallsBackAfterItDisappears() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let worktree = root.appendingPathComponent("worktree")
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        let project = Project(path: root.appendingPathComponent("source").path, name: "Source")
+        let thread = AgentThread(name: "Worktree", worktreePath: worktree.path, useWorktree: true, project: project)
+
+        XCTAssertEqual(ConversationView.harnessDiscoveryURL(for: thread, harnessID: "opencode")?.path, CanonicalPath.normalize(worktree.path))
+        XCTAssertEqual(ConversationView.harnessDiscoveryURL(for: thread, harnessID: "claude")?.path, project.path)
+        try FileManager.default.removeItem(at: worktree)
+        XCTAssertEqual(ConversationView.harnessDiscoveryURL(for: thread, harnessID: "opencode")?.path, project.path)
+    }
+
     func testStaleHarnessDiscoveryCannotOverwriteOrCacheUnderNewProject() async {
         ComposerHarnessStatusCache.removeAll()
         defer { ComposerHarnessStatusCache.removeAll() }
@@ -138,6 +152,8 @@ private extension ConversationViewAsyncRoutingTests {
             AgentCLIKit.ClaudeHarnessDefinition.definition
         case .codex:
             AgentCLIKit.CodexHarnessDefinition.definition
+        case .opencode:
+            AgentCLIKit.OpenCodeHarnessDefinition.definition
         }
         return AgentCLIKit.AgentHarnessStatus(
             harnessId: harnessID,

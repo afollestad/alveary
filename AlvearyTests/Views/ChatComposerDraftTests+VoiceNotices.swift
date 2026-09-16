@@ -4,6 +4,33 @@ import XCTest
 
 @MainActor
 extension ChatComposerDraftTests {
+    func testUnsupportedSavedFastModeRequiresExplicitStandardRecovery() throws {
+        let fixture = try ConversationViewModelTestFixture(harnessId: "opencode")
+        fixture.thread.speedMode = "fast"
+        fixture.thread.effort = AppSettings.openCodeDefaultEffort
+        let chatView = makeChatView(fixture: fixture, appState: AppState(), harnessID: "opencode")
+        let banner = try XCTUnwrap(inlineBanner(in: chatView.composerTopContentConfiguration))
+        XCTAssertEqual(fixture.thread.normalizedSpeedMode, .fast)
+        XCTAssertEqual(banner.actionTitle, "Use Standard")
+        XCTAssertNil(banner.onDismiss)
+        try XCTUnwrap(banner.onAction)()
+        XCTAssertEqual(fixture.thread.normalizedSpeedMode, .standard)
+        XCTAssertNil(inlineBanner(in: chatView.composerTopContentConfiguration))
+    }
+
+    func testUnavailableSavedOpenCodeEffortRequiresExplicitDefaultRecovery() throws {
+        let fixture = try ConversationViewModelTestFixture(harnessId: "opencode")
+        fixture.thread.effort = "retired-native-variant"
+        let chatView = makeChatView(fixture: fixture, appState: AppState(), harnessID: "opencode")
+        let banner = try XCTUnwrap(inlineBanner(in: chatView.composerTopContentConfiguration))
+        XCTAssertEqual(fixture.thread.effort, "retired-native-variant")
+        XCTAssertEqual(banner.actionTitle, "Use model default")
+        XCTAssertNil(banner.onDismiss)
+        try XCTUnwrap(banner.onAction)()
+        XCTAssertEqual(fixture.thread.effort, AppSettings.openCodeDefaultEffort)
+        XCTAssertNil(inlineBanner(in: chatView.composerTopContentConfiguration))
+    }
+
     func testVoiceNoticeAppearsBetweenLastTurnErrorAndSessionContinuityNotice() throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.lastTurnError = "Turn failed."

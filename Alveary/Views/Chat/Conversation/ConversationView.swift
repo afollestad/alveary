@@ -32,28 +32,27 @@ struct ConversationView: View {
     @State var hasLoadedComposerHarnessStatuses: Bool
 
     var composerCapabilities: ComposerCapabilities {
-        let harness = harnessRegistry.harness(for: activeHarnessID)
-
-        let supportsPlanMode = activeHarnessStatus?.definition?.capabilities.supportsPlanMode
-            ?? Self.fallbackPlanModeHarnessIDs.contains(activeHarnessID)
-        let activeCapabilities = activeHarnessStatus?.definition?.capabilities
-        let supportsGoalMode = activeCapabilities?.supportsGoalMode ?? false
-        let supportsExistingSessionGoalStart = activeCapabilities?.supportsExistingSessionGoalStart ?? false
+        let policy = HarnessFeaturePolicy(
+            harnessID: activeHarnessID,
+            status: activeHarnessStatus,
+            selectedModel: conversation.thread?.model
+        )
         return ComposerCapabilities(
             supportedPermissionModes: harnessPermissionModes(),
-            supportsMidTurnSteering: activeCapabilities?.supportsMidTurnSteering
-                ?? harness?.supportsMidTurnSteering
-                ?? false,
-            supportsGoalMode: supportsGoalMode,
-            supportsExistingSessionGoalStart: supportsExistingSessionGoalStart,
-            supportsPlanMode: supportsPlanMode,
-            supportsSpeedMode: activeCapabilities?.supportsSpeedMode ?? false,
-            supportsLocalImageInput: activeCapabilities?.supportsLocalImageInput ?? false,
+            supportsMidTurnSteering: policy.supportsMidTurnSteering,
+            hasConfirmedHarnessDefinition: policy.hasCapabilities,
+            supportsGoalMode: policy.supportsGoalMode,
+            supportsExistingSessionGoalStart: policy.supportsExistingSessionGoalStart,
+            supportsPlanMode: policy.supportsPlanMode,
+            supportsSpeedMode: policy.supportsSpeedMode,
+            supportsLocalImageInput: policy.supportsLocalImageInput,
+            supportsAppShots: policy.supportsAppShots,
+            supportsContextCompaction: policy.supportsContextCompaction,
             goalModeDisabledTooltip: goalModeDisabledTooltip(
-                supportsGoalMode: supportsGoalMode,
-                supportsExistingSessionGoalStart: supportsExistingSessionGoalStart
+                supportsGoalMode: policy.supportsGoalMode,
+                supportsExistingSessionGoalStart: policy.supportsExistingSessionGoalStart
             ),
-            planModeDisabledTooltip: planModeDisabledTooltip(supportsPlanMode: supportsPlanMode)
+            planModeDisabledTooltip: planModeDisabledTooltip(supportsPlanMode: policy.supportsPlanMode)
         )
     }
 
@@ -103,8 +102,11 @@ struct ConversationView: View {
         self.onSelectDraftDestination = onSelectDraftDestination
         self.appState = appState
         let harnessStatusCacheKey = Self.composerHarnessStatusCacheKey(
-            projectURL: Self.harnessDiscoveryURL(for: conversation.thread),
-            activeHarnessID: conversation.harness ?? settingsService.current.defaultHarness,
+            projectURL: Self.harnessDiscoveryURL(
+                for: conversation.thread,
+                harnessID: conversation.harness ?? conversation.harnessSessionHarnessId ?? settingsService.current.defaultHarness
+            ),
+            activeHarnessID: conversation.harness ?? conversation.harnessSessionHarnessId ?? settingsService.current.defaultHarness,
             settings: settingsService.current
         )
         let harnessStatusSnapshot = ComposerHarnessStatusCache.snapshot(for: harnessStatusCacheKey)
@@ -196,8 +198,6 @@ struct ConversationView: View {
 }
 
 private extension ConversationView {
-    static let fallbackPlanModeHarnessIDs: Set<String> = ["claude", "codex"]
-
     var composerReasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration {
         ChatComposerActionRowView.ReasoningConfiguration(
             selection: composerReasoningSelection,
@@ -313,7 +313,13 @@ private extension ConversationView {
         for harnessID: AgentCLIKit.AgentHarnessID?,
         selectedModel: String
     ) -> [ChatComposerActionRowView.MenuOption] {
-        AgentModelOptionSelection.effortOptions(
+        guard let harnessID,
+              HarnessFeaturePolicy(
+                harnessID: harnessID.rawValue,
+                status: composerHarnessStatuses[harnessID],
+                selectedModel: selectedModel
+              ).supportsReasoning else { return [] }
+        return AgentModelOptionSelection.effortOptions(
             in: modelOptions(for: harnessID),
             selectedModel: selectedModel
         ).map { option in
@@ -352,7 +358,9 @@ private extension ConversationView {
         let requestOptions = modelOptions(for: requestHarnessID)
         let storedModel = AgentModelOptionSelection.storedModelValue(in: requestOptions, matching: request.modelID)
         let requestEffortOptions = AgentModelOptionSelection.effortOptions(in: requestOptions, selectedModel: storedModel)
-        let defaultEffort = AgentModelOptionSelection.defaultEffortValue(in: requestOptions, selectedModel: storedModel)
+        let defaultEffort = requestHarnessID == .opencode && requestEffortOptions.isEmpty
+            ? AppSettings.openCodeDefaultEffort
+            : AgentModelOptionSelection.defaultEffortValue(in: requestOptions, selectedModel: storedModel)
         let requestSupportsSpeedMode = composerHarnessStatuses[requestHarnessID]?.definition?.capabilities.supportsSpeedMode ?? false
         let didApply: Bool
 

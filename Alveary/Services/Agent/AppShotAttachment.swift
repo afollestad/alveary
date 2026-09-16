@@ -114,6 +114,7 @@ struct TranscriptImageAttachment: Equatable, Sendable {
 enum AppShotHarnessStrategy: Equatable, Sendable {
     case codex
     case claude
+    case opencode
 
     init?(harnessID: String) {
         switch harnessID {
@@ -121,6 +122,8 @@ enum AppShotHarnessStrategy: Equatable, Sendable {
             self = .codex
         case "claude":
             self = .claude
+        case "opencode":
+            self = .opencode
         default:
             return nil
         }
@@ -132,11 +135,13 @@ enum AppShotHarnessStrategy: Equatable, Sendable {
             return "Codex"
         case .claude:
             return "Claude"
+        case .opencode:
+            return "OpenCode"
         }
     }
 
     var usesLocalImageAttachment: Bool {
-        self == .codex
+        self == .codex || self == .opencode
     }
 }
 
@@ -184,7 +189,7 @@ enum AppShotTransportFormatter {
         strategy: AppShotHarnessStrategy
     ) -> String {
         let formatted = format(userInput: userInput, appShots: appShots, strategy: strategy)
-        let harnessMode = strategy == .codex ? "Codex localImage" : "Claude markdown screenshot link"
+        let harnessMode = strategy.usesLocalImageAttachment ? "\(strategy.requestLabel) localImage" : "Claude markdown screenshot link"
         let paths = appShots.map { $0.screenshot.fileURL.path }.joined(separator: "\n")
         let roots = Set(appShots.map { $0.attachmentStoreRoot.path }).sorted().joined(separator: "\n")
         return """

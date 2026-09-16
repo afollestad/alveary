@@ -41,6 +41,9 @@ extension ConversationViewModel {
             if activeKeepAwakeSource == keepAwakeSource {
                 activeKeepAwakeSource = nil
             }
+            if capabilityHarnessID == "opencode", !resumeOpenCodeAutomaticHandoffAfterSubmissionIfNeeded() {
+                scheduleQueueDrainIfNeeded()
+            }
         }
         return try await body()
     }

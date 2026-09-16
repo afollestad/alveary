@@ -33,6 +33,9 @@ final class AlvearyHostToolCatalogTests: XCTestCase {
         XCTAssertFalse(
             AlvearyHostToolCatalog.matches(reportedName: "mcp__other__list_threads", hostToolName: "list_threads")
         )
+        XCTAssertTrue(AlvearyHostToolCatalog.matches(reportedName: "alveary_host_list_threads", hostToolName: "list_threads"))
+        XCTAssertFalse(AlvearyHostToolCatalog.matches(reportedName: "other_list_threads", hostToolName: "list_threads"))
+        XCTAssertFalse(AlvearyHostToolCatalog.matches(reportedName: "alveary_host_list_threads_extra", hostToolName: "list_threads"))
     }
 
     func testToolsAreTheEnrolledFeatureCatalogsWithoutDuplicateNames() {

@@ -314,9 +314,13 @@ extension ConversationViewModel {
 
     func answerDeferredAskUserQuestion(
         _ pendingApproval: PendingToolApproval,
-        answers: [(question: String, answer: String)]
+        answers: [(question: String, answer: String)],
+        answerSelections: [[String]]? = nil
     ) async throws {
-        guard let updatedToolInput = pendingApproval.request.askUserQuestionUpdatedInput(answers: answers) else {
+        let indexedAnswers = capabilityHarnessID == "opencode" ? answerSelections ?? answers.map { [$0.answer] } : nil
+        guard let updatedToolInput = pendingApproval.request.askUserQuestionUpdatedInput(
+            answers: answers, indexedAnswers: indexedAnswers
+        ) else {
             throw AgentError.spawnFailed("Question prompt can no longer be answered")
         }
 

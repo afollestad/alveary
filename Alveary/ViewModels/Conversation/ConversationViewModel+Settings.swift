@@ -38,7 +38,7 @@ extension ConversationViewModel {
     }
 
     var shouldStageInactiveClaudeSettings: Bool {
-        let harnessId = dbConversation()?.harness ?? settingsService.current.defaultHarness
+        let harnessId = capabilityHarnessID
         return harnessId == "claude" &&
             !state.turnState.isActive &&
             shouldReconfigureOnSettingChange()
@@ -68,7 +68,7 @@ extension ConversationViewModel {
         dbThread.model = nil
         dbThread.permissionMode = newPermissionMode
         dbThread.planModeEnabled = false
-        dbThread.effort = AppSettings.defaultEffortLevel
+        dbThread.effort = newValue == "opencode" ? AppSettings.openCodeDefaultEffort : AppSettings.defaultEffortLevel
         dbThread.speedMode = AgentSpeedMode.standard.rawValue
         state.runtimePermissionMode = newPermissionMode
         state.runtimePlanModeEnabled = false
@@ -106,7 +106,7 @@ extension ConversationViewModel {
         let currentHarness = snapshot.harness ?? settingsService.current.defaultHarness
         let harnessChanged = currentHarness != harnessID
         let newPermissionMode = AppSettings.defaultPermissionMode(forHarness: harnessID)
-        let newEffort = supportedOrDefaultEffort(
+        let newEffort = harnessID == "opencode" && effortOptions.isEmpty ? AppSettings.openCodeDefaultEffort : supportedOrDefaultEffort(
             currentEffort: dbThread.effort,
             effortOptions: effortOptions,
             defaultEffort: defaultEffort
@@ -375,7 +375,7 @@ private extension ConversationViewModel {
     }
 
     func canSelectPermissionMode(_ value: String) -> Bool {
-        let harnessId = dbConversation()?.harness ?? settingsService.current.defaultHarness
+        let harnessId = capabilityHarnessID
         return AppSettings.supportedPermissionModes(forHarness: harnessId).contains(value)
     }
 
@@ -384,6 +384,10 @@ private extension ConversationViewModel {
         effortOptions: [AgentCLIKit.AgentHarnessOption],
         defaultEffort: String?
     ) {
+        if capabilityHarnessID == "opencode", effortOptions.isEmpty {
+            dbThread.effort = AppSettings.openCodeDefaultEffort
+            return
+        }
         guard !effortOptions.isEmpty else {
             return
         }
@@ -397,6 +401,7 @@ private extension ConversationViewModel {
     }
 
     func normalizeSpeedModeIfUnsupported(for dbThread: AgentThread, supportsSpeedMode: Bool) {
+        guard capabilityHarnessID != "opencode" else { return }
         guard !supportsSpeedMode,
               dbThread.normalizedSpeedMode == .fast else {
             return

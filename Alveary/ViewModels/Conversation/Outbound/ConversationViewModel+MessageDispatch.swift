@@ -40,14 +40,17 @@ extension ConversationViewModel {
             transportMessage,
             initialGoal: initialGoal,
             attachments: attachments,
-            harnessMetadata: harnessMetadata
+            harnessMetadata: harnessMetadata,
+            marksSessionHandoffSeedTurn: marksSessionHandoffSeedTurn
         )
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
             state.stagedContext = nil
         }
         clearConsumedPendingRestoreContext(using: appliedContext)
-        markVisibleTurnStarted(isSessionHandoffSeed: marksSessionHandoffSeedTurn)
-        state.turnState.beginTurn()
+        if capabilityHarnessID != "opencode" {
+            markVisibleTurnStarted(isSessionHandoffSeed: marksSessionHandoffSeedTurn)
+            state.turnState.beginTurn()
+        }
         if let existingLocalUserMessageID {
             state.clearRetryableFailedMessage(id: existingLocalUserMessageID)
         } else {
@@ -75,9 +78,17 @@ extension ConversationViewModel {
         _ message: String,
         initialGoal: String? = nil,
         attachments: [LocalImageAttachment] = [],
-        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:]
+        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:],
+        marksSessionHandoffSeedTurn: Bool = false
     ) async throws {
+        try await validateOutboundCapabilities(attachments: attachments, initialGoal: initialGoal, usingLiveSettings: true)
         let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
+        let startsBeforeSubmission = capabilityHarnessID == "opencode"
+        if startsBeforeSubmission {
+            // Native compaction and accepted-input recovery can finish before the HTTP submission returns.
+            markVisibleTurnStarted(isSessionHandoffSeed: marksSessionHandoffSeedTurn)
+            state.turnState.beginTurn()
+        }
         do {
             if let initialGoal = initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines),
                !initialGoal.isEmpty {
@@ -99,27 +110,7 @@ extension ConversationViewModel {
                 )
             }
         } catch {
-            restorePromptDismissalNewOutboundTurnStartedIfNeeded(markedPromptDismissalReplacement)
-            throw error
-        }
-    }
-
-    func sendVisibleSteeringMessage(
-        _ message: String,
-        steeringInputID: String,
-        attachments: [LocalImageAttachment] = [],
-        harnessMetadata: [String: AgentCLIKit.JSONValue] = [:]
-    ) async throws {
-        let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
-        do {
-            try await agentsManager.sendSteeringMessage(
-                message,
-                conversationId: conversation.id,
-                steeringInputID: steeringInputID,
-                attachments: attachments,
-                metadata: harnessMetadata
-            )
-        } catch {
+            if startsBeforeSubmission { state.rollBackOptimisticTurn() }
             restorePromptDismissalNewOutboundTurnStartedIfNeeded(markedPromptDismissalReplacement)
             throw error
         }
@@ -190,8 +181,10 @@ extension ConversationViewModel {
                 attachments: queuedMessage.attachments,
                 harnessMetadata: queuedMessage.harnessMetadata
             )
-            markVisibleTurnStarted()
-            state.turnState.beginTurn()
+            if capabilityHarnessID != "opencode" {
+                markVisibleTurnStarted()
+                state.turnState.beginTurn()
+            }
             clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)
             state.clearRetryableFailedMessage(id: localMessage.id)
             state.markTranscriptImageAttachments(id: localMessage.id, attachments: queuedMessage.attachments)
@@ -245,10 +238,16 @@ extension ConversationViewModel {
                 return
             }
             defer { self.queueDrainTask = nil }
-            await self.drainNextQueuedMessageIfReady(
-                allowInactiveBeforeFirstActivation: allowInactiveBeforeFirstActivation,
-                allowInitialSetup: allowInitialSetup
-            )
+            repeat {
+                let messageID = self.state.messageQueue.peekNext()?.id
+                await self.drainNextQueuedMessageIfReady(
+                    allowInactiveBeforeFirstActivation: allowInactiveBeforeFirstActivation,
+                    allowInitialSetup: allowInitialSetup
+                )
+                // A completed native submission can settle while this task still owns queueDrainTask.
+                guard self.capabilityHarnessID == "opencode", !self.state.turnState.isActive,
+                      let messageID, self.state.messageQueue.peekNext()?.id != messageID else { return }
+            } while self.state.messageQueue.peekNext() != nil
         }
     }
 }
@@ -350,7 +349,8 @@ private extension ConversationViewModel {
         guard queuedMessage.transportText == nil || queuedMessage.consumedExitPlanModeRevisionGuidance == nil else {
             throw AgentError.spawnFailed("Plan feedback queued messages send on the next turn")
         }
-        if !queuedMessage.appShots.isEmpty,
+        if capabilityHarnessID == "claude",
+           !queuedMessage.appShots.isEmpty,
            queuedMessage.harnessMetadata[AgentCLIKit.CodexInputMetadata.isAppshot] != .bool(true),
            !hasClaudeAppShotDirectoryGrant(for: queuedMessage.appShots) {
             throw AgentError.spawnFailed("App-shot queued messages send on the next turn until Claude can read the screenshot directory")
@@ -409,6 +409,7 @@ private extension ConversationViewModel {
     }
 
     func prepareQueuedMessageRequirements(_ queuedMessage: QueuedMessage) async throws {
+        try await validateOutboundCapabilities(attachments: queuedMessage.attachments, appShots: queuedMessage.appShots)
         let preflightTransportText = transportTextForQueuedMessage(queuedMessage)
         let requiredPlanModeEnabled = planModeRequirementForQueuedMessage(queuedMessage, transportText: preflightTransportText)
 

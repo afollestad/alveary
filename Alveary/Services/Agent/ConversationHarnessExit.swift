@@ -22,6 +22,8 @@ enum ConversationHarnessExit {
             return "Claude Code"
         case .codex:
             return "Codex"
+        case .opencode:
+            return "OpenCode"
         }
     }
 }
