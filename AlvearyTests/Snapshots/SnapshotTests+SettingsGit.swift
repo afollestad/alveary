@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import XCTest
 
@@ -85,6 +86,40 @@ extension SnapshotTests {
             ),
             size: CGSize(width: 760, height: 760),
             named: "pull_request_review_team_editor_defaults"
+        )
+    }
+
+    func testPullRequestReviewTeamEditorMinimumSizeDark() async {
+        let longModel = AgentModelOption(
+            harnessId: .codex,
+            id: "extended-context-review",
+            model: "extended-context-review",
+            label: "Extended Context Review Model",
+            supportedEffortOptions: [.init(value: "high", label: "High", description: "")]
+        )
+        var statuses = ReviewTeamDefaultsFixtures.statuses
+        statuses[.codex] = ReviewTeamDefaultsFixtures.status(
+            for: .codex,
+            models: ReviewTeamDefaultsFixtures.models(for: .codex) + [longModel]
+        )
+        let viewModel = SettingsViewModel(
+            settingsService: InMemorySettingsService(current: AppSettings()),
+            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: statuses)
+        )
+        await viewModel.refreshHarnessStatuses()
+        var draft = viewModel.reviewTeamEditorSettings()
+        draft.pullRequestReviewPeers = [
+            PullRequestReviewPeer(id: "reviewer-2", harnessID: "codex", model: longModel.id, effort: "high"),
+            PullRequestReviewPeer(id: "reviewer-3", harnessID: "codex", model: "gpt-6-astra", effort: "max"),
+            PullRequestReviewPeer(id: "reviewer-4", harnessID: "claude", model: "claude-fable-5-1", effort: "max"),
+            PullRequestReviewPeer(id: "reviewer-5", harnessID: "claude", model: "claude-opus-5", effort: "high")
+        ]
+
+        assertMacSnapshot(
+            PullRequestReviewTeamEditorSheet(viewModel: viewModel, draft: draft, onCancel: {}, onSave: { _ in }),
+            size: CGSize(width: 680, height: 580),
+            named: "pull_request_review_team_editor_minimum_size_dark",
+            colorScheme: .dark
         )
     }
 

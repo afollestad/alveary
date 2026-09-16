@@ -14,36 +14,34 @@ struct PullRequestReviewLeadEditor: View {
                 .foregroundStyle(.secondary)
 
             SettingsFormSection {
-                SettingsFormRow {
-                    SettingsResponsiveControlRow("Harness", horizontalControlSizing: .intrinsic) {
-                        SettingsMenuPicker(
-                            "Lead harness",
-                            selection: harness,
-                            options: viewModel.reviewTeamLeadHarnessOptions(draft),
-                            label: { viewModel.reviewTeamLeadHarnessLabel($0, settings: draft) }
-                        )
-                    }
-                }
-
-                SettingsFormRow {
-                    SettingsResponsiveControlRow("Model", horizontalControlSizing: .intrinsic) {
-                        SettingsMenuPicker(
-                            "Lead model",
-                            selection: model,
-                            options: viewModel.reviewTeamLeadModelOptions(draft),
-                            label: { viewModel.reviewTeamLeadModelLabel($0, settings: draft) }
-                        )
-                    }
-                }
-
                 SettingsFormRow(showsDivider: false) {
-                    SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
-                        SettingsMenuPicker(
-                            "Lead effort",
-                            selection: effort,
-                            options: viewModel.reviewTeamLeadEffortOptions(draft),
-                            label: { viewModel.reviewTeamLeadEffortLabel($0, settings: draft) }
-                        )
+                    VStack(alignment: .leading, spacing: 8) {
+                        SettingsResponsiveControlRow("Harness", horizontalControlSizing: .selectedContent) {
+                            SettingsMenuPicker(
+                                "Lead harness",
+                                selection: harness,
+                                options: viewModel.reviewTeamLeadHarnessOptions(draft),
+                                label: { viewModel.reviewTeamLeadHarnessLabel($0, settings: draft) }
+                            )
+                        }
+
+                        SettingsResponsiveControlRow("Model", horizontalControlSizing: .selectedContent) {
+                            SettingsMenuPicker(
+                                "Lead model",
+                                selection: model,
+                                options: viewModel.reviewTeamLeadModelOptions(draft),
+                                label: { viewModel.reviewTeamLeadModelLabel($0, settings: draft) }
+                            )
+                        }
+
+                        SettingsResponsiveControlRow("Effort", horizontalControlSizing: .selectedContent) {
+                            SettingsMenuPicker(
+                                "Lead effort",
+                                selection: effort,
+                                options: viewModel.reviewTeamLeadEffortOptions(draft),
+                                label: { viewModel.reviewTeamLeadEffortLabel($0, settings: draft) }
+                            )
+                        }
                     }
                 }
             }

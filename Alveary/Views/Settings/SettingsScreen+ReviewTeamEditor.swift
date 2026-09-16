@@ -134,45 +134,43 @@ private extension PullRequestReviewTeamEditorSheet {
             peerHeader(index: index)
 
             SettingsFormSection {
-                SettingsFormRow {
-                    SettingsResponsiveControlRow("Harness", horizontalControlSizing: .intrinsic) {
-                        SettingsMenuPicker(
-                            "Reviewer \(index + 2) harness",
-                            selection: harnessBinding(index: index),
-                            options: viewModel.pullRequestReviewPeerHarnessOptions(
-                                including: peers[index].harnessID
-                            ),
-                            label: { viewModel.harnessDisplayName(for: $0) }
-                        )
-                    }
-                }
-
-                SettingsFormRow {
-                    SettingsResponsiveControlRow("Model", horizontalControlSizing: .intrinsic) {
-                        SettingsMenuPicker(
-                            "Reviewer \(index + 2) model",
-                            selection: modelBinding(index: index),
-                            options: viewModel.pullRequestReviewPeerModelOptions(peers[index]),
-                            label: { value in
-                                viewModel.pullRequestReviewPeerModelLabel(
-                                    value,
-                                    harnessID: peers[index].harnessID
-                                )
-                            }
-                        )
-                    }
-                }
-
                 SettingsFormRow(showsDivider: false) {
-                    SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
-                        SettingsMenuPicker(
-                            "Reviewer \(index + 2) effort",
-                            selection: effortBinding(index: index),
-                            options: viewModel.pullRequestReviewPeerEffortOptions(peers[index]),
-                            label: { value in
-                                viewModel.pullRequestReviewPeerEffortLabel(value, peer: peers[index])
-                            }
-                        )
+                    VStack(alignment: .leading, spacing: 8) {
+                        SettingsResponsiveControlRow("Harness", horizontalControlSizing: .selectedContent) {
+                            SettingsMenuPicker(
+                                "Reviewer \(index + 2) harness",
+                                selection: harnessBinding(index: index),
+                                options: viewModel.pullRequestReviewPeerHarnessOptions(
+                                    including: peers[index].harnessID
+                                ),
+                                label: { viewModel.harnessDisplayName(for: $0) }
+                            )
+                        }
+
+                        SettingsResponsiveControlRow("Model", horizontalControlSizing: .selectedContent) {
+                            SettingsMenuPicker(
+                                "Reviewer \(index + 2) model",
+                                selection: modelBinding(index: index),
+                                options: viewModel.pullRequestReviewPeerModelOptions(peers[index]),
+                                label: { value in
+                                    viewModel.pullRequestReviewPeerModelLabel(
+                                        value,
+                                        harnessID: peers[index].harnessID
+                                    )
+                                }
+                            )
+                        }
+
+                        SettingsResponsiveControlRow("Effort", horizontalControlSizing: .selectedContent) {
+                            SettingsMenuPicker(
+                                "Reviewer \(index + 2) effort",
+                                selection: effortBinding(index: index),
+                                options: viewModel.pullRequestReviewPeerEffortOptions(peers[index]),
+                                label: { value in
+                                    viewModel.pullRequestReviewPeerEffortLabel(value, peer: peers[index])
+                                }
+                            )
+                        }
                     }
                 }
             }
