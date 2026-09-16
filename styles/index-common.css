@@ -23,6 +23,10 @@ a:visited {
     color: inherit;
 }
 
+a:hover {
+    color: var(--accent);
+}
+
 /* Sections --------------------------------------------------------------- */
 
 .section-hero {
@@ -166,6 +170,16 @@ h1 {
     font-size: .9rem;
     line-height: 1.5rem;
     color: var(--secondary);
+}
+
+.tagline a {
+    text-decoration: none;
+    padding-bottom: .15em;
+    background: radial-gradient(circle, var(--link-underline) .65px, transparent .75px) left bottom / 4px 2px repeat-x;
+}
+
+.tagline a:hover {
+    --link-underline: var(--accent);
 }
 
 .feature-copy {
@@ -344,7 +358,7 @@ picture {
 
 @media (hover: hover) and (pointer: fine) {
     .site-footer a:hover {
-        color: var(--fg);
+        color: var(--accent);
         text-decoration: underline;
     }
 }
