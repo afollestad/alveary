@@ -23,8 +23,10 @@ enum ThreadDetailConversationDeletion {
             return true
         }
         return thread.scheduledTaskRun == nil &&
-            thread.blockingScheduledTaskAttachment == nil &&
-            !thread.hasBlockingScheduledTaskRunAttachment
+            !thread.targetedScheduledTasks.contains { $0.exactTargetConversationID == nil } &&
+            !thread.targetedScheduledTaskRuns.contains {
+                $0.isExactTargetSnapshot != true && (!$0.hasKnownTerminalStatus || $0.requiresFinalizationRecovery)
+            }
     }
 
     static func requireRemovable(_ conversation: Conversation) throws {
@@ -36,6 +38,13 @@ enum ThreadDetailConversationDeletion {
         }
     }
 
+    /// A deletion may offer to stop a callback, but must never commit while it is still finalizing.
+    static func requireQuiescent(_ conversation: Conversation) throws {
+        guard conversation.thread?.targetedScheduledTaskRuns.contains(where: {
+            $0.targetConversationIDSnapshot == conversation.id && (!$0.hasKnownTerminalStatus || $0.requiresFinalizationRecovery)
+        }) != true else { throw ThreadDetailConversationDeletionError.scheduledTaskAttachment }
+    }
+
     static func commit(
         _ conversation: Conversation,
         in modelContext: ModelContext,
@@ -43,10 +52,12 @@ enum ThreadDetailConversationDeletion {
         invalidateController: () -> Void
     ) throws {
         try requireRemovable(conversation)
+        try requireQuiescent(conversation)
         if modelContext.hasChanges {
             try modelContext.save()
         }
         let conversationID = conversation.id
+        let definitionIDs = ScheduledTaskTargetDetachment.pauseCallbacks(to: conversation)
         modelContext.delete(conversation)
         do {
             try save(modelContext)
@@ -54,6 +65,7 @@ enum ThreadDetailConversationDeletion {
             modelContext.rollback()
             throw error
         }
+        NotificationCenter.default.postScheduledTasksDetached(definitionIDs: definitionIDs)
         invalidateController()
         NotificationCenter.default.post(name: .reviewTeamConversationDidDelete, object: nil,
                                         userInfo: ["conversationID": conversationID])

@@ -10,103 +10,12 @@ enum ScheduledTaskProposalAction: String, Codable, CaseIterable, Sendable {
     case runNow = "run_now"
 }
 
-struct ScheduledTaskProposalSchedule: Codable, Equatable, Sendable {
-    let recurrence: ScheduledTaskRecurrence
-    let timeZoneIdentifier: String
-}
-
-struct ScheduledTaskProposalEditChanges: Equatable, Sendable {
-    let title: String?
-    let prompt: String?
-    let schedule: ScheduledTaskProposalSchedule?
-    let placement: ScheduledTaskProposalPlacement?
-
-    init(
-        title: String? = nil,
-        prompt: String? = nil,
-        schedule: ScheduledTaskProposalSchedule? = nil,
-        placement: ScheduledTaskProposalPlacement? = nil
-    ) {
-        self.title = title
-        self.prompt = prompt
-        self.schedule = schedule
-        self.placement = placement
-    }
-}
-
-enum ScheduledTaskProposalRequest: Equatable, Sendable {
-    case create(
-        title: String,
-        prompt: String,
-        schedule: ScheduledTaskProposalSchedule,
-        placement: ScheduledTaskProposalPlacement?
-    )
-    case edit(definitionID: String, expectedRevision: Int, changes: ScheduledTaskProposalEditChanges)
-    case pause(definitionID: String, expectedRevision: Int)
-    case resume(definitionID: String, expectedRevision: Int)
-    case delete(definitionID: String, expectedRevision: Int)
-    case runNow(definitionID: String, expectedRevision: Int)
-
-    var action: ScheduledTaskProposalAction {
-        switch self {
-        case .create:
-            .create
-        case .edit:
-            .edit
-        case .pause:
-            .pause
-        case .resume:
-            .resume
-        case .delete:
-            .delete
-        case .runNow:
-            .runNow
-        }
-    }
-
-    /// Existing definition the request targets; `nil` for create.
-    var targetDefinitionID: String? {
-        switch self {
-        case .create:
-            nil
-        case let .edit(definitionID, _, _),
-             let .pause(definitionID, _),
-             let .resume(definitionID, _),
-             let .delete(definitionID, _),
-             let .runNow(definitionID, _):
-            definitionID
-        }
-    }
-}
-
-struct ScheduledTaskParsedProposalRequest: Equatable, Sendable {
-    let request: ScheduledTaskProposalRequest
-    let canonicalPayloadJSON: String
-    let canonicalPayloadHash: String
-}
-
-struct ScheduledTaskProposalReceipt: Codable, Equatable, Sendable {
-    let deduplicationKey: String
-    let proposalID: String
-    let action: ScheduledTaskProposalAction?
-    /// Target task name, echoed into the tool result so the transcript widget can name
-    /// the task durably after the proposal row is consumed. Optional for older receipts.
-    var title: String?
-    /// `"applied"` when the action ran without confirmation; `nil` means the legacy
-    /// pending-confirmation receipt.
-    var outcomeStatus: String?
-    let message: String
-    let sourceProcessToken: String
-    let createdAt: Date
-    var workspaceSnapshot: WorkspaceSnapshot?
-    var projectID: String?
-}
-
 struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
     let title: String
     let prompt: String
     let destination: ScheduledTaskDestination
     let targetConversationID: String?
+    let exactTargetConversationID: String?
     let recurrence: ScheduledTaskRecurrence
     let timeZoneIdentifier: String
     let harnessID: String
@@ -126,6 +35,7 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         prompt: String,
         destination: ScheduledTaskDestination,
         targetConversationID: String? = nil,
+        exactTargetConversationID: String? = nil,
         recurrence: ScheduledTaskRecurrence,
         timeZoneIdentifier: String,
         harnessID: String,
@@ -144,6 +54,7 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         self.prompt = prompt
         self.destination = destination
         self.targetConversationID = targetConversationID
+        self.exactTargetConversationID = exactTargetConversationID
         self.recurrence = recurrence
         self.timeZoneIdentifier = timeZoneIdentifier
         self.harnessID = harnessID
@@ -167,6 +78,7 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         case prompt
         case destination
         case targetConversationID
+        case exactTargetConversationID
         case recurrence
         case timeZoneIdentifier
         case harnessID = "providerID"
@@ -189,6 +101,7 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         // Pre-field payloads predate the reuse mode, so absence means the per-run behavior.
         destination = try container.decodeIfPresent(ScheduledTaskDestination.self, forKey: .destination) ?? .newThreadPerRun
         targetConversationID = try container.decodeIfPresent(String.self, forKey: .targetConversationID)
+        exactTargetConversationID = try container.decodeIfPresent(String.self, forKey: .exactTargetConversationID)
         recurrence = try container.decode(ScheduledTaskRecurrence.self, forKey: .recurrence)
         timeZoneIdentifier = try container.decode(String.self, forKey: .timeZoneIdentifier)
         harnessID = try container.decode(String.self, forKey: .harnessID)
@@ -314,7 +227,7 @@ extension ScheduledTaskProposal {
             if draft.projectID != nil, draft.sectionID != nil { return false }
             switch draft.destination {
             case .reusedThread, .newThreadPerRun:
-                guard draft.targetConversationID == nil else { return false }
+                guard draft.targetConversationID == nil, draft.exactTargetConversationID == nil else { return false }
                 switch draft.workspaceKind {
                 case .privateWorkspace:
                     return draft.projectPath == nil
@@ -322,7 +235,8 @@ extension ScheduledTaskProposal {
                     return draft.projectPath != nil
                 }
             case .existingThread:
-                return draft.projectPath == nil && draft.targetConversationID?.isEmpty == false
+                return draft.projectPath == nil && draft.targetConversationID?.isEmpty == false &&
+                    (draft.exactTargetConversationID == nil || draft.exactTargetConversationID == draft.targetConversationID)
             }
         } ?? false
         switch action {

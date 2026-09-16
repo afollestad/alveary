@@ -119,7 +119,7 @@ struct ScheduledTaskEditorWorkspaceSection: View {
             primaryFolderRow
             folderGrantsRow
         case .existingThread:
-            if threads.isEmpty {
+            if threads.isEmpty && draft.exactTargetConversationID == nil {
                 SettingsFormRow(showsDivider: false) {
                     SettingsResponsiveControlRow("Thread", horizontalControlSizing: .selectedContent) {
                         Text("No eligible threads")
@@ -133,8 +133,11 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                     SettingsResponsiveControlRow("Thread", horizontalControlSizing: .selectedContent) {
                         ScheduledTaskMenuPicker(
                             accessibilityLabel: "Existing thread",
-                            selection: $draft.targetConversationID,
-                            options: [.init(value: String?.none, label: "Select a thread")] + threads.map {
+                            selection: Binding(
+                                get: { draft.targetConversationID },
+                                set: { draft.selectTargetConversation($0) }
+                            ),
+                            options: unavailableTargetOptions + [.init(value: String?.none, label: "Select a thread")] + threads.map {
                                 .init(value: Optional($0.conversationID), label: $0.label)
                             },
                             placeholder: "Select a thread"
@@ -143,6 +146,11 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                 }
             }
         }
+    }
+
+    private var unavailableTargetOptions: [ScheduledTaskMenuOption<String?>] {
+        guard let id = draft.exactTargetConversationID, !threads.contains(where: { $0.conversationID == id }) else { return [] }
+        return [.init(value: Optional(id), label: "Unavailable conversation")]
     }
 
     private var projectSelection: Binding<String?> {

@@ -68,6 +68,7 @@ struct ScheduledTaskDefinitionEdit {
     let grantedRoots: [String]
     let project: Project?
     let targetThread: AgentThread?
+    let exactTargetConversationID: String?
     /// Resolved `SidebarSection` for the created thread's placement; the view model resolves the
     /// draft's id so a vanished section fails the save loudly instead of silently landing in
     /// `Tasks`. `nil` means `Tasks`. There is deliberately no reuse-thread field here — that
@@ -90,6 +91,7 @@ struct ScheduledTaskDefinitionEdit {
         grantedRoots: [String],
         project: Project?,
         targetThread: AgentThread? = nil,
+        exactTargetConversationID: String? = nil,
         threadSection: SidebarSection? = nil,
         workspaceSnapshot: WorkspaceSnapshot? = nil
     ) {
@@ -107,6 +109,7 @@ struct ScheduledTaskDefinitionEdit {
         self.grantedRoots = grantedRoots
         self.project = project
         self.targetThread = targetThread
+        self.exactTargetConversationID = exactTargetConversationID
         self.threadSection = threadSection
         self.workspaceSnapshot = workspaceSnapshot ?? WorkspaceSnapshot(
             primarySource: workspaceKind == .project ? project?.primaryFolder?.snapshot : nil,
@@ -121,6 +124,7 @@ enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
     case definitionNotFound
     case proposalNotFound
     case invalidRecurrence
+    case oneOffTimeExpired
     case invalidDestination
     case projectWorkspaceRequiresProject
     case existingThreadRequiresAvailableThread
@@ -140,6 +144,8 @@ enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
             "Scheduling proposal no longer exists."
         case .invalidRecurrence:
             "Scheduled task recurrence is invalid."
+        case .oneOffTimeExpired:
+            "Choose a new future time for this one-time callback before running or resuming it."
         case .invalidDestination:
             """
             This task's destination was written by a newer version of Alveary. \

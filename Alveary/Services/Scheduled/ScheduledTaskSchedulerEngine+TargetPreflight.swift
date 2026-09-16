@@ -20,7 +20,6 @@ extension ScheduledTaskSchedulerEngine {
             return false
         }
         guard let conversation = modelContext.resolveConversation(conversationID: conversationID),
-              conversation.isMain,
               let thread = conversation.thread else {
             return true
         }

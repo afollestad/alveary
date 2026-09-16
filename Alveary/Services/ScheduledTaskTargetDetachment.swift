@@ -1,18 +1,8 @@
 import Foundation
 
-/// Converts every `.existingThread` schedule targeting a thread into a `.reusedThread` schedule,
-/// inside the caller's own save.
-///
-/// A schedule does not own the thread it was pointed at: archiving or deleting that thread is a
-/// user action the schedule must survive, not one it may refuse. So the lifecycle commit calls
-/// this immediately before it writes `archivedAt` or deletes the row, while the thread is still
-/// fully readable, and the schedule falls back to the self-healing reuse mode that mints its own
-/// replacement thread on the next run.
-///
-/// Deliberately performs no `save()` of its own — the flip must land in the same transaction as
-/// the lifecycle mutation that caused it, or a failed archive would leave a retargeted schedule
-/// behind. It returns the changed definition IDs so the caller can publish
-/// `.scheduledTasksChanged` only after its commit succeeds.
+/// Handles target loss inside the caller's lifecycle transaction. Exact callbacks retain their
+/// identity and pause; legacy schedules inherit the old workspace and adopt self-healing reuse.
+/// Performs no save: publish the returned IDs only after the lifecycle commit succeeds.
 @MainActor
 enum ScheduledTaskTargetDetachment {
     /// What the surviving schedule does next.
@@ -43,6 +33,10 @@ enum ScheduledTaskTargetDetachment {
         }
         let workspace = InheritedWorkspace(thread: thread, continuation: continuation)
         for definition in definitions {
+            if definition.exactTargetConversationID != nil {
+                pauseExactCallback(definition, at: actionDate)
+                continue
+            }
             definition.targetThread = nil
             definition.destination = .reusedThread
             // A stale link would make the next claim post into a thread this definition never
@@ -68,6 +62,26 @@ enum ScheduledTaskTargetDetachment {
             }
         }
         return definitions.map(\.id)
+    }
+
+    /// Tab removal changes only schedules aimed at that exact tab, in the deleting transaction.
+    static func pauseCallbacks(to conversation: Conversation, at date: Date = .now) -> [String] {
+        let definitions = conversation.thread?.targetedScheduledTasks.filter {
+            $0.decodedDestination == .existingThread && $0.exactTargetConversationID == conversation.id
+        } ?? []
+        for definition in definitions { pauseExactCallback(definition, at: date) }
+        return definitions.map(\.id)
+    }
+
+    private static func pauseExactCallback(_ definition: ScheduledTask, at date: Date) {
+        guard definition.state != .completed else { return }
+        definition.state = .paused
+        definition.nextOccurrenceAt = nil
+        definition.pendingOccurrenceAt = nil
+        definition.targetWaitStartedAt = nil
+        definition.pauseReason = "The callback conversation was removed or archived. Choose an available target before resuming."
+        definition.revision += 1
+        definition.modifiedAt = date
     }
 }
 

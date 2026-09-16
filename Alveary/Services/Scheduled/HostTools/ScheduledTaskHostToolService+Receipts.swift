@@ -45,6 +45,14 @@ extension ScheduledTaskHostToolService {
         if let title = receipt.title {
             structuredContent["title"] = .string(title)
         }
+        if let id = receipt.definitionID { structuredContent["task_id"] = .string(id) }
+        if let timestamp = receipt.scheduledAt { structuredContent["scheduled_at"] = .string(timestamp) }
+        if let destination = receipt.destination { structuredContent["destination"] = .string(destination) }
+        if let id = receipt.projectID { structuredContent["project_id"] = .string(id) }
+        if let workspace = receipt.workspaceSnapshot {
+            if let path = workspace.primarySource?.path { structuredContent["primary_folder_path"] = .string(path) }
+            structuredContent["granted_roots"] = .array(workspace.grants.map { .string($0.path) })
+        }
         return AgentCLIKit.AgentHostToolResult(
             text: receipt.message,
             structuredContent: .object(structuredContent)

@@ -167,6 +167,8 @@ final class ScheduledTaskRun {
     var promptSnapshot: String
     var destinationRawValueSnapshot: String = ScheduledTaskDestination.newThreadPerRun.rawValue
     var targetConversationIDSnapshot: String?
+    /// Survives definition deletion so lifecycle teardown can still stop an exact callback.
+    var isExactTargetSnapshot: Bool?
     var targetThreadNameSnapshot: String?
     /// `SidebarSection.id` frozen at claim time, so a run whose definition or section is edited
     /// or deleted mid-flight still creates its thread where the claim promised. A stale id
@@ -415,6 +417,7 @@ extension ScheduledTaskRun {
             projectIDSnapshot: definition.project?.id,
             workspaceSnapshot: workspace
         )
+        isExactTargetSnapshot = definition.exactTargetConversationID != nil
         projectPathSnapshot = targetSnapshot == nil ? definition.workspaceSnapshot?.primarySource?.path : targetSnapshot?.projectPath
         grantedRootsSnapshot = targetSnapshot?.grantedRoots ?? definition.grantedRoots
     }
@@ -447,17 +450,15 @@ extension ScheduledTaskRun {
         thread ?? targetThread
     }
 
-    /// The target thread's main conversation matching the claim snapshot — the conversation a
-    /// targeted run presents into. `nil` when the run has no target, or when the target thread no
-    /// longer carries the snapshotted main conversation.
-    var snapshotTargetMainConversation: Conversation? {
+    /// Resolve only the conversation frozen at claim time, even after definition edits or deletion.
+    var snapshotTargetConversation: Conversation? {
         guard let targetConversationID = targetConversationIDSnapshot,
               let targetThread else {
             return nil
         }
         return targetThread.conversations.first {
-            $0.isMain &&
-                $0.id == targetConversationID &&
+            $0.id == targetConversationID &&
+                (isExactTargetSnapshot == true || $0.isMain) &&
                 $0.thread?.persistentModelID == targetThread.persistentModelID
         }
     }

@@ -38,6 +38,14 @@ Once a thread starts, its workspace is saved independently. Later project edits 
 
 The toolbar's folder picker chooses the repository for diffs, commits, pushes, pull requests, project actions, and new terminals. A thread's primary folder maps to its worktree; secondary folders use their local checkout. Each source folder keeps its own `.alveary.json`. File completion searches every granted folder and inserts absolute file references, with folder labels when names overlap.
 
+## Scheduled tasks
+
+Say “In 30 minutes, say hello” to create a one-time callback immediately. Scheduling through the built-in MCP tools defaults to the exact conversation tab that made the request. Ask for a separate thread to use a new destination instead. Recurring schedules, edits, and deletion still require confirmation; the Scheduled screen keeps its existing creation defaults.
+
+Callbacks wait while their task is busy. Removing the selected tab or archiving or deleting its task pauses unfinished schedules; restoring the task leaves them paused. Choose an available conversation and a new future time if the original one-off time has passed. The editor distinguishes conversation tabs and retains unavailable targets until you choose a replacement.
+
+Punctual execution requires Alveary to be running and the Mac awake. Launch and wake continue to use the scheduler’s existing catch-up behavior. The applied scheduling card includes **View scheduled task** for reviewing the saved time and destination.
+
 ## Development
 
 Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, BlockInputKit, FluidAudio, and SwiftTerm. AgentCLIKit owns harness processes and resumable sessions; Alveary owns harness-neutral scheduled-task persistence, execution, and recovery. Alveary's app-scoped conversation controllers share each conversation's subscription and persistence path across visible and background work. BlockInputKit provides the markdown editors. FluidAudio provides English speech recognition for on-device voice input on Apple silicon. Primer Octicons supplies the pull-request status glyphs. The embedded terminal runs local PTYs, and project actions are injected into the user's interactive zsh so their real prompt and startup environment apply. The app target intentionally remains unsandboxed while keeping hardened runtime enabled. Run setup once per clone:

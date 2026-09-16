@@ -240,7 +240,7 @@ enum ScheduledTaskWidgetParsing {
         guard let arguments = HostToolWidgetJSON.object(from: input) else {
             return nil
         }
-        let request = try? ScheduledTaskHostToolRequestParser().parse(arguments: arguments).request
+        let request = try? ScheduledTaskHostToolRequestParser().parseRetryIdentity(arguments: arguments).request
         guard let action = request?.action ?? rawAction(in: arguments) else {
             return nil
         }
@@ -250,9 +250,10 @@ enum ScheduledTaskWidgetParsing {
         return ScheduledTaskProposalWidgetContent(
             action: action,
             proposedTitle: details.title ?? receipt?.title,
-            recurrence: details.schedule?.recurrence,
+            recurrence: receipt?.scheduledAt.map(ScheduledTaskRecurrence.once)
+                ?? fallbackTimestamp(output).map(ScheduledTaskRecurrence.once) ?? details.schedule?.recurrence,
             timeZoneIdentifier: details.schedule?.timeZoneIdentifier,
-            targetDefinitionID: details.definitionID,
+            targetDefinitionID: receipt?.definitionID ?? details.definitionID ?? fallbackDefinitionID(output),
             proposalID: receipt?.proposalID,
             message: receipt?.message ?? HostToolWidgetJSON.plainText(from: output),
             status: status(receipt: receipt, output: output, isError: isError, action: action)
@@ -261,9 +262,11 @@ enum ScheduledTaskWidgetParsing {
 
     static func proposalID(fromOutput output: String?) -> String? {
         guard let object = HostToolWidgetJSON.object(from: output) else {
-            return nil
+            return fallbackDefinitionID(output)
         }
-        return ProposalReceipt(object: object).proposalID
+        let receipt = ProposalReceipt(object: object)
+        // Immediate creates have no proposal row; their created ID correlates the separate marker.
+        return receipt.proposalID ?? (receipt.status == "applied" ? receipt.definitionID : nil)
     }
 }
 
@@ -273,12 +276,16 @@ private extension ScheduledTaskWidgetParsing {
         let proposalID: String?
         let title: String?
         let message: String?
+        let definitionID: String?
+        let scheduledAt: Date?
 
         init(object: [String: AgentCLIKit.JSONValue]) {
             status = HostToolWidgetJSON.string(object["status"])
             proposalID = HostToolWidgetJSON.string(object["proposal_id"])
             title = HostToolWidgetJSON.string(object["title"])
             message = HostToolWidgetJSON.string(object["message"])
+            definitionID = HostToolWidgetJSON.string(object["task_id"])
+            scheduledAt = HostToolWidgetJSON.string(object["scheduled_at"]).flatMap { ScheduledTaskHostToolTimestamp.date($0) }
         }
     }
 
@@ -330,6 +337,7 @@ private extension ScheduledTaskWidgetParsing {
         if isError || receipt?.status == "error" {
             return .failed
         }
+        if receipt?.status == nil, fallbackDefinitionID(output) != nil { return .applied }
         if receipt?.status == ScheduledTaskHostToolService.appliedStatus {
             return .applied
         }
@@ -342,6 +350,21 @@ private extension ScheduledTaskWidgetParsing {
             return .applied
         }
         return .pendingConfirmation
+    }
+
+    /// Only new immediate-create receipts use this prefix; old plain-text proposals stay pending.
+    static func fallbackToken(_ output: String?, key: String) -> String? {
+        guard let text = HostToolWidgetJSON.plainText(from: output), text.hasPrefix("Created one-time scheduled task "),
+              let start = text.range(of: "(\(key): "), let end = text[start.upperBound...].firstIndex(of: ")") else { return nil }
+        return String(text[start.upperBound..<end])
+    }
+
+    static func fallbackDefinitionID(_ output: String?) -> String? {
+        fallbackToken(output, key: "id").flatMap { UUID(uuidString: $0) == nil ? nil : $0 }
+    }
+
+    static func fallbackTimestamp(_ output: String?) -> Date? {
+        fallbackToken(output, key: "at").flatMap { ScheduledTaskHostToolTimestamp.date($0) }
     }
 
     static func rawAction(in arguments: [String: AgentCLIKit.JSONValue]) -> ScheduledTaskProposalAction? {

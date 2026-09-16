@@ -1,22 +1,10 @@
 import Foundation
 import SwiftData
 
-/// What a scheduled task still forbids on the thread it posts into, and how a lifecycle mutation
-/// quiesces a run before committing.
-///
-/// A schedule deliberately does **not** own its target's sidebar placement or existence: unpin,
-/// section moves, archive, and delete all proceed, and `ScheduledTaskTargetDetachment` converts
-/// the definition to its self-healing reuse mode when the thread goes away. What survives here
-/// are the narrower refusals — work already in flight, and mutations that would silently
-/// retarget a live definition.
+/// Coordinates per-run teardown before lifecycle mutations. Exact callbacks stop and pause;
+/// legacy attachments retain their existing in-flight refusal and detachment behavior.
 extension ThreadLifecycleService {
-    /// Why a schedule forbids a mutation that would change what its target *is*.
-    ///
-    /// Deliberately not the archive, delete, unpin, or section-move guard: those are user actions
-    /// a schedule must survive rather than refuse, and `ScheduledTaskTargetDetachment` converts
-    /// the definition instead. Two callers remain, both of which would silently retarget or
-    /// unmoor a live schedule: the Task-to-Project drop, which swaps the workspace a run derives
-    /// from the thread, and deleting the main conversation a definition names.
+    /// Workspace changes cannot silently unmoor a live schedule; placement changes remain allowed.
     func scheduledTaskAttachmentError(for thread: AgentThread) -> SidebarViewModelError? {
         if let definition = thread.blockingScheduledTaskAttachment {
             return .scheduledTaskAttachment(definition.title)
@@ -30,12 +18,11 @@ extension ThreadLifecycleService {
         }
     }
 
-    /// Why an in-flight run forbids archiving or deleting the thread it is posting into.
-    ///
-    /// The run half of `scheduledTaskAttachmentError(for:)`, split out because a *definition*
-    /// pointing at this thread no longer blocks its lifecycle — only work already underway does.
+    /// Legacy in-flight targets refuse removal; exact callbacks use coordinator quiescence instead.
     func activeScheduledTaskRunError(for thread: AgentThread) -> SidebarViewModelError? {
-        thread.hasBlockingScheduledTaskRunAttachment ? .activeScheduledTaskRunAttachment : nil
+        thread.targetedScheduledTaskRuns.contains {
+            $0.isExactTargetSnapshot != true && (!$0.hasKnownTerminalStatus || $0.requiresFinalizationRecovery)
+        } ? .activeScheduledTaskRunAttachment : nil
     }
 
     func requireNoActiveScheduledTaskRun(_ thread: AgentThread) throws {
@@ -72,26 +59,47 @@ extension ThreadLifecycleService {
         try requireNoActiveReviewSubmission(thread)
     }
 
-    func quiesceScheduledTaskRunIfNeeded(for thread: AgentThread) async throws -> AgentThread {
+    /// Recheck exact callbacks after suspension without repeating the original run's completed barrier.
+    func quiesceScheduledTaskRunIfNeeded(threadID: PersistentIdentifier) async throws {
+        guard let thread = modelContext.resolveThread(id: threadID) else { return }
+        _ = try await quiesceScheduledTaskRunIfNeeded(for: thread, includeOwnedRun: false)
+    }
+
+    func quiesceScheduledTaskRunIfNeeded(for thread: AgentThread, includeOwnedRun: Bool = true) async throws -> AgentThread {
         let threadID = thread.persistentModelID
-        guard let run = thread.scheduledTaskRun else {
-            return thread
-        }
-        let runID = run.persistentModelID
-
-        try await stopAndWaitForScheduledTaskRun(runID)
-
+        let runIDs = thread.targetedScheduledTaskRuns.filter { $0.isExactTargetSnapshot == true }.map(\.persistentModelID)
+            + [includeOwnedRun ? thread.scheduledTaskRun?.persistentModelID : nil].compactMap { $0 }
+        for runID in runIDs { try await stopAndWaitForScheduledTaskRun(runID) }
         guard let currentThread = modelContext.resolveThread(id: threadID) else {
             throw SidebarViewModelError.threadMissing
         }
-        if let currentRun = currentThread.scheduledTaskRun,
-           !currentRun.hasKnownTerminalStatus {
+        try requireScheduledRunsQuiescent(currentThread)
+        if currentThread.scheduledTaskRun?.hasKnownTerminalStatus == false {
             throw SidebarViewModelError.scheduledTaskRunStillActive
         }
         return currentThread
     }
 
-    /// Publishes the definitions a lifecycle commit converted. Called only after that commit's
+    /// Recheck after every suspension and immediately before removing model rows.
+    func requireScheduledRunsQuiescent(_ thread: AgentThread) throws {
+        guard !thread.hasBlockingScheduledTaskRunAttachment else {
+            throw SidebarViewModelError.scheduledTaskRunStillActive
+        }
+    }
+
+    func quiesceExactCallbacks(conversationID: String) async throws {
+        guard let conversation = modelContext.resolveConversation(conversationID: conversationID), let thread = conversation.thread else { return }
+        let ids = thread.targetedScheduledTaskRuns.filter {
+            $0.isExactTargetSnapshot == true && $0.targetConversationIDSnapshot == conversationID
+        }.map(\.persistentModelID)
+        for id in ids { try await stopAndWaitForScheduledTaskRun(id) }
+        guard let live = modelContext.resolveConversation(conversationID: conversationID) else { return }
+        guard live.thread?.targetedScheduledTaskRuns.contains(where: {
+            $0.targetConversationIDSnapshot == conversationID && (!$0.hasKnownTerminalStatus || $0.requiresFinalizationRecovery)
+        }) != true else { throw SidebarViewModelError.scheduledTaskRunStillActive }
+    }
+
+    /// Publishes the definitions a lifecycle commit changed. Called only after that commit's
     /// save succeeds, so a rolled-back archive never announces a schedule change.
     func postScheduledTasksDetached(definitionIDs: [String]) {
         NotificationCenter.default.postScheduledTasksDetached(definitionIDs: definitionIDs)

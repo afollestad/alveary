@@ -202,6 +202,7 @@ final class SidebarViewModel {
         }
         // Pending scheduled cleanup deliberately retains the Task row as its retry owner.
         // Every other path commits before teardown suspends so a draft cannot be reused or materialized.
+        try await threadLifecycle.quiesceScheduledTaskRunIfNeeded(threadID: snapshot.threadID)
         try commitThreadDeletion(snapshot)
         for conversationID in snapshot.conversationIDs {
             NotificationCenter.default.post(name: .reviewTeamConversationDidDelete, object: nil,
@@ -226,7 +227,13 @@ final class SidebarViewModel {
     }
 
     func deleteProject(_ project: Project) async throws {
-        let snapshot = try makeProjectDeletionSnapshot(project)
+        var snapshot = try makeProjectDeletionSnapshot(project)
+        for threadSnapshot in snapshot.threadSnapshots {
+            if let live = modelContext.resolveThread(id: threadSnapshot.threadID) {
+                _ = try await quiesceScheduledTaskRunIfNeeded(for: live)
+            }
+        }
+        snapshot = try makeProjectDeletionSnapshot(project)
         // Child drafts must disappear atomically before teardown yields to other UI work.
         try commitProjectDeletion(snapshot)
         for conversationID in snapshot.conversationIDs {

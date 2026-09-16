@@ -276,8 +276,8 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
         // The two lookups now belong to the thread feature, but scheduling still directs the model
         // to them, and that use stays gated on an explicit ask rather than general browsing.
         let serverInstructions = ScheduledTaskHostToolCatalog.instructionsFragment(timeZoneIdentifier: "UTC")
-        XCTAssertTrue(serverInstructions.contains("Call list_projects only when"))
-        XCTAssertTrue(serverInstructions.contains("list_threads only when"))
+        XCTAssertTrue(serverInstructions.contains("list_projects only to choose a different Project"))
+        XCTAssertTrue(serverInstructions.contains("Call list_threads only to target another"))
         XCTAssertFalse(ScheduledTaskHostToolCatalog.tools.map(\.name).contains("list_projects"))
         XCTAssertFalse(ScheduledTaskHostToolCatalog.tools.map(\.name).contains("list_threads"))
     }
@@ -321,12 +321,13 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
         XCTAssertNil(proposeRoot["allOf"])
 
         assertEveryObjectSchemaDeclaresProperties(proposeTool.inputSchema)
-        XCTAssertTrue(proposeTool.description.contains("Use action create"))
+        XCTAssertTrue(proposeTool.description.contains("For create, supply title, prompt, and schedule"))
         let serverInstructions = ScheduledTaskHostToolCatalog.instructionsFragment(timeZoneIdentifier: "Pacific/Auckland")
         XCTAssertTrue(serverInstructions.contains("propose_scheduled_task"))
-        XCTAssertTrue(serverInstructions.contains("action create"))
-        XCTAssertTrue(serverInstructions.contains("Never use shell commands"))
-        XCTAssertTrue(serverInstructions.contains("Mac's current local time zone (Pacific/Auckland)"))
+        let example = #"{"action":"create","title":"Say hello","prompt":"Say hello.","schedule":{"kind":"once","after_seconds":1800}}"#
+        XCTAssertTrue(serverInstructions.contains(example))
+        XCTAssertTrue(serverInstructions.contains("or use shell commands, crontab, launch agents"))
+        XCTAssertTrue(serverInstructions.contains("Mac's current time zone (Pacific/Auckland)"))
 
         XCTAssertTrue(schema.contains(#""days""#))
         XCTAssertTrue(schema.contains(#""uniqueItems":true"#))

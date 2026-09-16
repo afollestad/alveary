@@ -6,22 +6,27 @@ import XCTest
 @MainActor
 extension ScheduledTaskRunRecoveryCoordinatorTests {
     func testExistingTargetRecoveryNotesAndSupersedesOnlyRunConversation() throws {
+        for isMain in [true, false] {
+            try assertSelectedTabRecovery(targetIsMain: isMain)
+        }
+    }
+
+    private func assertSelectedTabRecovery(targetIsMain: Bool) throws {
         let fixture = try ScheduledTaskRecoveryFixture()
         let actionDate = Date(timeIntervalSinceReferenceDate: 5_500_000)
         let claimedAt = actionDate.addingTimeInterval(-30)
         let target = AgentThread(name: "Pinned target", isPinned: true, mode: .task)
-        let main = Conversation(id: "recovery-target-main", isMain: true, thread: target)
-        let sibling = Conversation(id: "recovery-target-sibling", isMain: false, displayOrder: 1, thread: target)
+        let main = Conversation(id: "recovery-target-main", isMain: targetIsMain, thread: target)
+        let sibling = Conversation(id: "recovery-target-sibling", isMain: !targetIsMain, displayOrder: 1, thread: target)
         target.conversations = [main, sibling]
         let run = fixture.insertRun(status: .running, occurrenceAt: actionDate, withThread: false)
         run.destinationSnapshot = .existingThread
         run.targetConversationIDSnapshot = main.id
+        run.isExactTargetSnapshot = !targetIsMain
         run.targetThread = target
         run.startedAt = claimedAt.addingTimeInterval(0.5)
         let manualApproval = unresolvedApproval(
-            conversation: main,
-            id: "manual-approval",
-            timestamp: claimedAt.addingTimeInterval(-1)
+            conversation: main, id: "manual-approval", timestamp: claimedAt.addingTimeInterval(-1)
         )
         let note = ConversationEventRecord(
             id: "scheduled-task-\(run.id)",

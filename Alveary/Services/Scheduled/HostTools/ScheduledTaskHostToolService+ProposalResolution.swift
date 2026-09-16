@@ -1,19 +1,26 @@
 import AgentCLIKit
+import Foundation
 
 extension ScheduledTaskHostToolService {
+    /// Placement preflight leaves relative timing unresolved; only acceptance supplies the clock.
+    /// Its temporary future recurrence is never persisted or included in the retry identity.
     func resolveProposal(
         _ request: ScheduledTaskProposalRequest,
         sourceThread: AgentThread,
+        sourceConversationID: String,
         sourceHarnessID: String,
+        at acceptanceDate: Date? = nil,
         resolveNewFolder: (String) throws -> SourceFolderSnapshot = { SourceFolderSnapshot(path: $0) }
     ) throws -> ScheduledTaskHostToolProposalResolution {
         switch request {
         case let .create(title, prompt, schedule, placement):
             return try resolveCreateProposal(
                 content: (title, prompt),
-                schedule: schedule,
+                recurrence: try acceptanceDate.map { try schedule.resolved(at: $0) }
+                    ?? schedule.recurrence ?? .once(.distantFuture),
                 placement: placement,
                 source: ScheduledTaskHostToolCreateSource(
+                    conversationID: sourceConversationID,
                     thread: sourceThread,
                     settings: ScheduledTaskProposalAgentSettings(
                         sourceThread: sourceThread,
@@ -46,19 +53,22 @@ extension ScheduledTaskHostToolService {
 
     func resolveCreateProposal(
         content: (title: String, prompt: String),
-        schedule: ScheduledTaskProposalSchedule,
+        recurrence: ScheduledTaskRecurrence,
         placement: ScheduledTaskProposalPlacement?,
         source: ScheduledTaskHostToolCreateSource,
         resolveNewFolder: (String) throws -> SourceFolderSnapshot
     ) throws -> ScheduledTaskHostToolProposalResolution {
         let (title, prompt) = content
+        if placement == nil || placement == .currentThread {
+            return try currentConversationCreateResolution(content: content, recurrence: recurrence, source: source)
+        }
         // An existing-thread schedule posts into a thread that owns its own workspace, so the
         // source thread's is never consulted — it may not even be resolvable.
         if case .existingThread(let targetConversationID) = placement {
             return try existingThreadCreateResolution(
                 title: title,
                 prompt: prompt,
-                schedule: schedule,
+                recurrence: recurrence,
                 targetConversationID: targetConversationID,
                 settings: source.settings
             )
@@ -75,10 +85,8 @@ extension ScheduledTaskHostToolService {
         let draft = ScheduledTaskProposalDefinitionDraft(
             title: title,
             prompt: prompt,
-            // An unrequested flavor takes the editor's default, so natural-language creates and
-            // hand-made ones land on the same behavior.
             destination: placement?.requestedNewThreadFlavor?.destination ?? .reusedThread,
-            recurrence: schedule.recurrence,
+            recurrence: recurrence,
             timeZoneIdentifier: currentTimeZone().identifier,
             harnessID: source.settings.harnessID,
             model: source.settings.model,
@@ -105,10 +113,23 @@ extension ScheduledTaskHostToolService {
         )
     }
 
+    private func currentConversationCreateResolution(
+        content: (title: String, prompt: String), recurrence: ScheduledTaskRecurrence, source: ScheduledTaskHostToolCreateSource
+    ) throws -> ScheduledTaskHostToolProposalResolution {
+        let target = try resolveTargetThread(conversationID: source.conversationID, exact: true)
+        return ScheduledTaskHostToolProposalResolution(
+            definitionDraft: existingThreadDraft(
+                title: content.title, prompt: content.prompt, recurrence: recurrence,
+                targetConversationID: target.conversationID, exactTargetConversationID: target.conversationID, settings: source.settings
+            ),
+            placementSummary: "It will post into this conversation."
+        )
+    }
+
     private func existingThreadCreateResolution(
         title: String,
         prompt: String,
-        schedule: ScheduledTaskProposalSchedule,
+        recurrence: ScheduledTaskRecurrence,
         targetConversationID: String,
         settings: ScheduledTaskProposalAgentSettings
     ) throws -> ScheduledTaskHostToolProposalResolution {
@@ -117,7 +138,7 @@ extension ScheduledTaskHostToolService {
             definitionDraft: existingThreadDraft(
                 title: title,
                 prompt: prompt,
-                recurrence: schedule.recurrence,
+                recurrence: recurrence,
                 targetConversationID: target.conversationID,
                 settings: settings
             ),
@@ -291,8 +312,9 @@ extension ScheduledTaskHostToolService {
             prompt: context.prompt,
             destination: destination,
             targetConversationID: destination == .existingThread
-                ? definition.targetThread?.soleMainConversation?.id
+                ? definition.exactTargetConversationID ?? definition.targetThread?.soleMainConversation?.id
                 : nil,
+            exactTargetConversationID: destination == .existingThread ? definition.exactTargetConversationID : nil,
             recurrence: context.recurrence,
             timeZoneIdentifier: context.timeZoneIdentifier,
             harnessID: context.settings.harnessID,

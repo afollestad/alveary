@@ -41,12 +41,23 @@ extension ConversationViewModelTests {
     }
 
     func testAutomatedScheduledTurnContinuesAttachedExistingConversationInPlace() async throws {
+        for isMain in [true, false] {
+            try await assertScheduledTurnUsesSelectedTab(targetIsMain: isMain)
+        }
+    }
+
+    private func assertScheduledTurnUsesSelectedTab(targetIsMain: Bool) async throws {
         let ownershipService = RecoveryWorkspaceOwnershipService()
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             taskWorkspaceOwnershipService: ownershipService
         )
         fixture.thread.isPinned = true
+        fixture.conversation.isMain = targetIsMain
+        let sibling = Conversation(harness: "codex", isMain: !targetIsMain, thread: fixture.thread)
+        fixture.context.insert(sibling)
+        fixture.thread.conversations.append(sibling)
+        let runtimeKey = try XCTUnwrap(fixture.thread.soleMainConversation?.id)
         let workspaceIdentity = TaskWorkspaceFileSystemIdentity(systemNumber: 10, fileNumber: 20)
         ownershipService.setIdentity(workspaceIdentity, at: fixture.project.path)
         let run = makeExistingTargetRun(fixture: fixture, workspaceIdentity: workspaceIdentity)
@@ -54,12 +65,13 @@ extension ConversationViewModelTests {
         try fixture.context.save()
         fixture.viewModel.beginAutomatedScheduledRunExecution(runID: run.id)
         defer { fixture.viewModel.finishAutomatedScheduledRunExecution() }
-        XCTAssertEqual(fixture.runtimeStore.automatedScheduledRunID(threadKey: fixture.conversation.id), run.id)
+        XCTAssertEqual(fixture.runtimeStore.automatedScheduledRunID(threadKey: runtimeKey), run.id)
 
         try await fixture.viewModel.startAutomatedScheduledTurn("Continue existing work.")
 
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertEqual(sentMessages, ["Continue existing work."])
+        XCTAssertTrue(sibling.events.isEmpty)
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Continue existing work."])
         XCTAssertTrue(fixture.thread.hasCompletedInitialSetup)
         XCTAssertNil(run.thread)
@@ -79,7 +91,7 @@ extension ConversationViewModelTests {
             AlvearyHostToolCatalog.tools.map(\.name)
         )
         fixture.viewModel.finishAutomatedScheduledRunExecution()
-        XCTAssertNil(fixture.runtimeStore.automatedScheduledRunID(threadKey: fixture.conversation.id))
+        XCTAssertNil(fixture.runtimeStore.automatedScheduledRunID(threadKey: runtimeKey))
     }
 
     func testExistingScheduledTurnRevalidatesTargetAfterRuntimeSpawn() async throws {

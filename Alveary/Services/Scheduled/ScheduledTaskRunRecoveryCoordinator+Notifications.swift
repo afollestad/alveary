@@ -21,12 +21,12 @@ extension ScheduledTaskRunRecoveryCoordinator {
     func presentationConversation(for run: ScheduledTaskRun) -> Conversation? {
         switch run.decodedDestinationSnapshot {
         case .existingThread:
-            return run.snapshotTargetMainConversation
+            return run.snapshotTargetConversation
         case .newThreadPerRun:
             return run.thread?.conversations.first(where: \.isMain)
         case .reusedThread:
             // A targeted reuse run never has `thread`, and a creating one never has a target.
-            return run.snapshotTargetMainConversation
+            return run.snapshotTargetConversation
                 ?? run.thread?.conversations.first(where: \.isMain)
         case nil:
             return nil

@@ -192,6 +192,45 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(entries.map(\.outcomeDefinitionID), ["task-1", "task-2"])
     }
 
+    func testImmediateCreateMarkerCannotResolveAnOlderPendingProposal() throws {
+        let targetID = "C362B76B-95D3-4598-BBA2-EAA16FC88996"
+        for plainText in [true, false] {
+            for markerBeforeResult in [true, false] {
+                let grouper = ChatItemGrouper()
+                let call = proposalCall()
+                call.id = "callback-call"
+                call.toolId = "callback"
+                call.toolInput = #"{"action":"create","title":"Hello","prompt":"Hello","schedule":{"kind":"once","after_seconds":1800}}"#
+                let result = proposalResult()
+                result.id = "callback-result"
+                result.toolId = "callback"
+                result.toolOutput = plainText
+                    ? "Created one-time scheduled task (id: \(targetID)) (at: 2030-01-01T00:00:00.000Z)."
+                    : "{\"status\":\"applied\",\"action\":\"create\",\"task_id\":\"\(targetID)\"}"
+                let marker = outcomeMarker()
+                marker.toolId = targetID
+                marker.content = HostToolWidgetOutcomeMarker.content(
+                    for: .confirmed, definitionID: targetID, title: "Hello", requiresKeyMatch: true
+                )
+                var events = [proposalCall(), proposalResult(), call]
+                if markerBeforeResult {
+                    events.append(marker)
+                    grouper.update(events: events)
+                    XCTAssertNil(grouper.items.first?.hostToolWidgetEntry?.outcome)
+                    events.append(result)
+                } else {
+                    events += [result, marker]
+                }
+                grouper.update(events: events)
+                let entries = grouper.items.compactMap(\.hostToolWidgetEntry)
+                XCTAssertEqual(entries.count, 2)
+                XCTAssertNil(entries.first?.outcome)
+                XCTAssertEqual(entries.last?.outcome, .confirmed)
+                XCTAssertEqual(entries.last?.resolvedScheduledTaskID, targetID)
+            }
+        }
+    }
+
     func testOutcomeMarkerNeverRendersItsOwnRow() {
         let grouper = ChatItemGrouper()
         grouper.update(events: [outcomeMarker()])

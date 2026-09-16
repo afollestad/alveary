@@ -19,17 +19,18 @@ extension ScheduledTaskHostToolService {
     }
 
     /// Resolves a `target_thread_id` from `list_threads` into a thread a schedule may post into.
-    func resolveTargetThread(conversationID: String) throws -> ResolvedTargetThread {
+    func resolveTargetThread(conversationID: String, exact: Bool = false) throws -> ResolvedTargetThread {
         guard let conversation = modelContext.resolveConversation(conversationID: conversationID),
-              conversation.isMain,
+              exact || conversation.isMain,
               let thread = conversation.thread else {
             throw ScheduledTaskHostToolServiceError.targetThreadNotFound
         }
-        guard thread.isEligibleScheduledTaskTarget,
-              let mainConversation = thread.soleMainConversation else {
+        guard let target = ScheduledTask.resolveTargetConversation(
+            in: thread, exactID: exact ? conversationID : nil
+        ) else {
             throw ScheduledTaskHostToolServiceError.targetThreadIneligible
         }
-        return ResolvedTargetThread(thread: thread, conversationID: mainConversation.id)
+        return ResolvedTargetThread(thread: thread, conversationID: target.id)
     }
 
     /// Applies a requested workspace over the one the task would otherwise inherit.
@@ -86,6 +87,7 @@ extension ScheduledTaskHostToolService {
         prompt: String,
         recurrence: ScheduledTaskRecurrence,
         targetConversationID: String,
+        exactTargetConversationID: String? = nil,
         settings: ScheduledTaskProposalAgentSettings
     ) -> ScheduledTaskProposalDefinitionDraft {
         // An existing-thread run adopts its target's workspace, which is why the mutation
@@ -95,6 +97,7 @@ extension ScheduledTaskHostToolService {
             prompt: prompt,
             destination: .existingThread,
             targetConversationID: targetConversationID,
+            exactTargetConversationID: exactTargetConversationID,
             recurrence: recurrence,
             timeZoneIdentifier: currentTimeZone().identifier,
             harnessID: settings.harnessID,
@@ -121,6 +124,8 @@ extension ScheduledTaskHostToolService {
         grantedRoots: [String]
     ) -> String? {
         switch placement {
+        case .currentThread:
+            return "It will post into this conversation."
         case .existingThread:
             guard let targetThread else {
                 return nil

@@ -148,6 +148,7 @@ struct MiddlePane: View, Equatable {
                 },
                 loadSkillCompletions: loadInstalledSkills,
                 diffViewModel: diffViewModel,
+                quiesceScheduledCallbacks: { try await sidebarViewModel.quiesceExactCallbacks(conversationID: $0) },
                 diffViewerSwitchScope: diffViewerSwitchScope
             )
                 .id(thread.persistentModelID)

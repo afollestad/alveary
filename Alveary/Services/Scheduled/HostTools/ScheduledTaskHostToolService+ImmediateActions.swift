@@ -6,11 +6,9 @@ extension ScheduledTaskHostToolService {
     /// transcript parsing reads it off the main actor.
     nonisolated static let appliedStatus = "applied"
 
-    /// Actions the model may apply directly. Each is reversible from the Scheduled
-    /// screen and revision-checked before it runs, so a confirmation step would only
-    /// add friction; create and edit change a definition's content and delete is
-    /// irreversible, so both keep the native confirmation. `nonisolated` because
-    /// transcript parsing reads it off the main actor.
+    /// Actions that always apply immediately. Creates also depend on timing: the request's
+    /// `isImmediateCreate` handles one-offs. Keep this action-only helper for legacy transcript
+    /// fallback so old pending create results are never reinterpreted as applied.
     nonisolated static func appliesWithoutConfirmation(_ action: ScheduledTaskProposalAction) -> Bool {
         switch action {
         case .pause, .resume, .runNow:
@@ -35,6 +33,7 @@ extension ScheduledTaskHostToolService {
         let resolution = try resolveProposal(
             request,
             sourceThread: source.thread,
+            sourceConversationID: source.conversation.id,
             sourceHarnessID: context.harnessId.rawValue
         )
         let title = resolution.targetTitleSnapshot ?? "the scheduled task"

@@ -9,12 +9,21 @@ import Foundation
 extension ScheduledTaskHostToolRequestParser {
     static let placementKeys: Set<String> = ["destination", "target_thread_id", "workspace"]
 
+    private func validateCurrentPlacement(targetThreadID: String?, workspace: [String: AgentCLIKit.JSONValue]?) throws {
+        guard targetThreadID == nil, workspace == nil else {
+            throw invalid("current_thread accepts neither target_thread_id nor workspace overrides.")
+        }
+    }
+
     func parsePlacement(in object: StrictHostToolObject) throws -> ScheduledTaskProposalPlacement? {
         let destination = try object.optionalNonEmptyString("destination")
         let targetThreadID = try object.optionalNonEmptyString("target_thread_id")
         let workspaceValues = try object.optionalObject("workspace")
 
         switch destination {
+        case "current_thread":
+            try validateCurrentPlacement(targetThreadID: targetThreadID, workspace: workspaceValues)
+            return .currentThread
         case "existing_thread":
             guard workspaceValues == nil else {
                 throw invalid("\(object.path).workspace does not apply to an existing-thread destination.")
@@ -34,7 +43,7 @@ extension ScheduledTaskHostToolRequestParser {
                 workspace: try workspaceValues.map { try parseWorkspace($0, in: object.path) }
             )
         case .some:
-            throw invalid("\(object.path).destination must be reused_thread, new_thread, or existing_thread.")
+            throw invalid("\(object.path).destination must be current_thread, reused_thread, new_thread, or existing_thread.")
         case nil:
             guard targetThreadID == nil else {
                 throw invalid("\(object.path).target_thread_id requires destination existing_thread.")
@@ -65,7 +74,7 @@ private extension ScheduledTaskHostToolRequestParser {
         let primaryPath = try object.optionalNonEmptyString("primary_folder_path")
         let grantedRoots = try grantedRoots(in: object)
         guard projectID == nil || projectPath == nil else { throw invalid("Use project_id or project_path, not both.") }
-        guard kind == "project" || kind == "private" else { throw invalid("\(object.path).kind must be project or private.") }
+        guard ["project", "private"].contains(kind) else { throw invalid("\(object.path).kind must be project or private.") }
         if let key = projectID ?? projectPath {
             guard kind != "private" || primaryPath == nil else { throw invalid("A private workspace cannot select a primary folder.") }
             return .project(path: key, grantedRoots: grantedRoots, isID: projectID != nil,
@@ -103,6 +112,8 @@ extension ScheduledTaskHostToolRequestParser {
     /// the task would run must not collapse into one replayed receipt.
     func canonicalValue(for placement: ScheduledTaskProposalPlacement) -> AgentCLIKit.JSONValue {
         switch placement {
+        case .currentThread:
+            return .object(["destination": .string("current_thread")])
         case .existingThread(let targetConversationID):
             return .object([
                 "destination": .string("existing_thread"),
@@ -123,19 +134,21 @@ extension ScheduledTaskHostToolRequestParser {
             guard let workspace else {
                 return .object(object)
             }
-            var workspaceValues: [String: AgentCLIKit.JSONValue] = [
-                "kind": .string(workspace.requestsPrivateWorkspace ? "private" : "project")
-            ]
-            if let projectPath = workspace.projectPath {
-                workspaceValues["project_path"] = .string(projectPath)
-            }
-            if let id = workspace.projectID { workspaceValues["project_id"] = .string(id) }
-            if let path = workspace.primaryFolderPath { workspaceValues["primary_folder_path"] = .string(path) }
-            if let grantedRoots = workspace.grantedRoots {
-                workspaceValues["granted_roots"] = .array(grantedRoots.sorted().map(AgentCLIKit.JSONValue.string))
-            }
-            object["workspace"] = .object(workspaceValues)
+            object["workspace"] = canonicalValue(for: workspace)
             return .object(object)
         }
+    }
+
+    private func canonicalValue(for workspace: ScheduledTaskProposalWorkspace) -> AgentCLIKit.JSONValue {
+        var values: [String: AgentCLIKit.JSONValue] = [
+            "kind": .string(workspace.requestsPrivateWorkspace ? "private" : "project")
+        ]
+        if let path = workspace.projectPath { values["project_path"] = .string(path) }
+        if let id = workspace.projectID { values["project_id"] = .string(id) }
+        if let path = workspace.primaryFolderPath { values["primary_folder_path"] = .string(path) }
+        if let roots = workspace.grantedRoots {
+            values["granted_roots"] = .array(roots.sorted().map(AgentCLIKit.JSONValue.string))
+        }
+        return .object(values)
     }
 }

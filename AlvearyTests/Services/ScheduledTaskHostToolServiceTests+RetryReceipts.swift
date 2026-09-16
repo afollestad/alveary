@@ -213,7 +213,7 @@ extension ScheduledTaskHostToolServiceTests {
             name: ScheduledTaskHostToolCatalog.proposeToolName,
             arguments: createArguments()
         )
-        let firstResponse = try await persistRejectedProposalReceipt(
+        let firstResponse = try await persistRetryReceipt(
             configuration: configuration,
             conversationID: conversationID,
             context: context,
@@ -239,11 +239,49 @@ extension ScheduledTaskHostToolServiceTests {
         }
     }
 
-    private func persistRejectedProposalReceipt(
+    func testAppliedCallbackAndReceiptSurviveStoreReopeningWithOriginalTime() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let configuration = ModelConfiguration(url: directory.appendingPathComponent("Alveary.store"))
+        let conversationID = "reopened-callback"
+        let context = AgentHostToolCallContext(
+            conversationId: AgentConversationID(rawValue: conversationID), harnessId: .codex,
+            processToken: UUID(), requestId: "reopened-callback"
+        )
+        let call = AgentHostToolCall(name: ScheduledTaskHostToolCatalog.proposeToolName, arguments: callbackArguments())
+        let original = try await persistRetryReceipt(
+            configuration: configuration, conversationID: conversationID, context: context, call: call,
+            rejectProposal: false, acceptanceDate: Date(timeIntervalSince1970: 1_000.123)
+        )
+        let container = try makeReceiptPersistenceContainer(configuration: configuration)
+        let modelContext = container.mainContext
+        let service = ScheduledTaskHostToolFixture.makeService(
+            modelContext: modelContext, notificationCenter: NotificationCenter(),
+            requestParser: ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "UTC"),
+            now: { Date(timeIntervalSince1970: 10_000) }
+        )
+        let retry = await service.handle(context: context, call: call)
+        XCTAssertFalse(retry.isError, retry.text)
+        XCTAssertEqual(retry.text, original.message)
+        XCTAssertEqual(retry.structuredContent, original.structuredContent)
+        let definitions = try modelContext.fetch(FetchDescriptor<ScheduledTask>())
+        XCTAssertEqual(definitions.count, 1)
+        let definition = try XCTUnwrap(definitions.first)
+        XCTAssertEqual(definition.exactTargetConversationID, conversationID)
+        XCTAssertEqual(definition.resolvedTargetConversation?.id, conversationID)
+        XCTAssertEqual(definition.recurrence, .once(Date(timeIntervalSince1970: 2_800.123)))
+        XCTAssertEqual(try object(retry.structuredContent)["task_id"], .string(definition.id))
+        XCTAssertEqual(try object(retry.structuredContent)["scheduled_at"], .string("1970-01-01T00:46:40.123Z"))
+    }
+
+    private func persistRetryReceipt(
         configuration: ModelConfiguration,
         conversationID: String,
         context: AgentCLIKit.AgentHostToolCallContext,
-        call: AgentCLIKit.AgentHostToolCall
+        call: AgentCLIKit.AgentHostToolCall,
+        rejectProposal: Bool = true,
+        acceptanceDate: Date = Date(timeIntervalSince1970: 1_000)
     ) async throws -> ScheduledTaskHostToolStoredResponse {
         do {
             let container = try makeReceiptPersistenceContainer(configuration: configuration)
@@ -259,15 +297,21 @@ extension ScheduledTaskHostToolServiceTests {
                 modelContext: modelContext,
                 mutationService: ScheduledTaskMutationService(modelContext: modelContext),
                 requestParser: ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "UTC"),
-                now: { Date(timeIntervalSince1970: 1_000) }
+                now: { acceptanceDate }
             )
 
             let result = await service.handle(context: context, call: call)
-            let proposalID = try proposalID(result)
-            let proposal = try XCTUnwrap(modelContext.resolveScheduledTaskProposal(id: proposalID))
-            modelContext.delete(proposal)
-            try modelContext.save()
-            return ScheduledTaskHostToolStoredResponse(proposalID: proposalID, message: result.text)
+            XCTAssertFalse(result.isError, result.text)
+            let values = try object(result.structuredContent)
+            let proposalID = try XCTUnwrap(HostToolWidgetJSON.string(values["proposal_id"] ?? values["task_id"]))
+            if rejectProposal {
+                let proposal = try XCTUnwrap(modelContext.resolveScheduledTaskProposal(id: proposalID))
+                modelContext.delete(proposal)
+                try modelContext.save()
+            }
+            return ScheduledTaskHostToolStoredResponse(
+                proposalID: proposalID, message: result.text, structuredContent: result.structuredContent
+            )
         }
     }
 
@@ -302,6 +346,7 @@ private extension ScheduledTaskHostToolServiceTests {
 private struct ScheduledTaskHostToolStoredResponse {
     let proposalID: String
     let message: String
+    let structuredContent: AgentCLIKit.JSONValue?
 }
 
 private final class ScheduledTaskHostToolRetryTimeZoneBox: @unchecked Sendable {

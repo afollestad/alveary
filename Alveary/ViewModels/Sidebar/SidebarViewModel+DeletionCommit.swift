@@ -8,6 +8,7 @@ extension SidebarViewModel {
         do {
             if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
                 try requireThreadLifecycleIsUnblocked(dbThread)
+                try threadLifecycle.requireScheduledRunsQuiescent(dbThread)
                 heldReviewProposal = Self.holdsReviewProposal(dbThread)
                 try clearCompletedPendingWorktreeCleanupBeforeThreadDeletion(snapshot)
                 try promoteScheduledWorktreeCleanupIfNeeded(snapshot)
@@ -53,6 +54,7 @@ extension SidebarViewModel {
                     guard let dbThread = modelContext.resolveThread(id: threadSnapshot.threadID) else {
                         continue
                     }
+                    try threadLifecycle.requireScheduledRunsQuiescent(dbThread)
                     heldReviewProposal = heldReviewProposal || Self.holdsReviewProposal(dbThread)
                     affectedScheduledTaskIDs.append(
                         contentsOf: ScheduledTaskTargetDetachment.detachTargets(

@@ -6,14 +6,21 @@ import XCTest
 
 @MainActor
 final class ScheduledTaskRunMaterializerTests: XCTestCase {
-    func testExistingThreadOccurrenceUsesPinnedTargetWithoutCreatingTaskShell() async throws {
+    func testExistingThreadOccurrenceUsesSelectedTabWithoutCreatingTaskShell() async throws {
+        for isMain in [true, false] {
+            try await assertExistingThreadMaterialization(targetIsMain: isMain)
+        }
+    }
+
+    private func assertExistingThreadMaterialization(targetIsMain: Bool) async throws {
         let fixture = try ScheduledTaskRunMaterializerFixture()
         defer { fixture.removeFiles() }
         let projectRoot = try fixture.createDirectory(named: "ExistingProject")
         let project = Project(path: projectRoot.path, name: "Existing Project")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
-        let conversation = Conversation(id: "existing-main", harness: "codex", thread: target)
-        target.conversations = [conversation]
+        let conversation = Conversation(id: "existing-target", harness: "codex", isMain: targetIsMain, thread: target)
+        let sibling = Conversation(id: "existing-sibling", harness: "claude", isMain: !targetIsMain, thread: target)
+        target.conversations = [conversation, sibling]
         project.threads = [target]
         fixture.context.insert(project)
         try fixture.context.save()
@@ -28,10 +35,13 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
             targetConversationID: conversation.id
         )
 
+        run.isExactTargetSnapshot = !targetIsMain
+        try fixture.context.save()
         let result = try await fixture.makeMaterializer().materialize(runID: run.persistentModelID)
 
         XCTAssertEqual(result.threadID, target.persistentModelID)
         XCTAssertEqual(result.conversationID, conversation.id)
+        XCTAssertTrue(sibling.events.isEmpty)
         XCTAssertNil(run.thread)
         XCTAssertEqual(run.targetThread?.persistentModelID, target.persistentModelID)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 1)

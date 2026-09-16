@@ -65,9 +65,7 @@ extension ScheduledTaskSchedulerEngine {
               !thread.hasPendingScheduledTaskWorktreeCleanup else {
             return nil
         }
-        let mainConversations = thread.conversations.filter(\.isMain)
-        guard mainConversations.count == 1,
-              let conversation = mainConversations.first else {
+        guard let conversation = definition.resolvedTargetConversation else {
             return nil
         }
 

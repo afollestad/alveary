@@ -21,7 +21,7 @@ extension ScheduledTaskHostToolRequestParserTests {
         XCTAssertEqual(placement, .existingThread(targetConversationID: "release-main"))
     }
 
-    func testParsesWorkspaceWithoutAnExplicitDestination() throws {
+    func testCreateWorkspaceRequiresAnExplicitNewThreadDestination() throws {
         let parser = ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "UTC")
         var arguments = dailyCreateArguments()
         arguments["workspace"] = .object([
@@ -30,6 +30,8 @@ extension ScheduledTaskHostToolRequestParserTests {
             "granted_roots": .array([.string("/tmp/notes")])
         ])
 
+        XCTAssertThrowsError(try parser.parse(arguments: arguments))
+        arguments["destination"] = .string("reused_thread")
         let parsed = try parser.parse(arguments: arguments)
 
         guard case .create(_, _, _, let placement) = parsed.request else {
@@ -37,7 +39,7 @@ extension ScheduledTaskHostToolRequestParserTests {
         }
         XCTAssertEqual(
             placement,
-            .newThread(flavor: nil, workspace: .project(path: "/tmp/alveary", grantedRoots: ["/tmp/notes"]))
+            .newThread(flavor: .reused, workspace: .project(path: "/tmp/alveary", grantedRoots: ["/tmp/notes"]))
         )
     }
 
@@ -86,7 +88,7 @@ extension ScheduledTaskHostToolRequestParserTests {
         assertInvalid(
             placementArguments(["destination": .string("somewhere_else")]),
             parser: parser,
-            containing: "must be reused_thread, new_thread, or existing_thread"
+            containing: "must be current_thread, reused_thread, new_thread, or existing_thread"
         )
     }
 
@@ -210,6 +212,6 @@ private extension ScheduledTaskHostToolRequestParserTests {
     }
 
     func workspaceArguments(_ workspace: [String: AgentCLIKit.JSONValue]) -> [String: AgentCLIKit.JSONValue] {
-        placementArguments(["workspace": .object(workspace)])
+        placementArguments(["destination": .string("reused_thread"), "workspace": .object(workspace)])
     }
 }

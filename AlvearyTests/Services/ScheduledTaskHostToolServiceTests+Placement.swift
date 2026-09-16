@@ -222,7 +222,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertTrue(proposal.hasValidActionShape)
     }
 
-    func testInheritedPlacementLeavesTheSourceWorkspaceUntouched() async throws {
+    func testExplicitReuseInheritsTheSourceWorkspace() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
 
         let result = await fixture.service.handle(
@@ -235,11 +235,10 @@ extension ScheduledTaskHostToolServiceTests {
 
         XCTAssertFalse(result.isError)
         let draft = try XCTUnwrap(try fixture.proposalDraft())
-        // Creates without an explicit destination take the editor's reuse default.
+        // Explicit reuse creates retain their inherited workspace.
         XCTAssertEqual(draft.destination, .reusedThread)
         XCTAssertEqual(draft.projectPath, fixture.project?.path)
-        // No placement was requested, so the result stays the plain confirmation sentence.
-        XCTAssertFalse(result.text.contains("It will"), result.text)
+        XCTAssertTrue(result.text.contains("It will"), result.text)
     }
 
     private func makeGrantDirectories(count: Int) throws -> ScheduledTaskHostToolGrantFixture {
@@ -276,7 +275,7 @@ extension ScheduledTaskHostToolFixture {
     }
 
     func proposeWorkspace(_ workspace: [String: AgentCLIKit.JSONValue]) async -> AgentCLIKit.AgentHostToolResult {
-        await propose(["workspace": .object(workspace)])
+        await propose(["destination": .string("reused_thread"), "workspace": .object(workspace)])
     }
 
     private func propose(_ placement: [String: AgentCLIKit.JSONValue]) async -> AgentCLIKit.AgentHostToolResult {

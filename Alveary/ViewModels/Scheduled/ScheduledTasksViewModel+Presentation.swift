@@ -37,7 +37,7 @@ extension ScheduledTasksViewModel {
         let destination = definition.decodedDestination
         switch destination {
         case .some(.existingThread):
-            workspaceSummary = "Existing thread · \(definition.targetThread?.displayName() ?? "Unavailable thread")"
+            workspaceSummary = "Existing thread · \(existingTargetSummary(for: definition))"
             harnessID = existingThreadHarnessID(for: definition)
         case .some(.reusedThread):
             // The reuse thread is a venue the definition owns, so harness and settings still
@@ -81,6 +81,16 @@ extension ScheduledTasksViewModel {
 }
 
 private extension ScheduledTasksViewModel {
+    func existingTargetSummary(for definition: ScheduledTask) -> String {
+        guard definition.exactTargetConversationID != nil else {
+            return definition.targetThread?.displayName() ?? "Unavailable thread"
+        }
+        guard let conversation = definition.resolvedTargetConversation, let thread = conversation.thread else {
+            return "Unavailable conversation"
+        }
+        return thread.displayName() + (thread.conversations.count > 1 ? " · \(conversation.displayName())" : "")
+    }
+
     /// The workspace half of a new-thread card summary, shared by both new-thread destinations
     /// so their prefixes ("Same thread each time" / "New thread each time") stay aligned with
     /// the picker.
@@ -100,8 +110,6 @@ private extension ScheduledTasksViewModel {
     }
 
     func existingThreadHarnessID(for definition: ScheduledTask) -> String {
-        let mainConversations = definition.targetThread?.conversations.filter(\.isMain) ?? []
-        guard mainConversations.count == 1 else { return definition.harnessID }
-        return mainConversations.first?.harness ?? definition.harnessID
+        definition.resolvedTargetConversation?.harness ?? definition.harnessID
     }
 }

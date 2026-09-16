@@ -143,6 +143,7 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     var grantedRoots: [String]
     var projectID: String?
     var workspaceSnapshot: WorkspaceSnapshot?
+    var exactTargetConversationID: String?
     var isResolvingFolders = false
 
     var isEditing: Bool {
@@ -204,6 +205,13 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
             destination = newValue
             unresolvedDestinationRawValue = nil
         }
+    }
+
+    /// Re-selecting the same legacy main target must not silently opt it into exact-tab routing.
+    mutating func selectTargetConversation(_ id: String?) {
+        guard id != targetConversationID else { return }
+        targetConversationID = id
+        exactTargetConversationID = id
     }
 
     var recurrence: ScheduledTaskRecurrence {

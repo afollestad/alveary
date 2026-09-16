@@ -67,11 +67,13 @@ final class ScheduledTask {
     var project: Project?
     /// The thread an `.existingThread` schedule was pointed at by the user.
     ///
-    /// Owning this link never held the thread still: its sidebar placement stays the user's, and
-    /// archiving or deleting it converts this definition to `.reusedThread` rather than refusing
-    /// (`ScheduledTaskTargetDetachment`). Its inverse still fences the narrower mutations that
-    /// would silently retarget a live definition — see `AgentThread.targetedScheduledTasks`.
+    /// Its placement stays user-owned. `ScheduledTaskTargetDetachment` pauses exact callbacks
+    /// when their target goes away; legacy schedules instead adopt `.reusedThread` routing.
+    /// The inverse still fences workspace mutations that would silently retarget a definition.
     var targetThread: AgentThread?
+    /// An exact callback never redirects to the main tab after its original conversation disappears.
+    /// Nil preserves main-conversation targeting for schedules written before callbacks existed.
+    var exactTargetConversationID: String?
     /// The thread a `.reusedThread` schedule created on its first run and posts into thereafter.
     ///
     /// Deliberately NOT `targetThread`: this thread is the schedule's own, so it must stay outside

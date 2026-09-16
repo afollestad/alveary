@@ -83,7 +83,7 @@ extension ScheduledTasksViewModel {
             destination: destination,
             unresolvedDestinationRawValue: unresolvedDestinationRawValue,
             reusedThread: reusedThreadLink(for: definition),
-            targetConversationID: definition.targetThread?.conversations.first(where: \.isMain)?.id,
+            targetConversationID: definition.exactTargetConversationID ?? definition.targetThread?.soleMainConversation?.id,
             // Nullify already degraded a removed section, so the picker shows `Tasks` with no
             // fallback logic here.
             sectionID: definition.threadSection?.id,
@@ -106,7 +106,7 @@ extension ScheduledTasksViewModel {
             projectPath: definition.workspaceSnapshot?.primarySource?.path,
             grantedRoots: definition.grantedRoots,
             projectID: definition.project?.id,
-            workspaceSnapshot: definition.workspaceSnapshot
+            workspaceSnapshot: definition.workspaceSnapshot, exactTargetConversationID: definition.exactTargetConversationID
         )
     }
 
@@ -163,7 +163,8 @@ extension ScheduledTasksViewModel {
             projectPath: definitionDraft.projectPath,
             grantedRoots: definitionDraft.grantedRoots,
             projectID: definitionDraft.projectID,
-            workspaceSnapshot: definitionDraft.workspaceSnapshot
+            workspaceSnapshot: definitionDraft.workspaceSnapshot,
+            exactTargetConversationID: definitionDraft.exactTargetConversationID
         )
     }
 }

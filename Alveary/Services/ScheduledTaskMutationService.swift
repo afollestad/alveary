@@ -21,11 +21,14 @@ final class ScheduledTaskMutationService {
         self.currentTimeZone = currentTimeZone
     }
 
+    /// `prepareCommit` stages a caller's receipt inside the definition save, before notifications can launch work.
     @discardableResult
     func create(
         edit: ScheduledTaskDefinitionEdit,
         at actionDate: Date = .now,
-        consumingProposalID: String? = nil
+        consumingProposalID: String? = nil,
+        prepareCommit: (ScheduledTask) throws -> Void = { _ in },
+        save: (ModelContext) throws -> Void = { try $0.save() }
     ) throws -> ScheduledTask {
         try flushPendingChanges()
         let timeZoneIdentifier = currentTimeZone().identifier
@@ -52,11 +55,11 @@ final class ScheduledTaskMutationService {
             grantedRoots: edit.grantedRoots,
             project: edit.destination != .existingThread ? edit.project : nil,
             nextOccurrenceAt: nextOccurrence,
-            createdAt: actionDate,
-            modifiedAt: actionDate,
+            createdAt: actionDate, modifiedAt: actionDate,
             targetThread: edit.destination == .existingThread ? edit.targetThread : nil,
             workspaceSnapshot: edit.workspaceSnapshot
         )
+        definition.exactTargetConversationID = edit.destination == .existingThread ? edit.exactTargetConversationID : nil
         // Only a projectless new-thread schedule places its created threads in a section; a
         // Project-backed thread nests under the Project and an existing target keeps its own row.
         definition.threadSection = edit.destination != .existingThread && edit.project == nil
@@ -67,10 +70,11 @@ final class ScheduledTaskMutationService {
         let outcomeTarget = proposal.map(ScheduledTaskProposalOutcomeTarget.init(proposal:))
         do {
             modelContext.insert(definition)
+            try prepareCommit(definition)
             if let proposal {
                 modelContext.delete(proposal)
             }
-            try modelContext.save()
+            try save(modelContext)
         } catch {
             modelContext.rollback()
             throw error
@@ -141,7 +145,7 @@ final class ScheduledTaskMutationService {
                 throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
             }
             if destination == .existingThread,
-               definition.targetThread == nil {
+               definition.resolvedTargetConversation == nil {
                 throw ScheduledTaskMutationError.existingThreadRequiresAvailableThread
             }
             guard let recurrence = definition.recurrence else {
@@ -153,6 +157,9 @@ final class ScheduledTaskMutationService {
                 recurrence: recurrence,
                 timeZoneIdentifier: timeZoneIdentifier
             )
+            if definition.exactTargetConversationID != nil, nextOccurrence == nil {
+                throw ScheduledTaskMutationError.oneOffTimeExpired
+            }
             definition.timeZoneIdentifier = timeZoneIdentifier
             definition.state = nextOccurrence == nil ? .completed : .active
             definition.nextOccurrenceAt = nextOccurrence
@@ -206,6 +213,7 @@ final class ScheduledTaskMutationService {
             definition.destination = edit.destination
             definition.project = edit.destination != .existingThread ? edit.project : nil
             definition.targetThread = edit.destination == .existingThread ? edit.targetThread : nil
+            definition.exactTargetConversationID = edit.destination == .existingThread ? edit.exactTargetConversationID : nil
             definition.reusedThread = preservesReuseLink ? definition.reusedThread : nil
             definition.threadSection = edit.destination != .existingThread && edit.project == nil
                 ? edit.threadSection
@@ -282,6 +290,13 @@ final class ScheduledTaskMutationService {
         try validateRevision(definition, expectedRevision: expectedRevision)
         guard definition.decodedDestination != nil else {
             throw ScheduledTaskMutationError.invalidDestination
+        }
+        if definition.decodedDestination == .existingThread, definition.resolvedTargetConversation == nil {
+            throw ScheduledTaskMutationError.existingThreadRequiresAvailableThread
+        }
+        if definition.exactTargetConversationID != nil,
+           case .once(let date)? = definition.recurrence, date <= actionDate {
+            throw ScheduledTaskMutationError.oneOffTimeExpired
         }
         guard !definition.runs.contains(where: { !$0.hasKnownTerminalStatus }) else {
             throw ScheduledTaskMutationError.runNowBlockedByActiveRun

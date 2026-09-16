@@ -111,7 +111,7 @@ private extension ScheduledTaskHostToolService {
         )
 
         // Pause, resume, and run-now are reversible and revision-checked, so they apply
-        // straight away; only definition changes and deletion need native confirmation.
+        // straight away. One-off creates use the atomic creation path below.
         if ScheduledTaskHostToolService.appliesWithoutConfirmation(parsedRequest.request.action) {
             return try applyImmediately(
                 parsedRequest.request,
@@ -121,7 +121,7 @@ private extension ScheduledTaskHostToolService {
             )
         }
 
-        if let existingResult = try pendingResultForExistingProposal(
+        if !parsedRequest.request.isImmediateCreate, let existingResult = try pendingResultForExistingProposal(
             sourceConversation: sourceConversation,
             deduplicationKey: deduplicationKey,
             sourceProcessToken: context.processToken,
@@ -246,7 +246,7 @@ private extension ScheduledTaskHostToolService {
         parsedRequest: ScheduledTaskParsedProposalRequest
     ) async throws -> AgentCLIKit.AgentHostToolResult {
         let prepared = try await prepareGrantMetadata(
-            request: parsedRequest.request, sourceThread: source.thread, harnessID: context.harnessId.rawValue
+            request: parsedRequest.request, source: source, harnessID: context.harnessId.rawValue
         )
         // Discovery suspends: revalidate the caller, target revision, and exact retry before
         // persisting anything. Retained folders are never probed or rewritten.
@@ -258,15 +258,18 @@ private extension ScheduledTaskHostToolService {
             on: liveSource.conversation, deduplicationKey: identity.deduplicationKey,
             processToken: context.processToken, at: identity.createdAt
         ) { return pendingResult(receipt: receipt) }
-        if let pending = try pendingResultForExistingProposal(
+        if !parsedRequest.request.isImmediateCreate, let pending = try pendingResultForExistingProposal(
             sourceConversation: liveSource.conversation, deduplicationKey: identity.deduplicationKey,
             sourceProcessToken: context.processToken, createdAt: identity.createdAt,
             supersedingRequest: parsedRequest.request, allowsSuperseding: false
         ) { return pending }
+        let acceptanceDate = now()
         let resolution = try resolveProposal(
             parsedRequest.request,
             sourceThread: liveSource.thread,
+            sourceConversationID: liveSource.conversation.id,
             sourceHarnessID: context.harnessId.rawValue,
+            at: acceptanceDate,
             resolveNewFolder: { path in
                 guard let folder = prepared.folders[path], folder.path == path else {
                     throw ScheduledTaskHostToolServiceError.grantRootUnavailable(path: path)
@@ -279,6 +282,12 @@ private extension ScheduledTaskHostToolService {
         guard resolution.definitionDraft?.workspaceSnapshot == expectedWorkspace,
               resolution.project?.id == prepared.projectID else {
             throw ScheduledTaskHostToolServiceError.workspaceUnavailable
+        }
+        if parsedRequest.request.isImmediateCreate {
+            return try createImmediately(
+                resolution: resolution, source: liveSource, identity: identity,
+                context: context, at: acceptanceDate
+            )
         }
         return try persistNewProposal(
             context: context, sourceConversation: liveSource.conversation, identity: identity,
@@ -321,12 +330,12 @@ private extension ScheduledTaskHostToolService {
     /// Probe only new grants. Capture values before discovery so no model is read across its suspension.
     func prepareGrantMetadata(
         request: ScheduledTaskProposalRequest,
-        sourceThread: AgentThread,
+        source: ScheduledTaskHostToolSource,
         harnessID: String
     ) async throws -> PreparedScheduledTaskGrantMetadata {
         var newPaths = Set<String>()
         let prepared = try resolveProposal(
-            request, sourceThread: sourceThread, sourceHarnessID: harnessID,
+            request, sourceThread: source.thread, sourceConversationID: source.conversation.id, sourceHarnessID: harnessID,
             resolveNewFolder: { path in
                 newPaths.insert(path)
                 return SourceFolderSnapshot(path: path)

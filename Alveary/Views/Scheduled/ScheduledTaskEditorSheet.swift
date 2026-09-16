@@ -112,7 +112,7 @@ struct ScheduledTaskEditorContent: View {
             }
         }
         .onChange(of: viewModel.existingThreadTargets) { _, options in
-            guard draft.destination == .existingThread,
+            guard draft.destination == .existingThread, draft.exactTargetConversationID == nil,
                   let targetConversationID = draft.targetConversationID,
                   !options.contains(where: { $0.conversationID == targetConversationID }) else {
                 return

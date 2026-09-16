@@ -2,13 +2,14 @@ import Foundation
 
 /// Where a proposed scheduled task runs and posts, when the request names it explicitly.
 ///
-/// `nil` placement on a request means "inherit": a create takes the calling thread's workspace,
-/// an edit keeps the definition's own. Only what the model actually asked for is represented
-/// here, so inheritance stays the default everywhere.
+/// A create with `nil` placement binds the exact calling conversation. An edit with `nil`
+/// placement preserves its stored target, including legacy main-conversation routing.
 enum ScheduledTaskProposalPlacement: Equatable, Sendable {
+    /// The runtime context selects the exact conversation; no model-supplied identity is accepted.
+    case currentThread
     /// A new-thread run. `flavor` is nil when the request named only a workspace — asking to
     /// switch workspaces, not flavors — so an edit keeps whichever new-thread flavor the
-    /// definition already had and a create takes the editor's default.
+    /// definition already had. Creates must name a flavor to override the calling conversation.
     case newThread(flavor: ScheduledTaskNewThreadFlavor?, workspace: ScheduledTaskProposalWorkspace?)
     /// Posts into an existing thread, named by its main conversation's id — the same identity
     /// `ScheduledTask.targetThread` resolves from and `list_threads` hands out.
@@ -18,7 +19,7 @@ enum ScheduledTaskProposalPlacement: Equatable, Sendable {
         switch self {
         case .newThread(_, let workspace):
             workspace
-        case .existingThread:
+        case .existingThread, .currentThread:
             nil
         }
     }
@@ -27,7 +28,7 @@ enum ScheduledTaskProposalPlacement: Equatable, Sendable {
         switch self {
         case .newThread(let flavor, _):
             flavor
-        case .existingThread:
+        case .existingThread, .currentThread:
             nil
         }
     }

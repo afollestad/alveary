@@ -33,6 +33,8 @@ extension DataComponentTests {
             XCTAssertEqual(run.workspaceSnapshot?.grants.map(\.path), ["/original/run-grant"])
             XCTAssertEqual(run.pendingWorktreeCleanupPath, "/original/cleanup")
             XCTAssertEqual(run.scheduledTask?.id, schedule.id)
+            XCTAssertNil(schedule.exactTargetConversationID)
+            XCTAssertNil(run.isExactTargetSnapshot)
             XCTAssertEqual(run.thread?.conversations.first?.id, "saved-conversation")
             project.folders = []
             project.primaryFolderID = nil

@@ -104,9 +104,8 @@ extension DefaultScheduledTaskRunMaterializer {
               !thread.isDraft,
               !thread.hasPendingScheduledTaskWorktreeCleanup,
               let targetConversationID = snapshot.targetConversationID,
-              let conversation = thread.conversations.first(where: {
-                  $0.isMain && $0.id == targetConversationID
-              }),
+              let conversation = run.snapshotTargetConversation,
+              conversation.id == targetConversationID,
               !ScheduledTaskExistingTargetReadiness.hasBlockingPersistedInteraction(in: conversation) else {
             throw ScheduledTaskRunMaterializationError.existingTargetUnavailable
         }

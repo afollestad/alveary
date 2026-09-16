@@ -15,7 +15,7 @@ struct ScheduledTaskProposalOutcomeTarget: Equatable, Sendable {
         title = proposal.targetTitleSnapshot ?? proposal.definitionDraft?.title
     }
 
-    /// For actions applied without a proposal row; the receipt's deduplication key
+    /// For actions applied without a proposal row; a stable receipt or created-definition ID
     /// stands in as the correlation identity.
     init(proposalID: String, sourceConversationID: String, title: String?) {
         self.proposalID = proposalID
@@ -40,6 +40,7 @@ enum ScheduledTaskProposalOutcomeRecorder {
         _ target: ScheduledTaskProposalOutcomeTarget,
         outcome: HostToolWidgetOutcome,
         definitionID: String? = nil,
+        requiresKeyMatch: Bool = false,
         in modelContext: ModelContext,
         at timestamp: Date = .now
     ) {
@@ -49,7 +50,9 @@ enum ScheduledTaskProposalOutcomeRecorder {
         let record = ConversationEventRecord(
             conversationId: conversation.id,
             type: ConversationEventRecord.hostToolOutcomeType,
-            content: HostToolWidgetOutcomeMarker.content(for: outcome, definitionID: definitionID, title: target.title),
+            content: HostToolWidgetOutcomeMarker.content(
+                for: outcome, definitionID: definitionID, title: target.title, requiresKeyMatch: requiresKeyMatch
+            ),
             toolId: target.proposalID,
             toolName: HostToolTranscriptCatalog.toolName(ScheduledTaskHostToolCatalog.proposeToolName),
             timestamp: timestamp,

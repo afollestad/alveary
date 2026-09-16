@@ -107,6 +107,7 @@ extension ScheduledTasksViewModel {
             grantedRoots: roots,
             project: destination.project,
             targetThread: destination.thread,
+            exactTargetConversationID: draft.destination == .existingThread ? draft.exactTargetConversationID : nil,
             threadSection: threadSection,
             workspaceSnapshot: workspace
         )
@@ -181,7 +182,11 @@ extension ScheduledTasksViewModel {
                 guard case .thread(let thread) = item.kind else { return nil }
                 return thread
             }
-            .compactMap(targetThreadAndMainConversation)
+            .flatMap { thread in
+                thread.conversations.sorted {
+                    $0.displayOrder == $1.displayOrder ? $0.id < $1.id : $0.displayOrder < $1.displayOrder
+                }.map { (thread, $0) }
+            }
         let nameCounts = Dictionary(grouping: threads, by: { $0.0.displayName() }).mapValues(\.count)
         let labeledThreads = threads.map { thread, conversation in
             (
@@ -189,8 +194,8 @@ extension ScheduledTasksViewModel {
                 conversation: conversation,
                 label: targetThreadLabel(
                     thread,
-                    hasDuplicateName: nameCounts[thread.displayName(), default: 0] > 1
-                )
+                    hasDuplicateName: nameCounts[thread.displayName(), default: 0] > thread.conversations.count
+                ) + (thread.conversations.count > 1 ? " · \(conversation.displayName())" : "")
             )
         }
         let labelCounts = Dictionary(grouping: labeledThreads, by: { $0.label }).mapValues(\.count)
@@ -234,10 +239,10 @@ private extension ScheduledTasksViewModel {
                 throw ScheduledTasksViewModelError.existingThreadRequired
             }
             guard let conversation = modelContext.resolveConversation(conversationID: conversationID),
-                  conversation.isMain,
                   let thread = conversation.thread,
-                  thread.isEligibleScheduledTaskTarget,
-                  thread.soleMainConversation != nil else {
+                  ScheduledTask.resolveTargetConversation(
+                    in: thread, exactID: draft.exactTargetConversationID
+                  )?.id == conversationID else {
                 throw ScheduledTasksViewModelError.existingThreadUnavailable
             }
             return (nil, thread)
@@ -252,11 +257,6 @@ private extension ScheduledTasksViewModel {
         guard let projectPath = draft.projectPath else { throw ScheduledTasksViewModelError.projectRequired }
         guard let project = resolveProject(path: projectPath) else { throw ScheduledTasksViewModelError.projectNotFound }
         return (project, nil)
-    }
-
-    func targetThreadAndMainConversation(_ thread: AgentThread) -> (AgentThread, Conversation)? {
-        guard let main = thread.soleMainConversation else { return nil }
-        return (thread, main)
     }
 
     func targetThreadLabel(_ thread: AgentThread, hasDuplicateName: Bool) -> String {

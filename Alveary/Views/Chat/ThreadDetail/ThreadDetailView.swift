@@ -23,6 +23,7 @@ struct ThreadDetailView: View {
     let deleteThread: @MainActor (AgentThread) async throws -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
+    var quiesceScheduledCallbacks: @MainActor (String) async throws -> Void = { _ in }
     var diffViewerSwitchScope: @MainActor () -> DiffViewerSwitchScope = { .toolbarStatsOnly }
 
     @Environment(\.modelContext) var uiModelContext
@@ -399,15 +400,17 @@ private extension ThreadDetailView {
             return
         }
 
-        selectNeighborIfClosingSelected(id: id, in: dbThread)
-
-        let threadPersistentID = thread.persistentModelID
+        let threadPersistentID = dbThread.persistentModelID
+        guard await stopCallbackBeforeRemoval(conversationIDString),
+              let selectingThread = uiModelContext.resolveThread(id: threadPersistentID) else { return }
+        selectNeighborIfClosingSelected(id: id, in: selectingThread)
 
         // Signal runtime teardown before deleting the model row so the tab can
         // disappear immediately; destroyRuntime below still waits for cleanup.
         await agentsManager.kill(conversationId: conversationIDString)
 
         do {
+            try await quiesceScheduledCallbacks(conversationIDString)
             guard let liveThread = uiModelContext.resolveThread(id: threadPersistentID) else {
                 conversationActionError = nil
                 invalidateConversationController(conversationIDString)
@@ -422,26 +425,40 @@ private extension ThreadDetailView {
                 return
             }
 
-            // Dismiss any delivered banner and clear the unread count before the row disappears,
-            // so the dock badge and Notification Center both stay consistent with the live DB.
-            notificationManager.markConversationRead(conversationId: conversationIDString)
             try ThreadDetailConversationDeletion.commit(
                 liveConversation,
                 in: uiModelContext,
                 invalidateController: { invalidateConversationController(conversationIDString) }
             )
+            // Publish notification cleanup only after deletion commits; a failed save retains unread state.
+            notificationManager.markConversationRead(conversationId: conversationIDString)
+            notificationManager.refreshBadgeCount()
             conversationActionError = nil
 
             appState.repairSelectedConversationIfNeeded(for: liveThread, conversations: conversations)
             await refreshDiffAfterRemovingConversation(from: liveThread, excluding: conversationIDString)
 
-            do {
-                try await agentsManager.destroyRuntime(conversationId: conversationIDString)
-            } catch {
-                conversationActionError = "Removed conversation, but runtime cleanup failed: \(error.localizedDescription)"
-            }
+            await finishConversationRemoval(conversationIDString)
         } catch {
             conversationActionError = "Couldn't remove conversation: \(error.localizedDescription)"
+        }
+    }
+
+    private func finishConversationRemoval(_ conversationID: String) async {
+        do {
+            try await agentsManager.destroyRuntime(conversationId: conversationID)
+        } catch {
+            conversationActionError = "Removed conversation, but runtime cleanup failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func stopCallbackBeforeRemoval(_ conversationID: String) async -> Bool {
+        do {
+            try await quiesceScheduledCallbacks(conversationID)
+            return true
+        } catch {
+            conversationActionError = "Couldn't stop scheduled callback: \(error.localizedDescription)"
+            return false
         }
     }
 

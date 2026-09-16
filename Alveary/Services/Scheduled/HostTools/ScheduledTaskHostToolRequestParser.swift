@@ -50,18 +50,9 @@ private extension ScheduledTaskHostToolRequestParser {
         var canonicalTimeZoneIdentity: ScheduledTaskCanonicalTimeZoneIdentity?
         switch action {
         case .create:
-            try object.requireOnly(Set(["action", "title", "prompt", "schedule"]).union(Self.placementKeys))
-            let parsedSchedule = try parseSchedule(
-                object.requiredObject("schedule"),
-                validatesExplicitTimeZone: validatesExplicitTimeZone
-            )
-            request = .create(
-                title: try object.requiredNonEmptyString("title"),
-                prompt: try object.requiredNonEmptyString("prompt"),
-                schedule: parsedSchedule.schedule,
-                placement: try parsePlacement(in: object)
-            )
-            canonicalTimeZoneIdentity = parsedSchedule.canonicalTimeZoneIdentity
+            let creation = try parseCreate(object, validatesExplicitTimeZone: validatesExplicitTimeZone)
+            request = creation.request
+            canonicalTimeZoneIdentity = creation.timeZoneIdentity
         case .edit:
             try object.requireOnly(["action", "task_id", "revision", "changes"])
             let parsedChanges = try parseChanges(
@@ -97,6 +88,30 @@ private extension ScheduledTaskHostToolRequestParser {
 }
 
 private extension ScheduledTaskHostToolRequestParser {
+    func parseCreate(
+        _ object: StrictHostToolObject,
+        validatesExplicitTimeZone: Bool
+    ) throws -> (request: ScheduledTaskProposalRequest, timeZoneIdentity: ScheduledTaskCanonicalTimeZoneIdentity) {
+        try object.requireOnly(Set(["action", "title", "prompt", "schedule"]).union(Self.placementKeys))
+        let parsedSchedule = try parseSchedule(
+            object.requiredObject("schedule"),
+            validatesExplicitTimeZone: validatesExplicitTimeZone,
+            allowsRelative: true
+        )
+        let placement = try parsePlacement(in: object)
+        // Receipt replay and transcript restoration must still understand pre-callback creates.
+        if validatesExplicitTimeZone, case .newThread(flavor: nil, workspace: .some) = placement {
+            throw invalid("Create workspace overrides require destination new_thread or reused_thread.")
+        }
+        let request = ScheduledTaskProposalRequest.create(
+            title: try object.requiredNonEmptyString("title"),
+            prompt: try object.requiredNonEmptyString("prompt"),
+            schedule: parsedSchedule.schedule,
+            placement: placement
+        )
+        return (request, parsedSchedule.canonicalTimeZoneIdentity)
+    }
+
     func parseChanges(
         _ values: [String: AgentCLIKit.JSONValue],
         validatesExplicitTimeZone: Bool
@@ -106,11 +121,15 @@ private extension ScheduledTaskHostToolRequestParser {
         let parsedSchedule = try object.optionalObject("schedule").map {
             try parseSchedule($0, validatesExplicitTimeZone: validatesExplicitTimeZone)
         }
+        let placement = try parsePlacement(in: object)
+        if placement == .currentThread {
+            throw invalid("destination current_thread applies only to create; edits preserve their target when omitted.")
+        }
         let changes = ScheduledTaskProposalEditChanges(
             title: try object.optionalNonEmptyString("title"),
             prompt: try object.optionalNonEmptyString("prompt"),
             schedule: parsedSchedule?.schedule,
-            placement: try parsePlacement(in: object)
+            placement: placement
         )
         // Emptiness is judged after parsing, not on the raw keys: a blank optional value reads as
         // an omitted one, so `{"title": ""}` names no change and would otherwise draft an edit
@@ -126,7 +145,8 @@ private extension ScheduledTaskHostToolRequestParser {
 
     func parseSchedule(
         _ values: [String: AgentCLIKit.JSONValue],
-        validatesExplicitTimeZone: Bool
+        validatesExplicitTimeZone: Bool,
+        allowsRelative: Bool = false
     ) throws -> ScheduledTaskParsedProposalSchedule {
         let object = StrictHostToolObject(values, path: "arguments.schedule")
         let kind = try object.requiredString("kind")
@@ -134,6 +154,17 @@ private extension ScheduledTaskHostToolRequestParser {
             in: object,
             validatesExplicitTimeZone: validatesExplicitTimeZone
         )
+        if kind == "once", values["after_seconds"] != nil {
+            guard allowsRelative else { throw invalid("after_seconds applies only to one-off creation.") }
+            try object.requireOnly(["kind", "after_seconds", "time_zone"])
+            return ScheduledTaskParsedProposalSchedule(
+                schedule: ScheduledTaskProposalSchedule(
+                    afterSeconds: try object.requiredPositiveInteger("after_seconds"),
+                    timeZoneIdentifier: timeZone.identifier
+                ),
+                canonicalTimeZoneIdentity: timeZone.canonicalIdentity
+            )
+        }
         let recurrence = try parseRecurrence(kind: kind, object: object)
 
         do {
@@ -322,13 +353,18 @@ private extension ScheduledTaskHostToolRequestParser {
         timeZoneIdentity: ScheduledTaskCanonicalTimeZoneIdentity
     ) -> AgentCLIKit.JSONValue {
         var object: [String: AgentCLIKit.JSONValue] = [
-            "kind": .string(schedule.recurrence.kind.rawValue),
+            "kind": .string(schedule.recurrence?.kind.rawValue ?? "once"),
             "time_zone_source": .string(timeZoneIdentity.source)
         ]
         if case .explicit(let identifier) = timeZoneIdentity {
             object["time_zone"] = .string(identifier)
         }
-        switch schedule.recurrence {
+        if let afterSeconds = schedule.afterSeconds {
+            object["after_seconds"] = .number(Double(afterSeconds))
+            return .object(object)
+        }
+        guard let recurrence = schedule.recurrence else { preconditionFailure("Schedule must have timing") }
+        switch recurrence {
         case .once(let date):
             object["at"] = .string(Self.canonicalDate(date))
         case let .interval(minutes, anchor):

@@ -37,6 +37,7 @@ struct ScheduledTaskHostToolEditedDraft {
 
 /// The calling thread a create proposal inherits from, paired with the settings it contributes.
 struct ScheduledTaskHostToolCreateSource {
+    let conversationID: String
     let thread: AgentThread
     let settings: ScheduledTaskProposalAgentSettings
 }

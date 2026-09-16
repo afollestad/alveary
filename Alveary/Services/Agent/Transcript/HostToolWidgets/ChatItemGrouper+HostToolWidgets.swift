@@ -100,7 +100,7 @@ extension ChatItemGrouper {
             didMatchKey = true
             applyPendingHostToolOutcome(pending, at: index)
         }
-        guard !didMatchKey else {
+        guard !didMatchKey, !HostToolWidgetOutcomeMarker.requiresKeyMatch(fromContent: content) else {
             return
         }
         // Harnesses that surface only a host tool's text fallback give the widget no
@@ -206,7 +206,8 @@ enum HostToolWidgetOutcomeMarker {
         for outcome: HostToolWidgetOutcome,
         definitionID: String? = nil,
         title: String? = nil,
-        body: String? = nil
+        body: String? = nil,
+        requiresKeyMatch: Bool = false
     ) -> String {
         var payload: [String: String] = ["status": outcome.rawValue]
         if let definitionID {
@@ -216,6 +217,7 @@ enum HostToolWidgetOutcomeMarker {
             payload["title"] = title
         }
         if let body { payload["body"] = body }
+        if requiresKeyMatch { payload["requires_key_match"] = "true" }
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
               let encoded = String(data: data, encoding: .utf8) else {
             return "{\"status\":\"\(outcome.rawValue)\"}"
@@ -225,6 +227,12 @@ enum HostToolWidgetOutcomeMarker {
 
     static func outcome(fromContent content: String) -> HostToolWidgetOutcome? {
         decoded(content)?["status"].flatMap(HostToolWidgetOutcome.init(rawValue:))
+    }
+
+    /// New one-off creates cannot name their definition until the result arrives. Cache their
+    /// marker instead of allowing it to resolve an unrelated pending proposal in the meantime.
+    static func requiresKeyMatch(fromContent content: String) -> Bool {
+        decoded(content)?["requires_key_match"] == "true"
     }
 
     /// Scheduled task the resolution produced or targeted, when the feature recorded one.

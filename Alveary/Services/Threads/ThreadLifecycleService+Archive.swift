@@ -30,11 +30,14 @@ extension ThreadLifecycleService {
         if let currentThread = modelContext.resolveThread(id: snapshot.threadID) {
             try requireThreadLifecycleIsUnblocked(currentThread)
         }
+        try await quiesceScheduledTaskRunIfNeeded(threadID: snapshot.threadID)
         await beginConversationTeardowns(snapshot.conversationIDs)
+        try await quiesceScheduledTaskRunIfNeeded(threadID: snapshot.threadID)
         if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
             // Run state can change while harness resolution and runtime teardown await. Recheck
             // on the main actor immediately before the durable lifecycle mutation.
             try requireThreadLifecycleIsUnblocked(dbThread)
+            try requireScheduledRunsQuiescent(dbThread)
             if modelContext.hasChanges {
                 try modelContext.save()
             }

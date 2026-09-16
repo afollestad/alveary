@@ -6,7 +6,7 @@ import SwiftData
 ///
 /// Deliberately does not pin an existing-thread target. A schedule does not own its target's
 /// sidebar placement — the user may unpin, re-section, archive, or delete that thread freely, and
-/// `ScheduledTaskTargetDetachment` converts the definition when the thread goes away.
+/// `ScheduledTaskTargetDetachment` pauses callbacks or converts legacy definitions when the thread goes away.
 extension ScheduledTaskMutationService {
     /// Whether an edit keeps a `.reusedThread` schedule's created-thread link. The link survives
     /// only edits the existing thread can absorb: harness is fixed at conversation creation, and
@@ -33,16 +33,13 @@ extension ScheduledTaskMutationService {
             if edit.workspaceKind == .project, edit.workspaceSnapshot.primarySource == nil {
                 throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
             }
-            guard edit.targetThread == nil else {
+            guard edit.targetThread == nil, edit.exactTargetConversationID == nil else {
                 throw ScheduledTaskMutationError.existingThreadRequiresAvailableThread
             }
         case .existingThread:
-            guard let targetThread = edit.targetThread,
-                  targetThread.archivedAt == nil,
-                  !targetThread.isDraft,
-                  !targetThread.isForkBootstrapPending,
-                  !targetThread.hasPendingScheduledTaskWorktreeCleanup,
-                  targetThread.conversations.filter(\.isMain).count == 1 else {
+            guard ScheduledTask.resolveTargetConversation(
+                in: edit.targetThread, exactID: edit.exactTargetConversationID
+            ) != nil else {
                 throw ScheduledTaskMutationError.existingThreadRequiresAvailableThread
             }
         }

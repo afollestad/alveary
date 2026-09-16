@@ -135,6 +135,7 @@ extension ScheduledTaskHostToolServiceTests {
         }
         return [
             "action": .string("create"),
+            "destination": .string("reused_thread"),
             "title": .string(title),
             "prompt": .string("Review the latest changes."),
             "schedule": .object(schedule)
