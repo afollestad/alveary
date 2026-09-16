@@ -228,7 +228,7 @@ extension DiffViewerViewModelTests {
         XCTAssertFalse(fixture.viewModel.isDiffToolbarLoading)
     }
 
-    func testTargetSwitchRestartsToolbarSpinnerGracePeriod() async {
+    func testTargetSwitchRestartsToolbarSpinnerGracePeriod() async throws {
         let modifiedFile = FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false)
         let firstDirectory = storeFixtureDirectory("first")
         let secondDirectory = storeFixtureDirectory("second")
@@ -241,11 +241,18 @@ extension DiffViewerViewModelTests {
                 diffStatsResults: [
                     .success(DiffStats(additions: 1, deletions: 1)),
                     .success(DiffStats(additions: 2, deletions: 2))
-                ],
-                diffStatsDelays: [.milliseconds(120), .milliseconds(120)]
+                ]
             )
         )
         defer { fixture.viewModel.tearDown() }
+        // Hold each response until its spinner assertions finish, regardless of CI scheduling delays.
+        let firstStatsGate = PullRequestsServiceGate()
+        let secondStatsGate = PullRequestsServiceGate()
+        defer {
+            firstStatsGate.open()
+            secondStatsGate.open()
+        }
+        await fixture.gitService.holdNextDiffStats(on: firstStatsGate)
 
         await fixture.viewModel.switchToDirectory(
             firstDirectory,
@@ -253,9 +260,13 @@ extension DiffViewerViewModelTests {
             remoteName: nil,
             conversationIds: []
         )
-        await fixture.diffStore.waitForLoadingIndicatorsForTesting()
+        try await waitUntil("first target stats request reached its held response") {
+            await fixture.gitService.diffStatsCallCount() == 1
+        }
+        await fixture.diffStore.statsLoadingIndicatorTask?.value
         XCTAssertTrue(fixture.viewModel.isDiffToolbarLoading)
 
+        await fixture.gitService.holdNextDiffStats(on: secondStatsGate)
         let secondStatusEntered = expectation(description: "second target status entered")
         await fixture.gitService.setOnStatus { secondStatusEntered.fulfill() }
         let secondSwitchTask = Task {
@@ -270,10 +281,11 @@ extension DiffViewerViewModelTests {
         await fulfillment(of: [secondStatusEntered], timeout: 2.0)
         XCTAssertFalse(fixture.viewModel.isDiffToolbarLoading)
 
-        await fixture.diffStore.waitForLoadingIndicatorsForTesting()
+        await fixture.diffStore.statsLoadingIndicatorTask?.value
         XCTAssertTrue(fixture.viewModel.isDiffToolbarLoading)
 
         await secondSwitchTask.value
+        secondStatsGate.open()
         await fixture.diffStore.waitForStatsForTesting()
         XCTAssertFalse(fixture.viewModel.isDiffToolbarLoading)
     }
