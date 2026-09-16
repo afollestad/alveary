@@ -69,7 +69,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
     ) async throws -> ShellResult {
         try await withTaskCancellationHandler {
             try Task.checkCancellation()
-            try process.run()
+            try Self.launch(process, executable: executable)
             terminationController.didLaunch()
             pipes.closeParentEnds()
             let processGroupID = options.processGroupPolicy == .create ? process.processIdentifier : nil
@@ -113,6 +113,19 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
             return result
         } onCancel: {
             terminationController.requestTermination()
+        }
+    }
+
+    /// Distinguish failure to start from a failed command; arguments can contain review bodies and must stay out of diagnostics.
+    static func launch(_ process: Process, executable: String) throws {
+        do {
+            try process.run()
+        } catch {
+            try Task.checkCancellation()
+            let underlying = error as NSError
+            throw ShellError.launchFailed(
+                executable: executable, domain: underlying.domain, code: underlying.code, reason: underlying.localizedDescription
+            )
         }
     }
 

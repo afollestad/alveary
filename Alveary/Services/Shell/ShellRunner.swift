@@ -133,6 +133,7 @@ extension ShellRunner {
 }
 
 enum ShellError: Error, Sendable, Equatable {
+    case launchFailed(executable: String, domain: String, code: Int, reason: String)
     case timeout(executable: String, timeout: Duration)
     case ioFailure(ShellIOFailure)
     case invalidDirectory(String)
@@ -184,6 +185,8 @@ extension ShellError: LocalizedError, CustomStringConvertible, CustomDebugString
 
     var errorDescription: String? {
         switch self {
+        case .launchFailed(let executable, let domain, let code, let reason):
+            return "Could not launch \(executable) (\(domain), code \(code)): \(reason)"
         case .invalidDirectory(let directory):
             return "The working directory is unavailable: \(directory)"
         case .timeout(let executable, let timeout):

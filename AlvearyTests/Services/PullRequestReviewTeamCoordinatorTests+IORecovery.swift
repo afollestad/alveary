@@ -59,6 +59,36 @@ extension PullRequestReviewTeamCoordinatorTests {
         #expect(run.accepted.count == 1)
     }
 
+    @Test func `codex IO rejection persists context without capturing unverified response content`() async throws {
+        let stream = """
+        {"type":"turn.started"}
+        {"type":"item.completed","item":{"type":"agent_message","text":"private-response-marker"}}
+        not-json-private-marker
+
+        """
+        let setup = try ioRecoveryFixture(outcomes: [.ioFailure(stream)])
+        defer { try? FileManager.default.removeItem(at: setup.root) }
+        try setup.fixture.start(team: ioRecoveryTeam)
+
+        _ = try await setup.fixture.terminalRun()
+        let saved = try setup.fixture.conversation.collectiveReviewRun()
+        let persisted = try #require(saved)
+        let attempt = try #require(persisted.history?.first { $0.reviewerID == "lead" && $0.phase == .inspecting })
+        #expect(attempt.status == .failed)
+        #expect(attempt.response == nil)
+        let diagnostic = try #require(attempt.error)
+        #expect(diagnostic.contains("Review execution failed"))
+        #expect(diagnostic.contains("invalid JSON event or missing event type at record 3"))
+        #expect(diagnostic.contains("captured stdout: \(stream.utf8.count) bytes"))
+        #expect(diagnostic.contains("exited with code 0"))
+        #expect(persisted.failures["inspecting:lead"] == diagnostic)
+        let envelope = try #require(setup.fixture.conversation.pullRequestReviewRunJSON)
+        #expect(!envelope.contains("private-response-marker"))
+        #expect(!envelope.contains("not-json-private-marker"))
+        #expect(diagnostic.utf8.count <= 4_000)
+        #expect(await setup.execution.callCount == 1)
+    }
+
     private var ioRecoveryInspection: String {
         """
         {"findings":[{"id":"untrusted","priority":2,"path":"File0.swift","line":1,"side":"RIGHT",
@@ -74,11 +104,15 @@ extension PullRequestReviewTeamCoordinatorTests {
     }
 
     private func ioRecoveryFixture(finalResponses: [String]) throws -> ReviewCoordinatorIORecoverySetup {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("review-io-history-tests-\(UUID().uuidString)")
-        let store = ReviewTeamHistoryStore(rootDirectory: root)
         let outcomes = try finalResponses.map { ReviewWorkerIOTestShellRunner.Outcome.ioFailure(
             try ReviewWorkerIOTestSupport.codexStream(finalText: $0)
         ) }
+        return try ioRecoveryFixture(outcomes: outcomes)
+    }
+
+    private func ioRecoveryFixture(outcomes: [ReviewWorkerIOTestShellRunner.Outcome]) throws -> ReviewCoordinatorIORecoverySetup {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("review-io-history-tests-\(UUID().uuidString)")
+        let store = ReviewTeamHistoryStore(rootDirectory: root)
         let execution = ReviewWorkerIOTestShellRunner(outcomes: outcomes)
         let executor = DefaultPullRequestReviewWorkerExecutor(
             environmentBuilder: ReviewWorkerTestEnvironmentBuilder(values: [:]), processRegistry: PullRequestReviewWorkerProcessRegistry(),

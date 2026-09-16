@@ -17,9 +17,12 @@ extension PullRequestReviewWorkerExecutorTests {
                 let output = try await executeIOFixture(fixture)
                 XCTAssertEqual(harnessID, "codex", "Claude must retain the I/O failure.")
                 XCTAssertEqual(output, "{\"findings\":[]}")
-            } catch let error as ShellError {
+            } catch let error as ReviewWorkerIOFailure {
                 XCTAssertEqual(harnessID, "claude", "A completed Codex turn should be recoverable.")
-                XCTAssertEqual(error, ReviewWorkerIOTestSupport.failure(executable: fixture.configuration.executablePath, stdout: stream))
+                XCTAssertEqual(error.stage, .execution)
+                XCTAssertNil(error.codexCompletion)
+                XCTAssertEqual(ShellError.ioFailure(error.failure),
+                               ReviewWorkerIOTestSupport.failure(executable: fixture.configuration.executablePath, stdout: stream))
             }
             let prompts = await execution.prompts
             XCTAssertEqual(prompts, ["Review the packet"])
@@ -39,8 +42,12 @@ extension PullRequestReviewWorkerExecutorTests {
         do {
             _ = try await executeIOFixture(fixture)
             XCTFail("Expected strict capability failure")
-        } catch let error as ShellError {
-            XCTAssertEqual(error, ReviewWorkerIOTestSupport.failure(executable: fixture.configuration.executablePath, stdout: stream))
+        } catch let error as ReviewWorkerIOFailure {
+            XCTAssertEqual(error.stage, .capabilityCheck)
+            XCTAssertNil(error.codexCompletion)
+            XCTAssertEqual(ShellError.ioFailure(error.failure),
+                           ReviewWorkerIOTestSupport.failure(executable: fixture.configuration.executablePath, stdout: stream))
+            XCTAssertTrue(error.localizedDescription.contains("Capability check failed"))
         }
         let executionCalls = await execution.callCount
         XCTAssertEqual(executionCalls, 0)
@@ -61,8 +68,19 @@ extension PullRequestReviewWorkerExecutorTests {
         do {
             _ = try await executeIOFixture(fixture)
             XCTFail("Expected the original I/O failure without a completed turn")
-        } catch let error as ShellError {
-            XCTAssertEqual(error, ReviewWorkerIOTestSupport.failure(executable: fixture.configuration.executablePath, stdout: stream))
+        } catch let error as ReviewWorkerIOFailure {
+            XCTAssertEqual(error.stage, .execution)
+            XCTAssertEqual(error.codexCompletion, .rejected(.missingCompletion))
+            XCTAssertEqual(ShellError.ioFailure(error.failure),
+                           ReviewWorkerIOTestSupport.failure(executable: fixture.configuration.executablePath, stdout: stream))
+            for diagnostic in [error.localizedDescription, String(describing: error), String(reflecting: error)] {
+                XCTAssertTrue(diagnostic.contains("Review execution failed"))
+                XCTAssertTrue(diagnostic.contains("missing turn completion"))
+                XCTAssertTrue(diagnostic.contains("captured stdout: \(stream.utf8.count) bytes"))
+                XCTAssertTrue(diagnostic.contains("exited with code 0"))
+                XCTAssertTrue(diagnostic.contains("stderr did not close before the I/O deadline"))
+                XCTAssertFalse(diagnostic.contains("Unconfirmed final output"))
+            }
         }
     }
 
@@ -97,7 +115,7 @@ extension PullRequestReviewWorkerExecutorTests {
         }
     }
 
-    private func executeIOFixture(_ fixture: Fixture) async throws -> String {
+    func executeIOFixture(_ fixture: Fixture) async throws -> String {
         try await fixture.executor.execute(
             configuration: fixture.configuration, packet: fixture.packet, prompt: "Review the packet",
             runID: fixture.packet.runID, generation: 1, executionID: "io-recovery"

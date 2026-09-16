@@ -82,7 +82,7 @@ actor DefaultHarnessDetectionService: HarnessDetectionService {
                 return
             } catch let error as ShellError {
                 switch error {
-                case .invalidDirectory:
+                case .invalidDirectory, .launchFailed:
                     statuses[harness.id] = .error(error.localizedDescription)
                     resolvedPaths[harness.id] = path
                     return

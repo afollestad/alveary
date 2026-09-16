@@ -21,25 +21,7 @@ extension DefaultPullRequestReviewWorkerExecutor {
             return
         }
 
-        let helpArguments = harnessID == .codex ? ["exec", "--help"] : ["--help"]
-        let processKey = PullRequestReviewWorkerProcessKey(
-            runID: Self.preflightRunID,
-            generation: 0,
-            executionID: "\(configuration.harnessID):\(configuration.executablePath)"
-        )
-        let shellRunner = capabilityShellRunner
-            ?? DefaultShellRunner(processTracker: processRegistry.tracker(for: processKey))
-        let result = try await shellRunner.run(
-            executable: configuration.executablePath,
-            args: helpArguments,
-            environment: workerEnvironment(for: harnessID),
-            environmentPolicy: .replace,
-            processGroupPolicy: .create,
-            timeout: .seconds(5),
-            stdoutLimitBytes: Self.capabilityOutputLimitBytes,
-            stderrLimitBytes: Self.capabilityOutputLimitBytes,
-            standardInput: .nullDevice
-        )
+        let result = try await capabilityOutput(configuration, harnessID: harnessID)
         guard result.succeeded,
               !result.stdoutWasTruncated,
               !result.stderrWasTruncated else {
@@ -53,6 +35,35 @@ extension DefaultPullRequestReviewWorkerExecutor {
                 harnessID: configuration.harnessID,
                 flags: missing
             )
+        }
+    }
+
+    private func capabilityOutput(
+        _ configuration: ReviewWorkerConfiguration, harnessID: AgentCLIKit.AgentHarnessID
+    ) async throws -> ShellResult {
+        let helpArguments = harnessID == .codex ? ["exec", "--help"] : ["--help"]
+        let processKey = PullRequestReviewWorkerProcessKey(
+            runID: Self.preflightRunID,
+            generation: 0,
+            executionID: "\(configuration.harnessID):\(configuration.executablePath)"
+        )
+        let shellRunner = capabilityShellRunner
+            ?? DefaultShellRunner(processTracker: processRegistry.tracker(for: processKey))
+        do {
+            return try await shellRunner.run(
+                executable: configuration.executablePath,
+                args: helpArguments,
+                environment: workerEnvironment(for: harnessID),
+                environmentPolicy: .replace,
+                processGroupPolicy: .create,
+                timeout: .seconds(5),
+                stdoutLimitBytes: Self.capabilityOutputLimitBytes,
+                stderrLimitBytes: Self.capabilityOutputLimitBytes,
+                standardInput: .nullDevice
+            )
+        } catch let ShellError.ioFailure(failure) {
+            try Task.checkCancellation()
+            throw ReviewWorkerIOFailure(stage: .capabilityCheck, failure: failure, codexCompletion: nil)
         }
     }
 

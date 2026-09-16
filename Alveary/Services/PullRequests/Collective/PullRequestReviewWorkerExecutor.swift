@@ -240,9 +240,12 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
                 stderrLimitBytes: Self.stderrLimitBytes,
                 standardInput: command.standardInput.map(ShellStandardInput.text) ?? .nullDevice
             )
-        } catch let error as ShellError {
-            guard request.harnessId == .codex, case .ioFailure(let failure) = error,
-                  ReviewWorkerCodexCompletion.canRecover(failure) else { throw error }
+        } catch let ShellError.ioFailure(failure) {
+            try Task.checkCancellation()
+            let assessment = request.harnessId == .codex ? ReviewWorkerCodexCompletion.assess(failure) : nil
+            guard assessment == .recoverable else {
+                throw ReviewWorkerIOFailure(stage: .execution, failure: failure, codexCompletion: assessment)
+            }
             result = failure.result
         }
         try Task.checkCancellation()
