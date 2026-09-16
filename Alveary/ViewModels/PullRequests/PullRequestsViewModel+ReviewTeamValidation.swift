@@ -11,7 +11,6 @@ struct PullRequestReviewTeamSettingsSignature: Equatable, Sendable {
     let defaultModel: String
     let defaultEffort: String
     let disabledHarnessIDs: Set<String>
-    let harnessConfigs: [String: HarnessCustomConfig]
     let leadHarness: String?
     let leadModel: String?
     let leadEffort: String?
@@ -23,7 +22,6 @@ struct PullRequestReviewTeamSettingsSignature: Equatable, Sendable {
         defaultModel = settings.defaultModel
         defaultEffort = settings.effort
         disabledHarnessIDs = settings.disabledHarnessIDs
-        harnessConfigs = settings.harnessConfigs
         leadHarness = settings.pullRequestReviewHarness
         leadModel = settings.pullRequestReviewModel
         leadEffort = settings.pullRequestReviewEffort

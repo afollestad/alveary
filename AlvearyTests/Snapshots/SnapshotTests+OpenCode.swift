@@ -124,7 +124,7 @@ extension SnapshotTests {
                 refresh: .init(accessibilityLabel: "Refresh harness statuses", isRefreshing: false, action: {}),
                 onClose: nil
             )
-            SettingsAgentCard(viewModel: viewModel, harnessID: "opencode", extraArgs: .constant(""))
+            SettingsAgentCard(viewModel: viewModel, harnessID: "opencode")
         }
         .padding(24)
         assertMacSnapshot(content, size: CGSize(width: 620, height: 360), named: "opencode_failed_harness_recovery")

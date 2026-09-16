@@ -5,7 +5,6 @@ import SwiftUI
 struct AgentsSettingsTabView: View {
     let viewModel: SettingsViewModel
     let harnessIDs: [String]
-    let harnessExtraArgsBinding: (String) -> Binding<String>
 
     @State private var gridColumnCount = 2
 
@@ -15,8 +14,7 @@ struct AgentsSettingsTabView: View {
                 ForEach(harnessIDs, id: \.self) { harnessID in
                     SettingsAgentCard(
                         viewModel: viewModel,
-                        harnessID: harnessID,
-                        extraArgs: harnessExtraArgsBinding(harnessID)
+                        harnessID: harnessID
                     )
                 }
             }

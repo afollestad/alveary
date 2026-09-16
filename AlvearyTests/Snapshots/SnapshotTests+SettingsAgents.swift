@@ -5,24 +5,21 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
-    func testSettingsScreenAgentsTab() {
-        var settings = AppSettings()
-        settings.harnessConfigs["claude"] = HarnessCustomConfig(
-            extraArgs: "--verbose"
-        )
-
+    func testSettingsScreenAgentsTab() async {
         let viewModel = SettingsViewModel(
-            settingsService: InMemorySettingsService(current: settings),
+            settingsService: InMemorySettingsService(),
             harnessDiscovery: SnapshotHarnessDiscoveryService.defaultStatuses(),
             globalAgentInstructionsService: StubInstructionsService(shared: "")
         )
+        await viewModel.refreshHarnessStatuses()
 
         assertMacSnapshot(
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
                 appUpdateManager: snapshotAppUpdateManager(),
-                onClose: {}
+                onClose: {},
+                initialTabRawValue: "agents"
             ),
             size: CGSize(width: 1100, height: 820),
             named: "settings_screen_agents"
@@ -40,12 +37,45 @@ extension SnapshotTests {
         assertMacSnapshot(
             SettingsAgentCard(
                 viewModel: viewModel,
-                harnessID: "claude",
-                extraArgs: .constant("--verbose")
+                harnessID: "claude"
             )
             .padding(24),
-            size: CGSize(width: 480, height: 280),
+            size: CGSize(width: 480, height: 140),
             named: "settings_agent_card_ready"
+        )
+    }
+
+    func testSettingsAgentCardNarrowKeepsSetupStatusAndSignInVisible() async {
+        let discovery = SnapshotHarnessDiscoveryService(statuses: [
+            .opencode: AgentHarnessStatus(
+                harnessId: .opencode,
+                definition: OpenCodeHarnessDefinition.definition,
+                installation: .installed,
+                availability: AgentHarnessAvailability(
+                    harnessId: .opencode,
+                    executablePath: "/Users/test/a-long-installation-directory/.opencode/bin/opencode",
+                    versionDescription: "1.18.31"
+                ),
+                setup: .needsSetup
+            )
+        ])
+        let settings = InMemorySettingsService()
+        let viewModel = SettingsViewModel(settingsService: settings, harnessDiscovery: discovery)
+        await viewModel.refreshHarnessStatuses()
+        let signIn = HarnessSignInService(
+            agentRegistry: DefaultAgentRegistry(),
+            discoveryService: CachingAgentHarnessDiscoveryService(base: discovery),
+            settingsService: settings
+        )
+
+        assertMacSnapshot(
+            SettingsAgentCard(viewModel: viewModel, harnessID: "opencode")
+                .environment(signIn)
+                .environment(TerminalManager())
+                .padding(16),
+            size: CGSize(width: 296, height: 230),
+            named: "settings_agent_card_narrow_setup",
+            colorScheme: .dark
         )
     }
 
@@ -84,17 +114,13 @@ extension SnapshotTests {
         )
     }
 
-    func testSettingsScreenAgentsTabNarrowStacksSplitInputs() {
-        var settings = AppSettings()
-        settings.harnessConfigs["claude"] = HarnessCustomConfig(
-            extraArgs: "--verbose"
-        )
-
+    func testSettingsScreenAgentsTabNarrowUsesOneColumn() async {
         let viewModel = SettingsViewModel(
-            settingsService: InMemorySettingsService(current: settings),
+            settingsService: InMemorySettingsService(),
             harnessDiscovery: SnapshotHarnessDiscoveryService.defaultStatuses(),
             globalAgentInstructionsService: StubInstructionsService(shared: "")
         )
+        await viewModel.refreshHarnessStatuses()
 
         assertMacSnapshot(
             SettingsScreen(
@@ -105,7 +131,7 @@ extension SnapshotTests {
                 initialTabRawValue: "agents"
             ),
             size: CGSize(width: 400, height: 900),
-            named: "settings_screen_agents_narrow_split_inputs"
+            named: "settings_screen_agents_narrow_one_column"
         )
     }
 }

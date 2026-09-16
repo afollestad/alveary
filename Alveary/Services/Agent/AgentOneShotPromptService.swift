@@ -113,10 +113,9 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
         )
 
         let detectedPath = try await detectedExecutablePath(for: harnessId)
-        let configuredArguments = try parseExtraArgs(settings.harnessConfigs[harnessId]?.extraArgs ?? "")
         let arguments = ClaudeNativeSchedulingLaunchPolicy.arguments(
             harnessID: harnessId,
-            configuredArguments: configuredArguments
+            configuredArguments: []
         )
         let environment = ClaudeNativeSchedulingLaunchPolicy.environment(
             harnessID: harnessId,

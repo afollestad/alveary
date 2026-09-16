@@ -4,9 +4,8 @@ import XCTest
 @testable import Alveary
 
 @MainActor
-func makeSettings(extraArgs: String? = nil) -> InMemorySettingsService {
-    let harnessConfig = HarnessCustomConfig(extraArgs: extraArgs)
-    return InMemorySettingsService(current: AppSettings(harnessConfigs: ["claude": harnessConfig]))
+func makeSettings() -> InMemorySettingsService {
+    InMemorySettingsService()
 }
 
 @MainActor

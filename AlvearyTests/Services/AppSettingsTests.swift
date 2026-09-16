@@ -287,31 +287,26 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.branchPrefix, "")
     }
 
-    func testNormalizedDropsHarnessConfigWithOnlyLegacyFields() throws {
-        let json = Data(
-            #"""
-            {
-              "providerConfigs": {
-                "claude": {
-                  "cli": "/usr/local/bin/claude",
-                  "resumeFlag": "--resume",
-                  "autoApproveFlag": "--dangerously-skip-permissions",
-                  "initialPromptFlag": "--prompt",
-                  "env": {
-                    "ALVEARY_FIXTURE": "1"
-                  }
-                },
-                "other": {
-                  "extraArgs": " --verbose "
-                }
-              }
-            }
-            """#.utf8
-        )
-        let settings = try JSONDecoder().decode(AppSettings.self, from: json).normalized()
-
-        XCTAssertNil(settings.harnessConfigs["claude"])
-        XCTAssertEqual(settings.harnessConfigs["other"], HarnessCustomConfig(extraArgs: "--verbose"))
+    func testLegacyHarnessConfigsAreIgnoredAndDroppedOnSave() throws {
+        let legacyValues: [Any] = [
+            ["claude": ["extraArgs": "--verbose", "cli": "/old/claude"], "opencode": ["extraArgs": "--bad 'quote"]],
+            ["claude": ["extraArgs": 42]],
+            "invalid legacy config"
+        ]
+        for legacyValue in legacyValues {
+            let data = try JSONSerialization.data(withJSONObject: [
+                "defaultProvider": "codex", "disabledProviderIDs": ["claude"],
+                "branchPrefix": "custom/", "providerConfigs": legacyValue
+            ])
+            let settings = try JSONDecoder().decode(AppSettings.self, from: data).normalized()
+            XCTAssertEqual(settings.defaultHarness, "codex")
+            XCTAssertEqual(settings.disabledHarnessIDs, ["claude"])
+            XCTAssertEqual(settings.branchPrefix, "custom/")
+            let encoded = try JSONEncoder().encode(settings)
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            XCTAssertNil(object["providerConfigs"])
+            XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: encoded), settings)
+        }
     }
 
     func testNormalizedPreservesDynamicDefaultModelID() {

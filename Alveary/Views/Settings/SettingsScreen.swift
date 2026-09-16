@@ -184,8 +184,7 @@ struct SettingsScreen: View {
         case .harnesses:
             AgentsSettingsTabView(
                 viewModel: viewModel,
-                harnessIDs: viewModel.availableHarnessIDs,
-                harnessExtraArgsBinding: harnessExtraArgsBinding
+                harnessIDs: viewModel.availableHarnessIDs
             )
         case .menuBar:
             MenuBarSettingsTabView(
@@ -279,17 +278,6 @@ private extension SettingsScreen {
             set: { viewModel[keyPath: keyPath] = $0 }
         )
     }
-
-    func harnessExtraArgsBinding(for harnessID: String) -> Binding<String> {
-        Binding(
-            get: {
-                viewModel.harnessExtraArgs(for: harnessID) ?? ""
-            },
-            set: { newValue in
-                viewModel.updateHarnessExtraArgs(for: harnessID, extraArgs: newValue.isEmpty ? nil : newValue)
-            }
-        )
-    }
 }
 
 private extension AppSettings.SettingsPage {
@@ -354,7 +342,7 @@ private extension AppSettings.SettingsPage {
         case .handoff:
             return "Configure Alveary's Amp-inspired take on compaction: automatic session handoff, steering, and context customization."
         case .harnesses:
-            return "Manage harness installs and CLI settings."
+            return "Manage installed harnesses and availability."
         case .menuBar:
             return "Show Alveary in the system menu bar, and choose whether it opens at login."
         case .notifications:

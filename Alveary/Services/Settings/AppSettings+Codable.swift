@@ -85,7 +85,6 @@ extension AppSettings {
         case gitCommitIncludeUnstagedChanges
         case worktreesBaseDirectory
         case lastAddProjectParentFolder
-        case harnessConfigs = "providerConfigs"
         case lastActiveProjectID
         case lastActiveProjectPath
         case lastOpenThreadID
@@ -342,8 +341,6 @@ extension AppSettings {
             forKey: .worktreesBaseDirectory
         ) ?? worktreesBaseDirectory
         lastAddProjectParentFolder = try container.decodeIfPresent(String.self, forKey: .lastAddProjectParentFolder)
-        harnessConfigs = try container.decodeIfPresent([String: HarnessCustomConfig].self, forKey: .harnessConfigs)
-            ?? harnessConfigs
         lastActiveProjectID = try container.decodeIfPresent(String.self, forKey: .lastActiveProjectID)
         lastActiveProjectPath = try container.decodeIfPresent(String.self, forKey: .lastActiveProjectPath)
         lastOpenThreadID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenThreadID)

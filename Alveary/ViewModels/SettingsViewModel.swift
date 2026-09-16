@@ -379,18 +379,6 @@ final class SettingsViewModel {
         set { settingsService.update { $0.worktreesBaseDirectory = newValue } }
     }
 
-    func harnessExtraArgs(for harnessId: String) -> String? {
-        settingsService.current.harnessConfigs[harnessId]?.extraArgs
-    }
-
-    func updateHarnessExtraArgs(for harnessId: String, extraArgs: String?) {
-        settingsService.update { settings in
-            var config = settings.harnessConfigs[harnessId] ?? HarnessCustomConfig()
-            config.extraArgs = extraArgs
-            settings.harnessConfigs[harnessId] = config
-        }
-    }
-
     static func normalizedCodeFontFamilies(_ fontFamilies: [String]) -> [String] {
         sortedUniqueCodeFontFamilies(fontFamilies + [AppSettings.defaultCodeFontFamily])
     }

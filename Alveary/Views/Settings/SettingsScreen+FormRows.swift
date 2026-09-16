@@ -140,33 +140,14 @@ struct SettingsToggleRow: View {
     }
 
     var body: some View {
-        Button(action: toggle) {
+        SettingsToggleControl(title, helpText: helpText, isOn: $isOn, isDisabled: isDisabled) { indicator in
             SettingsFormRow(showsDivider: showsDivider) {
                 SettingsResponsiveControlRow(title, helpText: helpText, horizontalControlSizing: .intrinsicInline) {
-                    Toggle(title, isOn: $isOn)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .labelsHidden()
-                        .disabled(isDisabled)
-                        .allowsHitTesting(false)
+                    indicator
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }
-        .buttonStyle(SettingsToggleRowButtonStyle())
-        .disabled(isDisabled)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityValue(isOn ? "On" : "Off")
-        .accessibilityHint(helpText ?? "")
-        .accessibilityAddTraits(.isButton)
-    }
-
-    private func toggle() {
-        guard !isDisabled else {
-            return
-        }
-        isOn.toggle()
     }
 }
 
@@ -200,19 +181,5 @@ struct SettingsSystemSettingsHintRow: View {
                 return
             }
         }
-    }
-}
-
-private struct SettingsToggleRowButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .contentShape(Rectangle())
-            .background {
-                if configuration.isPressed && isEnabled {
-                    Color.primary.opacity(SettingsScreenLayout.settingsRowPressedOpacity)
-                }
-            }
     }
 }

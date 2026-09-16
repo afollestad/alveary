@@ -415,7 +415,6 @@ extension DefaultAgentsManager {
         forkSession: Bool,
         services: AgentCLIKitHostServices
     ) async throws -> AgentCLIKit.AgentSpawnConfig {
-        let customConfig = await settingsService.current.harnessConfigs[config.harnessId]
         if await harnessDetection.resolvedPath(for: config.harnessId) == nil {
             await harnessDetection.checkHarness(config.harnessId)
         }
@@ -423,11 +422,8 @@ extension DefaultAgentsManager {
             throw AgentError.cliNotInstalled(config.harnessId)
         }
 
-        let configuredArguments = try mergedArguments(
-            harnessId: config.harnessId,
-            customArguments: parseExtraArgs(customConfig?.extraArgs ?? ""),
-            allowedDirectories: config.allowedDirectories
-        )
+        let configuredArguments = config.harnessId == "claude"
+            ? config.allowedDirectories.flatMap { ["--add-dir", $0] } : []
         let arguments = ClaudeNativeSchedulingLaunchPolicy.arguments(
             harnessID: config.harnessId,
             configuredArguments: configuredArguments
@@ -442,43 +438,6 @@ extension DefaultAgentsManager {
             environment: environment,
             forkSession: forkSession
         )
-    }
-
-    private func mergedArguments(
-        harnessId: String,
-        customArguments: [String],
-        allowedDirectories: [String]
-    ) -> [String] {
-        guard harnessId == "claude", !allowedDirectories.isEmpty else {
-            return customArguments
-        }
-
-        var arguments = customArguments
-        let existingAddDirs = existingClaudeAddDirectories(in: customArguments)
-        for directory in allowedDirectories where !existingAddDirs.contains(CanonicalPath.normalize(directory)) {
-            arguments.append("--add-dir")
-            arguments.append(directory)
-        }
-        return arguments
-    }
-
-    private func existingClaudeAddDirectories(in arguments: [String]) -> Set<String> {
-        var directories = Set<String>()
-        var index = 0
-        while index < arguments.count {
-            let argument = arguments[index]
-            if argument == "--add-dir", index + 1 < arguments.count {
-                directories.insert(CanonicalPath.normalize(arguments[index + 1]))
-                index += 2
-                continue
-            }
-            if argument.hasPrefix("--add-dir=") {
-                let value = String(argument.dropFirst("--add-dir=".count))
-                directories.insert(CanonicalPath.normalize(value))
-            }
-            index += 1
-        }
-        return directories
     }
 
     private func agentCLIKitEnvironment(detectedPath: String) -> [String: String] {

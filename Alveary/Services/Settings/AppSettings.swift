@@ -137,7 +137,6 @@ struct AppSettings: Codable, Sendable, Equatable {
     var gitCommitIncludeUnstagedChanges = true
     var worktreesBaseDirectory = "~/Documents/worktrees"
     var lastAddProjectParentFolder: String?
-    var harnessConfigs: [String: HarnessCustomConfig] = [:]
     var lastActiveProjectID: String?
     /// Legacy selection, retained until it resolves to an unambiguous membership.
     var lastActiveProjectPath: String?
@@ -171,7 +170,6 @@ struct AppSettings: Codable, Sendable, Equatable {
         copy.normalizeVoiceInputShortcut()
         copy.normalizeContextManagement()
         copy.normalizeNotificationDefaults()
-        copy.normalizeHarnessConfigs()
         copy.normalizeGitDefaults()
         copy.normalizeWorktreesBaseDirectory()
         copy.normalizeLastActiveProjectPath()
@@ -305,14 +303,6 @@ struct AppSettings: Codable, Sendable, Equatable {
         if let soundName = notifications.soundName,
            !NotificationSettings.availableSoundNames.contains(soundName) {
             notifications.soundName = NotificationSettings.defaultSoundName
-        }
-    }
-
-    private mutating func normalizeHarnessConfigs() {
-        harnessConfigs = harnessConfigs.reduce(into: [:]) { partialResult, entry in
-            if let normalized = entry.value.normalized() {
-                partialResult[entry.key] = normalized
-            }
         }
     }
 

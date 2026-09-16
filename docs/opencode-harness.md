@@ -29,7 +29,7 @@ The matrix describes the adapter contract, including explicitly gated limitation
 | Images and app shots | Native image attachments only for an explicitly selected model advertising image input. App shots include hidden AX context and a native image; no Codex-specific app-shot marker is sent. |
 | Usage and context | Input plus cache-read plus cache-write tokens form context usage. Cached tokens are additive, unlike Codex cached-input accounting. Reasoning is included in output usage. Child context does not replace the root context or trigger its handoff. |
 | MCP, instructions, skills | SDK-owned discovery/configuration and a process-scoped Alveary host MCP endpoint. Existing instruction/skill surfaces use the OpenCode definitions. |
-| Extra launch arguments | Unsupported. Use native OpenCode configuration; saved extra arguments must be cleared explicitly before launch. |
+| Extra launch arguments | Not configurable in Alveary. Use native OpenCode configuration; legacy saved arguments are ignored. |
 | Archive and delete | Native archive/delete accompany app-local lifecycle actions. V1.18.31 cannot clear native archive state; app-local restore remains available and does not promise native unarchive. |
 | Scheduled work and session handoff | Alveary owns scheduling, persistence, recovery, and between-turn handoff. These reuse supported ordinary conversation operations; they are not native OpenCode goal execution. |
 | Native goals and token budgets | Unsupported; controls and execution paths are gated. No prompt-based imitation of native goal state or budgeting. |

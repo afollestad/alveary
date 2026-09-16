@@ -1,16 +1,13 @@
 import AgentCLIKit
 import SwiftUI
 
-/// One harness's grid cell on the Harnesses settings tab: name, status, install
-/// details, enabled toggle, and extra args. Reuses the untitled
-/// `SettingsFormSection` chrome with the harness name inside the card, keeping
-/// the cell compact.
+/// Keeps installation details outside the toggle's hit target so paths stay selectable
+/// and setup actions cannot accidentally disable the harness.
 struct SettingsAgentCard: View {
     let viewModel: SettingsViewModel
     let harnessID: String
-    @Binding var extraArgs: String
 
-    /// Both optional so a snapshot host mounted without the app root renders the card with no Sign In
+    /// Optional so a snapshot host mounted without the app root renders the card with no Sign In
     /// action rather than failing to resolve.
     @Environment(HarnessSignInService.self) private var harnessSignIn: HarnessSignInService?
     @Environment(TerminalManager.self) private var terminalManager: TerminalManager?
@@ -20,40 +17,8 @@ struct SettingsAgentCard: View {
         SettingsFormSection {
             let status = viewModel.harnessStatus(for: harnessID)
 
-            SettingsFormRow {
-                headerAndDetails(for: status)
-            }
-
-            SettingsToggleRow(
-                "Enabled",
-                isOn: Binding(
-                    get: { viewModel.isHarnessEnabled(harnessID) },
-                    set: { viewModel.setHarness(harnessID, enabled: $0) }
-                )
-            )
-
             SettingsFormRow(showsDivider: false) {
-                if harnessID == "opencode" {
-                    SettingsResponsiveControlRow(
-                        "Extra args",
-                        helpText: "OpenCode uses its native configuration. Additional launch arguments are unavailable.",
-                        horizontalControlSizing: .intrinsic
-                    ) {
-                        if extraArgs.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("Unavailable").foregroundStyle(.secondary)
-                        } else {
-                            Button("Clear saved arguments") { extraArgs = "" }
-                                .secondaryActionButtonStyle()
-                                .help("Clear these unsupported saved arguments before starting an OpenCode task.")
-                        }
-                    }
-                } else {
-                    SettingsTextFieldRow(
-                        "Extra args",
-                        text: $extraArgs,
-                        horizontalControlSizing: .expandsToFitText
-                    )
-                }
+                headerAndDetails(for: status)
             }
         }
     }
@@ -66,23 +31,7 @@ private extension SettingsAgentCard {
 
     func headerAndDetails(for status: AgentHarnessStatus?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(viewModel.harnessDisplayName(for: harnessID))
-                    .font(.headline)
-
-                Spacer(minLength: 16)
-
-                if isChecking(status) {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel("Checking installation status")
-                } else {
-                    AgentStatusBadge(
-                        text: viewModel.shortStatusLabel(for: status),
-                        color: viewModel.statusColor(for: status)
-                    )
-                }
-            }
+            toggleHeader(for: status)
 
             if isChecking(status) {
                 Text("Checking installation status...")
@@ -93,7 +42,56 @@ private extension SettingsAgentCard {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
+    }
+
+    func toggleHeader(for status: AgentHarnessStatus?) -> some View {
+        SettingsToggleControl(
+            "\(viewModel.harnessDisplayName(for: harnessID)) enabled",
+            helpText: viewModel.shortStatusLabel(for: status),
+            isOn: Binding(
+                get: { viewModel.isHarnessEnabled(harnessID) },
+                set: { viewModel.setHarness(harnessID, enabled: $0) }
+            )
+        ) { indicator in
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    harnessName
+                    Spacer(minLength: 8)
+                    statusIndicator(for: status)
+                    indicator.fixedSize()
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        harnessName
+                        Spacer(minLength: 8)
+                        indicator.fixedSize()
+                    }
+                    statusIndicator(for: status)
+                }
+            }
+        }
+    }
+
+    var harnessName: some View {
+        Text(viewModel.harnessDisplayName(for: harnessID))
+            .font(.headline)
+            .fixedSize()
+    }
+
+    @ViewBuilder
+    func statusIndicator(for status: AgentHarnessStatus?) -> some View {
+        if isChecking(status) {
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Checking installation status")
+        } else {
+            AgentStatusBadge(
+                text: viewModel.shortStatusLabel(for: status),
+                color: viewModel.statusColor(for: status)
+            )
+            .fixedSize()
+        }
     }
 
     func detailsStack(for status: AgentHarnessStatus?) -> some View {

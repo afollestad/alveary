@@ -102,7 +102,6 @@ final class SettingsViewModelTests: XCTestCase {
             $0.notifications.sound = false
             $0.notifications.soundName = "Tink"
             $0.branchPrefix = "feature/"
-            $0.harnessConfigs["claude"] = HarnessCustomConfig(extraArgs: "--verbose")
         }
         let viewModel = SettingsViewModel(settingsService: service)
 
@@ -129,7 +128,6 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.soundEnabled)
         XCTAssertEqual(viewModel.soundName, "Tink")
         XCTAssertEqual(viewModel.branchPrefix, "feature/")
-        XCTAssertEqual(viewModel.harnessExtraArgs(for: "claude"), "--verbose")
     }
 
     func testContextManagementGettersReflectCurrentSettings() {
@@ -346,21 +344,6 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(service.current.defaultModel, "opus")
         XCTAssertEqual(service.current.effort, "high")
-    }
-
-    func testHarnessExtraArgsHelpersCreateEntriesAndPreserveOtherHarnesses() {
-        let service = InMemorySettingsService()
-        service.update {
-            $0.harnessConfigs["other"] = HarnessCustomConfig(extraArgs: "--other")
-        }
-        let viewModel = SettingsViewModel(settingsService: service)
-
-        XCTAssertNil(viewModel.harnessExtraArgs(for: "claude"))
-
-        viewModel.updateHarnessExtraArgs(for: "claude", extraArgs: "--verbose")
-
-        XCTAssertEqual(service.current.harnessConfigs["claude"], HarnessCustomConfig(extraArgs: "--verbose"))
-        XCTAssertEqual(service.current.harnessConfigs["other"], HarnessCustomConfig(extraArgs: "--other"))
     }
 
     func testSoundNameFallsBackToGlassWhenStoredValueIsNil() {

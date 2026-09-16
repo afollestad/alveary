@@ -83,9 +83,7 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
     }
 
     func testGenerateRunsHarnessSpecificOneShotWithoutRuntimeCalls() async throws {
-        var settings = AppSettings()
-        settings.harnessConfigs["claude"] = HarnessCustomConfig(extraArgs: "--append-system-prompt 'Use terse output'")
-        let fixture = await makeFixture(settings: settings, timeout: .seconds(7))
+        let fixture = await makeFixture(settings: AppSettings(), timeout: .seconds(7))
 
         let output = try await fixture.service.generate(prompt: "Generate subject", workingDirectory: "/tmp/project")
 
@@ -101,7 +99,7 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         XCTAssertTrue(request.prompt.contains("CLAUDE.md"))
         XCTAssertEqual(
             request.arguments,
-            ["--append-system-prompt", "Use terse output", "--disallowedTools", "RemoteTrigger"]
+            ["--disallowedTools", "RemoteTrigger"]
         )
         XCTAssertEqual(request.environment["PATH"], "/opt/homebrew/bin:/usr/bin")
         XCTAssertEqual(request.environment["ALVEARY_TEST"], "1")
@@ -198,22 +196,17 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         await assertNoRuntimeCalls(fixture.agentsManager)
     }
 
-    func testGenerateFailsForInvalidHarnessExtraArgsBeforeLaunch() async {
-        var settings = AppSettings()
-        settings.harnessConfigs["claude"] = HarnessCustomConfig(extraArgs: "--bad 'unterminated")
+    func testGenerateIgnoresInvalidLegacyHarnessArguments() async throws {
+        let data = Data(#"{"providerConfigs":{"claude":{"extraArgs":"--bad 'unterminated"}}}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: data)
         let fixture = await makeFixture(settings: settings)
 
-        do {
-            _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
-            XCTFail("Expected generation to fail")
-        } catch AppOneShotPromptError.failed(let message) {
-            XCTAssertTrue(message.contains("Invalid harness extra args"), message)
-        } catch {
-            XCTFail("Unexpected error: \(error)")
-        }
+        let output = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
 
+        XCTAssertEqual(output, "Generated subject")
         let requests = await fixture.runner.requests()
-        XCTAssertTrue(requests.isEmpty)
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertEqual(requests.first?.arguments, ["--disallowedTools", "RemoteTrigger"])
         await assertNoRuntimeCalls(fixture.agentsManager)
     }
 
