@@ -270,13 +270,9 @@ struct ThreadDetailView: View {
             // unrelated state change happens to re-render the parent view.
             statusVersion += 1
         }
-        // Publish the thread-scoped create action so `AlvearyApp.commands`
-        // can render a ⌘T "New Conversation" menu item that is disabled
-        // when no thread is mounted (the focused value resolves to nil
-        // outside this view, so the menu button reads `action == nil`).
-        .focusedSceneValue(
-            \.newConversationAction,
-            newConversationAction(isDisabled: isProjectTrustBlocked || liveThread?.hasCompletedInitialSetup != true)
+        .preference(
+            key: NewConversationActionPreferenceKey.self,
+            value: newConversationAction(isDisabled: isProjectTrustBlocked || liveThread?.hasCompletedInitialSetup != true)
         )
         #if DEBUG
         .focusedSceneValue(\.rawTranscriptWindowRequest, rawTranscriptWindowRequest(for: selectedConversation))
@@ -332,6 +328,11 @@ private extension ThreadDetailView {
     }
 
     func createConversation() async {
+        // A toolbar/menu closure can outlive its selection, including across the action's Task hop.
+        guard case .thread(let selectedThread) = appState.selectedSidebarItem,
+              selectedThread.persistentModelID == thread.persistentModelID else {
+            return
+        }
         guard let dbThread = uiModelContext.resolveThread(id: thread.persistentModelID) else {
             conversationActionError = "Couldn't create conversation: thread no longer exists"
             return

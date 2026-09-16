@@ -65,19 +65,13 @@ struct MainPaneHeaderPresentation: Equatable {
     }
 }
 
-/// The toolbar item `ContentView` mounts: it owns the `newConversationAction` focused-value read
-/// and hands `MainPaneToolbarHeader` a plain closure.
-///
-/// Declared here, not on `ContentView`: focused-value re-resolution re-runs every declaring view
-/// once per frame of any presentation or removal animation, and on the root that re-evaluated the
-/// whole window scaffold each frame. This wrapper's body is one header construction — see
-/// **Focus And Keyboard Coordination** in `Alveary/Views/AGENTS.md`. The header itself stays a
-/// pure `onNewConversation:` consumer so snapshot tests can pin both button states directly.
+/// Adapts the window's shared action to the header while preserving the menu's modal guard.
+/// Receive the action directly: focused values available to scene commands can be absent in toolbar hosts.
 struct MainPaneToolbarHeaderItem: View {
     let presentation: MainPaneHeaderPresentation
     let voiceInputLifecycleController: VoiceInputLifecycleController
 
-    @FocusedValue(\.newConversationAction) private var newConversationAction
+    let newConversationAction: NewConversationAction?
 
     var body: some View {
         MainPaneToolbarHeader(

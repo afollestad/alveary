@@ -75,6 +75,7 @@ struct ContentView: View {
     @State var terminalToolbarTrackedSessionIDs = Set<UUID>()
     @State var terminalToolbarResetTask: Task<Void, Never>?
     @State var voiceInputInteractionLockGeneration = 0
+    @State var publishedNewConversationAction: NewConversationAction?
 
     init(component: AppComponent, appState: AppState) {
         self.init(dependencies: ContentViewDependencies.resolve(component), appState: appState)
@@ -168,12 +169,13 @@ struct ContentView: View {
                 // the restored selection mounts; just sync the dock badge on launch.
                 notificationManager.refreshBadgeCount()
             }
-            // Publish the terminal-toggle action so the ⇧⌘T menu item in
-            // `AlvearyApp.commands` runs the same default-shell-then-flip sequence
-            // as the toolbar button — `terminalManager` is view-local `@State`, so
-            // the menu needs a `FocusedValue` hop to reach it.
+            // The menu needs a focused-value hop to run the toolbar action with view-local `terminalManager`.
             .focusedSceneValue(\.toggleTerminalPaneAction, toggleTerminalPane)
             .focusedSceneValue(\.diffViewerCommand, diffViewerCommand)
+            .onPreferenceChange(NewConversationActionPreferenceKey.self) { action in
+                publishedNewConversationAction = action
+            }
+            .focusedSceneValue(\.newConversationAction, selectedThreadNewConversationAction)
             // Nil while the button is hidden, which is what greys out the menu item.
             .focusedSceneValue(
                 \.togglePullRequestsAction,
@@ -333,10 +335,8 @@ private extension ContentView {
             .frame(width: 0, height: 0)
         }
         .toolbar(removing: .title)
-        // macOS 27 gives the toolbar its own elevated fill on the pane screens — measured ~10
-        // levels lighter than the window background the header and content beneath it draw on —
-        // though not on the AppKit-hosted transcript. Hiding it makes the toolbar defer to that
-        // same background, so the chrome stays one band split only by `AppSeparatorHairline`.
+        // Hide macOS 27's elevated toolbar fill so it shares the pane headers' background,
+        // leaving one band split only by `AppSeparatorHairline`.
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .toolbar {
             rootToolbarContent

@@ -4,6 +4,17 @@ import SwiftUI
 /// so the button group's arguments type-check on their own; see the type-check
 /// budget bullets in `Alveary/Views/AGENTS.md`.
 extension ContentView {
+    /// Rejects an outgoing thread's preference while the newly selected content is mounting.
+    /// Identity reads need no model fetch, so selection changes remain observation-tracked.
+    var selectedThreadNewConversationAction: NewConversationAction? {
+        guard case .thread(let thread) = appState.selectedSidebarItem,
+              let action = publishedNewConversationAction,
+              action.threadID == thread.persistentModelID else {
+            return nil
+        }
+        return action
+    }
+
     @ToolbarContentBuilder
     var rootToolbarContent: some ToolbarContent {
         ToolbarItem(id: MainWindowToolbarItemID.header, placement: .navigation) {
@@ -14,7 +25,8 @@ extension ContentView {
                         selection: appState.selectedSidebarItem,
                         modelContext: uiModelContext
                     ),
-                    voiceInputLifecycleController: voiceInputLifecycleController
+                    voiceInputLifecycleController: voiceInputLifecycleController,
+                    newConversationAction: selectedThreadNewConversationAction
                 )
                 workspaceFolderMenu
             }

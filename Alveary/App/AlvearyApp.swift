@@ -241,8 +241,7 @@ func performVoiceModelCacheClearIfModelPreparationModalAbsent(
     return true
 }
 
-/// Reads the thread-scoped `newConversationAction` focused value so the ⌘T
-/// menu item is automatically disabled when no `ThreadDetailView` is mounted.
+/// Reads the window's relayed `newConversationAction` so ⌘T and the toolbar share availability.
 /// The binding lives here (rather than inline inside `commands`) so
 /// `@FocusedValue` can participate in view invalidation.
 private struct NewConversationCommandButton: View {

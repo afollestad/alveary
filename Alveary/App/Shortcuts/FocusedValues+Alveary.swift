@@ -1,22 +1,13 @@
 import SwiftData
 import SwiftUI
 
-/// Published by `ThreadDetailView` so `AlvearyApp.commands` can expose a ⌘T
-/// "New Conversation" menu item that is only enabled while a thread view is
-/// mounted. `ThreadDetailView.createConversation()` is private and scoped to
-/// the active thread, so routing the menu through a `FocusedValue` keeps the
-/// command aware of the current thread without duplicating that logic or
-/// plumbing a new `CommandRequest` case through `ContentView+Commands.swift`.
+/// Produced by the mounted `ThreadDetailView`, then relayed by `ContentView` to both the
+/// toolbar and the scene menu. The toolbar receives it directly because its separate
+/// hosting tree cannot reliably read the thread's focused value.
 ///
-/// Like `DiffViewerCommand`, equality deliberately excludes the closure and
-/// compares the publishing thread's identity instead. `MainPaneToolbarHeaderItem`
-/// reads this focused value for the toolbar `+` button; a bare-closure value
-/// can never compare equal, so every `ThreadDetailView` body evaluation would
-/// invalidate the reader, re-rendering `ThreadDetailView`, which republishes —
-/// a frame-rate render loop. The reader is that small wrapper rather than
-/// `ContentView` because declaring a `@FocusedValue` re-runs the declaring
-/// view once per frame of any presentation animation regardless of equality —
-/// see **Focus And Keyboard Coordination** in `Alveary/Views/AGENTS.md`.
+/// Equality excludes the closure to prevent preference updates from repeatedly invalidating
+/// the root. Its captures are the identified thread, stable services, and live state storage;
+/// availability changes pass through `nil`, and a different thread changes the identity.
 struct NewConversationAction: Equatable {
     let threadID: PersistentIdentifier
     let perform: @MainActor () -> Void
@@ -33,6 +24,15 @@ struct NewConversationAction: Equatable {
 
 struct NewConversationActionKey: FocusedValueKey {
     typealias Value = NewConversationAction
+}
+
+/// Travels up the content tree independently of keyboard focus; removing the thread restores `nil`.
+struct NewConversationActionPreferenceKey: PreferenceKey {
+    static var defaultValue: NewConversationAction? { nil }
+
+    static func reduce(value: inout NewConversationAction?, nextValue: () -> NewConversationAction?) {
+        value = nextValue() ?? value
+    }
 }
 
 /// Published by `ContentView` so the ⇧⌘T "Show/Hide Terminal" menu item can
