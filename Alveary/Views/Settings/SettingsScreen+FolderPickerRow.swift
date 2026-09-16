@@ -12,18 +12,22 @@ struct SettingsFolderPickerRow: View {
         self.prompt = prompt
     }
 
+    private var displayPath: String {
+        CanonicalPath.abbreviateHomeDirectory(path)
+    }
+
     var body: some View {
         SettingsResponsiveControlRow(title, horizontalControlSizing: .fillsAvailableWidthFraction(0.66)) {
             HStack(spacing: 10) {
-                Text(path)
+                Text(displayPath)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.head)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
-                    .help(path)
+                    .help(displayPath)
                     .accessibilityLabel(title)
-                    .accessibilityValue(path)
+                    .accessibilityValue(displayPath)
                     .layoutPriority(0)
 
                 Button(action: chooseFolder) {
@@ -57,6 +61,6 @@ struct SettingsFolderPickerRow: View {
         guard panel.runModal() == .OK, let url = panel.url else {
             return
         }
-        path = (url.path as NSString).abbreviatingWithTildeInPath
+        path = CanonicalPath.abbreviateHomeDirectory(url.path)
     }
 }

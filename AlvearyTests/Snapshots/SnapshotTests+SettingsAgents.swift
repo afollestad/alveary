@@ -53,7 +53,7 @@ extension SnapshotTests {
                 installation: .installed,
                 availability: AgentHarnessAvailability(
                     harnessId: .opencode,
-                    executablePath: "/Users/test/a-long-installation-directory/.opencode/bin/opencode",
+                    executablePath: NSHomeDirectory() + "/a-long-installation-directory/.opencode/bin/opencode",
                     versionDescription: "1.18.31"
                 ),
                 setup: .needsSetup

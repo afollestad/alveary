@@ -143,14 +143,14 @@ extension SidebarView {
             Button("Reveal in Finder") {
                 revealProjectFolderInFinder(folder)
             }
-            .help(folder.source.path)
+            .help(CanonicalPath.abbreviateHomeDirectory(folder.source.path))
         } else if !folders.isEmpty {
             Menu("Reveal in Finder") {
                 ForEach(folders) { folder in
                     Button(folder.source.name) {
                         revealProjectFolderInFinder(folder)
                     }
-                    .help(folder.source.path)
+                    .help(CanonicalPath.abbreviateHomeDirectory(folder.source.path))
                 }
             }
         }

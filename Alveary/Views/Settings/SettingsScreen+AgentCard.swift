@@ -143,7 +143,7 @@ private extension SettingsAgentCard {
     @ViewBuilder
     func versionAndPathLine(for status: AgentHarnessStatus?) -> some View {
         let version = viewModel.harnessVersion(for: status)
-        let path = viewModel.harnessExecutablePath(for: status)
+        let path = viewModel.harnessExecutablePath(for: status).map(CanonicalPath.abbreviateHomeDirectory)
 
         if version != nil || path != nil {
             versionAndPathText(version: version, path: path)

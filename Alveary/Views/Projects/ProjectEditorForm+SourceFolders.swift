@@ -107,7 +107,7 @@ private struct ProjectEditorFolderRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .help(folder.path)
+                    .help(CanonicalPath.abbreviateHomeDirectory(folder.path))
             }
             Spacer()
             if isPrimary {
@@ -116,12 +116,12 @@ private struct ProjectEditorFolderRow: View {
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
             } else {
                 Button("Make primary", action: makePrimary).inlineActionButtonStyle(foregroundColor: .secondary)
-                    .accessibilityLabel("Make \(folder.path) primary")
+                    .accessibilityLabel("Make \(CanonicalPath.abbreviateHomeDirectory(folder.path)) primary")
             }
             Button(action: remove) { Image(systemName: "xmark") }
                 .iconActionButtonStyle()
                 .help("Remove \(folder.name)")
-                .accessibilityLabel("Remove \(folder.path)")
+                .accessibilityLabel("Remove \(CanonicalPath.abbreviateHomeDirectory(folder.path))")
         }
         .padding(12)
     }

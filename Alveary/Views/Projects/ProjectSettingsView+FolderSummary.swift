@@ -32,7 +32,7 @@ struct ProjectSettingsFolderSummary: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .textSelection(.enabled)
-                .help(sourceFolder.path)
+                .help(CanonicalPath.abbreviateHomeDirectory(sourceFolder.path))
         }
     }
 }

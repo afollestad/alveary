@@ -7,7 +7,7 @@ struct EmptyThreadProjectOption {
     let isSelected: Bool
 
     var displayPath: String {
-        (project.path as NSString).abbreviatingWithTildeInPath
+        CanonicalPath.abbreviateHomeDirectory(project.path)
     }
 }
 
@@ -198,7 +198,7 @@ private extension EmptyThreadState {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .help(source.path)
+                .help(CanonicalPath.abbreviateHomeDirectory(source.path))
         } else if thread?.isDraft != true {
             Text("Private workspace")
                 .font(.caption)

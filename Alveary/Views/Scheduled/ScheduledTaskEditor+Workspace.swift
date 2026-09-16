@@ -240,10 +240,10 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                                 }
                                 .buttonStyle(.borderless)
                                 .help("Remove folder grant")
-                                .accessibilityLabel("Remove \(path)")
+                                .accessibilityLabel("Remove \(CanonicalPath.abbreviateHomeDirectory(path))")
                             }
                             .accessibilityElement(children: .contain)
-                            .accessibilityHint(path)
+                            .accessibilityHint(CanonicalPath.abbreviateHomeDirectory(path))
                         }
                     }
                 }

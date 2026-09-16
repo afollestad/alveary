@@ -30,7 +30,7 @@ struct WorkspaceFolderMenu: View {
                     Text(folder.source.name + (folder.isPrimary ? " (Primary)" : "")
                          + "\n" + CanonicalPath.abbreviateHomeDirectory(folder.directory))
                         .tag(folder.id)
-                        .help(folder.directory)
+                        .help(CanonicalPath.abbreviateHomeDirectory(folder.directory))
                 }
             }
             .pickerStyle(.inline)
@@ -43,6 +43,6 @@ struct WorkspaceFolderMenu: View {
         }
         .help("Select a folder for settings, Git, actions, and new terminals")
         .accessibilityLabel("Active folder")
-        .accessibilityValue(selected.directory)
+        .accessibilityValue(CanonicalPath.abbreviateHomeDirectory(selected.directory))
     }
 }

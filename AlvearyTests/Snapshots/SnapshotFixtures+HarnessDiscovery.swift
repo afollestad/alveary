@@ -21,7 +21,7 @@ actor SnapshotHarnessDiscoveryService: AgentCLIKit.AgentHarnessDiscoveryService 
                 installation: .installed,
                 availability: AgentCLIKit.AgentHarnessAvailability(
                     harnessId: .claude,
-                    executablePath: "/Users/test/.local/bin/claude",
+                    executablePath: NSHomeDirectory() + "/.local/bin/claude",
                     versionDescription: "2.1.104"
                 ),
                 setup: .ready,

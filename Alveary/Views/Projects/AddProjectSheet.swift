@@ -339,7 +339,7 @@ private extension AddProjectSheet {
         guard panel.runModal() == .OK, let url = panel.url else {
             return
         }
-        let abbreviated = (url.path as NSString).abbreviatingWithTildeInPath
+        let abbreviated = CanonicalPath.abbreviateHomeDirectory(url.path)
         draft.parentPath = abbreviated
         settingsService.update { $0.lastAddProjectParentFolder = abbreviated }
     }

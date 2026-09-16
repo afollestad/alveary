@@ -290,7 +290,7 @@ private final class ComposerTaskWorkspaceMenuView: AppKitComposerPopoverSurfaceV
 
     private func makeGrantRemovalRow(_ path: String) -> ComposerReasoningMenuRowView {
         let row = ComposerReasoningMenuRowView()
-        row.toolTip = configuration.canEdit ? path : configuration.disabledTooltip
+        row.toolTip = configuration.canEdit ? ComposerTaskWorkspacePresentation.grantDisplayPath(path) : configuration.disabledTooltip
         row.configure(.init(
             title: ComposerTaskWorkspacePresentation.grantDisplayPath(path),
             subtitle: "Click to remove",

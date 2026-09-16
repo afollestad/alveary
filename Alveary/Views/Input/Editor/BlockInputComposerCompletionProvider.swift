@@ -135,7 +135,7 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
                 return BlockInputCompletionSuggestion(
                     id: candidate.url.path,
                     title: label,
-                    subtitle: candidate.url.deletingLastPathComponent().path,
+                    subtitle: CanonicalPath.abbreviateHomeDirectory(candidate.url.deletingLastPathComponent().path),
                     insertionText: fileCompletionInsertionText(label: label, destination: candidate.insertionDestination),
                     trigger: .mention,
                     iconSystemName: "doc.text"

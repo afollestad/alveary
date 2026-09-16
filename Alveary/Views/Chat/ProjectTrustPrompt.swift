@@ -40,7 +40,7 @@ struct ProjectTrustPromptView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .help(prompt.canonicalProjectPath)
+                    .help(prompt.displayProjectPath)
                     .frame(maxWidth: 420)
             }
 
