@@ -264,7 +264,7 @@ struct ReviewTeamRunWidgetTests {
         ]
     }
 
-    func failedRun(teamSize: Int = 2) -> ReviewTeamRun {
+    func failedRun(teamSize: Int = 2, id: String = "run") -> ReviewTeamRun {
         var team = [
             ReviewWorkerConfiguration(
                 id: "lead",
@@ -291,7 +291,7 @@ struct ReviewTeamRunWidgetTests {
         }
         return ReviewTeamRun(
             payloadVersion: 1,
-            id: "run",
+            id: id,
             proposalID: "proposal",
             conversationID: "conversation",
             identifier: PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7),

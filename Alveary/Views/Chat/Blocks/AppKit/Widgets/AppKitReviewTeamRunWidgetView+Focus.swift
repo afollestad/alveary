@@ -4,13 +4,22 @@ import AppKit
 /// boundary, including the outer boundary where a detached finding no longer has a window.
 @MainActor
 enum AppKitReviewTeamFocus {
-    static func capture(in view: NSView) -> NSUserInterfaceItemIdentifier? {
-        guard let responder = view.window?.firstResponder as? NSView, responder.isDescendant(of: view) else { return nil }
-        return responder.identifier
+    struct Snapshot {
+        let identifier: NSUserInterfaceItemIdentifier
+        let reviewerPresentation: AppKitReviewTeamReviewerRowView.FocusPresentation?
     }
 
-    static func restore(_ identifier: NSUserInterfaceItemIdentifier?, in view: NSView) {
-        guard let identifier, let window = view.window, let control = descendant(identifier, in: view) else { return }
+    static func capture(in view: NSView) -> Snapshot? {
+        guard let responder = view.window?.firstResponder as? NSView,
+              responder.isDescendant(of: view), let identifier = responder.identifier else { return nil }
+        return Snapshot(identifier: identifier, reviewerPresentation: (responder as? AppKitReviewTeamReviewerRowView)?.focusPresentation)
+    }
+
+    static func restore(_ snapshot: Snapshot?, in view: NSView) {
+        guard let snapshot, let window = view.window, let control = descendant(snapshot.identifier, in: view) else { return }
+        if let presentation = snapshot.reviewerPresentation, let reviewer = control as? AppKitReviewTeamReviewerRowView {
+            reviewer.focusPresentation = presentation
+        }
         window.makeFirstResponder(control)
     }
 

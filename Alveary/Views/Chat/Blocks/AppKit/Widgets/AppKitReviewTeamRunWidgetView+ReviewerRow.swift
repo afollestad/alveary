@@ -4,7 +4,21 @@ import AppKit
 /// its stack, so wrapping never leaves the following transcript row at an obsolete offset.
 @MainActor
 final class AppKitReviewTeamReviewerRowView: AppKitHostToolWidgetBubbleView {
+    enum FocusPresentation {
+        case mouse, keyboard
+    }
+
     let reviewerID: String
+
+    /// Direct restoration after a sheet or rebuild must retain the opening interaction;
+    /// Escape dismissing mouse-opened details is not keyboard navigation into this row.
+    var focusPresentation: FocusPresentation = .mouse {
+        didSet {
+            guard focusPresentation != oldValue else { return }
+            noteFocusRingMaskChanged()
+            needsDisplay = true
+        }
+    }
 
     private let identity = NSTextField(labelWithString: "")
     private let statusLabel = NSTextField(labelWithString: "")
@@ -105,10 +119,37 @@ final class AppKitReviewTeamReviewerRowView: AppKitHostToolWidgetBubbleView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func becomeFirstResponder() -> Bool {
+        guard super.becomeFirstResponder() else { return false }
+        if let direction = window?.keyViewSelectionDirection, direction != .directSelection {
+            focusPresentation = .keyboard
+        }
+        return true
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        focusPresentation = .mouse
+        super.mouseDown(with: event)
+    }
+
     override func keyDown(with event: NSEvent) {
-        if [36, 49, 76].contains(event.keyCode), event.modifierFlags.isDisjoint(with: [.command, .control, .option]) {
+        focusPresentation = .keyboard
+        guard event.modifierFlags.isDisjoint(with: [.command, .control, .option]) else {
+            super.keyDown(with: event)
+            return
+        }
+        switch event.keyCode {
+        case 36, 49, 76:
             onActivate?()
-        } else {
+        case 48:
+            // NSView does not interpret Tab for a custom control; keep the native key-view
+            // loop reachable so keyboard focus can leave the reviewer rows.
+            if event.modifierFlags.contains(.shift) {
+                window?.selectKeyView(preceding: self)
+            } else {
+                window?.selectKeyView(following: self)
+            }
+        default:
             super.keyDown(with: event)
         }
     }
@@ -116,6 +157,7 @@ final class AppKitReviewTeamReviewerRowView: AppKitHostToolWidgetBubbleView {
     override var focusRingMaskBounds: NSRect { bounds }
 
     override func drawFocusRingMask() {
+        guard focusPresentation == .keyboard else { return }
         NSBezierPath(roundedRect: bounds, xRadius: AppCornerRadius.standard, yRadius: AppCornerRadius.standard).fill()
     }
 }

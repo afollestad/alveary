@@ -71,13 +71,14 @@ final class AppKitReviewTeamRunWidgetView: NSView {
         guard self.configuration != configuration else {
             return
         }
-        if self.configuration?.run.id != configuration.run.id {
+        let preservesFocus = self.configuration?.run.id == configuration.run.id
+        if !preservesFocus {
             expandedRunID = nil
             findingViews = [:]
             reviewers = []
         }
         self.configuration = configuration
-        rebuild(configuration)
+        rebuild(configuration, preservesFocus: preservesFocus)
         prepareLayout(width: bounds.width)
     }
 }
@@ -90,8 +91,8 @@ private extension AppKitReviewTeamRunWidgetView {
         var style: AppKitTranscriptApprovalButtonStyle = .secondary
     }
 
-    func rebuild(_ configuration: Configuration) {
-        let focusedControl = AppKitReviewTeamFocus.capture(in: self)
+    func rebuild(_ configuration: Configuration, preservesFocus: Bool = true) {
+        let focusedControl = preservesFocus ? AppKitReviewTeamFocus.capture(in: self) : nil
         stack.arrangedSubviews.forEach {
             stack.removeArrangedSubview($0)
             $0.removeFromSuperview()
