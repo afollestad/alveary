@@ -135,7 +135,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
         pipes: ShellProcessPipes,
         terminationController: ProcessTerminationController
     ) async -> ShellExecutionCapture {
-        let stdinWriter = Self.writeStandardInput(
+        async let stdinCompleted = Self.writeStandardInput(
             options.standardInput,
             to: pipes.standardInput,
             stopController: pipes.stopController
@@ -158,7 +158,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
         if didFinish, options.processGroupPolicy == .create {
             terminationController.requestTermination()
         }
-        let inputCompleted = await stdinWriter?.value ?? true
+        let inputCompleted = await stdinCompleted
         let standardOutput = await stdoutCapture
         let standardError = await stderrCapture
         await terminationController.awaitTermination()
@@ -196,12 +196,12 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
         _ standardInput: ShellStandardInput,
         to pipe: Pipe?,
         stopController: ShellIOStopController?
-    ) -> Task<Bool, Never>? {
+    ) async -> Bool {
         guard case .text(let text) = standardInput,
               let pipe else {
-            return nil
+            return true
         }
-        return Task.detached {
+        return await performIO {
             defer { try? pipe.fileHandleForWriting.close() }
             guard let stopController else {
                 do {
@@ -255,9 +255,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
         maxBytes: Int?,
         stopController: ShellIOStopController?
     ) async -> ShellOutputCapture {
-        // Drain pipes on a detached task so children with output larger than the pipe buffer
-        // can keep writing while the caller waits for process exit.
-        await Task.detached(priority: .utility) {
+        await Self.performIO {
             defer {
                 try? handle.close()
             }
@@ -270,8 +268,17 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
                 maxBytes: maxBytes,
                 stopController: stopController
             )
-        }.value
+        }
     }
+
+    /// Blocking pipe I/O must not occupy cooperative threads needed to launch, drain, or cancel other commands.
+    private static func performIO<T: Sendable>(_ operation: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { continuation in
+            ioQueue.async { continuation.resume(returning: operation()) }
+        }
+    }
+
+    private static let ioQueue = DispatchQueue(label: "com.afollestad.alveary.shell-io", qos: .utility, attributes: .concurrent)
 
     private static func readBlocking(from handle: FileHandle, maxBytes: Int?) -> ShellOutputCapture {
         var captured = Data()
