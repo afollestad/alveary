@@ -23,13 +23,14 @@ prompt=$(printf '%s\n' \
   "Group the changes by feature or theme. Each group is a top-level bullet whose entire content is the bold theme name, like this: - **Theme name**" \
   "Under each group, write child bullets that start with exactly two spaces, then a hyphen and a space, then the summary wrapped in single asterisks so it renders in italics." \
   "Merge closely related commits into a single child bullet instead of repeating one bullet per commit." \
+  "Use simple past or present tense for change summaries, such as 'Added' or 'Add', never a progressive opening such as 'Adding'." \
   "End every child bullet with the short commit hash of each merged commit as a Markdown link, comma-separated inside one set of parentheses, followed by the GitHub username of the commit authors, using this exact suffix format: ([\`short-hash\`](https://github.com/${GITHUB_REPOSITORY}/commit/full-hash), [\`short-hash\`](https://github.com/${GITHUB_REPOSITORY}/commit/full-hash)) by @username" \
   "Separate multiple authors with commas after 'by'." \
   "Every child bullet must sit under a group, and every group must have at least one child bullet." \
   "Put any user-facing change that fits no theme under a final group named - **Other**" \
   "If no commit in the range is user-facing, write exactly one - **Other** group containing a single child bullet that summarizes the internal work and links those commits." \
   "Begin directly with the first group bullet. Do not add a heading, introduction, or other content before it, and keep every bullet on one line." \
-  "The final line must exactly equal the following text, with no trailing punctuation:" \
+  "Separate the Full Changelog footer from the list with a blank line. The final line must exactly equal the following text, with no trailing punctuation:" \
   "$expected_full_changelog" \
   "Use the write tool to write the complete final output directly to this Markdown file: ${RELEASE_NOTES_PATH}" \
   "Write nothing to that file except the grouped bullet list and Full Changelog link. Do not use a code fence." \
@@ -101,3 +102,12 @@ if [[ "$actual_final_line" != "$expected_full_changelog" ||
   cat "$RELEASE_NOTES_PATH" >&2
   exit 1
 fi
+
+# Without a blank line, Markdown treats the footer as a continuation of the last child bullet.
+normalized_notes_path=$(mktemp)
+trap 'rm -f "$normalized_notes_path"' EXIT
+awk -v full_changelog="$expected_full_changelog" '
+  $0 == full_changelog && NR > 1 && previous_nonblank { print "" }
+  { print; previous_nonblank = NF > 0 }
+' "$RELEASE_NOTES_PATH" > "$normalized_notes_path"
+cat "$normalized_notes_path" > "$RELEASE_NOTES_PATH"

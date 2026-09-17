@@ -110,6 +110,18 @@ class GenerateReleaseNotesTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.repo / ".release-notes.md").read_text(encoding="utf-8"), notes)
 
+    def test_separates_footer_from_last_child_bullet(self) -> None:
+        self.commit("Add update history")
+        notes = f"{VALID_GROUP}{FULL_CHANGELOG}\n"
+
+        result = self.run_generator(generated_notes=notes)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            (self.repo / ".release-notes.md").read_text(encoding="utf-8"),
+            f"{VALID_GROUP}\n{FULL_CHANGELOG}\n",
+        )
+
     def test_accepts_multiple_groups(self) -> None:
         self.commit("Add update history")
         notes = (
