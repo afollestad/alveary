@@ -41,7 +41,10 @@ extension DefaultPullRequestReviewWorkerExecutor {
     private func capabilityOutput(
         _ configuration: ReviewWorkerConfiguration, harnessID: AgentCLIKit.AgentHarnessID
     ) async throws -> ShellResult {
-        let helpArguments = harnessID == .codex ? ["exec", "--help"] : ["--help"]
+        let executable = harnessID == .claude ? "/usr/bin/perl" : configuration.executablePath
+        let helpArguments = harnessID == .claude
+            ? ["-e", Self.claudeCapabilityCaptureProgram, "--", configuration.executablePath, "--help"]
+            : ["exec", "--help"]
         let processKey = PullRequestReviewWorkerProcessKey(
             runID: Self.preflightRunID,
             generation: 0,
@@ -51,7 +54,7 @@ extension DefaultPullRequestReviewWorkerExecutor {
             ?? DefaultShellRunner(processTracker: processRegistry.tracker(for: processKey))
         do {
             return try await shellRunner.run(
-                executable: configuration.executablePath,
+                executable: executable,
                 args: helpArguments,
                 environment: workerEnvironment(for: harnessID),
                 environmentPolicy: .replace,
@@ -97,4 +100,32 @@ extension DefaultPullRequestReviewWorkerExecutor {
         }
     }
 
+    /// Claude can exit before flushing piped help; anonymous files preserve it while the runner retains limits and group teardown.
+    private static let claudeCapabilityCaptureProgram = #"""
+    use strict;
+    use File::Temp qw(tmpfile);
+    my $stdout = tmpfile() or die "Could not create stdout capture: $!";
+    my $stderr = tmpfile() or die "Could not create stderr capture: $!";
+    my $pid = fork();
+    defined($pid) or die "Could not fork capability probe: $!";
+    if ($pid == 0) {
+        open(STDOUT, '>&', $stdout) or die "Could not redirect stdout: $!";
+        open(STDERR, '>&', $stderr) or die "Could not redirect stderr: $!";
+        exec {$ARGV[0]} @ARGV;
+        die "Could not launch capability probe: $!";
+    }
+    waitpid($pid, 0) == $pid or die "Could not wait for capability probe: $!";
+    my $status = $?;
+    for my $capture ([$stdout, \*STDOUT], [$stderr, \*STDERR]) {
+        my ($input, $output) = @$capture;
+        seek($input, 0, 0) or die "Could not rewind capability capture: $!";
+        while (1) {
+            my $count = read($input, my $buffer, 16384);
+            defined($count) or die "Could not read capability capture: $!";
+            last unless $count;
+            print $output $buffer or die "Could not replay capability capture: $!";
+        }
+    }
+    exit($status & 127 ? 128 + ($status & 127) : $status >> 8);
+    """#
 }
