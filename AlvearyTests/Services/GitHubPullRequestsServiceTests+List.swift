@@ -127,7 +127,7 @@ extension GitHubPullRequestsServiceTests {
             XCTAssertTrue(query.contains("fragment pr on PullRequest"))
             // The list intentionally skips rollup — it is the slow, 502-prone field.
             XCTAssertFalse(query.contains("statusCheckRollup"))
-            XCTAssertEqual(invocation.stdoutLimitBytes, 4 * 1024 * 1024)
+            XCTAssertEqual(invocation.stdoutLimitBytes, 4 * 1024 * 1024 + 64 * 1024)
             // Under the host-tool bridge's 30s budget, so a hung `gh` names its own timeout.
             XCTAssertEqual(invocation.timeout, .seconds(20))
             // A credential prompt on inherited stdin would hang the leg until that timeout.

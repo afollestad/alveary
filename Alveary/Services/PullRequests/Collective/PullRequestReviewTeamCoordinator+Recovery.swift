@@ -11,7 +11,8 @@ extension PullRequestReviewTeamCoordinator {
               let phase = run.failedReviewersRetryPhase,
               (try? hasUnfinishedReview(for: run.identifier, excludingConversationID: conversationID)) == false else { return }
         run.generation += 1
-        run.phase = .preparing
+        run.phase = run.gitHubWait == nil ? .preparing : .waitingForGitHub
+        run.gitHubRateLimitFailures = nil
         run.retryPhase = phase
         run.pausedPhase = nil
         run.continuedPhases = run.continuedPhases?.filter { phase == .crossChecking && $0 == .inspecting }

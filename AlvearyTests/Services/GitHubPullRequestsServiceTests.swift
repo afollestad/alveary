@@ -129,7 +129,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         XCTAssertTrue(invocation.args.contains("owner=octo"))
         XCTAssertTrue(invocation.args.contains("name=alpha"))
         XCTAssertTrue(invocation.args.contains("number=7"))
-        XCTAssertEqual(invocation.stdoutLimitBytes, 8 * 1024 * 1024)
+        XCTAssertEqual(invocation.stdoutLimitBytes, 8 * 1024 * 1024 + 64 * 1024)
         XCTAssertEqual(invocation.timeout, .seconds(20))
         XCTAssertEqual(invocation.standardInput, .nullDevice)
     }
@@ -184,8 +184,8 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         XCTAssertEqual(output, diff)
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, ["pr", "diff", "7", "--repo", "octo/alpha"])
-        XCTAssertEqual(invocation.stdoutLimitBytes, 5 * 1024 * 1024)
+        XCTAssertEqual(invocation.args.filter { $0 != "--include" }, ["api", "repos/octo/alpha/pulls/7", "-H", "Accept: application/vnd.github.diff"])
+        XCTAssertEqual(invocation.stdoutLimitBytes, 5 * 1024 * 1024 + 64 * 1024)
         // Diff stays pane-sized; it has no retry budget to sit under.
         XCTAssertEqual(invocation.timeout, .seconds(60))
         XCTAssertEqual(invocation.standardInput, .nullDevice)
@@ -234,7 +234,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
 
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, [
+        XCTAssertEqual(invocation.args.filter { $0 != "--include" }, [
             "api", "repos/octo/alpha/pulls/7/reviews",
             "-X", "POST",
             "-f", "event=REQUEST_CHANGES",

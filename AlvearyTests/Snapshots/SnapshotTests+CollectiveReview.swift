@@ -6,6 +6,20 @@ import XCTest
 
 @MainActor
 extension SnapshotTests {
+    func testCollectiveReviewWaitingForGitHub() {
+        var run = CollectiveReviewSnapshotFixture.progressRun()
+        run.phase = .waitingForGitHub
+        run.gitHubWait = ReviewTeamGitHubWait(
+            resumePhase: .crossChecking,
+            limit: GitHubRateLimit(resource: "graphql", isSecondary: false,
+                                  retryAt: Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 17, hour: 10))!)
+        )
+        assertMacSnapshot(
+            appKitRowSnapshot { CollectiveReviewSnapshotFixture.widgetRow(run: run) },
+            size: CGSize(width: 700, height: 400), named: "collective_review_waiting_for_github"
+        )
+    }
+
     func testCollectiveReviewInspectionActivity() throws {
         let fixture = try ConversationViewModelTestFixture()
         let chat = ReviewTeamConversationTestFixture.chatView(fixture: fixture, isWorking: true)

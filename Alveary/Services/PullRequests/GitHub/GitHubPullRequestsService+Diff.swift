@@ -2,6 +2,7 @@ import Foundation
 
 /// A Git snapshot is shared by tool paging, proposal anchors, and the pane's bounded adapter.
 /// Base/head IDs key the cache; the mutable PR number alone cannot identify reviewed code.
+/// Raw diff reads must not coalesce across these keys: a newer comparison could otherwise inherit older diff bytes.
 extension GitHubPullRequestsService {
     struct DiffComparison: Decodable, Equatable, Sendable {
         let base: String
@@ -38,7 +39,7 @@ extension GitHubPullRequestsService {
         let result = try await runGitHubCLIRetryingTransientFailures(
             executable: githubCLI,
             args: ["api", "repos/\(id.nameWithOwner)/pulls/\(id.number)", "--jq", "{base: .base.sha, head: .head.sha}"],
-            timeout: .seconds(20), stdoutLimitBytes: 4_096, retryBudget: .seconds(25)
+            timeout: .seconds(20), stdoutLimitBytes: 4_096, retryBudget: .seconds(25), shareRead: false
         )
         guard result.succeeded else { throw Self.makeError(from: result) }
         guard !result.stdoutWasTruncated else { throw PullRequestsServiceError.responseTooLarge }

@@ -67,10 +67,11 @@ extension PullRequestCollectiveReviewStagingService {
 
     func lateReceiptOrValidate(
         _ request: Request,
+        recovery: ReviewGitHubRecovery = ReviewGitHubRecovery(),
         lateEditState: @MainActor () -> PullRequestReviewProposalEditStateToken?
     ) async throws -> HandoffReceipt? {
-        let currentDetail = try await service.fetchDetail(request.identifier)
-        try validateRevision(request, detail: currentDetail)
+        let revision = try await recovery.read { try await self.service.fetchRevision(request.identifier) }
+        try validateRevision(request, revision: revision)
         if let replay = try replayedReceipt(for: request) {
             return replay
         }

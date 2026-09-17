@@ -17,6 +17,7 @@ final class ReviewCoordinatorFixture {
     let identifier = PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)
 
     init(ownPR: Bool = false, historyStore: ReviewTeamHistoryStore? = nil,
+         waitForGitHub: @escaping @Sendable (Date) async throws -> Void = { _ in },
          workerOverride: ((ReviewCoordinatorWorker) -> any PullRequestReviewWorkerExecuting)? = nil,
          commitSave: @escaping (ModelContext) throws -> Void = { try $0.save() }) throws {
         container = try ModelContainer(for: Project.self, AgentThread.self, Conversation.self, ConversationEventRecord.self,
@@ -45,6 +46,7 @@ final class ReviewCoordinatorFixture {
             cancellationStore: ReviewTeamCancellationStore(rootDirectory: packetRoot.appendingPathComponent("cancellations")),
             notificationManager: notificationManager,
             historyStore: historyStore,
+            waitForGitHub: waitForGitHub,
             commitSave: commitSave
         )
     }
@@ -59,12 +61,15 @@ final class ReviewCoordinatorFixture {
     func makeRun(
         prior: PullRequestCollectiveReviewStagingSnapshot? = nil,
         conversationID: String? = nil,
-        runID: String = UUID().uuidString
+        runID: String = UUID().uuidString,
+        identifier: PullRequestIdentifier? = nil
     ) throws -> ReviewTeamRun {
+        let identifier = identifier ?? self.identifier
         let snapshot = try prior ?? coordinator.staging.snapshot(for: identifier, editState: nil)
         return ReviewTeamRun(
             payloadVersion: 1, id: runID, proposalID: UUID().uuidString, conversationID: conversationID ?? conversation.id,
-            identifier: identifier, url: URL(string: "https://github.com/octo/alpha/pull/7")!, team: reviewTestTeam(),
+            identifier: identifier, url: URL(string: "https://github.com/\(identifier.nameWithOwner)/pull/\(identifier.number)")!,
+            team: reviewTestTeam(),
             criteria: "Find bugs.", priorProposal: snapshot, createdAt: .now, generation: 0, phase: .preparing,
             inspections: [:], voteReports: [:], accepted: [], attempts: [:], failures: [:], supersededProposalIDs: []
         )

@@ -24,9 +24,10 @@ extension PullRequestReviewTeamCoordinator {
             let finding = blocker?.finding.body ?? carriedBlocker?.body ?? "Please address the staged review findings."
             body = String(finding.components(separatedBy: ". ").first?.prefix(1000) ?? finding.prefix(1000))
         }
-        if isOwn, run.accepted.isEmpty, input.detail.pendingCommentCount == 0, prior?.stagedComments.isEmpty != false,
-           body?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
-            try await verifyRevision(run)
+        if isOwn, run.accepted.isEmpty, prior?.stagedComments.isEmpty != false,
+           body?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
+           try await gitHubRecovery(run).read({ try await self.service.fetchDetail(run.identifier) }).pendingCommentCount == 0 {
+            try await withGitHubRecovery(run) { try await self.verifyRevision(run) }
             let current = try staging.snapshot(for: run.identifier, editState: currentEditState(for: run.identifier))
             guard current.proposalID == run.priorProposal.proposalID,
                   current.proposalOwnerConversationID == run.priorProposal.proposalOwnerConversationID,
@@ -43,7 +44,7 @@ extension PullRequestReviewTeamCoordinator {
             identifier: run.identifier, reviewedBaseOID: base, reviewedHeadOID: head, event: event, body: body,
             acceptedFindings: run.accepted, team: run.team, expectedSnapshot: run.priorProposal
         )
-        _ = try await staging.stage(request, lateEditState: { [self] in
+        _ = try await staging.stage(request, recovery: gitHubRecovery(run), lateEditState: { [self] in
             currentEditState(for: run.identifier)
         }, atomicallyMutateRun: { [self] context, receipt in
             var current = try requireActive(run.conversationID, generation: run.generation)

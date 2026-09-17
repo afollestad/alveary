@@ -35,7 +35,7 @@ struct GitHubPullRequestGitDiffTests {
     @Test func `unrelated errors do not download a repository`() async throws {
         let shell = MockShellRunner()
         await shell.setResponder { invocation in
-            if invocation.args.first == "api" {
+            if invocation.args.contains("--jq") {
                 let base = String(repeating: "a", count: 40)
                 let head = String(repeating: "b", count: 40)
                 return .success(pullRequestsShellResult(stdout: "{\"base\":\"\(base)\",\"head\":\"\(head)\"}"))
@@ -86,7 +86,7 @@ struct GitHubPullRequestGitDiffTests {
         #expect(second.headOID == String(repeating: "c", count: 40))
         let duplicate = try await service.fetchDiffSnapshot(.init(owner: "octo", repo: "alpha", number: 8))
         #expect(duplicate.id == second.id)
-        #expect(await shell.invocations.filter { $0.args.first == "pr" }.count == 2)
+        #expect(await shell.invocations.filter { $0.args.contains("Accept: application/vnd.github.diff") }.count == 2)
     }
 
     @MainActor
@@ -113,7 +113,7 @@ struct GitHubPullRequestGitDiffTests {
     private static func response(_ invocation: MockShellRunner.Invocation, head: String) -> MockShellRunner.Response {
         let base = String(repeating: "a", count: 40)
         let head = String(repeating: head, count: 40)
-        return .success(pullRequestsShellResult(stdout: invocation.args.first == "api"
+        return .success(pullRequestsShellResult(stdout: invocation.args.contains("--jq")
             ? "{\"base\":\"\(base)\",\"head\":\"\(head)\"}" : "diff --git a/file b/file\n"))
     }
 
@@ -143,7 +143,7 @@ private actor GitDiffRepositoryRunner: ShellRunner {
                 )
                 return pullRequestsShellResult(stdout: detail)
             }
-            if args.first == "api" {
+            if args.contains("--jq") {
                 return pullRequestsShellResult(stdout: "{\"base\":\"\(fixture.comparison.base)\",\"head\":\"\(fixture.comparison.head)\"}")
             }
             rawDiffCalls += 1

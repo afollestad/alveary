@@ -50,6 +50,7 @@ private extension GitHubPullRequestsService {
     ) async throws -> [[String: Any]] {
         let query = """
         query($owner:String!, $repo:String!, $number:Int!, $cursor:String) {
+          rateLimit { cost }
           repository(owner:$owner, name:$repo) { pullRequest(number:$number) {
             \(kind.rawValue)(first:100, after:$cursor) {
               pageInfo { hasNextPage endCursor }
@@ -88,7 +89,7 @@ private extension GitHubPullRequestsService {
         var seen = Set<String>()
         var cursor = try nextFeedbackCursor(firstPage, seen: &seen)
         let query = """
-        query($id:ID!, $cursor:String!) { node(id:$id) { ... on PullRequestReviewThread {
+        query($id:ID!, $cursor:String!) { rateLimit { cost } node(id:$id) { ... on PullRequestReviewThread {
           comments(first:100, after:$cursor) {
             pageInfo { hasNextPage endCursor }
             nodes { id body author { login } createdAt state diffHunk }

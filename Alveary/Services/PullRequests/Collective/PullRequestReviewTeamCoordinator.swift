@@ -17,9 +17,12 @@ final class PullRequestReviewTeamCoordinator {
     let cancellationStore: ReviewTeamCancellationStore
     let notificationManager: any NotificationManager
     let commitSave: (ModelContext) throws -> Void
+    let waitForGitHub: @Sendable (Date) async throws -> Void
     @ObservationIgnored private var tasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var observers: [any NSObjectProtocol] = []
     @ObservationIgnored private var didRecover = false
+    /// Every restored review waits for the complete shared cooldown set, not only its own saved limit.
+    @ObservationIgnored private var quotaRestoration: Task<Void, Never>?
 
     init(
         modelContext: ModelContext, service: any PullRequestsService,
@@ -29,6 +32,9 @@ final class PullRequestReviewTeamCoordinator {
         cancellationStore: ReviewTeamCancellationStore,
         notificationManager: any NotificationManager,
         historyStore: ReviewTeamHistoryStore? = nil,
+        waitForGitHub: @escaping @Sendable (Date) async throws -> Void = { date in
+            try await Task.sleep(for: .seconds(max(0, date.timeIntervalSinceNow)))
+        },
         commitSave: @escaping (ModelContext) throws -> Void = { try $0.save() }
     ) {
         self.modelContext = modelContext
@@ -42,6 +48,7 @@ final class PullRequestReviewTeamCoordinator {
         self.cancellationStore = cancellationStore
         self.notificationManager = notificationManager
         self.commitSave = commitSave
+        self.waitForGitHub = waitForGitHub
         observeActions()
     }
 
@@ -131,9 +138,10 @@ final class PullRequestReviewTeamCoordinator {
               run.phase == .failed || run.phase == .interrupted else { return }
         guard (try? hasUnfinishedReview(for: run.identifier, excludingConversationID: conversationID)) == false else { return }
         run.generation += 1
-        run.phase = .preparing
+        run.phase = run.gitHubWait == nil ? .preparing : .waitingForGitHub
         run.error = nil
         run.retryPhase = nil
+        run.gitHubRateLimitFailures = nil
         run.pausedPhase = nil
         run.continuedPhases = nil
         run.attempts = [:]
@@ -151,6 +159,7 @@ final class PullRequestReviewTeamCoordinator {
         pruneHistory()
         let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { $0.pullRequestReviewRunJSON != nil })
         guard let conversations = try? modelContext.fetch(descriptor) else { return }
+        quotaRestoration = restoreGitHubQuota(from: conversations)
         for conversation in conversations {
             guard tasks[conversation.id] == nil else { continue }
             guard var run = try? conversation.collectiveReviewRun() else { continue }
@@ -171,7 +180,7 @@ final class PullRequestReviewTeamCoordinator {
                 continue
             }
             run.generation += 1
-            run.phase = .preparing
+            run.phase = run.gitHubWait == nil ? .preparing : .waitingForGitHub
             run.finishRunningAttempts(as: .interrupted)
             do { try persist(run); schedule(run) } catch { runs[run.conversationID]?.error = error.localizedDescription }
         }
@@ -327,6 +336,7 @@ final class PullRequestReviewTeamCoordinator {
     private func schedule(_ run: ReviewTeamRun) {
         tasks[run.conversationID] = Task { [weak self] in
             guard let self else { return }
+            await quotaRestoration?.value
             do {
                 try await perform(conversationID: run.conversationID, generation: run.generation)
             } catch {
@@ -338,13 +348,15 @@ final class PullRequestReviewTeamCoordinator {
                         $0 == .revisionChanged || $0 == .conflict || $0 == .retryInputChanged
                     } ?? false
                     if case .attemptLimit? = error as? ReviewTeamHistoryCaptureError { current.requiresNewRun = true }
+                    if error is ReviewTeamHistoryStoreError { current.requiresNewRun = true }
                     try? persist(current)
                 }
             }
             if runs[run.conversationID]?.generation == run.generation {
                 tasks.removeValue(forKey: run.conversationID)
                 // A decision can immediately resume this run ID; leave its packets for terminal cleanup.
-                if runs[run.conversationID]?.phase == .awaitingDecision { return }
+                if let current = runs[run.conversationID],
+                   current.phase == .awaitingDecision || (current.phase == .failed && current.preserveReviewInput == true) { return }
                 try? await packets.remove(runID: run.id)
             }
         }

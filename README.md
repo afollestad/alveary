@@ -116,6 +116,8 @@ Reviews requested through the built-in MCP tools honor that setting too. Single-
 
 If a reviewer fails, the review pauses before proposing feedback. Retry only the failed reviewers, or explicitly continue with the available majority. Paused runs stay paused after relaunch; insufficient quorum cannot continue.
 
+Team reviews share prepared input and use lightweight GitHub reads without limiting request concurrency. If GitHub reports a rate limit, reviews wait until the indicated reset time and resume with completed work preserved, including after relaunch. Five consecutive rate-limit responses require a manual retry.
+
 Team workers use sessionless, read-only CLI configurations without user hooks, plugins, MCP servers, or extra arguments. Their app-owned packets contain the complete diff and published feedback. This is not an OS-level packet-only read boundary or a guarantee of network isolation. Unsupported CLI capabilities or unavailable model pins block launch; availability checks do not send paid prompts.
 
 Review-team worker process groups use the system `/usr/bin/perl` launcher and fail preflight when it is unavailable.

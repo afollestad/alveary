@@ -108,6 +108,7 @@ final class PullRequestCollectiveReviewStagingService {
 
     func stage(
         _ request: Request,
+        recovery: ReviewGitHubRecovery = ReviewGitHubRecovery(),
         lateEditState: @MainActor () -> PullRequestReviewProposalEditStateToken?,
         atomicallyMutateRun: @MainActor (ModelContext, HandoffReceipt) throws -> Void
     ) async throws -> HandoffReceipt {
@@ -115,12 +116,12 @@ final class PullRequestCollectiveReviewStagingService {
             return receipt
         }
 
-        let prepared = try await prepareHandoff(request)
+        let prepared = try await prepareHandoff(request, recovery: recovery)
         await seedPreviewCache(record: prepared.record, detail: prepared.detail, files: prepared.files)
 
         // Cache I/O suspends. Recheck remote and local state after every await, then mutate without
         // another suspension so no edit can land inside the proposal/run transaction.
-        if let replay = try await lateReceiptOrValidate(request, lateEditState: lateEditState) {
+        if let replay = try await lateReceiptOrValidate(request, recovery: recovery, lateEditState: lateEditState) {
             return replay
         }
 

@@ -32,11 +32,11 @@ extension PullRequestCollectiveReviewStagingService {
         let receipt: HandoffReceipt
     }
 
-    func prepareHandoff(_ request: Request) async throws -> PreparedHandoff {
+    func prepareHandoff(_ request: Request, recovery: ReviewGitHubRecovery = ReviewGitHubRecovery()) async throws -> PreparedHandoff {
         let prior = try priorProposal(for: request.expectedSnapshot)
-        let detail = try await service.fetchDetail(request.identifier)
+        let detail = try await recovery.read { try await self.service.fetchDetail(request.identifier) }
         try validateRevision(request, detail: detail)
-        let preparedComments = try await stagedComments(request: request, prior: prior)
+        let preparedComments = try await stagedComments(request: request, prior: prior, recovery: recovery)
         let viewerIsAuthor = detail.viewerLogin.map { $0 == detail.authorLogin } ?? false
         let event = resolvedEvent(request.event, prior: prior, viewerIsAuthor: viewerIsAuthor)
         let priorBody = prior?.body?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -57,25 +57,30 @@ extension PullRequestCollectiveReviewStagingService {
     }
 
     func validateRevision(_ request: Request, detail: PullRequestDetail) throws {
-        guard detail.status == .open || detail.status == .draft else {
-            throw PullRequestHostToolServiceError.pullRequestNotReviewable(status: detail.status.rawValue)
+        try validateRevision(request, revision: PullRequestReviewContext(detail: detail).revision)
+    }
+
+    func validateRevision(_ request: Request, revision: PullRequestRevision) throws {
+        guard revision.status == .open || revision.status == .draft else {
+            throw PullRequestHostToolServiceError.pullRequestNotReviewable(status: revision.status.rawValue)
         }
-        guard detail.baseRefOid == request.reviewedBaseOID,
-              detail.headRefOid == request.reviewedHeadOID else {
+        guard revision.baseRefOid == request.reviewedBaseOID,
+              revision.headRefOid == request.reviewedHeadOID else {
             throw ReviewTeamError.revisionChanged
         }
     }
 
     func stagedComments(
         request: Request,
-        prior: PullRequestReviewProposalRecord?
+        prior: PullRequestReviewProposalRecord?,
+        recovery: ReviewGitHubRecovery = ReviewGitHubRecovery()
     ) async throws -> PreparedComments {
         let priorComments = prior?.stagedComments ?? []
         let paths = Set(priorComments.map(\.path) + request.acceptedFindings.map(\.finding.path))
         guard !paths.isEmpty else {
             return PreparedComments(comments: [], files: [])
         }
-        let snapshot = try await service.fetchDiffSnapshot(request.identifier)
+        let snapshot = try await recovery.read { try await self.service.fetchDiffSnapshot(request.identifier) }
         guard snapshot.baseOID == request.reviewedBaseOID,
               snapshot.headOID == request.reviewedHeadOID else {
             throw ReviewTeamError.revisionChanged

@@ -22,6 +22,7 @@ enum ReviewTeamRunCardPresentation {
     }
 
     static func pauseExplanation(_ run: ReviewTeamRun) -> String? {
+        if run.phase == .waitingForGitHub { return run.gitHubWait?.limit.waitingMessage }
         guard run.phase == .awaitingDecision, let phase = run.pausedPhase else { return nil }
         let next = phase == .inspecting
             ? "consolidate and cross-check findings"

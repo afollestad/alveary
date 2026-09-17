@@ -5,6 +5,9 @@ import Foundation
 actor GitHubPullRequestsService: PullRequestsService {
     let diffSnapshots = PullRequestDiffJobs<PullRequestDiffSnapshot>()
     var diffShellRunner: any ShellRunner { shellRunner }
+    let shellRunner: any ShellRunner
+    let sharedReads = GitHubSharedReads()
+    var quotaState = GitHubQuotaState()
     private static let maxTransientRetries = 2
 
     /// What one list or detail attempt may take, and what the whole call may take including
@@ -15,7 +18,6 @@ actor GitHubPullRequestsService: PullRequestsService {
     private static let readAttemptTimeout = Duration.seconds(20)
     private static let readRetryBudget = Duration.seconds(25)
 
-    private let shellRunner: any ShellRunner
     private let executableResolver: any ExecutablePathResolving
     private let decoder: JSONDecoder
     private let transientRetryDelay: Duration
@@ -55,6 +57,7 @@ actor GitHubPullRequestsService: PullRequestsService {
         return try Self.mergeBucketOutcomes(outcomes)
     }
 
+    /// Staging and mutation validation consume this too, so every call starts a fresh read.
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail {
         let ghExecutable = try await resolveGitHubCLI()
         let result = try await runGitHubCLIRetryingTransientFailures(
@@ -62,7 +65,8 @@ actor GitHubPullRequestsService: PullRequestsService {
             args: Self.detailArgs(for: id),
             timeout: Self.readAttemptTimeout,
             stdoutLimitBytes: 8 * 1024 * 1024,
-            retryBudget: Self.readRetryBudget
+            retryBudget: Self.readRetryBudget,
+            shareRead: false
         )
         let decoded = try decodeGraphQL(DetailGraphQLData.self, from: result)
         guard let node = decoded.data.repository?.pullRequest else {
@@ -83,9 +87,10 @@ actor GitHubPullRequestsService: PullRequestsService {
         let ghExecutable = try await resolveGitHubCLI()
         let result = try await runGitHubCLIRetryingTransientFailures(
             executable: ghExecutable,
-            args: ["pr", "diff", String(id.number), "--repo", id.nameWithOwner],
+            args: ["api", "repos/\(id.nameWithOwner)/pulls/\(id.number)", "-H", "Accept: application/vnd.github.diff"],
             timeout: .seconds(60),
-            stdoutLimitBytes: 5 * 1024 * 1024
+            stdoutLimitBytes: 5 * 1024 * 1024,
+            shareRead: false
         )
         guard result.succeeded else {
             throw Self.makeError(from: result)
@@ -179,7 +184,8 @@ extension GitHubPullRequestsService {
         args: [String],
         timeout: Duration,
         stdoutLimitBytes: Int? = 64 * 1024,
-        retryBudget: Duration? = nil
+        retryBudget: Duration? = nil,
+        shareRead: Bool = true
     ) async throws -> ShellResult {
         let clock = ContinuousClock()
         let startedAt = clock.now
@@ -193,13 +199,16 @@ extension GitHubPullRequestsService {
                     executable: executable,
                     args: args,
                     timeout: attemptTimeout,
-                    stdoutLimitBytes: stdoutLimitBytes
+                    stdoutLimitBytes: stdoutLimitBytes,
+                    readOnly: true, shareRead: shareRead
                 )
             } catch {
                 // A retry attempt runs on a shortened timeout this function chose, so its timing
                 // out says nothing the caller can act on — while the 5xx that caused the retry
                 // does. Surface the failure already in hand rather than replacing it with
                 // `.transport("… timed out after N seconds")`.
+                if error is CancellationError { throw error }
+                if case .rateLimit? = error as? PullRequestsServiceError { throw error }
                 guard let lastTransientFailure else {
                     throw error
                 }
@@ -274,21 +283,28 @@ extension GitHubPullRequestsService {
         in directory: String? = nil,
         timeout: Duration,
         stdoutLimitBytes: Int? = 64 * 1024,
-        standardInput: ShellStandardInput = .nullDevice
+        standardInput: ShellStandardInput = .nullDevice,
+        readOnly: Bool = false,
+        shareRead: Bool = false
     ) async throws -> ShellResult {
+        if !readOnly { await sharedReads.invalidate() }
         do {
-            return try await shellRunner.run(
-                executable: executable,
-                args: args,
-                in: directory,
-                timeout: timeout,
-                stdoutLimitBytes: stdoutLimitBytes,
-                stderrLimitBytes: 64 * 1024,
-                standardInput: standardInput
-            )
-        } catch let error as PullRequestsServiceError {
-            throw error
+            let operation: @Sendable () async throws -> ShellResult = { [self] in
+                try await executeGitHubRequest(executable: executable, args: args, directory: directory,
+                                               timeout: timeout, stdoutLimitBytes: stdoutLimitBytes, standardInput: standardInput, readOnly: readOnly)
+            }
+            let result: ShellResult
+            if readOnly && shareRead {
+                result = try await sharedReads.value(key: [executable, directory ?? "", "\(timeout)", "\(stdoutLimitBytes ?? -1)"] + args,
+                                                     operation: operation)
+            } else {
+                result = try await operation()
+            }
+            if !readOnly { await sharedReads.invalidate() }
+            return result
         } catch {
+            if !readOnly { await sharedReads.invalidate() }
+            if error is CancellationError || error is PullRequestsServiceError { throw error }
             throw PullRequestsServiceError.transport(error.localizedDescription)
         }
     }

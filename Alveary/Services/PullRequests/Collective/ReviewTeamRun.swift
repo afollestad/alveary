@@ -2,16 +2,18 @@ import Foundation
 
 struct ReviewTeamRun: Codable, Equatable, Sendable, Identifiable {
     enum Phase: String, Codable, Sendable {
+        case waitingForGitHub
         case preparing, inspecting, consolidating, crossChecking, awaitingDecision, staging, staged, completed, failed, cancelled, interrupted
 
         var isWorking: Bool {
-            [.preparing, .inspecting, .consolidating, .crossChecking, .staging].contains(self)
+            [.preparing, .inspecting, .consolidating, .crossChecking, .staging, .waitingForGitHub].contains(self)
         }
 
         var isUnfinished: Bool { isWorking || self == .interrupted || self == .awaitingDecision }
 
         var title: String {
             switch self {
+            case .waitingForGitHub: "Waiting for GitHub"
             case .preparing: "Preparing review"
             case .inspecting: "Reviewing with team"
             case .consolidating: "Consolidating findings"
@@ -62,6 +64,10 @@ struct ReviewTeamRun: Codable, Equatable, Sendable, Identifiable {
     /// Partial results cannot advance until the user chooses which completed phase may continue.
     var pausedPhase: Phase?
     var continuedPhases: [Phase]?
+    var gitHubWait: ReviewTeamGitHubWait?
+    /// Quota recovery must never rebuild paid reviewers' input from newer GitHub feedback.
+    var preserveReviewInput: Bool?
+    var gitHubRateLimitFailures: Int?
 
     var requiredVotes: Int { ReviewTeamConsensus.requiredVotes(teamSize: team.count) }
 

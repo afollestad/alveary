@@ -142,7 +142,7 @@ extension GitHubPullRequestsServiceTests {
 
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, [
+        XCTAssertEqual(invocation.args.filter { $0 != "--include" }, [
             "api", "repos/octo/alpha/pulls/7/requested_reviewers",
             "-X", "POST",
             "-f", "reviewers[]=carol"
@@ -162,7 +162,7 @@ extension GitHubPullRequestsServiceTests {
 
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, [
+        XCTAssertEqual(invocation.args.filter { $0 != "--include" }, [
             "api", "repos/octo/alpha/pulls/7/comments/987/replies",
             "-X", "POST",
             "-f", "body=Agreed, fixing."

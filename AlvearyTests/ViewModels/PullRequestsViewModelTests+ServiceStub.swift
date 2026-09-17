@@ -43,6 +43,14 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     var deletePendingCommentResult: Result<Void, PullRequestsServiceError> = .success(())
     var deletePendingReviewResult: Result<Void, PullRequestsServiceError> = .success(())
     var submitPendingReviewResult: Result<Void, PullRequestsServiceError> = .success(())
+    var reviewContextResult: Result<PullRequestReviewContext, PullRequestsServiceError>?
+    var revisionResults: [Result<PullRequestRevision, PullRequestsServiceError>] = []
+    var revisionResult: Result<PullRequestRevision, PullRequestsServiceError>?
+    private(set) var reviewContextCallCount = 0
+    private(set) var revisionCallCount = 0
+    private(set) var feedbackCallCount = 0
+    private(set) var restoredRateLimits: [GitHubRateLimit] = []
+    var restoreRateLimitsGate: PullRequestsServiceGate?
     var detailGate: PullRequestsServiceGate?
     var paneResponsesIgnoreCancellation = false
     var diffGate: PullRequestsServiceGate?
@@ -180,6 +188,26 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
         return try detailResult.get()
     }
 
+    func fetchReviewContext(_ id: PullRequestIdentifier) async throws -> PullRequestReviewContext {
+        reviewContextCallCount += 1
+        await detailGate?.wait()
+        try Task.checkCancellation()
+        return try reviewContextResult?.get() ?? PullRequestReviewContext(detail: detailResult.get())
+    }
+
+    func restoreRateLimits(_ limits: [GitHubRateLimit]) async {
+        restoredRateLimits = limits
+        await restoreRateLimitsGate?.wait()
+    }
+
+    func fetchRevision(_ id: PullRequestIdentifier) async throws -> PullRequestRevision {
+        revisionCallCount += 1
+        await detailGate?.wait()
+        try Task.checkCancellation()
+        if !revisionResults.isEmpty { return try revisionResults.removeFirst().get() }
+        return try revisionResult?.get() ?? PullRequestReviewContext(detail: detailResult.get()).revision
+    }
+
     func fetchDiff(_ id: PullRequestIdentifier) async throws -> String {
         diffCallCount += 1
         await diffGate?.wait()
@@ -193,7 +221,8 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     }
 
     func fetchReviewFeedback(_ id: PullRequestIdentifier) async throws -> Data {
-        try reviewFeedbackResult.get()
+        feedbackCallCount += 1
+        return try reviewFeedbackResult.get()
     }
 
     func submitReview(_ id: PullRequestIdentifier, event: PullRequestReviewEvent, body: String) async throws {

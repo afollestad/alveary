@@ -37,6 +37,7 @@ func assertListFailure(
         _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
         XCTFail("Expected \(expected)", file: file, line: line)
     } catch let error as PullRequestsServiceError {
+        if expected == .rateLimited, case .rateLimit = error { return }
         XCTAssertEqual(error, expected, file: file, line: line)
     } catch {
         XCTFail("Unexpected error \(error)", file: file, line: line)
@@ -53,6 +54,7 @@ func assertPullRequestsServiceThrows(
         try await body()
         XCTFail("Expected \(expected)", file: file, line: line)
     } catch let error as PullRequestsServiceError {
+        if expected == .rateLimited, case .rateLimit = error { return }
         XCTAssertEqual(error, expected, file: file, line: line)
     } catch {
         XCTFail("Unexpected error \(error)", file: file, line: line)

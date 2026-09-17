@@ -18,7 +18,7 @@ extension GitHubPullRequestsServiceTests {
 
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, [
+        XCTAssertEqual(invocation.args.filter { $0 != "--include" }, [
             "api", "repos/octo/alpha/pulls/comments/987",
             "-X", "PATCH",
             "-f", "body=Updated body"
@@ -37,7 +37,7 @@ extension GitHubPullRequestsServiceTests {
 
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, [
+        XCTAssertEqual(invocation.args.filter { $0 != "--include" }, [
             "api", "repos/octo/alpha/pulls/comments/654",
             "-X", "DELETE"
         ])
@@ -57,7 +57,7 @@ extension GitHubPullRequestsServiceTests {
 
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, [
+        XCTAssertEqual(invocation.args.filter { $0 != "--include" }, [
             "api", "repos/octo/alpha/pulls/7/reviews/555",
             "-X", "PUT",
             "-f", "body=Updated summary"
@@ -78,7 +78,7 @@ extension GitHubPullRequestsServiceTests {
 
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, [
+        XCTAssertEqual(invocation.args.filter { $0 != "--include" }, [
             "api", "repos/octo/alpha/issues/comments/321",
             "-X", "PATCH",
             "-f", "body=Updated body"
@@ -97,7 +97,7 @@ extension GitHubPullRequestsServiceTests {
 
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, [
+        XCTAssertEqual(invocation.args.filter { $0 != "--include" }, [
             "api", "repos/octo/alpha/issues/comments/321",
             "-X", "DELETE"
         ])

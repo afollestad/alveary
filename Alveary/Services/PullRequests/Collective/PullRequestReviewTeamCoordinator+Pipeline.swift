@@ -2,16 +2,22 @@ import Foundation
 
 extension PullRequestReviewTeamCoordinator {
     struct PreparedInput: Sendable {
-        let detail: PullRequestDetail
+        let detail: PullRequestReviewContext
         let files: [DiffFile]
         let packetFiles: [String: Data]
         let lease: ReviewPacketLease
     }
 
     func perform(conversationID: String, generation: Int) async throws {
+        try await resumeGitHubWait(conversationID: conversationID, generation: generation)
         let original = try requireActive(conversationID, generation: generation)
         for configuration in original.team { try await worker.preflight(configuration) }
-        let input = try await prepareInput(original)
+        let input: PreparedInput
+        if original.preserveReviewInput == true, original.inputHash != nil {
+            input = try await restorePreparedInput(original)
+        } else {
+            input = try await prepareInput(original)
+        }
         var run = try applyPreparedInput(input, to: original)
         if run.retryPhase != .crossChecking, run.continuedPhases?.contains(.inspecting) != true {
             try await inspect(run, input: input)
@@ -22,7 +28,7 @@ extension PullRequestReviewTeamCoordinator {
         let candidates = run.team.flatMap { run.inspections[$0.id]?.findings ?? [] }.sorted { $0.id < $1.id }
         if !candidates.isEmpty {
             try await consolidate(run, candidates: candidates, input: input)
-            try await verifyRevision(run)
+            try await withGitHubRecovery(run) { try await self.verifyRevision(run) }
             run = try requireActive(conversationID, generation: generation)
             if run.continuedPhases?.contains(.crossChecking) != true { try await crossCheck(run, input: input) }
             run = try requireActive(conversationID, generation: generation)
@@ -34,22 +40,35 @@ extension PullRequestReviewTeamCoordinator {
             try update(conversationID, generation: generation) { $0.accepted = accepted }
         }
         try update(conversationID, generation: generation) { $0.phase = .staging }
-        try await stageResult(try requireActive(conversationID, generation: generation), input: input)
+        let stagingRun = try requireActive(conversationID, generation: generation)
+        try await stageResult(stagingRun, input: input)
     }
 
     func prepareInput(_ run: ReviewTeamRun) async throws -> PreparedInput {
-        let detail = try await service.fetchDetail(run.identifier)
+        let detail = try await withGitHubRecovery(run) { try await self.service.fetchReviewContext(run.identifier) }
         guard detail.status == .open || detail.status == .draft, detail.viewerLogin != nil,
               let base = detail.baseRefOid, let head = detail.headRefOid, !base.isEmpty, !head.isEmpty else {
             throw ReviewTeamError.invalidOutput("The pull request is not reviewable or its revision is unavailable.")
         }
         if let previous = run.headOID, previous != head || run.baseOID != base { throw ReviewTeamError.revisionChanged }
-        let snapshot = try await service.fetchDiffSnapshot(run.identifier)
+        let standardRecovery = gitHubRecovery(run)
+        var waitedForGitHub = false
+        let recovery = ReviewGitHubRecovery(wait: { error in
+            guard let wait = standardRecovery.wait else { throw error }
+            try await wait(error)
+            waitedForGitHub = true
+        }, succeeded: standardRecovery.succeeded)
+        let snapshot = try await recovery.read { try await self.service.fetchDiffSnapshot(run.identifier) }
         guard snapshot.baseOID == base, snapshot.headOID == head else { throw ReviewTeamError.revisionChanged }
         guard snapshot.files.count == detail.changedFiles else {
             throw ReviewTeamError.invalidOutput("The complete pull request diff could not be loaded.")
         }
-        let feedback = try await service.fetchReviewFeedback(run.identifier)
+        let feedback = try await recovery.read { try await self.service.fetchReviewFeedback(run.identifier) }
+        if waitedForGitHub {
+            // A cooldown can outlive the metadata and diff fetched before it.
+            let revision = try await recovery.read { try await self.service.fetchRevision(run.identifier) }
+            try validateRevision(revision, baseOID: base, headOID: head)
+        }
         let (diff, files) = try await Task.detached {
             guard snapshot.byteCount <= 64 * 1024 * 1024 else { throw PullRequestsServiceError.responseTooLarge }
             let data = try Data(contentsOf: snapshot.url)
@@ -81,9 +100,14 @@ extension PullRequestReviewTeamCoordinator {
     }
 
     func verifyRevision(_ run: ReviewTeamRun) async throws {
-        let detail = try await service.fetchDetail(run.identifier)
+        let revision = try await service.fetchRevision(run.identifier)
         _ = try requireActive(run.conversationID, generation: run.generation)
-        guard detail.headRefOid == run.headOID, detail.baseRefOid == run.baseOID else { throw ReviewTeamError.revisionChanged }
+        try validateRevision(revision, baseOID: run.baseOID, headOID: run.headOID)
+    }
+
+    private func validateRevision(_ revision: PullRequestRevision, baseOID: String?, headOID: String?) throws {
+        guard revision.status == .open || revision.status == .draft,
+              revision.headRefOid == headOID, revision.baseRefOid == baseOID else { throw ReviewTeamError.revisionChanged }
     }
 
     private func applyPreparedInput(_ input: PreparedInput, to original: ReviewTeamRun) throws -> ReviewTeamRun {

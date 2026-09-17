@@ -307,6 +307,7 @@ enum PullRequestsServiceError: Error, Sendable, Equatable {
     case ghNotInstalled
     case notAuthenticated
     case rateLimited
+    case rateLimit(GitHubRateLimit)
     case requestFailed(statusCode: Int)
     case responseTooLarge
     case decodingFailed(String)
@@ -327,6 +328,8 @@ extension PullRequestsServiceError: LocalizedError {
             return "GitHub CLI is not authenticated"
         case .rateLimited:
             return "GitHub API rate limit exceeded"
+        case .rateLimit(let limit):
+            return limit.message
         case .requestFailed(let statusCode):
             return "GitHub request failed with HTTP \(statusCode)"
         case .responseTooLarge:
@@ -360,6 +363,10 @@ protocol PullRequestsService: Sendable {
         options: PullRequestListOptions
     ) async throws -> PullRequestListResult
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail
+    func fetchReviewContext(_ id: PullRequestIdentifier) async throws -> PullRequestReviewContext
+    func fetchRevision(_ id: PullRequestIdentifier) async throws -> PullRequestRevision
+    /// Restore known cooldowns before restarting persisted reviews, including their single recovery probe.
+    func restoreRateLimits(_ limits: [GitHubRateLimit]) async
     /// A complete, paginated snapshot of published feedback for independent reviewers.
     func fetchReviewFeedback(_ id: PullRequestIdentifier) async throws -> Data
     /// Returns the raw unified diff for the pull request.
@@ -448,6 +455,8 @@ protocol PullRequestsService: Sendable {
 }
 
 extension PullRequestsService {
+    func restoreRateLimits(_ limits: [GitHubRateLimit]) async {}
+
     func fetchReviewFeedback(_ id: PullRequestIdentifier) async throws -> Data {
         throw PullRequestsServiceError.transport("This provider cannot fetch complete review feedback.")
     }

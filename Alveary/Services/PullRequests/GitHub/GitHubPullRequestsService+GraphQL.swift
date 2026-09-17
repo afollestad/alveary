@@ -82,6 +82,7 @@ extension GitHubPullRequestsService {
         }
         return """
         query(\(variables)) {
+          rateLimit { cost }
         \(searches.joined(separator: "\n"))
         }
         \(listFragment)
@@ -133,6 +134,7 @@ extension GitHubPullRequestsService {
 
     private static let detailQuery = """
     query($owner: String!, $name: String!, $number: Int!) {
+      rateLimit { cost }
       viewer { login avatarUrl(size: 64) }
       repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {

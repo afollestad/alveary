@@ -17,6 +17,9 @@ struct ReviewTeamRunDetailsSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Review run").font(.title2.weight(.semibold))
                     Text(run.phase.title).foregroundStyle(.secondary)
+                    if run.phase == .waitingForGitHub, let wait = run.gitHubWait {
+                        Text(wait.limit.waitingMessage).foregroundStyle(.secondary)
+                    }
                 }
                 Spacer()
                 Button("Done", action: onClose)
@@ -44,7 +47,7 @@ struct ReviewTeamRunDetailsSheet: View {
                 .padding(2)
                 .textSelection(.enabled)
             }
-            if run.phase == .awaitingDecision {
+            if run.phase == .awaitingDecision || run.phase == .waitingForGitHub {
                 pausedActions(run)
             }
         }
@@ -140,6 +143,11 @@ enum ReviewTeamRunPresentation {
     }
 
     static func status(for member: ReviewWorkerConfiguration, in run: ReviewTeamRun) -> ReviewerStatus {
+        if run.phase == .waitingForGitHub {
+            if run.voteReports[member.id] != nil { return ReviewerStatus(label: "Cross-checked", detail: nil, visualState: .completed) }
+            if run.inspections[member.id] != nil { return ReviewerStatus(label: "Inspected", detail: nil, visualState: .completed) }
+            return ReviewerStatus(label: "Waiting", detail: nil, visualState: .idle)
+        }
         let phase = run.phase == .awaitingDecision ? run.pausedPhase : run.phase
         let currentFailure = phase.flatMap { run.failures["\($0.rawValue):\(member.id)"] }
         let earlierFailure = run.failures.sorted(by: { $0.key < $1.key }).first {
