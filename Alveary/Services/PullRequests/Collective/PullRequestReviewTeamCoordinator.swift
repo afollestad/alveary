@@ -213,17 +213,24 @@ final class PullRequestReviewTeamCoordinator {
         try persist(run)
     }
 
-    func persist(_ run: ReviewTeamRun) throws {
+    /// Save a replacement and retire its predecessor's transcript action in the same transaction.
+    func persist(_ run: ReviewTeamRun, replacing previousRun: ReviewTeamRun? = nil) throws {
         if modelContext.hasChanges { try commitSave(modelContext) }
         guard let conversation = modelContext.resolveConversation(conversationID: run.conversationID) else {
             throw ReviewTeamError.missingConversation
         }
         let priorJSON = conversation.pullRequestReviewRunJSON
         let priorEvents = conversation.events
-        let progressEvent = priorEvents.first { $0.id == "collective-review-run:\(run.id)" }
-        let priorContent = progressEvent?.content
+        let progressEvents = priorEvents.filter {
+            $0.id == "collective-review-run:\(run.id)" || $0.id == previousRun.map { "collective-review-run:\($0.id)" }
+        }
+        let priorContents = progressEvents.map(\.content)
         do {
             try conversation.storeCollectiveReviewRun(run)
+            if var previousRun {
+                previousRun.restartedRunID = run.id
+                try storeProgressEvent(previousRun, conversation: conversation)
+            }
             try storeProgressEvent(run, conversation: conversation)
             try commitSave(modelContext)
         } catch {
@@ -231,7 +238,7 @@ final class PullRequestReviewTeamCoordinator {
             modelContext.processPendingChanges()
             conversation.pullRequestReviewRunJSON = priorJSON
             conversation.events = priorEvents
-            progressEvent?.content = priorContent
+            for (event, content) in zip(progressEvents, priorContents) { event.content = content }
             modelContext.processPendingChanges()
             modelContext.rollback()
             throw error
@@ -286,7 +293,7 @@ final class PullRequestReviewTeamCoordinator {
         return nil
     }
 
-    /// The retry guard proves all workers settled; cancelling their run ID would permanently deny new executions.
+    /// Same-run retries must keep their worker run ID usable; restarts cancel their predecessor's worker ID separately.
     func replaceSettledTask(with run: ReviewTeamRun) {
         tasks.removeValue(forKey: run.conversationID)?.cancel()
         schedule(run)
@@ -363,7 +370,8 @@ final class PullRequestReviewTeamCoordinator {
     }
 
     private func observeActions() {
-        for name in [Notification.Name.reviewTeamCancelRequested, .reviewTeamRetryRequested, .reviewTeamRetryFailedRequested,
+        for name in [Notification.Name.reviewTeamCancelRequested, .reviewTeamRetryRequested, .reviewTeamRestartRequested,
+                     .reviewTeamRetryFailedRequested,
                      .reviewTeamContinueRequested,
                      .reviewTeamConversationWillClose, .reviewTeamConversationDidDelete] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
@@ -375,19 +383,29 @@ final class PullRequestReviewTeamCoordinator {
                         self?.conversationDidDelete(conversationID)
                     } else if name == .reviewTeamRetryRequested {
                         self?.retry(conversationID: conversationID)
-                    } else if name == .reviewTeamRetryFailedRequested {
-                        guard let runID, let generation else { return }
-                        self?.retryFailedReviewers(conversationID: conversationID, runID: runID, generation: generation)
-                    } else if name == .reviewTeamContinueRequested {
-                        guard let runID, let generation else { return }
-                        self?.continueWithMajority(conversationID: conversationID, runID: runID, generation: generation)
                     } else if name == .reviewTeamCancelRequested {
                         self?.cancel(conversationID: conversationID, runID: runID, generation: generation)
-                    } else {
+                    } else if name == .reviewTeamConversationWillClose {
                         self?.cancel(conversationID: conversationID)
+                    } else {
+                        guard let runID, let generation else { return }
+                        self?.handleRecoveryAction(name, conversationID: conversationID, runID: runID, generation: generation)
                     }
                 }
             })
+        }
+    }
+
+    private func handleRecoveryAction(_ name: Notification.Name, conversationID: String, runID: String, generation: Int) {
+        switch name {
+        case .reviewTeamRestartRequested:
+            restart(conversationID: conversationID, runID: runID, generation: generation)
+        case .reviewTeamRetryFailedRequested:
+            retryFailedReviewers(conversationID: conversationID, runID: runID, generation: generation)
+        case .reviewTeamContinueRequested:
+            continueWithMajority(conversationID: conversationID, runID: runID, generation: generation)
+        default:
+            break
         }
     }
 }

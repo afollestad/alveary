@@ -55,6 +55,8 @@ struct ReviewTeamRun: Codable, Equatable, Sendable, Identifiable {
     var supersededProposalIDs: [String]
     /// Frozen revisions or prior-proposal conflicts cannot be repaired by retrying the same input.
     var requiresNewRun: Bool?
+    /// Retain the failed run's history while removing its restart control after a replacement is saved.
+    var restartedRunID: String?
     /// Nil distinguishes historical runs that never captured exact worker inputs and responses.
     var history: [ReviewTeamAttempt]?
     /// Resumed legacy runs can capture new attempts without claiming their earlier executions were retained.
@@ -72,6 +74,8 @@ struct ReviewTeamRun: Codable, Equatable, Sendable, Identifiable {
     var requiredVotes: Int { ReviewTeamConsensus.requiredVotes(teamSize: team.count) }
 
     var canRetryFailedReviewers: Bool { failedReviewersRetryPhase != nil }
+
+    var canRestart: Bool { phase == .failed && requiresNewRun == true && restartedRunID == nil }
 
     var canContinueWithMajority: Bool {
         guard phase == .awaitingDecision, let pausedPhase, failedReviewersRetryPhase == pausedPhase else { return false }
@@ -140,6 +144,7 @@ extension Notification.Name {
     static let pullRequestReviewRunsChanged = Notification.Name("pullRequestReviewRunsChanged")
     static let reviewTeamCancelRequested = Notification.Name("reviewTeamCancelRequested")
     static let reviewTeamRetryRequested = Notification.Name("reviewTeamRetryRequested")
+    static let reviewTeamRestartRequested = Notification.Name("reviewTeamRestartRequested")
     static let reviewTeamRetryFailedRequested = Notification.Name("reviewTeamRetryFailedRequested")
     static let reviewTeamContinueRequested = Notification.Name("reviewTeamContinueRequested")
     static let reviewTeamConversationWillClose = Notification.Name("reviewTeamConversationWillClose")

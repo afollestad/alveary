@@ -227,7 +227,13 @@ private extension AppKitReviewTeamRunWidgetView {
         if run.phase.isWorking || run.phase == .awaitingDecision {
             buttons.append(actionButton(RunAction(title: "Cancel review", icon: "xmark", selector: #selector(cancelReview))))
         }
-        if run.canRetryFailedReviewers {
+        if run.canRestart {
+            let restart = actionButton(RunAction(
+                title: "Restart review", icon: "arrow.clockwise", selector: #selector(restartReview), style: .primary
+            ))
+            restart.toolTip = "Review the latest pull request revision again in this thread using the same team and criteria."
+            buttons.append(restart)
+        } else if run.canRetryFailedReviewers {
             let retry = actionButton(RunAction(
                 title: "Retry failed reviewers", icon: "arrow.clockwise", selector: #selector(retryFailedReviewers)
             ))
@@ -242,7 +248,7 @@ private extension AppKitReviewTeamRunWidgetView {
             )))
         }
         let actions = AppKitReviewTeamRunActionsView(buttons: buttons, compactTitles: [
-            "Cancel review": "Cancel", "Retry failed reviewers": "Retry failed", "Retry review": "Retry",
+            "Cancel review": "Cancel", "Restart review": "Restart", "Retry failed reviewers": "Retry failed", "Retry review": "Retry",
             "Continue with majority": "Use majority"
         ])
         actionsView = actions
@@ -301,6 +307,11 @@ private extension AppKitReviewTeamRunWidgetView {
     @objc
     func retryReview() {
         post(.reviewTeamRetryRequested)
+    }
+
+    @objc
+    func restartReview() {
+        post(.reviewTeamRestartRequested)
     }
 
     @objc

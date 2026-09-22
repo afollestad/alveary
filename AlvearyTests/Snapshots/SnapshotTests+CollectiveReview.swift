@@ -74,6 +74,18 @@ extension SnapshotTests {
         )
     }
 
+    func testCollectiveReviewChangedPullRequestWidget() {
+        var run = CollectiveReviewSnapshotFixture.decisionRun()
+        run.phase = .failed
+        run.requiresNewRun = true
+        run.error = ReviewTeamError.revisionChanged.localizedDescription
+        run.accepted = []
+        assertMacSnapshot(
+            appKitRowSnapshot { CollectiveReviewSnapshotFixture.widgetRow(run: run) },
+            size: CGSize(width: 700, height: 340), named: "collective_review_changed_pull_request", colorScheme: .dark
+        )
+    }
+
     func testCollectiveReviewNotProposedDisclosure() {
         assertMacSnapshot(
             appKitRowSnapshot {

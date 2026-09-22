@@ -93,7 +93,7 @@ struct ReviewTeamRunWidgetTests {
     }
 
     @Test
-    func `a run requiring new input cannot be retried`() throws {
+    func `a run requiring new input offers an accessible restart instead of retry`() throws {
         let view = AppKitReviewTeamRunWidgetView()
         var run = failedRun()
         view.configure(.init(run: run, typography: TranscriptTypography()))
@@ -101,9 +101,49 @@ struct ReviewTeamRunWidgetTests {
         run.requiresNewRun = true
         view.configure(.init(run: run, typography: TranscriptTypography()))
 
-        #expect(reviewTeamDescendants(of: NSButton.self, in: view).allSatisfy {
+        let buttons = reviewTeamDescendants(of: NSButton.self, in: view)
+        #expect(buttons.allSatisfy {
             $0.title != "Retry review" && $0.title != "Retry failed reviewers"
         })
+        let restart = try #require(buttons.first { $0.title == "Restart review" } as? AppKitTranscriptApprovalButton)
+        #expect(restart.accessibilityRole() == .button)
+        #expect(restart.accessibilityLabel() == "Restart review")
+        #expect(restart.actionStyle == .primary)
+        #expect(restart.toolTip?.contains("latest pull request revision") == true)
+        #expect(restart.toolTip?.contains("in this thread") == true)
+    }
+
+    @Test
+    func `restart sends the displayed run identity and disappears from restarted history`() throws {
+        let view = AppKitReviewTeamRunWidgetView()
+        var run = failedRun()
+        run.requiresNewRun = true
+        run.generation = 3
+        view.configure(.init(run: run, typography: TranscriptTypography()))
+        let receipt = ReviewRunActionReceipt()
+        let observer = NotificationCenter.default.addObserver(forName: .reviewTeamRestartRequested, object: view, queue: .main) { note in
+            let conversationID = note.userInfo?["conversationID"] as? String
+            let runID = note.userInfo?["runID"] as? String
+            let generation = note.userInfo?["generation"] as? Int
+            MainActor.assumeIsolated {
+                receipt.conversationID = conversationID
+                receipt.runID = runID
+                receipt.generation = generation
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        try #require(reviewTeamDescendants(of: NSButton.self, in: view).first { $0.title == "Restart review" }).performClick(nil)
+
+        #expect(receipt.conversationID == run.conversationID)
+        #expect(receipt.runID == run.id)
+        #expect(receipt.generation == run.generation)
+
+        run.restartedRunID = "restarted-run"
+        view.configure(.init(run: run, typography: TranscriptTypography()))
+        let buttons = reviewTeamDescendants(of: NSButton.self, in: view)
+        #expect(!buttons.contains { $0.title == "Restart review" || $0.title.hasPrefix("Retry") })
+        #expect(buttons.contains { $0.title == "Run details" })
     }
 
     @Test

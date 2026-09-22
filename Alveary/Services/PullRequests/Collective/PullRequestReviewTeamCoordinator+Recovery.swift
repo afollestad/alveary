@@ -2,6 +2,38 @@ import Foundation
 
 /// Explicit worker retries retain completed reports and reject stale transcript controls.
 extension PullRequestReviewTeamCoordinator {
+    /// Reread current inputs and advance the displayed generation, including a cancellation whose failed save left disk behind.
+    func restart(conversationID: String, runID: String, generation: Int) {
+        guard let conversation = modelContext.resolveConversation(conversationID: conversationID),
+              let thread = conversation.thread, thread.archivedAt == nil,
+              let persisted = try? conversation.collectiveReviewRun(),
+              let previous = runs[conversationID],
+              previous.id == runID, previous.generation == generation, previous.canRestart,
+              persisted.id == runID, persisted.generation <= generation else { return }
+        do {
+            guard try !hasUnfinishedReview(for: previous.identifier, excludingConversationID: conversationID) else {
+                throw ReviewTeamError.invalidOutput("A team review is already running for this pull request.")
+            }
+            let snapshot = try staging.snapshot(for: previous.identifier, editState: currentEditState(for: previous.identifier))
+            let run = ReviewTeamRun(
+                payloadVersion: 1, id: UUID().uuidString, proposalID: UUID().uuidString,
+                conversationID: conversationID, identifier: previous.identifier, url: previous.url,
+                team: previous.team, criteria: previous.criteria, priorProposal: snapshot, createdAt: .now,
+                generation: previous.generation + 1, phase: .preparing,
+                inspections: [:], voteReports: [:], accepted: [], attempts: [:], failures: [:], supersededProposalIDs: [], history: []
+            )
+            try persist(run, replacing: previous)
+            replaceSettledTask(with: run)
+            Task { [worker, packets, cancellationStore] in
+                await worker.cancel(runID: previous.id)
+                try? await packets.remove(runID: previous.id)
+                try? cancellationStore.remove(runID: previous.id)
+            }
+        } catch {
+            recordRetryFailure(error, conversationID: conversationID)
+        }
+    }
+
     func retryFailedReviewers(conversationID: String, runID: String, generation: Int) {
         guard let conversation = modelContext.resolveConversation(conversationID: conversationID),
               let thread = conversation.thread, thread.archivedAt == nil,

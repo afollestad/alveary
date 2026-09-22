@@ -81,7 +81,7 @@ enum ReviewTeamError: LocalizedError, Equatable {
         switch self {
         case .invalidOutput(let reason): reason
         case .quorumRequired(let count): "At least \(count) reviewers must complete this phase. Retry the failed review."
-        case .revisionChanged: "The pull request changed. Start a new review for the current revision."
+        case .revisionChanged: "The pull request changed. Restart the review for the current revision."
         case .retryInputChanged: "The review inputs changed. Start a new review instead of retrying failed reviewers."
         case .conflict: "The staged review changed during this run. Start a new review to include those changes."
         case .cancelled: "The review was cancelled."
