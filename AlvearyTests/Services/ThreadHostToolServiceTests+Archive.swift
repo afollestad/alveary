@@ -100,6 +100,29 @@ extension ThreadHostToolServiceTests {
         XCTAssertNil(definition.targetThread)
     }
 
+    func testArchiveThreadRefusesAnActiveReviewUntilItEnds() async throws {
+        let fixture = try ThreadHostToolFixture()
+        let target = try fixture.insertThread(name: "Review target", conversationID: "review-target")
+        let identifier = PullRequestIdentifier(owner: "octo", repo: "alveary", number: 7)
+        let activity = fixture.sidebar.viewModel.threadLifecycle.reviewActivity
+        activity.begin(identifier, kind: .review)
+        activity.attach(conversationID: "review-target", identifier: identifier, kind: .review)
+
+        let refused = await fixture.archive(threadID: "review-target")
+
+        XCTAssertTrue(refused.isError)
+        XCTAssertEqual(refused.text, SidebarViewModelError.activeReview.localizedDescription)
+        XCTAssertNil(target.archivedAt)
+        let destroyed = await fixture.sidebar.agentsManager.destroyCalls()
+        XCTAssertTrue(destroyed.isEmpty)
+
+        activity.end(identifier, kind: .review)
+        let archived = await fixture.archive(threadID: "review-target")
+
+        XCTAssertFalse(archived.isError, archived.text)
+        XCTAssertNotNil(target.archivedAt)
+    }
+
     /// The archive already committed, so reporting an error would tell the model to retry
     /// something that already happened.
     func testRuntimeCleanupFailureStillReportsTheArchiveAsApplied() async throws {

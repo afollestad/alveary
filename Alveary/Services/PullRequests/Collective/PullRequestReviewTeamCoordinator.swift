@@ -248,6 +248,7 @@ final class PullRequestReviewTeamCoordinator {
 
     func forgetRun(conversationID: String) {
         runs.removeValue(forKey: conversationID)
+        activity.forgetCollectivePhase(conversationID: conversationID)
     }
 
     func storeProgressEvent(_ run: ReviewTeamRun, conversation: Conversation) throws {
@@ -264,8 +265,7 @@ final class PullRequestReviewTeamCoordinator {
     }
 
     func publish(_ run: ReviewTeamRun) {
-        activity.setCollectiveWorking(run.phase.isWorking || run.phase == .awaitingDecision,
-                                      identifier: run.identifier, conversationID: run.conversationID)
+        activity.setCollectivePhase(run.phase, identifier: run.identifier, conversationID: run.conversationID)
         NotificationCenter.default.post(name: .pullRequestReviewRunsChanged, object: nil)
     }
 

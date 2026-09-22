@@ -148,7 +148,7 @@ extension SidebarView {
 
         return content
             .alert(
-                "Scheduled task attachment",
+                "Thread action unavailable",
                 isPresented: sidebarPresentationBinding(for: $viewModel.scheduledTaskAttachmentAlert)
             ) {
                 Button("OK", role: .cancel) {

@@ -163,9 +163,7 @@ extension PullRequestAgenticThreadService {
         let target = try destination(conversationID: run.conversationID, disposition: .existing)
         try checkpoint(target)
         activity.endPending(identifier, kind: kind)
-        activity.setCollectiveWorking(
-            run.phase.isWorking || run.phase == .awaitingDecision, identifier: identifier, conversationID: run.conversationID
-        )
+        activity.setCollectivePhase(run.phase, identifier: identifier, conversationID: run.conversationID)
         return PullRequestAgenticThreadStart(
             conversationID: target.conversationID,
             dispatch: acceptedLaunches[target.conversationID]?.dispatch ?? Task { PullRequestAgenticDispatchOutcome(linkFailure: nil) },

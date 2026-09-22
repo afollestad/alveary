@@ -132,6 +132,8 @@ final class ThreadLifecycleService {
     /// Which conversations are mid-review-submit, so archive and delete can refuse. Defaults to the
     /// app-wide instance; tests pass their own over a private notification centre.
     let reviewSubmissionActivity: PullRequestReviewSubmissionActivity
+    /// Shared with review launches so preparation and app-owned team work also hold their thread.
+    let reviewActivity: PullRequestAgenticThreadActivity
 
     init(
         modelContext: ModelContext,
@@ -145,7 +147,8 @@ final class ThreadLifecycleService {
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         savePendingSidebarChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
-        reviewSubmissionActivity: PullRequestReviewSubmissionActivity = .shared
+        reviewSubmissionActivity: PullRequestReviewSubmissionActivity = .shared,
+        reviewActivity: PullRequestAgenticThreadActivity = PullRequestAgenticThreadActivity()
     ) {
         self.modelContext = modelContext
         self.settingsService = settingsService
@@ -159,6 +162,7 @@ final class ThreadLifecycleService {
         self.savePendingSidebarChanges = savePendingSidebarChanges
         self.saveSidebarOrdering = saveSidebarOrdering
         self.reviewSubmissionActivity = reviewSubmissionActivity
+        self.reviewActivity = reviewActivity
     }
 
     func insertProjectThread(projectPath: String, seed: ProjectThreadSeed) throws -> AgentThread {

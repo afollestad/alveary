@@ -101,7 +101,8 @@ extension ContentView {
                 appState.presentUnexpectedError(message: message)
             },
             notificationManager: dependencies.notificationManager,
-            threadActivityRecorder: dependencies.threadActivityRecorder
+            threadActivityRecorder: dependencies.threadActivityRecorder,
+            reviewActivity: dependencies.pullRequestAgenticThreadActivity
         )
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// App-scoped activity shared by UI and host-tool launches, independent of the pane's lifetime.
 ///
@@ -10,7 +11,7 @@ import Foundation
 /// Attach and grace expiry re-read the live signal because a notification may arrive before the
 /// conversation is attached. Collective work instead ends when its coordinator releases the route;
 /// unrelated harness-turn completion cannot end a team review.
-@MainActor
+@MainActor @Observable
 final class PullRequestAgenticThreadActivity {
     struct Key: Hashable {
         let identifier: PullRequestIdentifier
@@ -47,7 +48,9 @@ final class PullRequestAgenticThreadActivity {
     /// test can drive it without a runtime, matching how this scope injects `directoryExists`.
     private let currentSignal: @MainActor (String) -> ActivitySignal
     private var entries: [Key: Entry] = [:]
-    private var statusObserver: (any NSObjectProtocol)?
+    /// A failed cancellation save can leave active JSON on disk; the live terminal phase must win.
+    private var collectivePhases: [String: ReviewTeamRun.Phase] = [:]
+    @ObservationIgnored private var statusObserver: (any NSObjectProtocol)?
 
     init(
         notificationCenter: NotificationCenter = .default,
@@ -82,6 +85,20 @@ final class PullRequestAgenticThreadActivity {
         return Set(entries.keys.lazy.filter { $0.identifier == normalized }.map(\.kind))
     }
 
+    /// Pending launches already own their thread; saved unfinished teams own it before recovery hydrates live activity.
+    func blocksThreadCleanup(
+        conversationID: String,
+        savedCollectivePhase: @autoclosure () -> ReviewTeamRun.Phase?
+    ) -> Bool {
+        if let phase = collectivePhases[conversationID] {
+            return phase.isUnfinished
+        }
+        if entries.contains(where: { $0.key.kind == .review && $0.value.conversationID == conversationID }) {
+            return true
+        }
+        return savedCollectivePhase()?.isUnfinished == true
+    }
+
     // MARK: - Lifecycle
 
     /// Marks preparation busy before the launcher's first suspension.
@@ -107,6 +124,7 @@ final class PullRequestAgenticThreadActivity {
         }
         entries[key]?.conversationID = conversationID
         promoteIfWorking(key)
+        announce()
     }
 
     /// Starts the bounded wait for the turn to appear. A no-op once the entry is already running.
@@ -142,16 +160,21 @@ final class PullRequestAgenticThreadActivity {
         remove(key)
     }
 
-    /// Collective work ends at the app-owned staging boundary, never at an unrelated harness turn.
-    func setCollectiveWorking(_ working: Bool, identifier: PullRequestIdentifier, conversationID: String) {
+    /// Keep terminal phases after releasing the route so failed persistence cannot resurrect a cancelled cleanup guard.
+    func setCollectivePhase(_ phase: ReviewTeamRun.Phase, identifier: PullRequestIdentifier, conversationID: String) {
+        collectivePhases[conversationID] = phase
         let key = Key(identifier: identifier, kind: .review)
-        guard working else {
+        guard phase.isWorking || phase == .awaitingDecision else {
             if entries[key]?.conversationID == conversationID { remove(key) }
             return
         }
         entries[key]?.graceTask?.cancel()
         entries[key] = Entry(phase: .running, conversationID: conversationID, isCollective: true)
         announce()
+    }
+
+    func forgetCollectivePhase(conversationID: String) {
+        collectivePhases.removeValue(forKey: conversationID)
     }
 
     // MARK: - Runtime signals

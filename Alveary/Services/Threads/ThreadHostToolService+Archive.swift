@@ -32,11 +32,10 @@ extension ThreadHostToolService {
             return alreadyArchivedResult(threadID: threadID, name: name)
         }
         // A schedule aimed at this thread converts instead of refusing; only a run already posting
-        // into it holds the thread, and a review already being published holds it the same way.
+        // into it holds the thread, and an active review holds it the same way.
         // This is the guard an automated run meets — the caller is not asked whether it is one —
         // so it must not move.
-        let blocked = lifecycleService.activeScheduledTaskRunError(for: thread)
-            ?? lifecycleService.activeReviewSubmissionError(for: thread)
+        let blocked = lifecycleService.threadCleanupError(for: thread)
         if let reason = blocked?.localizedDescription {
             throw ThreadHostToolServiceError.threadCannotBeArchived(reason: reason)
         }

@@ -31,7 +31,7 @@ extension ThreadLifecycleService {
             try requireThreadLifecycleIsUnblocked(currentThread)
         }
         try await quiesceScheduledTaskRunIfNeeded(threadID: snapshot.threadID)
-        await beginConversationTeardowns(snapshot.conversationIDs)
+        try await beginArchiveTeardowns(snapshot)
         try await quiesceScheduledTaskRunIfNeeded(threadID: snapshot.threadID)
         if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
             // Run state can change while harness resolution and runtime teardown await. Recheck
@@ -74,6 +74,17 @@ extension ThreadLifecycleService {
         }
         return diagnostics
     }
+
+    /// Check after quiescence and each kill, before a close notification can cancel a new review.
+    private func beginArchiveTeardowns(_ snapshot: ThreadArchiveSnapshot) async throws {
+        for conversationID in snapshot.conversationIDs {
+            if let currentThread = modelContext.resolveThread(id: snapshot.threadID) {
+                try requireThreadLifecycleIsUnblocked(currentThread)
+            }
+            await beginConversationTeardowns([conversationID])
+        }
+    }
+
 }
 
 /// One archived conversation's dismissed review proposal, carried from the clearing save to the

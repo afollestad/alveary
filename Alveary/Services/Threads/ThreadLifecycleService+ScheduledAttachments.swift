@@ -25,12 +25,6 @@ extension ThreadLifecycleService {
         } ? .activeScheduledTaskRunAttachment : nil
     }
 
-    func requireNoActiveScheduledTaskRun(_ thread: AgentThread) throws {
-        if let error = activeScheduledTaskRunError(for: thread) {
-            throw error
-        }
-    }
-
     /// Why publishing a review forbids archiving or deleting the thread it is publishing from.
     ///
     /// The same shape as `activeScheduledTaskRunError`, and for the same reason: a proposal merely
@@ -47,16 +41,28 @@ extension ThreadLifecycleService {
             : nil
     }
 
-    func requireNoActiveReviewSubmission(_ thread: AgentThread) throws {
-        if let error = activeReviewSubmissionError(for: thread) {
-            throw error
-        }
+    /// Saved team work protects its owner before launch recovery populates the live tracker.
+    /// Live phases take precedence so a cancelled run whose save failed can still be removed.
+    func activeReviewError(for thread: AgentThread) -> SidebarViewModelError? {
+        thread.conversations.contains { conversation in
+            reviewActivity.blocksThreadCleanup(
+                conversationID: conversation.id,
+                savedCollectivePhase: (try? conversation.collectiveReviewRun())?.phase
+            )
+        } ? .activeReview : nil
     }
 
-    /// Both lifecycle refusals in one call, so a guard site cannot pick up one and forget the other.
+    /// One source for action guards, sidebar availability, and host-tool refusals.
+    func threadCleanupError(for thread: AgentThread) -> SidebarViewModelError? {
+        activeScheduledTaskRunError(for: thread)
+            ?? activeReviewSubmissionError(for: thread)
+            ?? activeReviewError(for: thread)
+    }
+
     func requireThreadLifecycleIsUnblocked(_ thread: AgentThread) throws {
-        try requireNoActiveScheduledTaskRun(thread)
-        try requireNoActiveReviewSubmission(thread)
+        if let error = threadCleanupError(for: thread) {
+            throw error
+        }
     }
 
     /// Recheck exact callbacks after suspension without repeating the original run's completed barrier.

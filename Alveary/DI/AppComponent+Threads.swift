@@ -46,7 +46,8 @@ extension AppComponent {
                 },
                 stopAndWaitForScheduledTaskRun: { runID in
                     try await self.scheduledTaskSchedulerCoordinator.stopAndWait(runID: runID)
-                }
+                },
+                reviewActivity: pullRequestAgenticThreadActivity
             )
         }
     }

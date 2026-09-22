@@ -47,6 +47,7 @@ enum SidebarViewModelError: LocalizedError {
     case scheduledTaskAttachment(String)
     case activeScheduledTaskRunAttachment
     case activeReviewSubmission
+    case activeReview
     case threadForkUnavailable(String)
     case threadForkFailed(Error)
     case forkRollbackBlockedBySchedule
@@ -76,6 +77,8 @@ enum SidebarViewModelError: LocalizedError {
             return "This thread has an active scheduled task run. Wait for it to finish before archiving or deleting this thread."
         case .activeReviewSubmission:
             return "This thread is submitting a pull request review. Wait for it to finish before archiving or deleting this thread."
+        case .activeReview:
+            return "This thread has an active code review. Wait for it to finish or cancel it before archiving or deleting this thread."
         case .threadForkUnavailable(let reason):
             return reason
         case .threadForkFailed(let error):
@@ -105,7 +108,7 @@ enum SidebarViewModelError: LocalizedError {
             return true
         case .projectMissing, .threadMissing, .threadMissingTaskWorkspace, .threadMissingDeletionMetadata,
              .scheduledTaskRunStillActive, .scheduledTaskAttachment, .activeScheduledTaskRunAttachment,
-             .activeReviewSubmission,
+             .activeReviewSubmission, .activeReview,
              .threadForkUnavailable, .threadForkFailed, .forkRollbackBlockedBySchedule, .threadForkRollbackFailed,
              .threadDeletePreparationFailed, .taskProjectAccessUnavailable, .noReadyThreadDefaultHarness:
             return false

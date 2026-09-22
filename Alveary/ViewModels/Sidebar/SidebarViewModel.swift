@@ -31,7 +31,7 @@ final class SidebarViewModel {
     private let presentUnexpectedError: @MainActor @Sendable (String) -> Void
     private let notificationManager: any NotificationManager
     private let threadActivityRecorder: any ThreadActivityRecording
-    private var statusObserver: NSObjectProtocol?
+    private var statusObservers: [NSObjectProtocol] = []
     var threadActivityObserver: NSObjectProtocol?
 
     private(set) var sidebarError: String?
@@ -66,7 +66,8 @@ final class SidebarViewModel {
         afterPendingScheduledWorktreeCleanup: @escaping @MainActor () async -> Void = {},
         presentUnexpectedError: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         notificationManager: any NotificationManager,
-        threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
+        threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
+        reviewActivity: PullRequestAgenticThreadActivity = PullRequestAgenticThreadActivity()
     ) {
         self.agentsManager = agentsManager
         self.modelContext = modelContext
@@ -89,7 +90,8 @@ final class SidebarViewModel {
             stopAndWaitForScheduledTaskRun: stopAndWaitForScheduledTaskRun,
             saveThreadCreation: saveThreadCreation,
             savePendingSidebarChanges: savePendingSidebarChanges,
-            saveSidebarOrdering: saveSidebarOrdering
+            saveSidebarOrdering: saveSidebarOrdering,
+            reviewActivity: reviewActivity
         )
         sectionService = SidebarSectionService(
             modelContext: modelContext,
@@ -103,22 +105,21 @@ final class SidebarViewModel {
         self.presentUnexpectedError = presentUnexpectedError
         self.notificationManager = notificationManager
         self.threadActivityRecorder = threadActivityRecorder
-        statusObserver = NotificationCenter.default.addObserver(
-            forName: .agentStatusChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.statusVersion += 1
-            }
+        // Review preparation and completion can happen without a harness status transition.
+        for name in [Notification.Name.agentStatusChanged, .pullRequestAgenticThreadActivityChanged] {
+            statusObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.statusVersion += 1
+                }
+            })
         }
         installThreadActivityObserver()
     }
 
     deinit {
         MainActor.assumeIsolated {
-            if let statusObserver {
-                NotificationCenter.default.removeObserver(statusObserver)
+            for observer in statusObservers {
+                NotificationCenter.default.removeObserver(observer)
             }
             if let threadActivityObserver {
                 NotificationCenter.default.removeObserver(threadActivityObserver)

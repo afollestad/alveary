@@ -38,6 +38,9 @@ extension PullRequestReviewTeamCoordinatorTests {
             let original = try #require(fixture.coordinator.runs[fixture.conversation.id])
             let savedPhaseBeforeCancellation = try fixture.conversation.collectiveReviewRun()?.phase
             #expect(savedPhaseBeforeCancellation == .inspecting)
+            #expect(fixture.coordinator.activity.blocksThreadCleanup(
+                conversationID: original.conversationID, savedCollectivePhase: savedPhaseBeforeCancellation
+            ))
             let priorJSON = fixture.conversation.pullRequestReviewRunJSON
             let priorEvents = fixture.conversation.events.map(\.content)
             saves.shouldFail = true
@@ -53,6 +56,9 @@ extension PullRequestReviewTeamCoordinatorTests {
             let persisted = try #require(verificationContext.resolveConversation(conversationID: original.conversationID))
             #expect(persisted.pullRequestReviewRunJSON == priorJSON)
             #expect(fixture.coordinator.runs[original.conversationID]?.phase == .cancelled)
+            #expect(!fixture.coordinator.activity.blocksThreadCleanup(
+                conversationID: original.conversationID, savedCollectivePhase: savedPhaseAfterCancellation
+            ))
             #expect(fixture.coordinator.runs[original.conversationID]?.error?.contains("restored after relaunch") == true)
             let reopenedStore = ReviewTeamCancellationStore(rootDirectory: fixture.packetRoot.appendingPathComponent("cancellations"))
             #expect(try reopenedStore.contains(runID: original.id))

@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import XCTest
 
 @testable import Alveary
@@ -60,13 +61,15 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
 
     func testCollectiveWorkIgnoresHarnessTurnCompletion() {
         let (activity, center) = makeActivity()
-        activity.setCollectiveWorking(true, identifier: identifier, conversationID: "team")
+        activity.setCollectivePhase(.inspecting, identifier: identifier, conversationID: "team")
         for signal in [ActivitySignal.idle, .neutral, .stopped, .error] {
             post(signal, conversationID: "team", on: center)
             XCTAssertTrue(activity.isWorking(identifier, kind: .review))
+            XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: nil))
         }
-        activity.setCollectiveWorking(false, identifier: identifier, conversationID: "team")
+        activity.setCollectivePhase(.staged, identifier: identifier, conversationID: "team")
         XCTAssertFalse(activity.isWorking(identifier, kind: .review))
+        XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: nil))
     }
 
     /// An approval pause is the run needing the user, not the run being over.
@@ -225,7 +228,7 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
     func testFailedPreparationPreservesARecoveredReview() {
         let (activity, _) = makeActivity()
         activity.begin(identifier, kind: .review)
-        activity.setCollectiveWorking(true, identifier: identifier, conversationID: "recovered")
+        activity.setCollectivePhase(.inspecting, identifier: identifier, conversationID: "recovered")
 
         activity.endPending(identifier, kind: .review)
 
@@ -242,6 +245,83 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
         XCTAssertTrue(activity.isWorking(identifier, kind: .review))
         activity.end(identifier, kind: .review, conversationID: "replacement")
         XCTAssertFalse(activity.isWorking(identifier, kind: .review))
+    }
+
+    func testOnlyTheReviewOwnerIsBlockedFromAttachmentThroughTurnCompletion() {
+        let (activity, center) = makeActivity()
+        activity.begin(identifier, kind: .review)
+        XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "review", savedCollectivePhase: nil))
+
+        activity.attach(conversationID: "review", identifier: identifier, kind: .review)
+        activity.begin(identifier, kind: .addressFeedback)
+        activity.attach(conversationID: "feedback", identifier: identifier, kind: .addressFeedback)
+        XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "review", savedCollectivePhase: nil))
+        XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "feedback", savedCollectivePhase: nil))
+        XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "unrelated", savedCollectivePhase: nil))
+
+        post(.idle, conversationID: "review", on: center)
+        XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "review", savedCollectivePhase: nil))
+        post(.waitingForUser, conversationID: "review", on: center)
+        XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "review", savedCollectivePhase: nil))
+        post(.idle, conversationID: "review", on: center)
+        XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "review", savedCollectivePhase: nil))
+    }
+
+    func testSavedTeamsRemainProtectedBeforeRecoveryAndLiveCancellationOverridesStaleJSON() {
+        let (activity, _) = makeActivity()
+        XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: .inspecting))
+        XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: .interrupted))
+        XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: .awaitingDecision))
+        XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: .staged))
+
+        activity.setCollectivePhase(.waitingForGitHub, identifier: identifier, conversationID: "team")
+        XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: nil))
+        activity.setCollectivePhase(.awaitingDecision, identifier: identifier, conversationID: "team")
+        XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: nil))
+        activity.setCollectivePhase(.cancelled, identifier: identifier, conversationID: "team")
+        XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: .inspecting))
+        activity.forgetCollectivePhase(conversationID: "team")
+        XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: .inspecting))
+    }
+
+    func testCleanupObservationFollowsInitiallyEmptyActivityAttachmentAndRelease() {
+        let (activity, _) = makeActivity()
+        let started = AnnouncementCounter()
+        withObservationTracking {
+            XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "review", savedCollectivePhase: nil))
+        } onChange: { started.increment() }
+        activity.begin(identifier, kind: .review)
+        XCTAssertEqual(started.count, 1)
+
+        let attached = AnnouncementCounter()
+        withObservationTracking {
+            XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "review", savedCollectivePhase: nil))
+        } onChange: { attached.increment() }
+        activity.attach(conversationID: "review", identifier: identifier, kind: .review)
+        XCTAssertEqual(attached.count, 1)
+        XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "review", savedCollectivePhase: nil))
+
+        let ended = AnnouncementCounter()
+        withObservationTracking {
+            XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "review", savedCollectivePhase: nil))
+        } onChange: { ended.increment() }
+        activity.end(identifier, kind: .review)
+        XCTAssertEqual(ended.count, 1)
+        XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "review", savedCollectivePhase: nil))
+    }
+
+    func testCleanupObservationFollowsLiveTeamCancellationWithStaleSavedPhase() {
+        let (activity, _) = makeActivity()
+        activity.setCollectivePhase(.inspecting, identifier: identifier, conversationID: "team")
+        let cancelled = AnnouncementCounter()
+        withObservationTracking {
+            XCTAssertTrue(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: .inspecting))
+        } onChange: { cancelled.increment() }
+
+        activity.setCollectivePhase(.cancelled, identifier: identifier, conversationID: "team")
+
+        XCTAssertEqual(cancelled.count, 1)
+        XCTAssertFalse(activity.blocksThreadCleanup(conversationID: "team", savedCollectivePhase: .inspecting))
     }
 
     /// The mirror onto each pane session hangs off this, so a transition nobody announces is a
