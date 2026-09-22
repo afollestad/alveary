@@ -89,7 +89,7 @@ extension SettingsViewModel {
         draft.pullRequestReviewEffort = "high"
         if resolvedPullRequestReviewLead(settings: draft) == nil {
             draft.pullRequestReviewHarness = "claude"
-            draft.pullRequestReviewModel = "claude-opus-5"
+            draft.pullRequestReviewModel = "claude-opus-5-5"
         }
         draft.pullRequestReviewPeers = suggestedPullRequestReviewPeers()
         return draft

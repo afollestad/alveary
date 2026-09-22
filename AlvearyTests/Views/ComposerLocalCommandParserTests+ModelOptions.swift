@@ -33,26 +33,26 @@ extension ComposerLocalCommandParserTests {
     func testModelArgumentHintListsAliasedOptionsBeforeBareIDs() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
             option(harnessID: "claude", value: "claude-fable-5", shortName: "fable", title: "Fable 5"),
-            option(harnessID: "claude", value: "claude-opus-5", shortName: "opus", title: "Opus 5"),
-            option(harnessID: "claude", value: "claude-opus-4-8", shortName: "claude-opus-4-8", title: "Opus 4.8"),
+            option(harnessID: "claude", value: "claude-opus-5-5", shortName: "opus", title: "Opus 5.5"),
+            option(harnessID: "claude", value: "claude-opus-5", shortName: "claude-opus-5", title: "Opus 5"),
             option(harnessID: "claude", value: "claude-opus-4-7", shortName: "claude-opus-4-7", title: "Opus 4.7"),
             option(harnessID: "claude", value: "claude-sonnet-5", shortName: "sonnet", title: "Sonnet 5"),
             option(harnessID: "claude", value: "claude-sonnet-4-6", shortName: "claude-sonnet-4-6", title: "Sonnet 4.6"),
             option(harnessID: "claude", value: "claude-haiku-4-5", shortName: "haiku", title: "Haiku 4.5")
         ])
 
-        XCTAssertEqual(availability.modelArgumentHint, "fable|opus|sonnet|haiku|claude-opus-4-8|…")
+        XCTAssertEqual(availability.modelArgumentHint, "fable|opus|sonnet|haiku|claude-opus-5|…")
     }
 
     func testModelOptionResolvesAFamilyAliasAndItsPinnedVersions() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
-            option(harnessID: "claude", value: "claude-opus-5", shortName: "opus", title: "Opus 5"),
-            option(harnessID: "claude", value: "claude-opus-4-8", shortName: "claude-opus-4-8", title: "Opus 4.8")
+            option(harnessID: "claude", value: "claude-opus-5-5", shortName: "opus", title: "Opus 5.5"),
+            option(harnessID: "claude", value: "claude-opus-5", shortName: "claude-opus-5", title: "Opus 5")
         ])
 
-        XCTAssertEqual(availability.modelOption(matching: "opus")?.value, "claude-opus-5")
-        XCTAssertEqual(availability.modelOption(matching: "claude-opus-4-8")?.value, "claude-opus-4-8")
-        XCTAssertEqual(availability.modelOption(matching: "Opus 4.8")?.value, "claude-opus-4-8")
+        XCTAssertEqual(availability.modelOption(matching: "opus")?.value, "claude-opus-5-5")
+        XCTAssertEqual(availability.modelOption(matching: "claude-opus-5")?.value, "claude-opus-5")
+        XCTAssertEqual(availability.modelOption(matching: "Opus 5")?.value, "claude-opus-5")
     }
 
     func testModelArgumentHintDeduplicatesSharedShortNames() {

@@ -43,7 +43,7 @@ struct ReviewTeamDefaultsTests {
 
         let draft = viewModel.reviewTeamEditorSettings()
         let expected = harnessID == .codex
-            ? ["claude/claude-opus-5/high", "claude/claude-fable-5-1/max"]
+            ? ["claude/claude-opus-5-5/high", "claude/claude-fable-5-1/max"]
             : ["codex/gpt-5.6-sol/high", "codex/gpt-6-astra/max"]
 
         #expect(lineup(draft) == expected)
@@ -63,7 +63,7 @@ struct ReviewTeamDefaultsTests {
         let draft = viewModel.reviewTeamEditorSettings()
 
         #expect(lineup(draft) == [
-            "claude/claude-opus-5/high",
+            "claude/claude-opus-5-5/high",
             "codex/gpt-6-astra/max",
             "claude/claude-fable-5-1/max"
         ])
@@ -78,16 +78,16 @@ struct ReviewTeamDefaultsTests {
             ),
             .claude: ReviewTeamDefaultsFixtures.status(
                 for: .claude,
-                models: ReviewTeamDefaultsFixtures.models(for: .claude).filter { $0.model != "claude-opus-5" }
+                models: ReviewTeamDefaultsFixtures.models(for: .claude).filter { $0.model != "claude-opus-5-5" }
             )
         ]
         let (viewModel, _) = await makeViewModel(statuses: statuses)
 
         let draft = viewModel.reviewTeamEditorSettings()
 
-        #expect(lineup(draft).first == "claude/claude-opus-5/high")
+        #expect(lineup(draft).first == "claude/claude-opus-5-5/high")
         #expect(viewModel.pullRequestReviewTeamSettingsStatus(peers: draft.pullRequestReviewPeers, settings: draft)
-            == .needsAttention("Lead uses claude-opus-5, which is not a concrete available model."))
+            == .needsAttention("Lead uses claude-opus-5-5, which is not a concrete available model."))
     }
 
     @Test(arguments: [AgentHarnessID.codex, .claude], [false, true])
@@ -189,8 +189,11 @@ enum ReviewTeamDefaultsFixtures {
     }
 
     static func models(for harnessID: AgentHarnessID) -> [AgentModelOption] {
-        let ids = harnessID == .codex ? ["gpt-5.6-sol", "gpt-6-astra"] : ["claude-opus-5", "claude-fable-5-1"]
-        return ids.map { model(harnessID: harnessID, id: $0) }
+        let ids = harnessID == .codex ? ["gpt-5.6-sol", "gpt-6-astra"] : ["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1"]
+        return ids.map {
+            let efforts = $0 == "claude-opus-5-5" ? ["medium", "high", "max"] : ["high", "max"]
+            return model(harnessID: harnessID, id: $0, efforts: efforts)
+        }
     }
 
     static func model(harnessID: AgentHarnessID, id: String, efforts: [String] = ["high", "max"]) -> AgentModelOption {
@@ -200,6 +203,7 @@ enum ReviewTeamDefaultsFixtures {
         let label = switch id {
         case "gpt-5.6-sol": "GPT-5.6-Sol"
         case "gpt-6-astra": "GPT-6-Astra"
+        case "claude-opus-5-5": "Opus 5.5"
         case "claude-opus-5": "Opus 5"
         case "claude-fable-5-1": "Fable 5.1"
         default: id

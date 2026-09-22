@@ -112,7 +112,7 @@ extension SnapshotTests {
             PullRequestReviewPeer(id: "reviewer-2", harnessID: "codex", model: longModel.id, effort: "high"),
             PullRequestReviewPeer(id: "reviewer-3", harnessID: "codex", model: "gpt-6-astra", effort: "max"),
             PullRequestReviewPeer(id: "reviewer-4", harnessID: "claude", model: "claude-fable-5-1", effort: "max"),
-            PullRequestReviewPeer(id: "reviewer-5", harnessID: "claude", model: "claude-opus-5", effort: "high")
+            PullRequestReviewPeer(id: "reviewer-5", harnessID: "claude", model: "claude-opus-5-5", effort: "high")
         ]
 
         assertMacSnapshot(

@@ -109,7 +109,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.defaultHarness, "claude")
         // The picker value resolves the stored alias against the static catalog, mirroring what a
         // discovery-backed screen shows.
-        XCTAssertEqual(viewModel.defaultModel, "claude-opus-5")
+        XCTAssertEqual(viewModel.defaultModel, "claude-opus-5-5")
         XCTAssertEqual(viewModel.permissionMode, "acceptEdits")
         XCTAssertEqual(viewModel.effort, "high")
         XCTAssertEqual(viewModel.defaultThreadCleanupAction, .delete)
@@ -275,20 +275,20 @@ final class SettingsViewModelTests: XCTestCase {
     func testDefaultModelSetterPreservesEffortWhenNewModelStillSupportsIt() async {
         let service = InMemorySettingsService()
         service.update {
-            $0.defaultModel = "sonnet"
+            $0.defaultModel = "claude-sonnet-5"
             $0.effort = "high"
         }
         let viewModel = SettingsViewModel(
             settingsService: service,
             harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
-                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .claude))
             ])
         )
         await viewModel.refreshHarnessStatuses()
 
         viewModel.defaultModel = "opus"
 
-        XCTAssertEqual(service.current.defaultModel, "opus")
+        XCTAssertEqual(service.current.defaultModel, "claude-opus-5-5")
         XCTAssertEqual(service.current.effort, "high")
     }
 
@@ -322,28 +322,30 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.defaultModel, "gpt-5.4-mini")
     }
 
-    // Switching the default model to Opus while effort is still at the universal
-    // default (i.e. the user never touched the picker) should bump to Opus's
-    // preferred `high`, so the Settings picker reflects the same default a
-    // fresh thread will actually receive.
-    func testDefaultModelSetterUpgradesUntouchedEffortToPerModelDefault() async {
+    /// Switching models with untouched effort uses that version's default; older explicit pins retain their own default.
+    func testDefaultModelSetterUsesPerModelDefaultForUntouchedEffort() async {
         let service = InMemorySettingsService()
         let viewModel = SettingsViewModel(
             settingsService: service,
             harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
-                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
+                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .claude))
             ])
         )
         await viewModel.refreshHarnessStatuses()
-        service.update {
-            $0.defaultModel = "sonnet"
-            $0.effort = AppSettings.defaultEffortLevel
+        for (model, expectedModel, expectedEffort) in [
+            ("opus", "claude-opus-5-5", "medium"),
+            ("claude-opus-5", "claude-opus-5", "high")
+        ] {
+            service.update {
+                $0.defaultModel = "claude-sonnet-5"
+                $0.effort = AppSettings.defaultEffortLevel
+            }
+
+            viewModel.defaultModel = model
+
+            XCTAssertEqual(service.current.defaultModel, expectedModel)
+            XCTAssertEqual(service.current.effort, expectedEffort)
         }
-
-        viewModel.defaultModel = "opus"
-
-        XCTAssertEqual(service.current.defaultModel, "opus")
-        XCTAssertEqual(service.current.effort, "high")
     }
 
     func testSoundNameFallsBackToGlassWhenStoredValueIsNil() {

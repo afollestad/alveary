@@ -26,6 +26,8 @@ The public backlog and roadmap are tracked in the [Alveary project board](https:
 
 Harness settings show installation status and let you enable or disable each CLI. Alveary does not apply custom launch arguments; older saved extra arguments are ignored.
 
+Claude model pickers include Opus 5.5 (`claude-opus-5-5`). The `opus` shorthand selects Opus 5.5, while saved concrete model IDs keep their selected version. Opus 5.5 supports Low through Max effort; unsupported effort settings fall back to Medium.
+
 OpenCode integration targets the stable V1 server protocol in OpenCode `1.18.31` and requires a compatible stable `1.x` CLI. It supports coding/review sessions, native approvals, steering, subagents, compaction, model-dependent images, and isolated read-only utility and review-team workers. Isolated workers require a concrete model and a supported provider connection. Native goals, fast mode, and sandbox equivalence remain gated. See the [OpenCode capability matrix and architecture](docs/opencode-harness.md) for behavior, limitations, and compatibility testing.
 
 ## Projects and source folders

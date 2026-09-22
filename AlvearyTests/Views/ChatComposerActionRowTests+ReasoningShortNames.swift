@@ -51,27 +51,27 @@ extension ChatComposerActionRowTests {
         let options = [
             AgentCLIKit.AgentModelOption(
                 harnessId: .claude,
-                id: "claude-opus-5",
-                model: "claude-opus-5",
-                label: "Opus 5",
+                id: "claude-opus-5-5",
+                model: "claude-opus-5-5",
+                label: "Opus 5.5",
                 shortName: "opus"
             ),
             AgentCLIKit.AgentModelOption(
                 harnessId: .claude,
-                id: "claude-opus-4-8",
-                model: "claude-opus-4-8",
-                label: "Opus 4.8"
+                id: "claude-opus-5",
+                model: "claude-opus-5",
+                label: "Opus 5"
             )
         ]
 
         let menuItems = AgentModelOptionSelection.menuItems(
             in: options,
-            selectedModel: "claude-opus-5",
+            selectedModel: "claude-opus-5-5",
             fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
         )
 
-        XCTAssertEqual(menuItems.map(\.value), ["claude-opus-5", "claude-opus-4-8"])
-        XCTAssertEqual(menuItems.map(\.shortName), ["opus", "claude-opus-4-8"])
+        XCTAssertEqual(menuItems.map(\.value), ["claude-opus-5-5", "claude-opus-5"])
+        XCTAssertEqual(menuItems.map(\.shortName), ["opus", "claude-opus-5"])
     }
 
     func testReasoningModelOptionDefaultsShortNameToItsValue() {
