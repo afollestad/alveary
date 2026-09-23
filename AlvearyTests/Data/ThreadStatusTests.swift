@@ -214,11 +214,48 @@ final class ThreadStatusTests: XCTestCase {
         XCTAssertEqual(folded([.init(isWorking: true)], isArchived: true), .archived)
     }
 
+    // MARK: - Failed app-side work
+
+    /// A review team run that needs Retry or Restart ended no harness turn, so nothing else would
+    /// paint the row.
+    func testFailedAppWorkShowsError() {
+        XCTAssertEqual(folded([.init(hasFailedWork: true)]), .error)
+    }
+
+    func testFailedAppWorkBeatsUnread() {
+        XCTAssertEqual(folded([.init(isUnread: true, hasFailedWork: true)]), .error)
+    }
+
+    func testFailedAppWorkInOneConversationMarksTheWholeThread() {
+        XCTAssertEqual(
+            folded([
+                .init(isUnread: true),
+                .init(hasFailedWork: true)
+            ]),
+            .error
+        )
+    }
+
+    /// Unlike `lastTurnFailed`, a failed run suppresses nothing: a turn the user starts beside it
+    /// is live, so it spins.
+    func testLiveBusyOutranksFailedAppWork() {
+        XCTAssertEqual(folded([.init(runtime: .busy, hasFailedWork: true)]), .busy)
+    }
+
+    func testWaitingOutranksFailedAppWork() {
+        XCTAssertEqual(folded([.init(awaitsDecision: true, hasFailedWork: true)]), .waitingForUser)
+    }
+
+    func testArchivedOverridesFailedAppWork() {
+        XCTAssertEqual(folded([.init(hasFailedWork: true)], isArchived: true), .archived)
+    }
+
     private struct ConversationSpec {
         var isUnread = false
         var runtime: ActivitySignal = .neutral
         var awaitsDecision = false
         var isWorking = false
+        var hasFailedWork = false
         var lastTurnFailed = false
     }
 
@@ -232,6 +269,7 @@ final class ThreadStatusTests: XCTestCase {
                 isUnread: spec.isUnread,
                 awaitsUserDecision: spec.awaitsDecision,
                 isWorking: spec.isWorking,
+                hasFailedWork: spec.hasFailedWork,
                 lastTurnFailed: spec.lastTurnFailed
             )
         }

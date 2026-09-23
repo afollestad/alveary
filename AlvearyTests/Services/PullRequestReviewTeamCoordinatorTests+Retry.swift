@@ -39,6 +39,25 @@ extension PullRequestReviewTeamCoordinatorTests {
     }
 
     @Test
+    func `a quorum-failed run reports failure until retry resumes it`() async throws {
+        let fixture = try ReviewCoordinatorFixture()
+        await fixture.worker.configure(failedInspectors: ["peer-1", "peer-2"])
+        try fixture.start()
+        let failed = try await fixture.terminalRun()
+        #expect(failed.phase == .failed)
+        #expect(fixture.coordinator.failedConversationIDs == [failed.conversationID])
+        #expect(fixture.coordinator.workingConversationIDs.isEmpty)
+        await fixture.worker.configure()
+
+        fixture.coordinator.retryFailedReviewers(conversationID: failed.conversationID, runID: failed.id, generation: failed.generation)
+
+        #expect(fixture.coordinator.failedConversationIDs.isEmpty)
+        #expect(fixture.coordinator.workingConversationIDs == [failed.conversationID])
+        #expect(try await fixture.terminalRun().phase == .staged)
+        #expect(fixture.coordinator.failedConversationIDs.isEmpty)
+    }
+
+    @Test
     func `retry failed cross-checks keeps canonical findings and completed reports`() async throws {
         let fixture = try ReviewCoordinatorFixture()
         let failed = try await failCrossChecks(fixture)

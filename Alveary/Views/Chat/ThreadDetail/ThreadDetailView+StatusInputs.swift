@@ -20,8 +20,9 @@ extension ThreadDetailView {
         )
     }
 
-    /// Working-ring sources the runtime cannot report, so a chip spins alongside its sidebar row
-    /// rather than showing the dot the same proposal raised while it was still pending.
+    /// Working-ring and failed-dot sources the runtime cannot report, so a chip spins or turns red
+    /// alongside its sidebar row rather than showing the dot the same proposal raised while it was
+    /// still pending.
     ///
     /// Read from `body` for the same reason as `decisionAttention` above, and for one more that
     /// `ConversationWorkActivity` owns: this read *is* the chip's repaint signal.

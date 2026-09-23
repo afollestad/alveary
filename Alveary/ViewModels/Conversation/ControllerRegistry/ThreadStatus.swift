@@ -25,6 +25,9 @@ struct ConversationStatusSnapshot: Equatable {
     let awaitsUserDecision: Bool
     /// From `ConversationWorkActivity.isWorking(_:)` — app-side work the runtime cannot report.
     let isWorking: Bool
+    /// From `ConversationWorkActivity.hasFailedWork(_:)` — app-side work that failed where neither
+    /// the runtime nor a turn records it, such as a review team run awaiting Retry or Restart.
+    let hasFailedWork: Bool
     /// `Conversation.lastTurnFailedAt != nil` — the durable half of `.error`, since the runtime's
     /// own signal lives only in `DefaultAgentsManager.statusSnapshot`.
     let lastTurnFailed: Bool
@@ -46,6 +49,7 @@ extension ConversationStatusSnapshot {
             isUnread: conversation.isUnread,
             awaitsUserDecision: attention.awaitsDecision(conversation),
             isWorking: activity.isWorking(conversation.id),
+            hasFailedWork: activity.hasFailedWork(conversation.id),
             lastTurnFailed: conversation.lastTurnFailedAt != nil
         )
     }
@@ -66,10 +70,16 @@ extension ThreadStatus {
     /// than showing the dot behind it.
     ///
     /// `lastTurnFailed` is the durable half of `.error`, and it deliberately outranks that
-    /// conversation's own `.busy`. Nothing records it without a turn ending, and
-    /// `markVisibleTurnStarted()` clears it, so a flag that is still set proves no turn has begun
-    /// since — which makes a `.busy` alongside it a signal a dead process never released. A
-    /// *sibling* conversation that is genuinely working still spins the whole row.
+    /// conversation's own `.busy`. Only a failed turn's end records it, or a first send or pull
+    /// request launch that failed before any turn began, and `markVisibleTurnStarted()` clears it.
+    /// So a flag that is still set proves no turn has begun since, which makes a `.busy` alongside
+    /// it a signal a dead process never released. A *sibling* conversation that is genuinely
+    /// working still spins the whole row.
+    ///
+    /// `hasFailedWork` is `isWorking`'s failed counterpart and ranks exactly like the runtime's
+    /// `.error`: below busy and waiting, above unread. Unlike `lastTurnFailed` it suppresses no
+    /// `.busy` — a failed review team run says nothing about a harness turn the user starts beside
+    /// it, and nothing clears it when one does.
     ///
     /// `runtimeFor` stays a closure because runtime signals are in-memory coordinator state, not
     /// persisted rows; it is keyed by `Conversation.id` so no model crosses the fold's boundary.
@@ -114,7 +124,8 @@ private struct ThreadStatusFold {
         if signal == .waitingForUser || conversation.awaitsUserDecision {
             isWaitingForUser = true
         }
-        if signal == .error {
+        // Outside the `lastTurnFailed` chain for the reason `folded` gives.
+        if signal == .error || conversation.hasFailedWork {
             hasError = true
         }
         if conversation.isUnread {

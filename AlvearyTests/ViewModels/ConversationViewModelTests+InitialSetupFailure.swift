@@ -33,7 +33,9 @@ extension ConversationViewModelTests {
         XCTAssertFalse(try fixture.dbThread().hasCompletedInitialSetup)
 
         // The rollback records no terminal boundary, and it must not: there is no transcript error
-        // row and no turn, so a red sidebar dot on a thread reset to "never sent" would be a lie.
+        // row and no turn, so a red sidebar dot on a thread reset to "never sent" would be a lie —
+        // for a send the user watched fail. An unattended one is marked by its caller instead;
+        // see `ConversationViewModel.recordUnattendedStartFailure()`.
         XCTAssertNil(fixture.conversation.lastTurnFailedAt)
 
         // The thread and its attempted message survive; only the phantom turn is gone.

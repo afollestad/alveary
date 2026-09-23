@@ -329,8 +329,35 @@ extension PullRequestAgenticThreadServiceTests {
         let target = try XCTUnwrap(destination)
         let conversation = try XCTUnwrap(start.fixture.context.resolveConversation(conversationID: target.conversationID))
         XCTAssertEqual(conversation.events.filter { $0.type == ConversationEventRecord.errorType }.count, 1)
+        // No turn ever ends here, so the launch failure itself is what turns the row red.
+        XCTAssertNotNil(conversation.lastTurnFailedAt)
         XCTAssertTrue(start.prompts.prompts.isEmpty)
         XCTAssertFalse(start.service.activity.isWorking(start.identifier, kind: .review))
+    }
+
+    /// A thread whose setup already ran belongs to a turn the user started, which owns the flag;
+    /// writing it would outrank that turn's live spinner.
+    func testLaunchFailureAfterInitialSetupLeavesTheFailureFlagToTheTurn() async throws {
+        let start = try makeStartFixture()
+        var destination: PullRequestAgenticThreadDestination?
+        do {
+            _ = try await start.service.start(
+                kind: .review, identifier: start.identifier, url: start.url,
+                checkpoint: { target in
+                    destination = target
+                    let conversation = start.fixture.context.resolveConversation(conversationID: target.conversationID)
+                    conversation?.thread?.hasCompletedInitialSetup = true
+                    throw LaunchTestError.refused
+                }
+            )
+            XCTFail("A failed checkpoint must prevent dispatch")
+        } catch {
+            XCTAssertEqual((error as? PullRequestAgenticThreadLaunchError)?.underlying as? LaunchTestError, .refused)
+        }
+        let target = try XCTUnwrap(destination)
+        let conversation = try XCTUnwrap(start.fixture.context.resolveConversation(conversationID: target.conversationID))
+        XCTAssertEqual(conversation.events.filter { $0.type == ConversationEventRecord.errorType }.count, 1)
+        XCTAssertNil(conversation.lastTurnFailedAt)
     }
 
     func testAnActiveRouteReusesItsTaskUntilTheHarnessTurnEnds() async throws {

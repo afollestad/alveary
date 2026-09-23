@@ -450,6 +450,7 @@ extension ConversationViewModel {
         state.lastTurnInterrupted = false
         state.isCancellingTurn = false
         state.lastTurnError = nil
+        clearDurableTurnFailure()
     }
 
     private func completeInitialPromptSetup(

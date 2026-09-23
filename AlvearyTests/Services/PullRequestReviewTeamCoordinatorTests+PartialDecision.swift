@@ -15,6 +15,8 @@ extension PullRequestReviewTeamCoordinatorTests {
         #expect(paused.canContinueWithMajority)
         #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
         #expect(fixture.coordinator.workingConversationIDs.isEmpty)
+        // A decision point, not a failure: the row stays blue even though Retry failed reviewers shows.
+        #expect(fixture.coordinator.failedConversationIDs.isEmpty)
         #expect(fixture.coordinator.activity.isWorking(fixture.identifier, kind: .review))
 
         NotificationCenter.default.post(name: .reviewTeamContinueRequested, object: nil, userInfo: [

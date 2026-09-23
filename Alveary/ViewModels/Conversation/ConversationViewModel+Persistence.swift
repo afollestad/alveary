@@ -37,13 +37,30 @@ extension ConversationViewModel {
     /// Drops a recorded failure when a new attempt begins. `ThreadStatus.folded` leans on this:
     /// a surviving flag is what proves a `.busy` signal belongs to a turn that never ended.
     ///
-    /// Two callers, and the order matters. `markVisibleTurnStarted()` is the general owner, but
-    /// `sendReserved` clears again *before* dispatching, because the dispatch is what puts the
-    /// runtime in `.busy` and `markVisibleTurnStarted()` only runs once it returns — clearing
-    /// solely there can paint the row red for the frames in between. It sits with the
-    /// `lastTurnError` reset for the same reason: a new attempt drops the previous turn's fallout.
+    /// Three callers, and the order matters. `markVisibleTurnStarted()` is the general owner, but
+    /// `sendReserved` and `prepareInitialSetupStart()` clear again *before* dispatching or
+    /// spawning, because either is what puts the runtime in `.busy` and
+    /// `markVisibleTurnStarted()` only runs once it returns — clearing solely there can paint the
+    /// row red for the frames in between, which for a spawn is the whole startup. Each sits with
+    /// its `lastTurnError` reset for the same reason: a new attempt drops the previous fallout.
     func clearDurableTurnFailure() {
         applyDurableTurnFailure(nil)
+    }
+
+    /// Paints an unattended first send's failure — `AppComponent.startHeadlessInitialPrompt`'s.
+    ///
+    /// A first send the user typed and watched fail keeps its gray "never sent" row
+    /// (`testFailedInitialSetupEndsOptimisticTurnAndAllowsHarnessSwitch` owns why), because the
+    /// "Not sent" bubble in front of them already says so. Nobody watched this one, so the dot is
+    /// the only report. Only before initial setup completes, where no turn can own the flag;
+    /// Retry and every later send clear it before spawning. Unlike the terminal-boundary writer,
+    /// this runs outside the registry's reconciliation, so it schedules its own save.
+    func recordUnattendedStartFailure() {
+        guard dbThread()?.hasCompletedInitialSetup == false else {
+            return
+        }
+        applyDurableTurnFailure(Date())
+        scheduleSave()
     }
 
     /// Writes the flag and deliberately schedules no save of its own.

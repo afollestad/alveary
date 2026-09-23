@@ -3,10 +3,10 @@ import XCTest
 
 @testable import Alveary
 
-/// `Conversation.lastTurnFailedAt` is the durable half of `ThreadStatus.error`. Every failure path
+/// `Conversation.lastTurnFailedAt` is the durable half of `ThreadStatus.error`. Every turn failure
 /// reaches it through the one classifier, `ConversationState.recordControllerTerminalBoundary()`,
 /// so these cover the shapes that must set it, the ones that must clear it, and the two that must
-/// leave it alone.
+/// leave it alone — plus the unattended first send that fails before any turn begins.
 @MainActor
 extension ConversationViewModelTests {
     func testHarnessErrorEventMarksTheConversationDurablyFailed() throws {
@@ -124,6 +124,49 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.conversation.lastTurnFailedAt)
     }
 
+    /// A background first send that fails to spawn leaves a "Not sent" row nobody is looking at, so
+    /// its caller marks the failure the view-model rollback deliberately leaves unset.
+    func testUnattendedStartFailureMarksTheConversationFailed() async throws {
+        let fixture = try ConversationViewModelTestFixture(hasCompletedInitialSetup: false, harnessId: "codex")
+        await fixture.agentsManager.enqueueSpawnError(MockAgentsManager.MockError.sendFailed)
+        do {
+            try await fixture.viewModel.setupAndStart("Review pull request: https://example.com/pull/1")
+            XCTFail("Expected initial setup to throw")
+        } catch MockAgentsManager.MockError.sendFailed {}
+        XCTAssertNil(fixture.conversation.lastTurnFailedAt)
+
+        fixture.viewModel.recordUnattendedStartFailure()
+
+        XCTAssertNotNil(fixture.conversation.lastTurnFailedAt)
+    }
+
+    /// Once setup has run, a turn owns the flag.
+    func testUnattendedStartFailureLeavesACompletedSetupAlone() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.recordUnattendedStartFailure()
+
+        XCTAssertNil(fixture.conversation.lastTurnFailedAt)
+    }
+
+    /// A thread whose setup never completed sends through initial setup, which posts `.busy` at
+    /// spawn; `markVisibleTurnStarted()` only runs after it, so the clear must precede the spawn.
+    func testInitialSetupClearsDurableFailureBeforeSpawning() async throws {
+        let fixture = try ConversationViewModelTestFixture(hasCompletedInitialSetup: false, harnessId: "codex")
+        fixture.conversation.lastTurnFailedAt = Date()
+        let probe = DurableFailureSpawnProbe()
+        let viewModel = fixture.viewModel
+        await fixture.agentsManager.setSpawnPrologue {
+            probe.failedAtSpawn = viewModel.dbConversation()?.lastTurnFailedAt
+            probe.didSpawn = true
+        }
+
+        try await fixture.viewModel.setupAndStart("Review pull request: https://example.com/pull/1")
+
+        XCTAssertTrue(probe.didSpawn)
+        XCTAssertNil(probe.failedAtSpawn)
+    }
+
     /// `restoreStateAfterFailedInitialSetup` swaps the state, so the writer has to be reinstalled
     /// or outcomes stop persisting after any rollback.
     func testReplacedConversationStateStillPersistsTerminalOutcomes() throws {
@@ -154,4 +197,12 @@ extension ConversationViewModelTests {
             isTerminal: true
         )
     }
+}
+
+/// What the durable failure read when the spawn began. The spawn prologue is `@Sendable`, so it
+/// records into this rather than capturing the non-Sendable `Conversation`.
+@MainActor
+private final class DurableFailureSpawnProbe {
+    var didSpawn = false
+    var failedAtSpawn: Date?
 }

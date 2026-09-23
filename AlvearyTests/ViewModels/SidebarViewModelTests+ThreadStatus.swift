@@ -80,4 +80,24 @@ extension SidebarViewModelTests {
             .busy
         )
     }
+
+    /// A failed review team run ended no harness turn, so only the app-side failed half reports it.
+    /// It suppresses nothing, unlike a durable turn failure: a turn the user starts there spins.
+    func testThreadStatusShowsErrorForAFailedReviewTeamRunButSpinsForALiveTurn() async throws {
+        let fixture = try SidebarTestFixture()
+        let thread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-failed-review",
+            conversationIDs: ["review"]
+        )
+        let activity = ConversationWorkActivity(
+            publishingReviewConversationIDs: [], failedCollectiveReviewConversationIDs: ["review"]
+        )
+        XCTAssertEqual(fixture.threadStatus(for: thread), .stopped)
+        XCTAssertEqual(fixture.threadStatus(for: thread, activity: activity), .error)
+
+        await fixture.agentsManager.setStatus(.busy, for: "review")
+
+        XCTAssertEqual(fixture.threadStatus(for: thread, activity: activity), .busy)
+    }
 }

@@ -69,7 +69,8 @@ extension AppComponent {
     ///
     /// Detached on purpose — `create_thread` reports dispatch, not the turn's outcome. A spawn
     /// failure leaves a retryable failed first message on the new thread, which is the same thing
-    /// the user would see had they started it themselves.
+    /// the user would see had they started it themselves — and, unlike that case, marks the thread
+    /// failed, because nobody watched the send fail (`recordUnattendedStartFailure()`).
     /// Shared by `create_thread` and the pull request pane's agentic review, which differ only
     /// in the prompt they dispatch.
     func startHeadlessInitialPrompt(conversation: Conversation, prompt: String) {
@@ -81,7 +82,10 @@ extension AppComponent {
             do {
                 try await lease.viewModel.setupAndStart(prompt)
             } catch {
-                // The failure is already durable on the thread's own transcript.
+                // Nobody is expected to be watching this transcript's "Not sent" row; the red dot reports it.
+                if !(error is CancellationError) {
+                    lease.viewModel.recordUnattendedStartFailure()
+                }
                 return
             }
             // Hold the lease until the turn finishes so the controller is not torn down mid-turn.

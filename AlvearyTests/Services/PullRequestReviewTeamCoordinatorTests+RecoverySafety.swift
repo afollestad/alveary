@@ -167,6 +167,42 @@ extension PullRequestReviewTeamCoordinatorTests {
         #expect(recovered.error?.contains("Could not verify saved cancellation") == true)
         #expect(recovered.history?.first?.status == .interrupted)
         #expect(recovered.history?.first?.finishedAt != nil)
+        #expect(fixture.coordinator.failedConversationIDs == [run.conversationID])
+        #expect(await fixture.worker.calls.isEmpty)
+    }
+
+    @Test
+    func `a failed run restored at launch reports failure`() throws {
+        let fixture = try ReviewCoordinatorFixture()
+        var run = try fixture.makeRun()
+        run.phase = .failed
+        run.error = ReviewTeamError.revisionChanged.localizedDescription
+        run.requiresNewRun = true
+        try fixture.coordinator.persist(run)
+        let relaunched = recoveryCoordinator(fixture, cancellationStore: fixture.coordinator.cancellationStore)
+        #expect(relaunched.failedConversationIDs.isEmpty)
+
+        relaunched.recover()
+
+        #expect(relaunched.failedConversationIDs == [run.conversationID])
+        #expect(relaunched.workingConversationIDs.isEmpty)
+    }
+
+    @Test
+    func `an interrupted run whose resume cannot be saved reports failure`() async throws {
+        let saves = ReviewCoordinatorSaveControl()
+        let fixture = try ReviewCoordinatorFixture(commitSave: saves.save)
+        var run = try fixture.makeRun()
+        run.phase = .interrupted
+        try fixture.coordinator.persist(run)
+        saves.shouldFail = true
+
+        fixture.coordinator.recover()
+
+        #expect(fixture.coordinator.runs[run.conversationID]?.phase == .interrupted)
+        #expect(fixture.coordinator.runs[run.conversationID]?.error != nil)
+        #expect(fixture.coordinator.failedConversationIDs == [run.conversationID])
+        #expect(fixture.coordinator.workingConversationIDs.isEmpty)
         #expect(await fixture.worker.calls.isEmpty)
     }
 

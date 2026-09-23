@@ -56,6 +56,41 @@ extension PullRequestReviewTeamCoordinatorTests {
         #expect(try fixture.conversation.pullRequestReviewProposal()?.sourceRunID == fresh.id)
     }
 
+    /// A revision change leaves a run needing Restart, whose thread must read as failed rather than
+    /// idle until the replacement starts.
+    @Test
+    func `a revision-changed run reports failure until restart replaces it`() async throws {
+        let fixture = try ReviewCoordinatorFixture()
+        fixture.service.revisionResults = [
+            .success(PullRequestRevision(status: .open, baseRefOid: "base", headRefOid: "head")),
+            .success(PullRequestRevision(status: .open, baseRefOid: "base", headRefOid: "new-head"))
+        ]
+        try fixture.start()
+        let originalTask = try #require(fixture.coordinator.scheduledTaskForTesting(conversationID: fixture.conversation.id))
+        try await fixture.waitForCompletion(of: originalTask)
+        let failed = try #require(fixture.coordinator.runs[fixture.conversation.id])
+        #expect(failed.phase == .failed && failed.canRestart)
+        #expect(fixture.coordinator.failedConversationIDs == [failed.conversationID])
+        #expect(fixture.coordinator.workingConversationIDs.isEmpty)
+        var detail = try fixture.service.detailResult.get()
+        detail.headRefOid = "new-head"
+        fixture.service.detailResult = .success(detail)
+        fixture.service.diffSnapshotResult = .success(try PullRequestDiffSnapshot.make(
+            text: makeUnifiedDiffFixture(fileCount: 1), baseOID: "base", headOID: "new-head"
+        ))
+
+        NotificationCenter.default.post(name: .reviewTeamRestartRequested, object: nil, userInfo: [
+            "conversationID": failed.conversationID, "runID": failed.id, "generation": failed.generation
+        ])
+
+        #expect(fixture.coordinator.failedConversationIDs.isEmpty)
+        #expect(fixture.coordinator.workingConversationIDs == [failed.conversationID])
+        let replacementTask = try #require(fixture.coordinator.scheduledTaskForTesting(conversationID: failed.conversationID))
+        try await fixture.waitForCompletion(of: replacementTask)
+        #expect(try fixture.conversation.collectiveReviewRun()?.phase == .staged)
+        #expect(fixture.coordinator.failedConversationIDs.isEmpty && fixture.coordinator.workingConversationIDs.isEmpty)
+    }
+
     @Test
     func `restart captures current staged proposal edits instead of the failed run snapshot`() async throws {
         let fixture = try ReviewCoordinatorFixture()

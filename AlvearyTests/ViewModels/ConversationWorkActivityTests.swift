@@ -10,6 +10,17 @@ import XCTest
 final class ConversationWorkActivityTests: XCTestCase {
     func testNoSourcesMeansNoWork() {
         XCTAssertFalse(ConversationWorkActivity.none.isWorking("conversation-1"))
+        XCTAssertFalse(ConversationWorkActivity.none.hasFailedWork("conversation-1"))
+    }
+
+    /// The failed half folds as `.error`, never `.busy`, so it must not read as work.
+    func testFailedCollectiveReviewIsNotWork() {
+        let activity = ConversationWorkActivity(
+            publishingReviewConversationIDs: [], failedCollectiveReviewConversationIDs: ["failed"]
+        )
+        XCTAssertTrue(activity.hasFailedWork("failed"))
+        XCTAssertFalse(activity.isWorking("failed"))
+        XCTAssertFalse(activity.hasFailedWork("idle"))
     }
 
     func testAPublishingReviewFlipsIt() {

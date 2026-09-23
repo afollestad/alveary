@@ -18,18 +18,18 @@ struct SidebarRenderContext {
     let showsPullRequests: Bool
     /// Per-thread status inputs, snapshotted as values once per body.
     ///
-    /// Two constraints meet here. The waiting-dot and working-ring sets behind
+    /// Two constraints meet here. The waiting-dot, working-ring, and failed-dot sets behind
     /// `ConversationDecisionAttention` and `ConversationWorkActivity` are cached observable
     /// coordinator state whose reads must land inside `SidebarView.body`'s observation scope: every
     /// `sidebarThreadRow` call site sits in a `ForEach` content closure, which registers on that
-    /// element instead, and nothing else repaints the row when a proposal resolves or its submit
-    /// starts and ends — those happen outside the harness turn, so no `.agentStatusChanged` bumps
-    /// `statusVersion`, and both proposal coordinators clear through their own `ModelContext`, so
-    /// the sidebar's `@Query` never sees it either. And the persisted per-conversation reads must
-    /// happen while this pass's liveness-filtered rows are known live — deferring them to a row
-    /// or fold that runs later can trap on a deleted row (`ConversationStatusSnapshot` owns the
-    /// mechanism). `ThreadDetailView` builds its tab presentations in `body` against the same
-    /// hazards.
+    /// element instead, and nothing else repaints the row when a proposal resolves, its submit
+    /// starts and ends, or a review team run fails — those happen outside the harness turn, so no
+    /// `.agentStatusChanged` bumps `statusVersion`, and both proposal coordinators clear through
+    /// their own `ModelContext`, so the sidebar's `@Query` never sees it either. And the persisted
+    /// per-conversation reads must happen while this pass's liveness-filtered rows are known live —
+    /// deferring them to a row or fold that runs later can trap on a deleted row
+    /// (`ConversationStatusSnapshot` owns the mechanism). `ThreadDetailView` builds its tab
+    /// presentations in `body` against the same hazards.
     let conversationStatusesByThreadID: [PersistentIdentifier: [ConversationStatusSnapshot]]
     /// Collapsed containers hiding a thread worth surfacing, folded once per body beside the
     /// statuses above — `SidebarCollapsedActivity` owns why a row builder may not fold it instead.
@@ -125,7 +125,7 @@ extension SidebarView {
     ///
     /// Both coordinator reads happen here rather than behind the fold, because this runs
     /// synchronously inside `SidebarView.body`'s observation scope — that read is what repaints a
-    /// row when a proposal resolves or its submit starts and ends.
+    /// row when a proposal resolves, its submit starts and ends, or a review team run fails.
     private func makeConversationStatuses(
         settings: AppSettings
     ) -> [PersistentIdentifier: [ConversationStatusSnapshot]] {

@@ -9,7 +9,7 @@ struct ReviewTeamConversationActivityTests {
     @Test(arguments: [
         (ReviewTeamRun.Phase.preparing, ThreadStatus.busy), (.inspecting, .busy), (.consolidating, .busy),
         (.crossChecking, .busy), (.staging, .busy), (.awaitingDecision, .waitingForUser),
-        (.staged, .stopped), (.completed, .stopped), (.cancelled, .stopped)
+        (.staged, .stopped), (.completed, .stopped), (.cancelled, .stopped), (.failed, .error), (.interrupted, .error)
     ])
     func `coordinator drives sidebar and tab activity without a harness turn`(
         phase: ReviewTeamRun.Phase, expected: ThreadStatus
@@ -26,6 +26,8 @@ struct ReviewTeamConversationActivityTests {
 
         #expect(ThreadStatus.folded(isArchived: false, conversations: [snapshot], runtimeFor: { _ in .neutral }) == expected)
         #expect(activity.isWorking("another-conversation") == false)
+        #expect(activity.hasFailedWork(fixture.conversation.id) == (phase == .failed || phase == .interrupted))
+        #expect(activity.hasFailedWork("another-conversation") == false)
     }
 
     @Test(arguments: [true, false])

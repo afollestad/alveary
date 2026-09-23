@@ -195,6 +195,10 @@ extension PullRequestAgenticThreadService {
         }
     }
 
+    /// A launch that fails after its task exists runs no turn, so no terminal boundary will paint the row;
+    /// this records the durable failure beside the error row instead. Only before initial setup completes:
+    /// the team path awaits its link while the new thread is already visible, and a turn the user started
+    /// there owns the flag — writing it mid-turn would outrank that turn's live spinner.
     private func recordLaunchFailure(_ error: any Error, destination: PullRequestAgenticThreadDestination) {
         let context = lifecycleService.modelContext
         guard let conversation = context.resolveConversation(conversationID: destination.conversationID) else { return }
@@ -202,6 +206,9 @@ extension PullRequestAgenticThreadService {
             conversationId: conversation.id, type: ConversationEventRecord.errorType,
             content: "Review could not start: \(error.localizedDescription)", isError: true, conversation: conversation
         ))
+        if conversation.thread?.hasCompletedInitialSetup == false {
+            conversation.lastTurnFailedAt = .now
+        }
         try? context.save()
     }
 }

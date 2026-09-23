@@ -62,6 +62,14 @@ final class PullRequestReviewTeamCoordinator {
         Set(runs.values.filter { $0.phase.isWorking }.map(\.conversationID))
     }
 
+    /// Runs whose card offers Retry review, Restart review, or Retry failed reviewers with no decision pending —
+    /// the thread's red dot. `.interrupted` counts because `recover()` resumes every interrupted run, so one still
+    /// here is a resume whose save failed; quitting interrupts runs only during termination, which paints no later
+    /// frame. Keep this apart from `workingConversationIDs`, which gates sudden termination.
+    var failedConversationIDs: Set<String> {
+        Set(runs.values.filter { $0.phase == .failed || $0.phase == .interrupted }.map(\.conversationID))
+    }
+
     #if DEBUG
     /// Capture before cancellation removes the dictionary entry so tests can await late-result consumption.
     func scheduledTaskForTesting(conversationID: String) -> Task<Void, Never>? {
