@@ -172,6 +172,38 @@ struct ReviewTeamHistoryStoreTests {
         }
     }
 
+    @Test func `removing one run keeps sibling runs and later saves for the task`() async throws {
+        let fixture = try HistoryStoreFixture()
+        defer { fixture.cleanUp() }
+        let store = ReviewTeamHistoryStore(rootDirectory: fixture.root)
+        _ = try await fixture.save(in: store)
+        let sibling = try await store.save(conversationID: "task", runID: "replacement", name: "prompt", data: Data("new".utf8))
+
+        try await store.remove(conversationID: "task", runID: "run")
+        try await store.remove(conversationID: "task", runID: "never-saved")
+        try await store.remove(conversationID: "absent-task", runID: "run")
+
+        #expect(!fixture.exists(fixture.runDirectory()))
+        #expect(try await store.read(sibling, conversationID: "task", runID: "replacement") == Data("new".utf8))
+        let later = try await fixture.save(in: store, text: "later")
+        #expect(try await store.read(later, conversationID: "task", runID: "run") == Data("later".utf8))
+    }
+
+    @Test func `removing one run never follows a redirected run directory`() async throws {
+        let fixture = try HistoryStoreFixture()
+        defer { fixture.cleanUp() }
+        let store = ReviewTeamHistoryStore(rootDirectory: fixture.root)
+        let artifact = try await fixture.save(in: store)
+        let outside = fixture.parent.appendingPathComponent("outside")
+        try FileManager.default.moveItem(at: fixture.runDirectory(), to: outside)
+        try FileManager.default.createSymbolicLink(at: fixture.runDirectory(), withDestinationURL: outside)
+
+        await #expect(throws: ReviewTeamHistoryStoreError.pathEscapedRoot) {
+            try await store.remove(conversationID: "task", runID: "run")
+        }
+        #expect(fixture.exists(outside.appendingPathComponent(artifact.id)))
+    }
+
     @Test func `deletion removes modified blobs and interrupted temporary writes`() async throws {
         let fixture = try HistoryStoreFixture()
         defer { fixture.cleanUp() }

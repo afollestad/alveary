@@ -55,7 +55,8 @@ struct ReviewTeamRun: Codable, Equatable, Sendable, Identifiable {
     var supersededProposalIDs: [String]
     /// Frozen revisions or prior-proposal conflicts cannot be repaired by retrying the same input.
     var requiresNewRun: Bool?
-    /// Retain the failed run's history while removing its restart control after a replacement is saved.
+    /// Legacy only: restarts once kept the failed card beside its replacement, and those cards must not offer Restart again.
+    /// Restarts now rekey the failed card to the replacement run, so nothing writes this.
     var restartedRunID: String?
     /// Nil distinguishes historical runs that never captured exact worker inputs and responses.
     var history: [ReviewTeamAttempt]?

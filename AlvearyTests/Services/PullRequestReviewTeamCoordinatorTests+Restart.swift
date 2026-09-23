@@ -7,10 +7,11 @@ import Testing
 @MainActor
 extension PullRequestReviewTeamCoordinatorTests {
     @Test
-    func `revision change restart reviews the latest input in the same conversation and keeps prior history`() async throws {
+    func `revision change restart reviews the latest input in the failed run's card and drops its history`() async throws {
         let historyRoot = FileManager.default.temporaryDirectory.appendingPathComponent("review-restart-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: historyRoot) }
-        let fixture = try ReviewCoordinatorFixture(historyStore: ReviewTeamHistoryStore(rootDirectory: historyRoot))
+        let store = ReviewTeamHistoryStore(rootDirectory: historyRoot)
+        let fixture = try ReviewCoordinatorFixture(historyStore: store)
         fixture.service.revisionResults = [
             .success(PullRequestRevision(status: .open, baseRefOid: "base", headRefOid: "head")),
             .success(PullRequestRevision(status: .open, baseRefOid: "base", headRefOid: "new-head"))
@@ -23,6 +24,9 @@ extension PullRequestReviewTeamCoordinatorTests {
         #expect(failed.error == ReviewTeamError.revisionChanged.localizedDescription)
         #expect(failed.voteReports.count == 3)
         #expect(failed.history?.count == 7)
+        let failedPrompt = try #require(failed.history?.first?.prompt)
+        // Keeping the record keeps its timestamp, which is the card's transcript position.
+        let failedCard = try restartTranscriptEvent(fixture.conversation, runID: failed.id)
         var detail = try fixture.service.detailResult.get()
         detail.headRefOid = "new-head"
         fixture.service.detailResult = .success(detail)
@@ -49,11 +53,13 @@ extension PullRequestReviewTeamCoordinatorTests {
         let calls = await fixture.worker.calls
         #expect(calls.filter { $0.phase == "inspection" }.count == 6)
         #expect(calls.filter { $0.phase == "votes" }.count == 6)
-        let previous = try restartTranscriptRun(fixture.conversation, runID: failed.id)
-        #expect(previous.restartedRunID == fresh.id && !previous.canRestart)
-        #expect(previous.history == failed.history && previous.voteReports == failed.voteReports)
-        #expect(fixture.conversation.events.filter { $0.type == ConversationEventRecord.collectiveReviewRunType }.count == 2)
+        let cards = fixture.conversation.events.filter { $0.type == ConversationEventRecord.collectiveReviewRunType }
+        #expect(cards.count == 1 && cards.first === failedCard)
+        #expect(try restartTranscriptRun(fixture.conversation, runID: fresh.id) == completed)
         #expect(try fixture.conversation.pullRequestReviewProposal()?.sourceRunID == fresh.id)
+        try await fixture.wait {
+            (try? await store.read(failedPrompt, conversationID: failed.conversationID, runID: failed.id)) == nil
+        }
     }
 
     /// A revision change leaves a run needing Restart, whose thread must read as failed rather than
@@ -148,7 +154,8 @@ extension PullRequestReviewTeamCoordinatorTests {
         fixture.coordinator.restart(conversationID: newer.conversationID, runID: newer.id, generation: newer.generation)
 
         #expect(fixture.coordinator.runs[newer.conversationID]?.id == fresh.id)
-        #expect(fixture.conversation.events.filter { $0.type == ConversationEventRecord.collectiveReviewRunType }.count == 2)
+        #expect(fixture.conversation.events.filter { $0.type == ConversationEventRecord.collectiveReviewRunType }.map(\.id)
+            == ["collective-review-run:\(fresh.id)"])
         let task = try #require(fixture.coordinator.scheduledTaskForTesting(conversationID: fresh.conversationID))
         try await fixture.waitForCompletion(of: task)
         #expect(await fixture.worker.inspectionCount == 3)
@@ -176,7 +183,8 @@ extension PullRequestReviewTeamCoordinatorTests {
         let readContext = ModelContext(fixture.container)
         let saved = try #require(readContext.resolveConversation(conversationID: failed.conversationID))
         #expect(saved.pullRequestReviewRunJSON == priorJSON)
-        #expect(try restartTranscriptRun(saved, runID: failed.id).restartedRunID == nil)
+        #expect(priorEvent.id == "collective-review-run:\(failed.id)")
+        #expect(try restartTranscriptRun(saved, runID: failed.id).canRestart)
     }
 
     @Test
@@ -212,8 +220,8 @@ extension PullRequestReviewTeamCoordinatorTests {
             try await fixture.waitForCompletion(of: pipeline)
             try await fixture.waitForCompletion(of: task)
             #expect(try fixture.conversation.collectiveReviewRun()?.phase == .staged)
-            let previous = try restartTranscriptRun(fixture.conversation, runID: displayed.id)
-            #expect(previous.phase == .failed && previous.restartedRunID == fresh.id)
+            #expect(!fixture.conversation.events.contains { $0.id == "collective-review-run:\(displayed.id)" })
+            #expect(try restartTranscriptRun(fixture.conversation, runID: fresh.id).phase == .staged)
             #expect(await fixture.worker.inspectionCount == 6)
         }
     }
@@ -231,7 +239,7 @@ extension PullRequestReviewTeamCoordinatorTests {
         fixture.coordinator.restart(conversationID: failed.conversationID, runID: failed.id, generation: failed.generation)
 
         #expect(try fixture.conversation.collectiveReviewRun()?.id == failed.id)
-        #expect(try restartTranscriptRun(fixture.conversation, runID: failed.id).restartedRunID == nil)
+        #expect(try restartTranscriptRun(fixture.conversation, runID: failed.id).canRestart)
         #expect(fixture.coordinator.workingConversationIDs == [other.id])
         #expect(await fixture.worker.calls.isEmpty)
     }
@@ -263,9 +271,12 @@ extension PullRequestReviewTeamCoordinatorTests {
         return run
     }
 
+    private func restartTranscriptEvent(_ conversation: Conversation, runID: String) throws -> ConversationEventRecord {
+        try #require(conversation.events.first { $0.id == "collective-review-run:\(runID)" })
+    }
+
     private func restartTranscriptRun(_ conversation: Conversation, runID: String) throws -> ReviewTeamRun {
-        let event = try #require(conversation.events.first { $0.id == "collective-review-run:\(runID)" })
-        let content = try #require(event.content)
+        let content = try #require(try restartTranscriptEvent(conversation, runID: runID).content)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(ReviewTeamRun.self, from: Data(content.utf8))

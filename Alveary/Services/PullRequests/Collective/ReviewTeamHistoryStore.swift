@@ -86,6 +86,22 @@ actor ReviewTeamHistoryStore {
         try fileManager.removeItem(at: directory)
     }
 
+    /// Drops one run whose transcript card was replaced, leaving no tombstone: the conversation keeps recording history.
+    /// Validates only the run it deletes, so an anomaly in a sibling run cannot block this cleanup.
+    func remove(conversationID: String, runID: String) throws {
+        guard let root = try validatedRoot(create: false) else { return }
+        let conversation = root.appendingPathComponent(Self.digest(Data(conversationID.utf8)), isDirectory: true)
+        guard try attributes(at: conversation) != nil else { return }
+        try validateDirectory(conversation)
+        let run = conversation.appendingPathComponent(Self.digest(Data(runID.utf8)), isDirectory: true)
+        guard try attributes(at: run) != nil else { return }
+        try validateDirectory(run)
+        for blob in try children(of: run) {
+            _ = try regularFileAttributes(at: blob)
+        }
+        try fileManager.removeItem(at: run)
+    }
+
     /// Protect writes racing a startup snapshot that predates their task's creation.
     func prune(retainingConversationIDs: Set<String>) throws {
         guard let root = try validatedRoot(create: false) else { return }

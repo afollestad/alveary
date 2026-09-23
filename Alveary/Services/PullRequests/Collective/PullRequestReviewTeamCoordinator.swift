@@ -221,7 +221,8 @@ final class PullRequestReviewTeamCoordinator {
         try persist(run)
     }
 
-    /// Save a replacement and retire its predecessor's transcript action in the same transaction.
+    /// Save a replacement onto its predecessor's transcript card in the same transaction, so a restart takes over the
+    /// failed card in place instead of appending a second one beneath it.
     func persist(_ run: ReviewTeamRun, replacing previousRun: ReviewTeamRun? = nil) throws {
         if modelContext.hasChanges { try commitSave(modelContext) }
         guard let conversation = modelContext.resolveConversation(conversationID: run.conversationID) else {
@@ -230,23 +231,23 @@ final class PullRequestReviewTeamCoordinator {
         let priorJSON = conversation.pullRequestReviewRunJSON
         let priorEvents = conversation.events
         let progressEvents = priorEvents.filter {
-            $0.id == "collective-review-run:\(run.id)" || $0.id == previousRun.map { "collective-review-run:\($0.id)" }
+            $0.id == Self.progressEventID(runID: run.id) || $0.id == previousRun.map { Self.progressEventID(runID: $0.id) }
         }
+        let priorIDs = progressEvents.map(\.id)
         let priorContents = progressEvents.map(\.content)
         do {
             try conversation.storeCollectiveReviewRun(run)
-            if var previousRun {
-                previousRun.restartedRunID = run.id
-                try storeProgressEvent(previousRun, conversation: conversation)
-            }
-            try storeProgressEvent(run, conversation: conversation)
+            try storeProgressEvent(run, conversation: conversation, replacingRunID: previousRun?.id)
             try commitSave(modelContext)
         } catch {
             // Restore observed references as well as the store, matching proposal-swap rollback.
             modelContext.processPendingChanges()
             conversation.pullRequestReviewRunJSON = priorJSON
             conversation.events = priorEvents
-            for (event, content) in zip(progressEvents, priorContents) { event.content = content }
+            for (event, (id, content)) in zip(progressEvents, zip(priorIDs, priorContents)) {
+                event.id = id
+                event.content = content
+            }
             modelContext.processPendingChanges()
             modelContext.rollback()
             throw error
@@ -266,10 +267,18 @@ final class PullRequestReviewTeamCoordinator {
         activity.forgetCollectivePhase(conversationID: conversationID)
     }
 
-    func storeProgressEvent(_ run: ReviewTeamRun, conversation: Conversation) throws {
-        let eventID = "collective-review-run:\(run.id)"
+    /// Rekeying the predecessor's record keeps its timestamp, which is what holds the card's transcript position.
+    /// `ChatItemGrouper.refreshCollectiveReviewRuns` matches cards by event ID and cannot follow a rekey, so a hidden
+    /// transcript shows the old card until its next full regroup. Restart only fires from a mounted card, and `publish`
+    /// makes that transcript regroup immediately.
+    func storeProgressEvent(_ run: ReviewTeamRun, conversation: Conversation, replacingRunID: String? = nil) throws {
+        let eventID = Self.progressEventID(runID: run.id)
         let content = try ReviewTeamDigest.jsonString(run)
         if let event = conversation.events.first(where: { $0.id == eventID }) {
+            event.content = content
+        } else if let replacingRunID,
+                  let event = conversation.events.first(where: { $0.id == Self.progressEventID(runID: replacingRunID) }) {
+            event.id = eventID
             event.content = content
         } else {
             modelContext.insert(ConversationEventRecord(
@@ -277,6 +286,10 @@ final class PullRequestReviewTeamCoordinator {
                 content: content, timestamp: run.createdAt, conversation: conversation
             ))
         }
+    }
+
+    static func progressEventID(runID: String) -> String {
+        "collective-review-run:\(runID)"
     }
 
     func publish(_ run: ReviewTeamRun) {

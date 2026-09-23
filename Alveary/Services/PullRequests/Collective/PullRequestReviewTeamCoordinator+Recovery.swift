@@ -24,10 +24,12 @@ extension PullRequestReviewTeamCoordinator {
             )
             try persist(run, replacing: previous)
             replaceSettledTask(with: run)
-            Task { [worker, packets, cancellationStore] in
+            // The replacement took over the predecessor's card, so nothing can open its Run details anymore.
+            Task { [worker, packets, cancellationStore, historyStore] in
                 await worker.cancel(runID: previous.id)
                 try? await packets.remove(runID: previous.id)
                 try? cancellationStore.remove(runID: previous.id)
+                try? await historyStore?.remove(conversationID: conversationID, runID: previous.id)
             }
         } catch {
             recordRetryFailure(error, conversationID: conversationID)
