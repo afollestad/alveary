@@ -208,6 +208,12 @@ struct GitHubQuotaTests {
         #expect(explicit.cooldown(resource: "graphql", now: now, consecutiveFailures: 5)?.retryAt == now.addingTimeInterval(300))
     }
 
+    @Test(arguments: ["RATE_LIMITED", "RATE_LIMIT"])
+    func `either GraphQL rate limit error type is a limit without relying on its wording`(type: String) {
+        let body = "{\"data\":null,\"errors\":[{\"type\":\"\(type)\",\"message\":\"Slow down.\"}]}"
+        #expect(GitHubAPIResponse(pullRequestsShellResult(stdout: body, exitCode: 1)).isRateLimited)
+    }
+
     @Test
     func `headers leave diff bytes intact and provide query cost`() {
         let diff = "diff --git a/File.swift b/File.swift\n+added\n"

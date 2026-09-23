@@ -71,8 +71,12 @@ struct GitHubAPIResponse: Sendable {
         isSecondary = message.contains("secondary rate") || message.contains("abuse detection")
         isRateLimited = status == 429 || GitHubPullRequestsService.httpStatusCode(in: raw.stderr) == 429
             || message.contains("rate limit") || isSecondary
-            || errors.contains { ($0["type"] as? String) == "RATE_LIMITED" }
+            || errors.contains { ($0["type"] as? String).map(Self.rateLimitErrorTypes.contains) == true }
     }
+
+    /// GitHub's GraphQL has reported both spellings; `RATE_LIMIT` (code `graphql_rate_limit`) is current. The type
+    /// is what still identifies a limit if GitHub rewords the message the check above relies on.
+    private static let rateLimitErrorTypes: Set<String> = ["RATE_LIMITED", "RATE_LIMIT"]
 
     func cooldown(resource: String, now: Date, consecutiveFailures: Int) -> GitHubRateLimit? {
         let exhausted = headers["x-ratelimit-remaining"] == "0"
