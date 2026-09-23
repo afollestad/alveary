@@ -316,6 +316,22 @@ extension ConversationViewModelTests {
         XCTAssertEqual(config.planModeEnabled, true)
     }
 
+    /// Requesting an option the harness cannot honor would fail the launch, so each harness gets what it supports.
+    func testSpawnConfigNarrowsThePersistedIsolationToTheHarness() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: false,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().integrationIsolation = [.nativeIntegrations, .shellNetwork]
+        try fixture.context.save()
+
+        XCTAssertEqual(try fixture.viewModel.makeSpawnConfig().integrationIsolation, .nativeIntegrations)
+        try fixture.dbConversation().harness = "codex"
+        XCTAssertEqual(try fixture.viewModel.makeSpawnConfig().integrationIsolation, [.nativeIntegrations, .shellNetwork])
+        try fixture.dbConversation().harness = "opencode"
+        XCTAssertEqual(try fixture.viewModel.makeSpawnConfig().integrationIsolation, [])
+    }
+
     func testApplyPlanModeChangeKeepsPreviousNonPlanPermissionMode() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,

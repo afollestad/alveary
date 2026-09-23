@@ -58,7 +58,8 @@ struct AgentCLIKitHostAdapter: Sendable {
                 URL(fileURLWithPath: $0, isDirectory: true)
             },
             hostToolServer: config.hostToolServer,
-            hostTools: config.hostTools
+            hostTools: config.hostTools,
+            integrationIsolation: config.integrationIsolation
         )
     }
 }

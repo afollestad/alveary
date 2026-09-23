@@ -61,10 +61,7 @@ extension ConversationViewModel {
         let resolvedAutomatedScheduledTurn = isAutomatedScheduledTurn ||
             settingsSource == .automatedScheduledRun ||
             preservesAutomatedScheduledTurn
-        let hostTools = hostToolConfiguration(
-            requestedExposure: hostToolExposure,
-            settingsSource: settingsSource
-        )
+        let hostTools = hostToolConfiguration(requestedExposure: hostToolExposure, settingsSource: settingsSource)
 
         return AgentSpawnConfig(
             harnessId: harnessId,
@@ -86,7 +83,8 @@ extension ConversationViewModel {
             hostToolServer: hostTools.server,
             hostTools: hostTools.tools,
             initialGoal: initialGoal,
-            isAutomatedScheduledTurn: resolvedAutomatedScheduledTurn
+            isAutomatedScheduledTurn: resolvedAutomatedScheduledTurn,
+            integrationIsolation: HarnessFeaturePolicy.launchIsolation(for: dbConversation.thread, harnessID: harnessId)
         )
     }
 

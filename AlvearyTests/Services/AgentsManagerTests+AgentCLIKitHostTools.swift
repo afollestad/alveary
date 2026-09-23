@@ -14,6 +14,20 @@ extension AgentsManagerTests {
         XCTAssertEqual(configured.withoutHostTools(), hostToolTestConfig())
     }
 
+    /// Losing host tools must not also hand the agent back the integrations its thread withheld.
+    func testHostToolFallbackAndModelContinuationKeepIntegrationIsolation() {
+        let configured = AgentSpawnConfig(
+            harnessId: "codex",
+            workingDirectory: "/tmp/project",
+            hostToolServer: AgentHostToolServerMetadata(name: "alveary_host"),
+            hostTools: [hostToolTestDefinition],
+            integrationIsolation: [.nativeIntegrations, .shellNetwork]
+        )
+
+        XCTAssertEqual(configured.withoutHostTools().integrationIsolation, [.nativeIntegrations, .shellNetwork])
+        XCTAssertEqual(configured.withModel("gpt-5.5", effort: "high").integrationIsolation, [.nativeIntegrations, .shellNetwork])
+    }
+
     func testAgentSpawnConfigWithoutHostToolsPreservesRootSnapshotsAfterSymlinkReplacement() throws {
         let baseURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("AgentSpawnConfigRootSnapshot-\(UUID().uuidString)", isDirectory: true)

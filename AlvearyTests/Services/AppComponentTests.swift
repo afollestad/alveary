@@ -122,7 +122,8 @@ final class AppComponentTests: XCTestCase {
             initialPrompt: "Start",
             additionalWorkspaceRoots: ["/tmp/granted"],
             hostToolServer: mappedHostToolServer,
-            hostTools: [mappedHostTool]
+            hostTools: [mappedHostTool],
+            integrationIsolation: .nativeIntegrations
         ))
 
         XCTAssertEqual(config.harnessId.rawValue, "claude")
@@ -137,6 +138,7 @@ final class AppComponentTests: XCTestCase {
         XCTAssertEqual(config.additionalWorkspaceRoots.map(\.path), ["/tmp/granted"])
         XCTAssertEqual(config.hostToolServer, mappedHostToolServer)
         XCTAssertEqual(config.hostTools, [mappedHostTool])
+        XCTAssertEqual(config.integrationIsolation, .nativeIntegrations)
     }
 
     func testAgentCLIKitHostAdapterAcceptsCodexHarness() throws {

@@ -76,6 +76,8 @@ struct TaskThreadSeed {
     /// the caller decides that through `grantedRoots`.
     let placement: TaskThreadSidebarPlacement
     let workspaceSnapshot: WorkspaceSnapshot?
+    /// Integrations withheld from every launch of the thread; persisted on it by `insertTaskThread`.
+    let integrationIsolation: AgentIntegrationIsolation
 
     init(
         harness: String,
@@ -88,7 +90,8 @@ struct TaskThreadSeed {
         grantedRoots: [String] = [],
         workspace: TaskWorkspaceDescriptor? = nil,
         placement: TaskThreadSidebarPlacement = .tasks,
-        workspaceSnapshot: WorkspaceSnapshot? = nil
+        workspaceSnapshot: WorkspaceSnapshot? = nil,
+        integrationIsolation: AgentIntegrationIsolation = []
     ) {
         self.harness = harness
         self.permissionMode = permissionMode
@@ -101,6 +104,7 @@ struct TaskThreadSeed {
         self.workspace = workspace
         self.placement = placement
         self.workspaceSnapshot = workspaceSnapshot
+        self.integrationIsolation = integrationIsolation
     }
 }
 
@@ -267,6 +271,7 @@ final class ThreadLifecycleService {
             project: nil
         )
         if let snapshot = seed.workspaceSnapshot { thread.workspaceSnapshot = snapshot }
+        thread.integrationIsolation = seed.integrationIsolation
         let conversation = Conversation(
             harness: seed.harness,
             isMain: true,

@@ -26,7 +26,8 @@ extension PullRequestAgenticThreadService {
         )
         let thread = try lifecycleService.insertTaskThread(seed: Self.threadSeed(
             seed,
-            name: Kind.review.threadName(for: work.identifier),
+            kind: .review,
+            identifier: work.identifier,
             workspace: nil,
             workspaceSnapshot: nil,
             placement: resolvedPlacement(for: .review, settings: work.settings)

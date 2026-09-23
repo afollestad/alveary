@@ -138,6 +138,8 @@ extension PullRequestAgenticThreadServiceTests {
             XCTAssertEqual(thread?.model, expected.model)
             XCTAssertEqual(thread?.effort, expected.effort)
             XCTAssertEqual(thread?.permissionMode, expected.permissionMode)
+            // Reviews reach GitHub only through host tools; addressing feedback keeps network to push.
+            XCTAssertEqual(thread?.integrationIsolation, kind == .review ? [.nativeIntegrations, .shellNetwork] : .nativeIntegrations)
         }
     }
 

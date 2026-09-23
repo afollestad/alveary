@@ -24,6 +24,8 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let hostTools: [AgentCLIKit.AgentHostToolDefinition]
     let initialGoal: String?
     let isAutomatedScheduledTurn: Bool
+    /// Integrations withheld from this launch; the thread persists them so every relaunch requests the same set.
+    let integrationIsolation: AgentCLIKit.AgentIntegrationIsolation
 
     init(
         harnessId: String,
@@ -43,7 +45,8 @@ struct AgentSpawnConfig: Sendable, Equatable {
         hostToolServer: AgentCLIKit.AgentHostToolServerMetadata = AgentCLIKit.AgentHostToolServerMetadata(),
         hostTools: [AgentCLIKit.AgentHostToolDefinition] = [],
         initialGoal: String? = nil,
-        isAutomatedScheduledTurn: Bool = false
+        isAutomatedScheduledTurn: Bool = false,
+        integrationIsolation: AgentCLIKit.AgentIntegrationIsolation = []
     ) {
         self.harnessId = harnessId
         self.workingDirectory = workingDirectory
@@ -64,6 +67,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.hostTools = hostTools
         self.initialGoal = initialGoal
         self.isAutomatedScheduledTurn = isAutomatedScheduledTurn
+        self.integrationIsolation = integrationIsolation
     }
 
     func withoutHostTools() -> AgentSpawnConfig {
@@ -104,6 +108,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         hostTools = config.hostTools
         initialGoal = config.initialGoal
         isAutomatedScheduledTurn = config.isAutomatedScheduledTurn
+        integrationIsolation = config.integrationIsolation
     }
 
     private init(
@@ -131,6 +136,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.hostTools = hostTools
         initialGoal = config.initialGoal
         isAutomatedScheduledTurn = config.isAutomatedScheduledTurn
+        integrationIsolation = config.integrationIsolation
     }
 }
 

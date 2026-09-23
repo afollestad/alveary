@@ -43,6 +43,9 @@ final class AgentThread {
     /// or before it never prompt again, so replayed or rebuilt history stays quiet.
     /// Absent from `init`, so a fork re-seeds from its own first scanned message.
     var pullRequestScanWatermark: Date?
+    /// `AgentIntegrationIsolation` bits every launch of this thread requests; see
+    /// `AgentThread+IntegrationIsolation.swift`. Zero, the pre-field default, launches unisolated.
+    var integrationIsolationRawValue: Int = 0
     var project: Project?
     /// Custom sidebar section membership; the inverse of `SidebarSection.threads`. A placement
     /// overlay meaningful only on projectless task-mode threads — the `Tasks` population:

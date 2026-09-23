@@ -48,6 +48,16 @@ final class PullRequestAgenticThreadService {
         func agentSettings(in settings: AppSettings) -> PullRequestAgentSettings {
             self == .review ? settings.pullRequestReviewAgent : settings.pullRequestAddressFeedbackAgent
         }
+
+        /// What the task's agent may not reach except through Alveary's pull request host tools. A harness
+        /// connector, plugin, or shell `gh` spends the user's shared GitHub quota where Alveary cannot see or
+        /// pace it. Addressing feedback keeps shell network because it has to `git push`.
+        var integrationIsolation: AgentIntegrationIsolation {
+            switch self {
+            case .review: [.nativeIntegrations, .shellNetwork]
+            case .addressFeedback: .nativeIntegrations
+            }
+        }
     }
 
     enum StartError: LocalizedError, Equatable {
@@ -211,7 +221,7 @@ final class PullRequestAgenticThreadService {
         }
 
         let thread = try lifecycleService.insertTaskThread(seed: Self.threadSeed(
-            seed, name: threadName, workspace: borrowed, workspaceSnapshot: borrowedSnapshot,
+            seed, kind: kind, identifier: identifier, workspace: borrowed, workspaceSnapshot: borrowedSnapshot,
             placement: resolvedPlacement(for: kind, settings: settings)
         ))
         guard let conversation = thread.soleMainConversation else {
@@ -294,9 +304,10 @@ final class PullRequestAgenticThreadService {
     }
 
     /// Review workers use host tools or private packets; addressing feedback works inside its checkout.
-    static func threadSeed(
+    static func threadSeed( // swiftlint:disable:this function_parameter_count
         _ seed: SeedSettings,
-        name: String,
+        kind: Kind,
+        identifier: PullRequestIdentifier,
         workspace: TaskWorkspaceDescriptor?,
         workspaceSnapshot: WorkspaceSnapshot?,
         placement: TaskThreadSidebarPlacement
@@ -307,11 +318,12 @@ final class PullRequestAgenticThreadService {
             model: seed.model,
             effort: seed.effort,
             isDraft: false,
-            name: name,
+            name: kind.threadName(for: identifier),
             grantedRoots: [],
             workspace: workspace,
             placement: placement,
-            workspaceSnapshot: workspaceSnapshot
+            workspaceSnapshot: workspaceSnapshot,
+            integrationIsolation: kind.integrationIsolation
         )
     }
 
