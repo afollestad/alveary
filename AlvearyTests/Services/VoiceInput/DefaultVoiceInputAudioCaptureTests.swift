@@ -4,9 +4,7 @@ import Dispatch
 import Foundation
 import XCTest
 
-/// Not `@MainActor`: these tests block on semaphores that detached tasks signal, and a main-thread
-/// wait on a lower-QoS signaler is a Thread Performance Checker runtime issue that fails
-/// `scripts/test.sh`. Off the main actor the tests run at the signalers' user-initiated QoS.
+@MainActor
 final class DefaultVoiceInputAudioCaptureTests: XCTestCase {
     func testSynchronousShutdownWaitsForBackendFactoryRegistration() async {
         let backend = VoiceInputAudioCaptureBackendFake()
@@ -17,7 +15,7 @@ final class DefaultVoiceInputAudioCaptureTests: XCTestCase {
             factoryCanReturn.wait()
             return backend
         })
-        let startTask = Task.detached(priority: .userInitiated) { () -> VoiceInputServiceError? in
+        let startTask = blockingThreadTask { () -> VoiceInputServiceError? in
             do {
                 try capture.start(generation: 10) { _ in }
                 return nil
@@ -29,7 +27,7 @@ final class DefaultVoiceInputAudioCaptureTests: XCTestCase {
         XCTAssertEqual(factoryBegan.wait(timeout: .now() + 2), .success)
         let shutdownBegan = DispatchSemaphore(value: 0)
         let shutdownCompleted = DispatchSemaphore(value: 0)
-        let shutdownTask = Task.detached(priority: .userInitiated) {
+        let shutdownTask = blockingThreadTask {
             shutdownBegan.signal()
             capture.shutdownSynchronously()
             shutdownCompleted.signal()
@@ -54,7 +52,7 @@ final class DefaultVoiceInputAudioCaptureTests: XCTestCase {
     func testSynchronousShutdownCancelsStartupWhileEngineIsPreparing() async {
         let backend = VoiceInputAudioCaptureBackendFake(blocksPrepare: true)
         let capture = DefaultVoiceInputAudioCapture(backendFactory: { backend })
-        let startTask = Task.detached(priority: .userInitiated) { () -> VoiceInputServiceError? in
+        let startTask = blockingThreadTask { () -> VoiceInputServiceError? in
             do {
                 try capture.start(generation: 11) { _ in }
                 return nil
@@ -65,7 +63,7 @@ final class DefaultVoiceInputAudioCaptureTests: XCTestCase {
 
         XCTAssertEqual(backend.waitUntilPrepareBegins(), .success)
         let shutdownCompleted = DispatchSemaphore(value: 0)
-        let shutdownTask = Task.detached(priority: .userInitiated) {
+        let shutdownTask = blockingThreadTask {
             capture.shutdownSynchronously()
             shutdownCompleted.signal()
         }
@@ -122,7 +120,7 @@ final class DefaultVoiceInputAudioCaptureTests: XCTestCase {
         let capture = DefaultVoiceInputAudioCapture(backendFactory: { backend })
         try capture.start(generation: 15) { _ in }
 
-        let shutdownTask = Task.detached(priority: .userInitiated) {
+        let shutdownTask = blockingThreadTask {
             capture.shutdownSynchronously()
         }
         XCTAssertEqual(backend.waitUntilStopBegins(), .success)
