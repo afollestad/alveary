@@ -379,7 +379,17 @@ extension SettingsViewModelTests {
             viewModel.pullRequestReviewPermissionOptions,
             [SettingsViewModel.pullRequestReviewInheritValue, "untrusted", "on-request", "never"]
         )
-        XCTAssertEqual(viewModel.pullRequestReviewLabel(forPermission: "never"), "Full access")
+        // Every review task launches in a network-less sandbox, so its route never offers full access.
+        XCTAssertEqual(viewModel.pullRequestReviewLabel(forPermission: "never"), "Never ask")
+    }
+
+    /// Addressing feedback keeps shell network to push, so its route still means full access.
+    func testOnlyTheReviewRouteDescribesCodexNeverAsSandboxed() async {
+        var settings = AppSettings()
+        settings.pullRequestAddressFeedbackHarness = "codex"
+        let (viewModel, _) = await reviewViewModel(settings: settings)
+
+        XCTAssertEqual(viewModel.addressFeedbackLabel(forPermission: "never"), "Full access")
     }
 
     func testTasksLeadsBothSectionPickersAsTheNilRow() async {

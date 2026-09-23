@@ -26,13 +26,27 @@ extension ChatComposerActionRowView {
 
 enum ChatComposerPermissionPresentation {
     private static let bypassPermissionsDescription = "Bypass all permission checks. Use only in sandboxed environments."
+    private static let sandboxedNeverDescription =
+        "Run commands without asking, in a sandbox that can write workspace and temp files but has no network access."
 
+    /// `runsSandboxed` is a thread launched with shell network isolation: Codex then pins a network-less
+    /// workspace-write sandbox whatever the approval mode, so its "Full access" label would claim what the thread
+    /// cannot do.
     static func options(
         harnessID: String,
-        permissionModes: [PermissionModeOption]
+        permissionModes: [PermissionModeOption],
+        runsSandboxed: Bool = false
     ) -> [ChatComposerActionRowView.PermissionOptionPresentation] {
         permissionModes.map { option in
-            ChatComposerActionRowView.PermissionOptionPresentation(
+            if runsSandboxed, let sandboxed = sandboxedWording(harnessID: harnessID, value: option.value) {
+                return ChatComposerActionRowView.PermissionOptionPresentation(
+                    value: option.value,
+                    title: sandboxed.title,
+                    description: sandboxed.description,
+                    symbolName: "lock.shield"
+                )
+            }
+            return ChatComposerActionRowView.PermissionOptionPresentation(
                 value: option.value,
                 title: title(for: option),
                 description: description(for: option),
@@ -40,6 +54,15 @@ enum ChatComposerPermissionPresentation {
                 isWarning: isWarning(harnessID: harnessID, value: option.value)
             )
         }
+    }
+
+    /// Wording for a mode whose harness label assumes an unsandboxed shell, or nil when that label still holds.
+    /// Shared with Settings so the review route's picker and a review thread's composer describe the same launch.
+    static func sandboxedWording(harnessID: String, value: String) -> (title: String, description: String)? {
+        guard harnessID == "codex", value == "never" else {
+            return nil
+        }
+        return ("Never ask", sandboxedNeverDescription)
     }
 
     static func symbolName(harnessID: String, value: String) -> String {

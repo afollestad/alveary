@@ -65,9 +65,13 @@ struct HarnessFeaturePolicy: Sendable {
     /// more rather than running unisolated, so a harness that honors nothing launches exactly as before.
     @MainActor
     static func launchIsolation(for thread: AgentThread?, harnessID: String) -> AgentIntegrationIsolation {
+        launchIsolation(requested: thread?.integrationIsolation ?? [], harnessID: harnessID)
+    }
+
+    static func launchIsolation(requested: AgentIntegrationIsolation, harnessID: String) -> AgentIntegrationIsolation {
         let supported = AgentHarnessRegistry.builtInDefinitions.first { $0.id.rawValue == harnessID }?
             .capabilities.supportedIntegrationIsolation ?? []
-        return (thread?.integrationIsolation ?? []).intersection(supported)
+        return requested.intersection(supported)
     }
 
     /// Reviews require verified isolation flags or an SDK-owned disposable profile, in addition to the one-shot contract.

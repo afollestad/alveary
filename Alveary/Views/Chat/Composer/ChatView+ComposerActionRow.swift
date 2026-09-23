@@ -1,3 +1,4 @@
+import AgentCLIKit
 import SwiftUI
 
 extension ChatView {
@@ -61,9 +62,12 @@ extension ChatView {
 
 extension ChatView {
     var supportedPermissionModeOptions: [ChatComposerActionRowView.PermissionOptionPresentation] {
-        ChatComposerPermissionPresentation.options(
-            harnessID: reasoningConfiguration.selection.harnessID,
-            permissionModes: composerCapabilities.supportedPermissionModes
+        let harnessID = reasoningConfiguration.selection.harnessID
+        return ChatComposerPermissionPresentation.options(
+            harnessID: harnessID,
+            permissionModes: composerCapabilities.supportedPermissionModes,
+            runsSandboxed: HarnessFeaturePolicy.launchIsolation(for: conversation.thread, harnessID: harnessID)
+                .contains(.shellNetwork)
         )
     }
 

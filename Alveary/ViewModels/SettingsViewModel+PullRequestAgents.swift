@@ -142,6 +142,13 @@ struct PullRequestAgentSettingsEditor {
     func label(forPermission value: String) -> String {
         guard value != inheritValue else { return "Use thread default" }
         let harness = effectiveHarnessID
+        if path == \.pullRequestReviewAgent,
+           HarnessFeaturePolicy.launchIsolation(requested: PullRequestAgenticThreadService.Kind.review.integrationIsolation, harnessID: harness)
+               .contains(.shellNetwork),
+           let sandboxed = ChatComposerPermissionPresentation.sandboxedWording(harnessID: harness, value: value) {
+            // Every review task launches sandboxed, so the route's pick means what the task will actually do.
+            return sandboxed.title
+        }
         let label = viewModel.permissionModeLabel(for: value, harnessId: harness)
         // A concrete harness default is different from inheriting Threads settings.
         return label == "Default" ? "Default (\(viewModel.harnessDisplayName(for: harness)))" : label
