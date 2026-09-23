@@ -1,5 +1,12 @@
 import Foundation
 
+/// Hands copied tap audio to the capture worker. Producers (the real-time tap, the main thread,
+/// backend observers) never block; the worker suspends in `waitForWork()` between drains.
+///
+/// Producers wake the worker through `wakeSource`, never by resuming its continuation directly:
+/// the real-time tap must not schedule Swift task work, so it only merges data into the source,
+/// which also coalesces a burst of wakes into one handler call. The handler does the resume on
+/// its own queue.
 final class VoiceInputPCMQueue: @unchecked Sendable {
     enum Next {
         case audio(VoiceInputCopiedPCM)
@@ -8,7 +15,14 @@ final class VoiceInputPCMQueue: @unchecked Sendable {
     }
 
     private let lock = NSLock()
-    private let semaphore = DispatchSemaphore(value: 0)
+    /// Set when a wake arrives with no worker suspended; the next `waitForWork()` returns at once.
+    /// A flag rather than a count, because the worker drains everything `next()` offers after every
+    /// wake, so coalesced wakes lose nothing.
+    private var pendingWake = false
+    private var suspendedWorker: CheckedContinuation<Void, Never>?
+    private let wakeSource = DispatchSource.makeUserDataAddSource(
+        queue: DispatchQueue(label: "com.afollestad.alveary.voice-input.pcm-wake", qos: .userInitiated)
+    )
     private let generation: UInt64
     private let maximumDuration: TimeInterval
     private var entries: [VoiceInputCopiedPCM] = []
@@ -22,6 +36,14 @@ final class VoiceInputPCMQueue: @unchecked Sendable {
     init(generation: UInt64, maximumDuration: TimeInterval) {
         self.generation = generation
         self.maximumDuration = maximumDuration
+        wakeSource.setEventHandler { [weak self] in
+            self?.resumeSuspendedWorker()
+        }
+        wakeSource.activate()
+    }
+
+    deinit {
+        wakeSource.cancel()
     }
 
     func enqueue(_ buffer: VoiceInputCopiedPCM, generation: UInt64) {
@@ -49,7 +71,7 @@ final class VoiceInputPCMQueue: @unchecked Sendable {
             return (true, false)
         }
         if result.signal {
-            semaphore.signal()
+            wakeWorker()
         }
         return result.admitted
     }
@@ -65,7 +87,7 @@ final class VoiceInputPCMQueue: @unchecked Sendable {
             return true
         }
         if shouldSignal {
-            semaphore.signal()
+            wakeWorker()
         }
     }
 
@@ -77,7 +99,7 @@ final class VoiceInputPCMQueue: @unchecked Sendable {
             return admissionClosed && pendingReservations == 0
         }
         if shouldSignal {
-            semaphore.signal()
+            wakeWorker()
         }
     }
 
@@ -92,7 +114,7 @@ final class VoiceInputPCMQueue: @unchecked Sendable {
             return true
         }
         if shouldSignal {
-            semaphore.signal()
+            wakeWorker()
         }
     }
 
@@ -103,7 +125,7 @@ final class VoiceInputPCMQueue: @unchecked Sendable {
             return true
         }
         if shouldSignal {
-            semaphore.signal()
+            wakeWorker()
         }
     }
 
@@ -118,12 +140,27 @@ final class VoiceInputPCMQueue: @unchecked Sendable {
             return true
         }
         if shouldSignal {
-            semaphore.signal()
+            wakeWorker()
         }
     }
 
-    func waitForWork() {
-        semaphore.wait()
+    /// Suspends rather than blocking a thread: the worker runs on the cooperative pool, which never
+    /// replaces a blocked thread, so a blocking wait held one of its few threads for the whole
+    /// capture — with the pool limited to one thread, every other async job stalled behind it.
+    func waitForWork() async {
+        await withCheckedContinuation { continuation in
+            let resumeNow = lock.withLock { () -> Bool in
+                if pendingWake {
+                    pendingWake = false
+                    return true
+                }
+                suspendedWorker = continuation
+                return false
+            }
+            if resumeNow {
+                continuation.resume()
+            }
+        }
     }
 
     func next() -> Next? {
@@ -145,9 +182,31 @@ final class VoiceInputPCMQueue: @unchecked Sendable {
         }
     }
 
+    #if DEBUG
+    var hasSuspendedWorkerForTesting: Bool {
+        lock.withLock { suspendedWorker != nil }
+    }
+    #endif
+
     func complete(duration: TimeInterval) {
         lock.withLock {
             bufferedDuration = max(0, bufferedDuration - duration)
         }
+    }
+
+    private func wakeWorker() {
+        wakeSource.add(data: 1)
+    }
+
+    private func resumeSuspendedWorker() {
+        let worker = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            guard let worker = suspendedWorker else {
+                pendingWake = true
+                return nil
+            }
+            suspendedWorker = nil
+            return worker
+        }
+        worker?.resume()
     }
 }

@@ -147,6 +147,54 @@ final class VoiceInputPCMQueueTests: XCTestCase {
         XCTAssertEqual(transfer.buffer.floatChannelData?[0][0], 0.75)
     }
 
+    func testWakeArrivingBeforeTheWorkerSuspendsIsNotLost() async throws {
+        let queue = VoiceInputPCMQueue(generation: 1, maximumDuration: 2)
+        queue.enqueue(try copiedBuffer(duration: 0.1), generation: 1)
+
+        let didResume = await workerResumes(queue)
+        XCTAssertTrue(didResume)
+        guard case .some(.audio) = queue.next() else {
+            return XCTFail("Expected the audio that woke the worker")
+        }
+    }
+
+    func testSuspendedWorkerResumesWhenTheQueueCloses() async {
+        let queue = VoiceInputPCMQueue(generation: 2, maximumDuration: 2)
+        let resumed = PCMQueueWakeFlag()
+        let worker = Task.detached {
+            await queue.waitForWork()
+            resumed.set()
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while !queue.hasSuspendedWorkerForTesting, ContinuousClock.now < deadline {
+            await Task.yield()
+        }
+        XCTAssertTrue(queue.hasSuspendedWorkerForTesting)
+        XCTAssertFalse(resumed.value)
+
+        queue.close()
+        await worker.value
+        XCTAssertTrue(resumed.value)
+        guard case .some(.finished) = queue.next() else {
+            return XCTFail("Expected the closed queue to finish")
+        }
+    }
+
+    /// Bounded, because a lost wake would otherwise suspend the test forever: `waitForWork()` does
+    /// not observe cancellation.
+    private func workerResumes(_ queue: VoiceInputPCMQueue) async -> Bool {
+        let resumed = PCMQueueWakeFlag()
+        Task.detached {
+            await queue.waitForWork()
+            resumed.set()
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while !resumed.value, ContinuousClock.now < deadline {
+            await Task.yield()
+        }
+        return resumed.value
+    }
+
     private func copiedBuffer(duration: TimeInterval) throws -> VoiceInputCopiedPCM {
         let sampleRate = 16_000.0
         let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
@@ -154,5 +202,18 @@ final class VoiceInputPCMQueueTests: XCTestCase {
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
         buffer.frameLength = frames
         return try VoiceInputCopiedPCM(copying: buffer)
+    }
+}
+
+private final class PCMQueueWakeFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = false
+
+    var value: Bool {
+        lock.withLock { storage }
+    }
+
+    func set() {
+        lock.withLock { storage = true }
     }
 }

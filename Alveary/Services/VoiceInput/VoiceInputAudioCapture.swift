@@ -388,7 +388,7 @@ final class DefaultVoiceInputAudioCapture: VoiceInputAudioCapturing, @unchecked 
         consumer: @escaping @Sendable (VoiceInputCaptureEvent) async -> Void
     ) async {
         while !Task.isCancelled {
-            queue.waitForWork()
+            await queue.waitForWork()
             while let next = queue.next() {
                 switch next {
                 case .audio(let copied):
