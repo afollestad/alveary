@@ -112,7 +112,7 @@ Single-agent review is the default. In **Settings → Git → Pull requests**, c
 
 Reviews requested through the built-in MCP tools honor that setting too. Single-agent reviews stay in the current task; team reviews launch a dedicated task linked from the conversation. `start_pr_review` explicitly launches a dedicated review in either mode, including from the scheduled review suggestion. Reading review instructions never starts work.
 
-Review tasks reach GitHub only through Alveary's pull request tools: harness connectors and plugins are withheld, and on Codex their shell commands run without network access. Address feedback tasks withhold connectors and plugins too but keep shell network so they can push. Every tool acting as you shares one GitHub API budget, and traffic outside Alveary's tools is invisible to its rate-limit handling.
+Review tasks reach GitHub only through Alveary's pull request tools: harness connectors, plugins, and your own MCP servers are withheld, and on Codex and Claude their shell commands run in a sandbox without network access. Address feedback tasks withhold those too but keep shell network so they can push. Every tool acting as you shares one GitHub API budget, and traffic outside Alveary's tools is invisible to its rate-limit handling.
 
 **Manage** edits the lead and peers together. Single-agent review shows its agent controls inline; **Address feedback** has independent agent and permission settings.
 

@@ -325,11 +325,12 @@ extension ConversationViewModelTests {
         try fixture.dbThread().integrationIsolation = [.nativeIntegrations, .shellNetwork]
         try fixture.context.save()
 
-        XCTAssertEqual(try fixture.viewModel.makeSpawnConfig().integrationIsolation, .nativeIntegrations)
+        XCTAssertEqual(try fixture.viewModel.makeSpawnConfig().integrationIsolation, [.nativeIntegrations, .shellNetwork])
         try fixture.dbConversation().harness = "codex"
         XCTAssertEqual(try fixture.viewModel.makeSpawnConfig().integrationIsolation, [.nativeIntegrations, .shellNetwork])
+        // OpenCode has no shell sandbox, so it launches with only the part it honors.
         try fixture.dbConversation().harness = "opencode"
-        XCTAssertEqual(try fixture.viewModel.makeSpawnConfig().integrationIsolation, [])
+        XCTAssertEqual(try fixture.viewModel.makeSpawnConfig().integrationIsolation, .nativeIntegrations)
     }
 
     func testApplyPlanModeChangeKeepsPreviousNonPlanPermissionMode() async throws {
