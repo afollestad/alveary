@@ -50,8 +50,9 @@ enum PullRequestReviewWorkerError: Error, Equatable, LocalizedError {
 
 /// Runs app-configured isolated review workers against app-minted packet leases.
 actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
-    /// High-effort reviewers can remain active beyond fifteen minutes while inspecting the packet.
-    static let timeoutSeconds: TimeInterval = 20 * 60
+    /// Deep reviews of large diffs can outlast twenty minutes, and a kill discards the worker's paid work; a hung worker only
+    /// delays a run the user can cancel. OpenCode stays bounded by AgentCLIKit's shorter credential-validity `executionDeadline`.
+    static let timeoutSeconds: TimeInterval = 60 * 60
     private static let stdoutLimitBytes = 16 * 1024 * 1024
     private static let stderrLimitBytes = 2 * 1024 * 1024
     private static let claudeArguments = [
@@ -223,7 +224,7 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
     ) async throws -> String {
         let remaining = prepared.executionDeadline?.timeIntervalSinceNow ?? Self.timeoutSeconds
         guard remaining > 0 else {
-            throw AgentCLIKit.AgentOneShotPromptError.timedOut(harnessId: request.harnessId, timeout: Self.timeoutSeconds)
+            throw AgentCLIKit.AgentOneShotPromptError.timedOut(harnessId: request.harnessId, timeout: 0)
         }
         let shellRunner = executionShellRunner ?? DefaultShellRunner(processTracker: processRegistry.tracker(for: processKey))
         let result: ShellResult
