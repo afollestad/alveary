@@ -18,7 +18,7 @@ final class VoiceInputCaptureSlotTests: XCTestCase {
             generation: generation,
             finalizationGate: VoiceInputRecognitionFinalizationGate()
         )
-        let startTask = Task.detached {
+        let startTask = Task.detached(priority: .userInitiated) {
             try slot.start(capture, context: context) {
                 operationBegan.signal()
                 operationCanFinish.wait()
@@ -68,13 +68,13 @@ final class VoiceInputCaptureSlotTests: XCTestCase {
             operation: {}
         ))
 
-        let firstTermination = Task.detached {
+        let firstTermination = Task.detached(priority: .userInitiated) {
             slot.terminateSynchronously()
         }
         XCTAssertTrue(capture.waitForDiscardToStart())
         let secondBegan = DispatchSemaphore(value: 0)
         let secondCompleted = DispatchSemaphore(value: 0)
-        let secondTermination = Task.detached {
+        let secondTermination = Task.detached(priority: .userInitiated) {
             secondBegan.signal()
             slot.terminateSynchronously()
             secondCompleted.signal()
@@ -104,7 +104,7 @@ final class VoiceInputCaptureSlotTests: XCTestCase {
             generation: generation,
             finalizationGate: VoiceInputRecognitionFinalizationGate()
         )
-        let startTask = Task.detached {
+        let startTask = Task.detached(priority: .userInitiated) {
             try slot.start(
                 capture,
                 context: context,
@@ -117,7 +117,7 @@ final class VoiceInputCaptureSlotTests: XCTestCase {
         XCTAssertTrue(controller.waitForDisableToStart())
 
         let terminationCompleted = DispatchSemaphore(value: 0)
-        let terminationTask = Task.detached {
+        let terminationTask = Task.detached(priority: .userInitiated) {
             slot.terminateSynchronously()
             lease.release()
             terminationCompleted.signal()

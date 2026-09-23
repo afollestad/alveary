@@ -5,15 +5,17 @@ import XCTest
 
 @MainActor
 extension DefaultVoiceInputServiceTests {
-    func testSuddenTerminationLeaseSerializesControllerTransitions() async {
+    /// `nonisolated` so its semaphore waits run at the detached signalers' user-initiated QoS; a
+    /// main-thread wait on them is a Thread Performance Checker runtime issue.
+    nonisolated func testSuddenTerminationLeaseSerializesControllerTransitions() async {
         let controller = BlockingSuddenTerminationController()
         let lease = VoiceInputSuddenTerminationLease(controller: controller)
-        let acquireTask = Task.detached {
+        let acquireTask = Task.detached(priority: .userInitiated) {
             lease.acquire()
         }
         XCTAssertTrue(controller.waitForFirstDisableToStart())
 
-        let releaseTask = Task.detached {
+        let releaseTask = Task.detached(priority: .userInitiated) {
             controller.noteReleaseAttemptStarted()
             lease.release()
         }
@@ -122,7 +124,7 @@ extension DefaultVoiceInputServiceTests {
         XCTAssertEqual(suddenTermination.disableCount, 1)
 
         let terminationCompleted = VoiceInputAtomicFlag()
-        let terminationTask = Task.detached {
+        let terminationTask = Task.detached(priority: .userInitiated) {
             service.prepareForTerminationSynchronously()
             terminationCompleted.set()
         }

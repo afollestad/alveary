@@ -8,7 +8,7 @@ extension AppKitTranscriptToolApprovalBlockView {
             return
         }
         let width = bubbleWidth(for: configuration)
-        bubbleView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+        bubbleView.frame = NSRect(x: 0, y: 0, width: width, height: AppKitLayoutProbe.height)
 
         let contentX = chatBlockPadding
         let contentWidth = max(width - (chatBlockPadding * 2), 0)
@@ -24,7 +24,7 @@ extension AppKitTranscriptToolApprovalBlockView {
                     x: contentX + transcriptToolDetailLeadingInset,
                     y: currentY,
                     width: summaryWidth,
-                    height: CGFloat.greatestFiniteMagnitude / 2
+                    height: AppKitLayoutProbe.height
                 )
                 summaryView.layoutSubtreeIfNeeded()
                 summaryView.frame.size.height = summaryView.intrinsicContentSize.height
@@ -59,7 +59,7 @@ extension AppKitTranscriptToolApprovalBlockView {
     }
 
     func measuredHeight() -> CGFloat {
-        if bubbleView.frame.height > 0, bubbleView.frame.height < CGFloat.greatestFiniteMagnitude / 4 {
+        if AppKitLayoutProbe.isMeasured(bubbleView.frame.height) {
             return ceil(bubbleView.frame.height)
         }
         let summaryHeight = summaryViews.reduce(CGFloat.zero) { partialResult, view in

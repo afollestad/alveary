@@ -118,7 +118,7 @@ final class AppKitTranscriptToolOutputView: NSView {
 
     private func layoutContent() {
         let width = max(bounds.width, 0)
-        codeBlock.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+        codeBlock.frame = NSRect(x: 0, y: 0, width: width, height: AppKitLayoutProbe.height)
         codeBlock.layoutSubtreeIfNeeded()
         codeBlock.frame.size.height = codeBlock.intrinsicContentSize.height
 

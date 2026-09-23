@@ -121,14 +121,22 @@ final class AppKitMarkdownView: NSView {
         stackView.spacing = AppKitMarkdownMetrics.blockSpacing
         stackView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stackView)
+        // Frame-based hosts install this view with autoresizing masks at a zero frame and size it
+        // later, and a layout pass can land in between. The trailing and bottom pins sit just
+        // below required so a frame too small for the stack gives way on them, instead of AppKit
+        // logging a constraint conflict and breaking one of the stack's own spacing constraints.
+        let trailing = stackView.trailingAnchor.constraint(equalTo: trailingAnchor)
+        trailing.priority = .init(999)
+        // Transcript rows temporarily probe markdown with larger frames while
+        // measuring. Keep the stack at its natural height so tables and code
+        // blocks do not stretch just because the probe frame is tall.
+        let bottom = stackView.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor)
+        bottom.priority = .init(999)
         NSLayoutConstraint.activate([
             stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            trailing,
             stackView.topAnchor.constraint(equalTo: topAnchor),
-            // Transcript rows temporarily probe markdown with larger frames while
-            // measuring. Keep the stack at its natural height so tables and code
-            // blocks do not stretch just because the probe frame is tall.
-            stackView.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor)
+            bottom
         ])
     }
 

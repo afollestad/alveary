@@ -107,7 +107,7 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
                 x: rowLeadingInset,
                 y: currentY,
                 width: rowWidth,
-                height: CGFloat.greatestFiniteMagnitude / 2
+                height: AppKitLayoutProbe.height
             )
             row.layoutSubtreeIfNeeded()
             row.frame.size.height = row.intrinsicContentSize.height
@@ -278,7 +278,7 @@ final class AppKitTranscriptSubAgentInlineRowView: NSView {
 
     private func layoutContent() {
         let width = max(bounds.width, 0)
-        headerView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+        headerView.frame = NSRect(x: 0, y: 0, width: width, height: AppKitLayoutProbe.height)
         headerView.layoutSubtreeIfNeeded()
         headerView.frame.size.height = headerView.intrinsicContentSize.height
 
@@ -287,7 +287,7 @@ final class AppKitTranscriptSubAgentInlineRowView: NSView {
                 x: 0,
                 y: headerView.frame.maxY,
                 width: width,
-                height: CGFloat.greatestFiniteMagnitude / 2
+                height: AppKitLayoutProbe.height
             )
             contentView.layoutSubtreeIfNeeded()
             contentView.frame.size.height = contentView.intrinsicContentSize.height

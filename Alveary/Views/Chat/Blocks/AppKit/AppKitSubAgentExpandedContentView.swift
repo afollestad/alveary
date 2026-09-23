@@ -135,7 +135,7 @@ final class AppKitSubAgentExpandedContentView: NSView {
         let width = max(bounds.width, 0)
 
         if toolsView.superview != nil {
-            toolsView.frame = NSRect(x: 0, y: currentY, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+            toolsView.frame = NSRect(x: 0, y: currentY, width: width, height: AppKitLayoutProbe.height)
             toolsView.layoutSubtreeIfNeeded()
             toolsView.frame.size.height = toolsView.intrinsicContentSize.height
             currentY = toolsView.frame.maxY + 12
@@ -149,7 +149,7 @@ final class AppKitSubAgentExpandedContentView: NSView {
                 x: leadingInset,
                 y: currentY + resultTopSpacing,
                 width: max(width - leadingInset, 0),
-                height: CGFloat.greatestFiniteMagnitude / 2
+                height: AppKitLayoutProbe.height
             )
             resultView.layoutSubtreeIfNeeded()
             resultView.frame.size.height = resultView.intrinsicContentSize.height

@@ -107,50 +107,32 @@ extension SkillsViewModelTests {
         XCTAssertNotEqual(pane, SkillsPane(viewModel: other, target: .details("alpha"), onDismiss: {}))
     }
 
-    func testSkillCardEqualityIgnoresItsActionsAndComparesTheRenderedSkill() {
+    func testSkillCardEqualityIgnoresItsActionsAndComparesTheRenderedSkill() throws {
         let skill = makeSkill(id: "alpha")
-        let card = makeCard(skill: skill)
+        let card = try makeCard(skill: skill)
 
-        XCTAssertEqual(card, makeCard(skill: skill))
-        XCTAssertNotEqual(card, makeCard(skill: makeSkill(id: "alpha", isInstalled: false)))
-        XCTAssertNotEqual(card, makeCard(skill: makeSkill(id: "beta")))
-        XCTAssertNotEqual(card, makeCard(skill: skill, focusID: "skills-details-beta"))
-        XCTAssertNotEqual(card, makeCard(skill: skill, isSelected: true))
+        XCTAssertEqual(card, try makeCard(skill: skill))
+        XCTAssertNotEqual(card, try makeCard(skill: makeSkill(id: "alpha", isInstalled: false)))
+        XCTAssertNotEqual(card, try makeCard(skill: makeSkill(id: "beta")))
+        XCTAssertNotEqual(card, try makeCard(skill: skill, focusID: "skills-details-beta"))
+        XCTAssertNotEqual(card, try makeCard(skill: skill, isSelected: true))
     }
 }
 
-/// `SkillCard` stores a `FocusState` binding, which only a `View` can vend, so equality
-/// fixtures build one through a host rather than constructing the binding directly.
-/// SwiftUI logs that the binding is read outside a `View` body and is therefore constant —
-/// which is exactly what an `==` fixture wants, since the binding is excluded from `==`.
+/// `SkillCard` stores a `FocusState` binding, which `hostedFocusStateBinding()` vends from a real
+/// body pass; the binding is excluded from `==`, so any live one serves.
 @MainActor
 private func makeCard(
     skill: Skill,
     isSelected: Bool = false,
     focusID: String = "skills-details-alpha"
-) -> SkillCard {
-    SkillCardEqualityHost(skill: skill, isSelected: isSelected, focusID: focusID).card
-}
-
-private struct SkillCardEqualityHost: View {
-    let skill: Skill
-    let isSelected: Bool
-    let focusID: String
-
-    @FocusState private var focus: String?
-
-    var card: SkillCard {
-        SkillCard(
-            skill: skill,
-            isSelected: isSelected,
-            onOpen: {},
-            onPrimaryAction: {},
-            cardFocus: $focus,
-            cardFocusID: focusID
-        )
-    }
-
-    var body: some View {
-        card
-    }
+) throws -> SkillCard {
+    SkillCard(
+        skill: skill,
+        isSelected: isSelected,
+        onOpen: {},
+        onPrimaryAction: {},
+        cardFocus: try hostedFocusStateBinding(String.self),
+        cardFocusID: focusID
+    )
 }

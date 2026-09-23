@@ -135,6 +135,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
         scrollView.onLayout = { [weak coordinator = context.coordinator] in
             coordinator?.handleLayoutChange()
         }
+        context.coordinator.colorScheme = colorScheme
         context.coordinator.applyConfiguration(from: self)
         context.coordinator.recalculateHeight()
 
@@ -190,6 +191,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
 
     func updateNSView(_ containerView: AppKitTextEditorContainerView, context: Context) {
         context.coordinator.parent = self
+        context.coordinator.colorScheme = colorScheme
         context.coordinator.applyConfiguration(from: self)
         context.coordinator.syncTextIfNeeded()
         context.coordinator.syncSelectionIfNeeded()

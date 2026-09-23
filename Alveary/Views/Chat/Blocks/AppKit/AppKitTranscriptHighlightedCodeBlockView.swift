@@ -64,7 +64,7 @@ final class AppKitTranscriptHighlightedCodeBlockView: NSView {
     }
 
     override func layout() {
-        codeView.frame = NSRect(x: 0, y: 0, width: max(bounds.width, 0), height: CGFloat.greatestFiniteMagnitude / 2)
+        codeView.frame = NSRect(x: 0, y: 0, width: max(bounds.width, 0), height: AppKitLayoutProbe.height)
         codeView.layoutSubtreeIfNeeded()
         codeView.frame.size.height = codeView.intrinsicContentSize.height
         super.layout()

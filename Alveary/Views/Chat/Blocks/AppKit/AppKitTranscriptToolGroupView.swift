@@ -220,14 +220,14 @@ final class AppKitTranscriptToolGroupView: NSView {
             return
         }
         if configuration.tools.count <= 1 {
-            singleToolRow.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+            singleToolRow.frame = NSRect(x: 0, y: 0, width: width, height: AppKitLayoutProbe.height)
             singleToolRow.layoutSubtreeIfNeeded()
             singleToolRow.frame.size.height = singleToolRow.intrinsicContentSize.height
             clipView.updateFrame(width: width, targetHeight: singleToolRow.frame.height)
             return
         }
 
-        headerView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+        headerView.frame = NSRect(x: 0, y: 0, width: width, height: AppKitLayoutProbe.height)
         headerView.layoutSubtreeIfNeeded()
         headerView.frame.size.height = headerView.intrinsicContentSize.height
 
@@ -239,7 +239,7 @@ final class AppKitTranscriptToolGroupView: NSView {
             x: 0,
             y: headerView.frame.maxY,
             width: width,
-            height: CGFloat.greatestFiniteMagnitude / 2
+            height: AppKitLayoutProbe.height
         )
         nestedRowsView.layoutSubtreeIfNeeded()
         nestedRowsView.frame.size.height = nestedRowsView.intrinsicContentSize.height

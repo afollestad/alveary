@@ -192,7 +192,7 @@ extension AppKitTextEditorCoordinator {
             baseColor: .labelColor,
             inlineCodeBackgroundColor: AppMarkdownCodeBlockPalette.composerChipFillNSColor,
             accentColor: .controlAccentColor,
-            colorScheme: parent.colorScheme
+            colorScheme: colorScheme
         )
     }
 
@@ -231,7 +231,7 @@ extension AppKitTextEditorCoordinator {
                 inlineDelimiterRanges: ranges.inlineDelimiterRanges,
                 baseFont: baseFont,
                 baseColor: baseColor,
-                colorScheme: parent.colorScheme
+                colorScheme: colorScheme
             )
         )
     }
@@ -265,7 +265,7 @@ extension AppKitTextEditorCoordinator {
                 textUTF16Count: parent.text.utf16.count,
                 baseFont: baseFont,
                 baseColor: baseColor,
-                colorScheme: parent.colorScheme
+                colorScheme: colorScheme
             )
         )
     }

@@ -64,16 +64,16 @@ extension ScheduledTasksViewModelTests {
 
     // MARK: - Render stability
 
-    func testScheduledTaskCardEqualityIgnoresItsActionsAndComparesTheRenderedTask() {
+    func testScheduledTaskCardEqualityIgnoresItsActionsAndComparesTheRenderedTask() throws {
         let task = makeRowPresentation(title: "Nightly sweep")
-        let card = makeScheduledCard(task: task)
+        let card = try makeScheduledCard(task: task)
 
-        XCTAssertEqual(card, makeScheduledCard(task: task, onOpen: { XCTFail("unused") }))
-        XCTAssertNotEqual(card, makeScheduledCard(task: task, isRunNowPending: true))
-        XCTAssertNotEqual(card, makeScheduledCard(task: task, isSelected: true))
-        XCTAssertNotEqual(card, makeScheduledCard(task: task, harnessName: "Codex"))
-        XCTAssertNotEqual(card, makeScheduledCard(task: task, focusID: "scheduled-edit-other"))
-        XCTAssertNotEqual(card, makeScheduledCard(task: makeRowPresentation(title: "Renamed")))
+        XCTAssertEqual(card, try makeScheduledCard(task: task, onOpen: { XCTFail("unused") }))
+        XCTAssertNotEqual(card, try makeScheduledCard(task: task, isRunNowPending: true))
+        XCTAssertNotEqual(card, try makeScheduledCard(task: task, isSelected: true))
+        XCTAssertNotEqual(card, try makeScheduledCard(task: task, harnessName: "Codex"))
+        XCTAssertNotEqual(card, try makeScheduledCard(task: task, focusID: "scheduled-edit-other"))
+        XCTAssertNotEqual(card, try makeScheduledCard(task: makeRowPresentation(title: "Renamed")))
     }
 
     private func makeRowPresentation(title: String) -> ScheduledTaskRowPresentation {
@@ -98,9 +98,8 @@ extension ScheduledTasksViewModelTests {
     }
 }
 
-/// `ScheduledTaskCard` stores a `FocusState` binding, which only a `View` can vend. SwiftUI
-/// logs that the binding is read outside a `View` body and is therefore constant — which is
-/// what an `==` fixture wants, since the binding is excluded from `==`.
+/// `ScheduledTaskCard` stores a `FocusState` binding, which `hostedFocusStateBinding()` vends from
+/// a real body pass; the binding is excluded from `==`, so any live one serves.
 @MainActor
 private func makeScheduledCard(
     task: ScheduledTaskRowPresentation,
@@ -109,44 +108,18 @@ private func makeScheduledCard(
     isSelected: Bool = false,
     focusID: String = "scheduled-edit-definition",
     onOpen: @escaping () -> Void = {}
-) -> ScheduledTaskCard {
-    ScheduledTaskCardEqualityHost(
+) throws -> ScheduledTaskCard {
+    ScheduledTaskCard(
         task: task,
         harnessName: harnessName,
         isRunNowPending: isRunNowPending,
         isSelected: isSelected,
-        focusID: focusID,
-        onOpen: onOpen
-    ).card
-}
-
-private struct ScheduledTaskCardEqualityHost: View {
-    let task: ScheduledTaskRowPresentation
-    let harnessName: String
-    let isRunNowPending: Bool
-    let isSelected: Bool
-    let focusID: String
-    let onOpen: () -> Void
-
-    @FocusState private var focus: String?
-
-    var card: ScheduledTaskCard {
-        ScheduledTaskCard(
-            task: task,
-            harnessName: harnessName,
-            isRunNowPending: isRunNowPending,
-            isSelected: isSelected,
-            onOpen: onOpen,
-            onPause: {},
-            onResume: {},
-            onRunNow: {},
-            onDelete: {},
-            cardFocus: $focus,
-            cardFocusID: focusID
-        )
-    }
-
-    var body: some View {
-        card
-    }
+        onOpen: onOpen,
+        onPause: {},
+        onResume: {},
+        onRunNow: {},
+        onDelete: {},
+        cardFocus: try hostedFocusStateBinding(String.self),
+        cardFocusID: focusID
+    )
 }

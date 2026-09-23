@@ -211,7 +211,7 @@ final class AppKitTranscriptPromptBlockView: NSView {
             return
         }
         let width = bubbleWidth(for: configuration)
-        bubbleView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+        bubbleView.frame = NSRect(x: 0, y: 0, width: width, height: AppKitLayoutProbe.height)
         let contentWidth = max(width - (promptBlockPadding * 2), 0)
         var currentY = promptBlockPadding
         layoutTitle(width: contentWidth, currentY: &currentY)
@@ -232,7 +232,7 @@ final class AppKitTranscriptPromptBlockView: NSView {
     private func layoutQuestions(width: CGFloat, currentY: inout CGFloat) {
         let cardWidth = synchronizedQuestionCardWidth(maxWidth: width)
         for questionView in questionViews {
-            questionView.frame = NSRect(x: promptBlockPadding, y: currentY, width: cardWidth, height: CGFloat.greatestFiniteMagnitude / 2)
+            questionView.frame = NSRect(x: promptBlockPadding, y: currentY, width: cardWidth, height: AppKitLayoutProbe.height)
             questionView.layoutSubtreeIfNeeded()
             questionView.frame.size.height = questionView.intrinsicContentSize.height
             currentY = questionView.frame.maxY + 16
@@ -373,7 +373,7 @@ final class AppKitTranscriptPromptBlockView: NSView {
     }
 
     private func measuredHeight() -> CGFloat {
-        if bubbleView.frame.height > 0, bubbleView.frame.height < CGFloat.greatestFiniteMagnitude / 4 {
+        if AppKitLayoutProbe.isMeasured(bubbleView.frame.height) {
             return ceil(bubbleView.frame.height)
         }
         return ceil(titleField.fittingSize.height + questionViews.reduce(CGFloat.zero) { $0 + $1.intrinsicContentSize.height } + 80)

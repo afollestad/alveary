@@ -327,10 +327,14 @@ private final class AppKitMarkdownTableCellView: AppKitDynamicColorView {
             x: AppKitMarkdownTableMetrics.cellHorizontalPadding,
             y: AppKitMarkdownTableMetrics.cellVerticalPadding,
             width: max(width - AppKitMarkdownTableMetrics.cellHorizontalPadding * 2, 0),
-            height: CGFloat.greatestFiniteMagnitude / 2
+            height: AppKitLayoutProbe.height
         )
         textView?.layoutSubtreeIfNeeded()
-        return ceil((textView?.intrinsicContentSize.height ?? 0) + AppKitMarkdownTableMetrics.cellVerticalPadding * 2)
+        let textHeight = textView?.intrinsicContentSize.height ?? 0
+        // Size getters reach this without a following `layout()`, so shrink the text view back from
+        // the probe here; a 10M-point text view left in place renders blank.
+        textView?.frame.size.height = textHeight
+        return ceil(textHeight + AppKitMarkdownTableMetrics.cellVerticalPadding * 2)
     }
 
     private func setup(

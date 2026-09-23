@@ -205,7 +205,7 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
             return
         }
         let width = contentWidth(for: configuration)
-        headerView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+        headerView.frame = NSRect(x: 0, y: 0, width: width, height: AppKitLayoutProbe.height)
         headerView.layoutSubtreeIfNeeded()
         headerView.frame.size.height = headerView.intrinsicContentSize.height
 
@@ -219,7 +219,7 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
             x: 0,
             y: headerView.frame.maxY,
             width: width,
-            height: CGFloat.greatestFiniteMagnitude / 2
+            height: AppKitLayoutProbe.height
         )
         expandedView.layoutSubtreeIfNeeded()
         expandedView.frame.size.height = expandedView.intrinsicContentSize.height

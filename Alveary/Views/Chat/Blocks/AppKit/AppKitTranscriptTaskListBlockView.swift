@@ -152,18 +152,18 @@ final class AppKitTranscriptTaskListBlockView: NSView {
         }
 
         let width = bubbleWidth(for: configuration)
-        bubbleView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+        bubbleView.frame = NSRect(x: 0, y: 0, width: width, height: AppKitLayoutProbe.height)
         let contentWidth = max(width - (chatBlockPadding * 2), 0)
         var currentY = chatBlockPadding
 
-        titleField.frame = NSRect(x: chatBlockPadding, y: currentY, width: contentWidth, height: CGFloat.greatestFiniteMagnitude / 2)
+        titleField.frame = NSRect(x: chatBlockPadding, y: currentY, width: contentWidth, height: AppKitLayoutProbe.height)
         titleField.sizeToFit()
         titleField.frame.size.width = contentWidth
         currentY = titleField.frame.maxY + taskListRowSpacing
 
         var rowFrameUpdates: [(row: AppKitTranscriptTaskListRowView, finalFrame: NSRect)] = []
         for row in rowViews {
-            let frame = NSRect(x: chatBlockPadding, y: currentY, width: contentWidth, height: CGFloat.greatestFiniteMagnitude / 2)
+            let frame = NSRect(x: chatBlockPadding, y: currentY, width: contentWidth, height: AppKitLayoutProbe.height)
             if let activeTargetFrame = activeRowAnimationTargetFramesByID[row.taskID],
                abs(activeTargetFrame.width - frame.width) <= 0.5 {
                 rowFrameUpdates.append((row: row, finalFrame: activeTargetFrame))
@@ -198,7 +198,7 @@ final class AppKitTranscriptTaskListBlockView: NSView {
     }
 
     private func measuredHeight() -> CGFloat {
-        if bubbleView.frame.height > 0, bubbleView.frame.height < CGFloat.greatestFiniteMagnitude / 4 {
+        if AppKitLayoutProbe.isMeasured(bubbleView.frame.height) {
             return ceil(bubbleView.frame.height)
         }
         let rowHeight = rowViews.reduce(CGFloat.zero) { $0 + $1.intrinsicContentSize.height }

@@ -166,7 +166,7 @@ final class AppKitTranscriptPromptUsageRowView: NSView {
 
     private func layoutContent() {
         let width = contentWidth(for: configuration)
-        headerView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+        headerView.frame = NSRect(x: 0, y: 0, width: width, height: AppKitLayoutProbe.height)
         headerView.layoutSubtreeIfNeeded()
         headerView.frame.size.height = headerView.intrinsicContentSize.height
         guard isExpanded else {
@@ -178,7 +178,7 @@ final class AppKitTranscriptPromptUsageRowView: NSView {
             x: detailsFrame.minX,
             y: detailsFrame.minY,
             width: detailsFrame.width,
-            height: CGFloat.greatestFiniteMagnitude / 2
+            height: AppKitLayoutProbe.height
         )
         detailsView.layoutSubtreeIfNeeded()
         detailsView.frame.size.height = detailsView.intrinsicContentSize.height
@@ -202,7 +202,7 @@ final class AppKitTranscriptPromptUsageRowView: NSView {
             x: leadingInset,
             y: originY,
             width: max(width - leadingInset - metrics.detailTrailingInset, 0),
-            height: CGFloat.greatestFiniteMagnitude / 2
+            height: AppKitLayoutProbe.height
         )
     }
 

@@ -280,7 +280,7 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
         var currentY: CGFloat = 0
         let width = max(bounds.width, 0)
         for view in contentViews {
-            view.frame = NSRect(x: 0, y: currentY, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+            view.frame = NSRect(x: 0, y: currentY, width: width, height: AppKitLayoutProbe.height)
             view.layoutSubtreeIfNeeded()
             let height = ceil(view.intrinsicContentSize.height > 0 ? view.intrinsicContentSize.height : view.fittingSize.height)
             view.frame.size.height = height

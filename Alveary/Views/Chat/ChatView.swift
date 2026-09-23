@@ -30,9 +30,9 @@ struct ChatView: View {
     @Bindable var appState: AppState
 
     /// Optional so hosts that mount `ChatView` without the app root, such as snapshot tests,
-    /// simply render no app-shot affordance. Unit tests that build `ChatView` off-hierarchy log an
-    /// uninstalled-`Environment` warning when a composer configuration reads this; the read resolves
-    /// to `nil`, which is exactly that no-app-root behavior, so the warning is expected.
+    /// simply render no app-shot affordance. Unit tests that build `ChatView` off-hierarchy must not
+    /// reach a read of this: it logs an uninstalled-`Environment` runtime issue, which fails
+    /// `scripts/test.sh`.
     @Environment(AppShotCoordinator.self) var appShotCoordinator: AppShotCoordinator?
 
     /// Optional for the same reason as `appShotCoordinator`: a snapshot host with no app root simply

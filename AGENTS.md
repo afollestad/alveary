@@ -57,6 +57,8 @@ Read the nearest `AGENTS.md` before editing; every scoped folder pairs it with a
 ### `xcsift` Output
 
 - Build/test/snapshot wrappers pipe `xcodebuild` through `xcsift -f toon -w` when installed; treat TOON `status` (`success` or `failed`) and the `summary` counts as the concise result.
+- **`test.sh` fails when the `warnings` count is non-zero** — including XCTest runtime issues (AppKit view geometry and constraint conflicts, SwiftUI reads outside a view, priority inversions), listed under `warnings[n]`. Fix the cause; never loosen the gate. `test.sh` owns why it reads the count instead of `xcsift --Werror`.
+- **`test.sh` holds the display awake with `caffeinate`.** AppKit animation and wheel-scroll tests stall while the display sleeps, so a direct `xcodebuild test` on an idle machine fails them spuriously.
 - Inspect TOON sections such as `errors[n]{file,line,message}`, `warnings[n]{file,line,message,type}`, `failed_tests`, `linker_errors`, `slow_tests`, `flaky_tests`, `build_info`, and `executables` when present; row headers name their own field order.
 
 ## Lint

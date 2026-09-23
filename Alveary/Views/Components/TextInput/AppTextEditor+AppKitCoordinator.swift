@@ -4,6 +4,11 @@ import SwiftUI
 @MainActor
 final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
     var parent: AppKitTextEditorView
+    /// The representable's `colorScheme` as of the last `makeNSView` or `updateNSView`. Styling
+    /// runs from AppKit callbacks and from tests that drive an unmounted `parent`, both outside
+    /// SwiftUI's update pass, where reading `parent.colorScheme` is an uninstalled-`Environment`
+    /// runtime issue that fails `scripts/test.sh`. `.light` is what that uninstalled read resolved to.
+    var colorScheme: ColorScheme = .light
     weak var containerView: AppKitTextEditorContainerView?
     weak var textView: AppKitTextView?
     weak var scrollView: AppKitTextEditorScrollView?

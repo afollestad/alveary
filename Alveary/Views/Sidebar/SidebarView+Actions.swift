@@ -188,7 +188,14 @@ extension SidebarView {
 
     /// After a successful commit the query no longer holds the row, so this is invisible; after a
     /// pre-commit failure it is what restores the hidden row.
+    ///
+    /// Returns early when nothing is pending: the removal would be a no-op, and tests call
+    /// `confirmDeleteThread` on an unmounted view, where reading `accessibilityReduceMotion` is an
+    /// uninstalled-`Environment` runtime issue that fails `scripts/test.sh`.
     func endOptimisticThreadRemoval(_ threadID: PersistentIdentifier) {
+        guard pendingThreadRemovalIDs.contains(threadID) else {
+            return
+        }
         withAnimation(accessibilityReduceMotion ? nil : .easeInOut(duration: 0.15)) {
             _ = pendingThreadRemovalIDs.remove(threadID)
         }

@@ -61,9 +61,13 @@ extension ChatComposerDraftTests {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.harnessAuthenticationFailure = "Sign in again to continue."
         let chatView = makeChatView(fixture: fixture, appState: AppState())
-        let banner = try XCTUnwrap(inlineBanner(in: chatView.composerTopContentConfiguration))
+        // Built through the helper: `composerTopContentConfiguration` would read the unmounted
+        // view's `harnessSignIn` environment, a runtime issue that fails `test.sh`.
+        let banner = chatView.harnessAuthenticationBanner(message: "Sign in again to continue.", canSignIn: false)
 
         XCTAssertEqual(banner.message, "Sign in again to continue.")
+        XCTAssertNil(banner.actionTitle)
+        XCTAssertNil(banner.onAction)
         let dismiss = try XCTUnwrap(banner.onDismiss)
         dismiss()
 

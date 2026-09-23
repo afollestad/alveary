@@ -93,7 +93,7 @@ final class AppKitTranscriptErrorBannerView: NSView {
         }
 
         let width = bannerWidth(for: configuration)
-        bannerView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
+        bannerView.frame = NSRect(x: 0, y: 0, width: width, height: AppKitLayoutProbe.height)
         iconView.frame = NSRect(
             x: errorBannerHorizontalPadding,
             y: errorBannerVerticalPadding,
@@ -130,7 +130,7 @@ final class AppKitTranscriptErrorBannerView: NSView {
     }
 
     private func measuredHeight() -> CGFloat {
-        if bannerView.frame.height > 0, bannerView.frame.height < CGFloat.greatestFiniteMagnitude / 4 {
+        if AppKitLayoutProbe.isMeasured(bannerView.frame.height) {
             return ceil(bannerView.frame.height)
         }
         return ceil((errorBannerVerticalPadding * 2) + max(errorBannerIconSize, messageField.fittingSize.height))

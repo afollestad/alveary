@@ -154,7 +154,7 @@ final class AppKitTranscriptPromptQuestionCardView: NSView {
         currentY = questionField.frame.maxY + 12
 
         for row in optionRows {
-            row.frame = NSRect(x: 0, y: currentY, width: bounds.width, height: CGFloat.greatestFiniteMagnitude / 2)
+            row.frame = NSRect(x: 0, y: currentY, width: bounds.width, height: AppKitLayoutProbe.height)
             row.layoutSubtreeIfNeeded()
             row.frame.size.height = row.intrinsicContentSize.height
             currentY = row.frame.maxY + promptOptionRowSpacing
@@ -167,7 +167,7 @@ final class AppKitTranscriptPromptQuestionCardView: NSView {
     }
 
     private func measuredHeight() -> CGFloat {
-        if backgroundView.frame.height > 0, backgroundView.frame.height < CGFloat.greatestFiniteMagnitude / 4 {
+        if AppKitLayoutProbe.isMeasured(backgroundView.frame.height) {
             return ceil(backgroundView.frame.height)
         }
         let optionHeight = optionRows.reduce(CGFloat.zero) { $0 + $1.intrinsicContentSize.height }

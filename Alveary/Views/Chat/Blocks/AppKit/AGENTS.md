@@ -46,7 +46,7 @@ AppKit-native transcript row primitives live here, because SwiftUI lazy-list rec
 
 `AppKitTranscriptToolDetailsView` renders a custom view for a tool ahead of the usual extractors, as it does `AppKitScheduledTaskListDetailView` for `list_scheduled_tasks`. Such a view is still an ordinary tool row's expanded detail, not a widget.
 
-- **Report your own height.** The container hands each child a full-width frame with an unbounded height and reads back `intrinsicContentSize`, falling back to `fittingSize`. A child pinned on all four edges stretches into that frame and lays out over the header; pin top/leading/trailing only.
+- **Report your own height.** The container hands each child a full-width frame `AppKitLayoutProbe.height` tall and reads back `intrinsicContentSize`, falling back to `fittingSize`. A child pinned on all four edges stretches into that frame and lays out over the header; pin top/leading/trailing only.
 - **Render an empty result as a row, not blank space.** The custom view replaces the Input/Output blocks, so nothing else fills the gap when the tool returns nothing.
 - **Reuse `AppKitTranscriptElbowConnectorView` for nested content** so custom detail reads as a hierarchy like grouped tools and parallel sub-agents.
 - **Forward a detail view's actions down every fork.** A groupable tool also travels `AppKitTranscriptActivityGroupView` → `AppKitTranscriptMixedActivityRowsView`, and `AppKitTranscriptToolGroupView` renders a one-tool group through `singleToolRow`. A missed fork fails silently on the default no-op handlers, so `ScheduledTaskListToolRowTests` drives the real factory tree.

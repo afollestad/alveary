@@ -77,13 +77,23 @@ extension ChatView {
             return
         }
         let canSignIn = harnessSignIn?.signInCommand(for: harnessID) != nil && terminalManager != nil
-        items.append(.inlineBanner(.init(
+        items.append(.inlineBanner(harnessAuthenticationBanner(message: message, canSignIn: canSignIn)))
+    }
+
+    /// Split from `appendHarnessAuthenticationNotice` so the environment reads stay there: tests
+    /// drive this with an unmounted `ChatView`, where reading `harnessSignIn` is an
+    /// uninstalled-`Environment` runtime issue that fails `scripts/test.sh`.
+    func harnessAuthenticationBanner(
+        message: String,
+        canSignIn: Bool
+    ) -> AppKitChatComposerTopContentView.InlineBannerConfiguration {
+        AppKitChatComposerTopContentView.InlineBannerConfiguration(
             message: message,
             severity: .error,
             actionTitle: canSignIn ? "Sign In" : nil,
             onAction: canSignIn ? { startHarnessSignIn() } : nil,
             onDismiss: { viewModel.harnessAuthenticationFailure = nil }
-        )))
+        )
     }
 
     /// Opens the sign-in tab and reveals the pane holding it, then clears the banner: the pane is now

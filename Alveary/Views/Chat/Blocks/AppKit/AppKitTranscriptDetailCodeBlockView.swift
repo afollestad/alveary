@@ -126,7 +126,7 @@ final class AppKitTranscriptDetailCodeBlockView: NSView {
             x: 0,
             y: titleHeight + 6,
             width: width,
-            height: CGFloat.greatestFiniteMagnitude / 2
+            height: AppKitLayoutProbe.height
         )
         codeView.layoutSubtreeIfNeeded()
         codeView.frame.size.height = codeView.intrinsicContentSize.height

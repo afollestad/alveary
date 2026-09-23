@@ -5,37 +5,37 @@ import XCTest
 
 @MainActor
 extension MCPViewModelTests {
-    func testMCPServerRowEqualityIgnoresItsActionsAndComparesTheRenderedServer() {
+    func testMCPServerRowEqualityIgnoresItsActionsAndComparesTheRenderedServer() throws {
         let server = makeServer()
-        let row = makeRow(server: server)
+        let row = try makeRow(server: server)
 
-        XCTAssertEqual(row, makeRow(server: server))
-        XCTAssertNotEqual(row, makeRow(server: makeServer(harnesses: ["codex"])))
-        XCTAssertNotEqual(row, makeRow(server: makeServer(name: "other")))
-        XCTAssertNotEqual(row, makeRow(server: server, isSelected: true))
-        XCTAssertNotEqual(row, makeRow(server: server, focusID: "mcp-edit-other"))
+        XCTAssertEqual(row, try makeRow(server: server))
+        XCTAssertNotEqual(row, try makeRow(server: makeServer(harnesses: ["codex"])))
+        XCTAssertNotEqual(row, try makeRow(server: makeServer(name: "other")))
+        XCTAssertNotEqual(row, try makeRow(server: server, isSelected: true))
+        XCTAssertNotEqual(row, try makeRow(server: server, focusID: "mcp-edit-other"))
     }
 
-    func testRecommendedMCPCardEqualityIgnoresItsActionAndComparesTheRenderedServer() {
+    func testRecommendedMCPCardEqualityIgnoresItsActionAndComparesTheRenderedServer() throws {
         let recommended = makeRecommended()
-        let card = makeCard(server: recommended)
+        let card = try makeCard(server: recommended)
 
-        XCTAssertEqual(card, makeCard(server: recommended))
-        XCTAssertNotEqual(card, makeCard(server: makeRecommended(description: "Something else")))
-        XCTAssertNotEqual(card, makeCard(server: makeRecommended(name: "other")))
-        XCTAssertNotEqual(card, makeCard(server: recommended, isSelected: true))
-        XCTAssertNotEqual(card, makeCard(server: recommended, focusID: "mcp-recommended-other"))
+        XCTAssertEqual(card, try makeCard(server: recommended))
+        XCTAssertNotEqual(card, try makeCard(server: makeRecommended(description: "Something else")))
+        XCTAssertNotEqual(card, try makeCard(server: makeRecommended(name: "other")))
+        XCTAssertNotEqual(card, try makeCard(server: recommended, isSelected: true))
+        XCTAssertNotEqual(card, try makeCard(server: recommended, focusID: "mcp-recommended-other"))
     }
 
-    func testBuiltInMCPToolGroupCardEqualityIgnoresItsActionAndComparesTheRenderedGroup() {
+    func testBuiltInMCPToolGroupCardEqualityIgnoresItsActionAndComparesTheRenderedGroup() throws {
         let group = makeBuiltInToolGroup()
-        let card = makeBuiltInCard(group: group)
+        let card = try makeBuiltInCard(group: group)
 
-        XCTAssertEqual(card, makeBuiltInCard(group: group))
-        XCTAssertNotEqual(card, makeBuiltInCard(group: makeBuiltInToolGroup(title: "Something else")))
-        XCTAssertNotEqual(card, makeBuiltInCard(group: makeBuiltInToolGroup(tools: [])))
-        XCTAssertNotEqual(card, makeBuiltInCard(group: group, isSelected: true))
-        XCTAssertNotEqual(card, makeBuiltInCard(group: group, focusID: "mcp-built-in-other"))
+        XCTAssertEqual(card, try makeBuiltInCard(group: group))
+        XCTAssertNotEqual(card, try makeBuiltInCard(group: makeBuiltInToolGroup(title: "Something else")))
+        XCTAssertNotEqual(card, try makeBuiltInCard(group: makeBuiltInToolGroup(tools: [])))
+        XCTAssertNotEqual(card, try makeBuiltInCard(group: group, isSelected: true))
+        XCTAssertNotEqual(card, try makeBuiltInCard(group: group, focusID: "mcp-built-in-other"))
     }
 }
 
@@ -72,17 +72,22 @@ private func makeRecommended(
     )
 }
 
-/// Both row types store a `FocusState` binding, which only a `View` can vend, so equality
-/// fixtures build one through a host rather than constructing the binding directly.
-/// SwiftUI logs that the binding is read outside a `View` body and is therefore constant —
-/// which is exactly what an `==` fixture wants, since the binding is excluded from `==`.
+/// These types store a `FocusState` binding, which `hostedFocusStateBinding()` vends from a real
+/// body pass; the binding is excluded from `==`, so any live one serves.
 @MainActor
 private func makeRow(
     server: MCPServer,
     isSelected: Bool = false,
     focusID: String = "mcp-edit-context7"
-) -> MCPServerRow {
-    MCPServerRowEqualityHost(server: server, isSelected: isSelected, focusID: focusID).row
+) throws -> MCPServerRow {
+    MCPServerRow(
+        server: server,
+        isSelected: isSelected,
+        onEdit: {},
+        onRemove: {},
+        editFocus: try hostedFocusStateBinding(String.self),
+        editFocusID: focusID
+    )
 }
 
 @MainActor
@@ -90,8 +95,14 @@ private func makeCard(
     server: RecommendedMCPServer,
     isSelected: Bool = false,
     focusID: String = "mcp-recommended-playwright"
-) -> RecommendedMCPCard {
-    RecommendedMCPCardEqualityHost(server: server, isSelected: isSelected, focusID: focusID).card
+) throws -> RecommendedMCPCard {
+    RecommendedMCPCard(
+        server: server,
+        isSelected: isSelected,
+        onAdd: {},
+        addFocus: try hostedFocusStateBinding(String.self),
+        addFocusID: focusID
+    )
 }
 
 @MainActor
@@ -99,73 +110,12 @@ private func makeBuiltInCard(
     group: BuiltInMCPToolGroup,
     isSelected: Bool = false,
     focusID: String = "mcp-built-in-threads"
-) -> BuiltInMCPToolGroupCard {
-    BuiltInMCPToolGroupCardEqualityHost(group: group, isSelected: isSelected, focusID: focusID).card
-}
-
-private struct MCPServerRowEqualityHost: View {
-    let server: MCPServer
-    let isSelected: Bool
-    let focusID: String
-
-    @FocusState private var focus: String?
-
-    var row: MCPServerRow {
-        MCPServerRow(
-            server: server,
-            isSelected: isSelected,
-            onEdit: {},
-            onRemove: {},
-            editFocus: $focus,
-            editFocusID: focusID
-        )
-    }
-
-    var body: some View {
-        row
-    }
-}
-
-private struct BuiltInMCPToolGroupCardEqualityHost: View {
-    let group: BuiltInMCPToolGroup
-    let isSelected: Bool
-    let focusID: String
-
-    @FocusState private var focus: String?
-
-    var card: BuiltInMCPToolGroupCard {
-        BuiltInMCPToolGroupCard(
-            group: group,
-            isSelected: isSelected,
-            onOpen: {},
-            openFocus: $focus,
-            openFocusID: focusID
-        )
-    }
-
-    var body: some View {
-        card
-    }
-}
-
-private struct RecommendedMCPCardEqualityHost: View {
-    let server: RecommendedMCPServer
-    let isSelected: Bool
-    let focusID: String
-
-    @FocusState private var focus: String?
-
-    var card: RecommendedMCPCard {
-        RecommendedMCPCard(
-            server: server,
-            isSelected: isSelected,
-            onAdd: {},
-            addFocus: $focus,
-            addFocusID: focusID
-        )
-    }
-
-    var body: some View {
-        card
-    }
+) throws -> BuiltInMCPToolGroupCard {
+    BuiltInMCPToolGroupCard(
+        group: group,
+        isSelected: isSelected,
+        onOpen: {},
+        openFocus: try hostedFocusStateBinding(String.self),
+        openFocusID: focusID
+    )
 }

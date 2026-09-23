@@ -106,7 +106,7 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
                 x: rowLeadingInset,
                 y: currentY,
                 width: rowWidth,
-                height: CGFloat.greatestFiniteMagnitude / 2
+                height: AppKitLayoutProbe.height
             )
             row.layoutSubtreeIfNeeded()
             row.frame.size.height = row.intrinsicContentSize.height
