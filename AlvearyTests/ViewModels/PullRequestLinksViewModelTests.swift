@@ -146,7 +146,8 @@ final class PullRequestLinksViewModelTests: XCTestCase {
         XCTAssertEqual(harness.project.linkedPullRequests, [])
     }
 
-    func testRefreshSnapshotRewritesAStaleStatus() async throws {
+    /// The open pane already loaded this detail; reconciling the stored link must not fetch it again.
+    func testApplySnapshotRewritesAStaleSnapshotWithoutFetching() async throws {
         let harness = try Harness()
         harness.thread.linkedPullRequests = [
             LinkedPullRequest(
@@ -154,16 +155,15 @@ final class PullRequestLinksViewModelTests: XCTestCase {
                 linkedAt: Date(timeIntervalSince1970: 1)
             )
         ]
-        harness.service.detailResult = .success(
-            makePullRequestDetail(id: identifier, title: "New title", status: .merged)
-        )
+        let detail = makePullRequestDetail(id: identifier, title: "New title", status: .merged)
 
-        await harness.viewModel.refreshSnapshot(identifier, owner: harness.threadOwner)
+        harness.viewModel.applySnapshot(PullRequestLinkService.makeSummary(from: detail), owner: harness.threadOwner)
 
         let link = try XCTUnwrap(harness.thread.linkedPullRequests.first)
         XCTAssertEqual(link.summary.status, .merged)
         XCTAssertEqual(link.summary.title, "New title")
         XCTAssertEqual(link.linkedAt, Date(timeIntervalSince1970: 1))
+        XCTAssertEqual(harness.service.detailCallCount, 0)
     }
 
     /// Drives the toolbar glyph following a merge or ready-for-review without a
@@ -201,11 +201,11 @@ final class PullRequestLinksViewModelTests: XCTestCase {
         XCTAssertEqual(harness.thread.linkedPullRequests.first?.summary.status, .open)
     }
 
-    func testRefreshSnapshotLeavesAnUnlinkedPullRequestAlone() async throws {
+    func testApplySnapshotLeavesAnUnlinkedPullRequestAlone() async throws {
         let harness = try Harness()
-        harness.service.detailResult = .success(makePullRequestDetail(id: identifier, status: .merged))
+        let detail = makePullRequestDetail(id: identifier, status: .merged)
 
-        await harness.viewModel.refreshSnapshot(identifier, owner: harness.threadOwner)
+        harness.viewModel.applySnapshot(PullRequestLinkService.makeSummary(from: detail), owner: harness.threadOwner)
 
         XCTAssertEqual(harness.thread.linkedPullRequests, [])
     }

@@ -72,6 +72,8 @@ final class PullRequestReviewProposalCoordinator {
     /// already-refreshed one and suppress the refresh forever. Whoever invalidates a preview clears
     /// this too, or the reload it wants never runs.
     @ObservationIgnored var refreshedProposalIDs: Set<String> = []
+    /// Proposals whose cached hunks stopped being true; their next refresh must reach GitHub (`freshSeed`).
+    @ObservationIgnored var invalidatedProposalIDs: Set<String> = []
 
     init(
         modelContext: ModelContext,
@@ -192,16 +194,7 @@ final class PullRequestReviewProposalCoordinator {
         }
 
         do {
-            // Re-read GitHub rather than trusting the snapshot: the pull request can merge, or the
-            // draft review can change, between proposing and confirming.
-            let detail = try await pullRequestsService.fetchDetail(presentation.identifier)
-            guard validateSubmission(presentation: presentation, event: event, detail: detail) else { return false }
-            try await submit(
-                presentation: presentation,
-                event: event,
-                body: presentation.body ?? "",
-                detail: detail
-            )
+            guard try await submitAgainstFreshDetail(presentation, event: event) else { return false }
         } catch {
             errorMessages[proposalID] = Self.message(for: error)
             return false
@@ -415,6 +408,22 @@ final class PullRequestReviewProposalCoordinator {
 }
 
 private extension PullRequestReviewProposalCoordinator {
+    /// Re-reads GitHub rather than trusting the snapshot — the pull request can merge, or the draft review can
+    /// change, between proposing and confirming — then submits. False when validation refused, having reported why.
+    func submitAgainstFreshDetail(
+        _ presentation: PullRequestReviewProposalPresentation,
+        event: PullRequestReviewEvent
+    ) async throws -> Bool {
+        try await GitHubRequestOrigin.$current.withValue("proposal-confirm") {
+            let detail = try await pullRequestsService.fetchDetail(presentation.identifier)
+            guard validateSubmission(presentation: presentation, event: event, detail: detail) else {
+                return false
+            }
+            try await submit(presentation: presentation, event: event, body: presentation.body ?? "", detail: detail)
+            return true
+        }
+    }
+
     func validateSubmission(
         presentation: PullRequestReviewProposalPresentation,
         event: PullRequestReviewEvent,

@@ -110,6 +110,24 @@ extension ContentView {
         pullRequestLinksViewModel.applyStatus(status, to: target.identifier, owner: row.owner)
     }
 
+    var activeSelectionPullRequestDetailSummary: PullRequestSummary? {
+        guard let owner = selectedPullRequestLinkOwner,
+              pullRequestsViewModel.activePaneTarget(for: PullRequestPaneOrigin(owner: owner)) != nil else {
+            return nil
+        }
+        return pullRequestsViewModel.activePaneDetailSummary
+    }
+
+    /// Rewrites the rendered row's stored snapshot from the open pane's latest detail load, targeting the row's true
+    /// owner as the status write does.
+    func persistActiveSelectionPullRequestSnapshot() {
+        guard let summary = activeSelectionPullRequestDetailSummary,
+              let row = selectedPullRequestLinks.first(where: { $0.id == summary.id }) else {
+            return
+        }
+        pullRequestLinksViewModel.applySnapshot(summary, owner: row.owner)
+    }
+
     var pullRequestToolbarHelpText: String {
         let base = pullRequestLinksToolbarState?.helpText ?? "Link a pull request"
         return "\(base) (\(KeyboardShortcut.togglePullRequests.displayString))"
@@ -161,13 +179,9 @@ extension ContentView {
         }
         // The origin is the *selection* surface — a project selection scopes the
         // pane even when the row's link is stored on a child thread.
+        // The stored summary is a cache the pane's own detail load reconciles through
+        // `persistActiveSelectionPullRequestSnapshot`; fetching it here too would read the same pull request twice.
         pullRequestsViewModel.requestDetails(row.link.summary, origin: PullRequestPaneOrigin(owner: selection))
-        // The stored summary is a cache; opening is the moment to reconcile it,
-        // so the toolbar glyph follows merges and closures. The refresh targets
-        // the row's true owner.
-        Task {
-            await pullRequestLinksViewModel.refreshSnapshot(row.id, owner: row.owner)
-        }
     }
 
     @ViewBuilder

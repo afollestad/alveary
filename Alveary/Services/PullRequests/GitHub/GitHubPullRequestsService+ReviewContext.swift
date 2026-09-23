@@ -15,7 +15,7 @@ extension GitHubPullRequestsService {
     private func reviewMetadata(
         _ id: PullRequestIdentifier, context: Bool
     ) async throws -> (node: PullRequestDetailNode, viewer: GraphQLActorNode?) {
-        let fields = context ? "title body changedFiles author { login }" : ""
+        let fields = context ? "title url body changedFiles author { login }" : ""
         let query = """
         query($owner:String!, $name:String!, $number:Int!) {
           rateLimit { cost }

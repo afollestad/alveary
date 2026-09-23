@@ -366,7 +366,9 @@ final class PullRequestReviewTeamCoordinator {
             guard let self else { return }
             await quotaRestoration?.value
             do {
-                try await perform(conversationID: run.conversationID, generation: run.generation)
+                try await GitHubRequestOrigin.$current.withValue("team-review") {
+                    try await perform(conversationID: run.conversationID, generation: run.generation)
+                }
             } catch {
                 if var current = try? requireActive(run.conversationID, generation: run.generation) {
                     current.phase = .failed

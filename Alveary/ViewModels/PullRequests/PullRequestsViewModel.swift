@@ -91,13 +91,14 @@ final class PullRequestsViewModel {
     /// pane cannot render outside the context it was opened from.
     private(set) var activePaneOrigin: PullRequestPaneOrigin = .screen
     private(set) var paneSessions: [PullRequestPaneTarget: PullRequestPaneSession] = [:]
-    /// The open pane's summary status, mirrored out of `paneSessions` so the app root can
-    /// follow it without observing the whole dictionary — `@Observable` has no per-key
+    /// The open pane's summary status and detail (as a link snapshot), mirrored out of `paneSessions` so the app root can
+    /// follow them without observing the whole dictionary — `@Observable` has no per-key
     /// granularity, so reading a session there made every session write (typing, collapsing
     /// a file, a diff landing) re-render the root and the mounted thread view. Every
     /// mutation of `paneSessions` or `activePaneTarget` in this file ends with
     /// `refreshActivePaneSummaryStatus()`; the dictionary's setter is private to it.
     private(set) var activePaneSummaryStatus: PullRequestStatus?
+    private(set) var activePaneDetailSummary: PullRequestSummary?
     private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<PullRequestPaneTarget>> = []
     private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<PullRequestPaneTarget>> = []
 
@@ -405,14 +406,13 @@ extension PullRequestsViewModel {
         refreshActivePaneSummaryStatus()
     }
 
-    /// Re-derives the mirrored status; guarded on equality so the writes that cannot
-    /// affect it publish nothing.
+    /// Re-derives both mirrors, equality-guarded so the writes that cannot affect them publish nothing.
     private func refreshActivePaneSummaryStatus() {
-        let status = activePaneTarget.flatMap { paneSessions[$0]?.summary?.status }
-        guard status != activePaneSummaryStatus else {
-            return
-        }
-        activePaneSummaryStatus = status
+        let session = activePaneTarget.flatMap { paneSessions[$0] }
+        let status = session?.summary?.status
+        if status != activePaneSummaryStatus { activePaneSummaryStatus = status }
+        let detailSummary = session?.detail.map { PullRequestLinkService.makeSummary(from: $0, linkedAt: .distantPast) }
+        if detailSummary != activePaneDetailSummary { activePaneDetailSummary = detailSummary }
     }
 
     /// Route-only deactivation; preserves the session for another root pane.

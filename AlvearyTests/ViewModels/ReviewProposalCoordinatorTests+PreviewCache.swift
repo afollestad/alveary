@@ -64,6 +64,52 @@ extension ReviewProposalCoordinatorTests {
         XCTAssertEqual(fixture.service.detailCallCount, 1)
     }
 
+    /// Propose time and team staging read GitHub seconds before the card renders; reading it again behind the
+    /// paint would only spend the user's shared quota.
+    func testAJustSeededPreviewSkipsTheRefreshUntilItIsInvalidated() async throws {
+        let comments = [ReviewProposalFixture.stagedComment(line: 1, body: "Guard this.")]
+        let fixture = try ReviewProposalFixture(
+            comments: comments,
+            pendingCommentCount: 0,
+            cachedEntry: ReviewProposalFixture.seededEntry(for: comments, fetchedAt: Date(timeIntervalSince1970: 1_950))
+        )
+        fixture.service.detailResult = .success(makePullRequestDetail(id: ReviewProposalFixture.identifier))
+        fixture.service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 2))
+        let proposalID = ReviewProposalFixture.proposalID
+
+        try await fixture.wait(
+            until: {
+                fixture.coordinator.refreshedProposalIDs.contains(proposalID)
+                    && fixture.coordinator.previewTasks[proposalID] == nil
+            },
+            "the warm never settled"
+        )
+        guard case .loaded? = fixture.coordinator.preview(forProposalID: proposalID) else {
+            return XCTFail("expected the seed to paint")
+        }
+        XCTAssertEqual(fixture.service.detailCallCount, 0)
+        XCTAssertEqual(fixture.service.diffCallCount, 0)
+
+        // An invalidation says the seeded hunks stopped being true, so the reload must reach GitHub.
+        fixture.coordinator.invalidatePreview(proposalID: proposalID)
+        fixture.coordinator.ensurePreview(proposalID: proposalID)
+        try await fixture.wait(until: { fixture.service.detailCallCount == 1 }, "the invalidated card never refreshed")
+    }
+
+    /// The seed omits the viewer's GitHub-side draft threads, so a proposal that saw some still refreshes.
+    func testAJustSeededPreviewStillRefreshesOverAGitHubDraft() async throws {
+        let comments = [ReviewProposalFixture.stagedComment(line: 1, body: "Guard this.")]
+        let fixture = try ReviewProposalFixture(
+            comments: comments,
+            pendingCommentCount: 1,
+            cachedEntry: ReviewProposalFixture.seededEntry(for: comments, fetchedAt: Date(timeIntervalSince1970: 1_950))
+        )
+        fixture.service.detailResult = .success(makePullRequestDetail(id: ReviewProposalFixture.identifier))
+        fixture.service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 2))
+
+        try await fixture.wait(until: { fixture.service.detailCallCount == 1 }, "the refresh never ran")
+    }
+
     /// A cold cache is the case the warm matters most for: there are no hunks to paint, so without
     /// it the card opens on a loading caption over two round trips.
     func testAColdCacheWarmsItsRefreshToo() async throws {

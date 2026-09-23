@@ -26,6 +26,10 @@ This is the layer *below* the host tools and linking: dependencies run one way, 
     - **List and detail run under a deadline the host-tool bridge sets: 20s per attempt, 25s including retries and backoff.** The bridge kills a tool call at 30s with a generic "Host tool call timed out.", so anything at or above that always lost the race and replaced every nameable failure with that message. Raw diff attempts keep 60s; the host tool waits at most 20s on a resumable preparation, whose deadline is ten minutes.
     - **Read the HTTP status from the `HTTP` marker, not the first number present.** `gh` puts exit codes and pull request numbers on stderr too, and one landing first was returned as the status — reading a retryable 502 as a non-retryable 128.
 
+## Quota Attribution
+
+- **Label a new GitHub entry point with `GitHubRequestOrigin`.** `GitHubUsageLedger` attributes spend by that task-local, and an unlabeled feature reports as `other`, which no incident can act on. Never reach the service from `Task.detached`, which drops the label.
+
 ## Review Mutations
 
 - **Inline comments are server-side pending review comments, not a local batch.** Writing one creates (or reuses) the viewer's PENDING review on GitHub and attaches the comment immediately, so it appears on github.com and survives quitting Alveary — and, as the trade-off, cannot be drafted offline. It is all GraphQL: REST has no endpoint that adds a comment to an existing pending review, and pending comments are addressed by node id rather than the REST ids submitted comments use.

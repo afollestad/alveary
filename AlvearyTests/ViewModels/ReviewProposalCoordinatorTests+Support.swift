@@ -159,7 +159,8 @@ final class ReviewProposalFixture {
         for comments: [PullRequestReviewProposalRecord.Comment],
         identifier: PullRequestIdentifier = ReviewProposalFixture.identifier,
         fileCount: Int = 2,
-        viewerLogin: String? = "octocat"
+        viewerLogin: String? = "octocat",
+        fetchedAt: Date = Date(timeIntervalSince1970: 1_500)
     ) -> PullRequestReviewProposalPreviewCache.Entry {
         PullRequestReviewProposalPreviewCache.Entry(
             identifier: identifier,
@@ -171,7 +172,7 @@ final class ReviewProposalFixture {
             viewerLogin: viewerLogin,
             viewerAvatarURL: nil,
             viewerIsAuthor: false,
-            fetchedAt: Date(timeIntervalSince1970: 1_500)
+            fetchedAt: fetchedAt
         )
     }
 

@@ -160,7 +160,9 @@ extension PullRequestsViewModel {
         onFinish: ((inout PullRequestPaneSession) -> Void)? = nil
     ) async {
         do {
-            let detail = try await service.fetchDetail(target.identifier)
+            let detail = try await GitHubRequestOrigin.$current.withValue("pane") {
+                try await service.fetchDetail(target.identifier)
+            }
             // The pane's comment ages are measured against this; without a touch they
             // would read relative to whenever the list last refreshed.
             touchReferenceDate()
@@ -195,7 +197,9 @@ extension PullRequestsViewModel {
 
     private func loadDiff(target: PullRequestPaneTarget, generation: UUID) async {
         do {
-            let raw = try await service.fetchDiff(target.identifier)
+            let raw = try await GitHubRequestOrigin.$current.withValue("pane") {
+                try await service.fetchDiff(target.identifier)
+            }
             let parsed = await Task.detached(priority: .userInitiated) {
                 DiffParser.parse(raw)
             }.value

@@ -7,19 +7,24 @@ extension PullRequestHostToolService {
         context: AgentCLIKit.AgentHostToolCallContext,
         arguments: [String: AgentCLIKit.JSONValue]
     ) async throws -> AgentCLIKit.AgentHostToolResult {
-        _ = try resolveSource(context: context)
-        let identifier = try parseIdentifier(arguments: arguments)
-        // Fetched rather than assumed: the title goes into the instructions, and a URL naming a
-        // pull request that does not exist should fail here rather than halfway through a review.
-        let detail = try await fetchDetail(identifier)
         let source = try resolveSource(context: context)
-        let instructions = try PullRequestReviewLaunchInstructions.instructions(for: identifier, in: source.conversation)
-            ?? PullRequestReviewPromptBuilder.reviewInstructions(
+        let identifier = try parseIdentifier(arguments: arguments)
+        // A launched task's saved instructions name a pull request its launch already fetched, so
+        // reading it again would only spend the user's shared GitHub quota.
+        let instructions: String
+        if let saved = try PullRequestReviewLaunchInstructions.instructions(for: identifier, in: source.conversation) {
+            instructions = saved
+        } else {
+            // Fetched rather than assumed: the title goes into the instructions, and a URL naming a
+            // pull request that does not exist should fail here rather than halfway through a review.
+            let pullRequest = try await fetchReviewContext(identifier)
+            instructions = PullRequestReviewPromptBuilder.reviewInstructions(
                 settings: settingsService.current,
-                url: detail.url ?? Self.fallbackURL(for: identifier),
+                url: pullRequest.url ?? Self.fallbackURL(for: identifier),
                 identifier: identifier,
-                title: detail.title
+                title: pullRequest.title
             )
+        }
 
         return AgentCLIKit.AgentHostToolResult(
             text: instructions,

@@ -6,14 +6,30 @@ struct GitHubRateLimit: Codable, Equatable, Sendable {
     let isSecondary: Bool
     let retryAt: Date
     var isResponse = true
+    /// Alveary's share of the exhausted window. Optional so waits persisted before the ledger still decode.
+    var appUsage: GitHubAppUsage?
 
     var message: String {
-        "\(reason). Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
+        "\(reason). Try again after \(retryAt.formatted(date: .omitted, time: .shortened)).\(usageSentence)"
     }
 
-    var waitingMessage: String { "\(reason). Resuming at \(retryAt.formatted(date: .omitted, time: .shortened))." }
+    var waitingMessage: String {
+        "\(reason). Resuming at \(retryAt.formatted(date: .omitted, time: .shortened)).\(usageSentence)"
+    }
 
     private var reason: String { isSecondary ? "GitHub is temporarily limiting requests" : "GitHub's API quota is exhausted" }
+
+    /// Every tool acting as the user shares one budget, so saying how much of it Alveary spent is what tells the user
+    /// whether to look elsewhere.
+    private var usageSentence: String {
+        guard let usage = appUsage else {
+            return ""
+        }
+        let unit = resource == "graphql" ? "points" : "requests"
+        let spent = usage.accountUsed.map { " of the \($0.formatted()) \(unit) spent this hour" } ?? " \(unit) this hour"
+        let since = usage.countedSince.map { " (counting since \($0.formatted(date: .omitted, time: .shortened)))" } ?? ""
+        return " Alveary used \(usage.appUsed.formatted())\(spent)\(since)."
+    }
 }
 
 /// Removes `gh api --include` headers before callers decode JSON or parse a diff.

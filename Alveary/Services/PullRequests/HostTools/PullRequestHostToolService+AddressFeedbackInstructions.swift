@@ -15,12 +15,12 @@ extension PullRequestHostToolService {
     ) async throws -> AgentCLIKit.AgentHostToolResult {
         _ = try resolveSource(context: context)
         let identifier = try parseIdentifier(arguments: arguments)
-        let detail = try await fetchDetail(identifier)
+        let pullRequest = try await fetchReviewContext(identifier)
         let instructions = PullRequestReviewPromptBuilder.addressFeedbackInstructions(
             settings: settingsService.current,
-            url: detail.url ?? Self.fallbackURL(for: identifier),
+            url: pullRequest.url ?? Self.fallbackURL(for: identifier),
             identifier: identifier,
-            title: detail.title
+            title: pullRequest.title
         )
 
         return AgentCLIKit.AgentHostToolResult(

@@ -61,7 +61,17 @@ final class PullRequestHostToolService {
         self.now = now
     }
 
+    /// Labels every GitHub request the tool makes, so the usage ledger can name the tool that spent a quota.
     func handle(
+        context: AgentCLIKit.AgentHostToolCallContext,
+        call: AgentCLIKit.AgentHostToolCall
+    ) async -> AgentCLIKit.AgentHostToolResult {
+        await GitHubRequestOrigin.$current.withValue("tool:\(call.name)") {
+            await handleCall(context: context, call: call)
+        }
+    }
+
+    private func handleCall(
         context: AgentCLIKit.AgentHostToolCallContext,
         call: AgentCLIKit.AgentHostToolCall
     ) async -> AgentCLIKit.AgentHostToolResult {
@@ -276,6 +286,15 @@ final class PullRequestHostToolService {
     func fetchDetail(_ identifier: PullRequestIdentifier) async throws -> PullRequestDetail {
         do {
             return try await pullRequestsService.fetchDetail(identifier)
+        } catch let error as PullRequestsServiceError {
+            throw Self.unavailable(error)
+        }
+    }
+
+    /// The light metadata read, for tools that need only the title, URL, and proof the pull request exists.
+    func fetchReviewContext(_ identifier: PullRequestIdentifier) async throws -> PullRequestReviewContext {
+        do {
+            return try await pullRequestsService.fetchReviewContext(identifier)
         } catch let error as PullRequestsServiceError {
             throw Self.unavailable(error)
         }

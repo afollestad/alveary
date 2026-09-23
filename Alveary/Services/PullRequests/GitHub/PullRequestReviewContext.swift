@@ -10,6 +10,8 @@ struct PullRequestRevision: Equatable, Sendable {
 /// The worker packet needs metadata, not the pane's checks, reactions, or conversation timeline.
 struct PullRequestReviewContext: Equatable, Sendable {
     let title: String
+    /// GitHub's canonical URL, so a caller naming the pull request back uses GitHub's casing rather than the input's.
+    let url: URL?
     let bodyMarkdown: String
     let changedFiles: Int
     let authorLogin: String
@@ -18,6 +20,7 @@ struct PullRequestReviewContext: Equatable, Sendable {
 
     init(detail: PullRequestDetail) {
         title = detail.title
+        url = detail.url
         bodyMarkdown = detail.bodyMarkdown
         changedFiles = detail.changedFiles
         authorLogin = detail.authorLogin

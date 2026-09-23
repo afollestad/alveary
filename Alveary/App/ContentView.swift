@@ -404,12 +404,12 @@ private extension ContentView {
         .onChange(of: isDiffViewerRendered, initial: true) { _, isRendered in
             diffViewModel.setWatchingEnabled(isRendered)
         }
-        // A state change inside the pane (merge, close, reopen, ready for review)
-        // refetches the detail; mirror it into the stored link so the toolbar
-        // glyph updates without waiting for the pane to be reopened.
+        // Mirror what the open pane learns into the stored link — a state change at once, each detail load in
+        // full — so the toolbar follows merges and closures without a fetch of its own.
         .onChange(of: activeSelectionPullRequestStatus) { _, _ in
             persistActiveSelectionPullRequestStatus()
         }
+        .onChange(of: activeSelectionPullRequestDetailSummary) { _, _ in persistActiveSelectionPullRequestSnapshot() }
         // Disabling the integration removes every way back to an open pull-request
         // pane, so forget it rather than leaving a session that would reappear.
         .onChange(of: settingsService.current.pullRequestsEnabled) { _, isEnabled in

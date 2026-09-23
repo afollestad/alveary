@@ -45,7 +45,7 @@ Propose time only. `Alveary/ViewModels/PullRequests/Review/AGENTS.md` owns confi
 
 - **Calling one is how Alveary learns which job was asked for.** Deciding that from the wording of a message would need intent heuristics, and "I already reviewed #42" reads the same to a regex as "review #42" — so the decision stays with the model, which understands the sentence. A call made in error costs a read and nothing else.
 - **Keep both instruction tools read-only.** Team-mode review instructions direct callers to `start_pr_review`; single-agent instructions retain in-conversation review. Dedicated launch requests may call `start_pr_review` directly. Addressing feedback still routes through its own instructions tool.
-- **They fetch the pull request rather than assuming it.** A URL naming one that does not exist fails here instead of halfway through work the model has already begun narrating.
+- **They fetch the pull request rather than assuming it.** A URL naming one that does not exist fails here instead of halfway through work the model has already begun narrating. The light `fetchReviewContext` read is enough for that. A launched review whose saved instructions name the pull request skips the read, because its launch already fetched it.
 - **One transcript card serves both**, keyed by `ReviewInstructionsWidgetContent.Kind`; `Alveary/Views/Chat/Blocks/AppKit/Widgets/AGENTS.md` owns what the kind may change.
 
 ### Review Launches

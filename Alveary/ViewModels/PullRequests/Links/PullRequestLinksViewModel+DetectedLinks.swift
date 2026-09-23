@@ -23,7 +23,9 @@ extension PullRequestLinksViewModel {
         linkingDetectedIdentifiers.insert(identifier)
         defer { linkingDetectedIdentifiers.remove(identifier) }
 
-        let detail = try await service.fetchDetail(identifier)
+        let detail = try await GitHubRequestOrigin.$current.withValue(GitHubRequestOrigin.current ?? "link") {
+            try await service.fetchDetail(identifier)
+        }
 
         // Re-resolve after the await: the thread may be gone, or a concurrent link
         // for the same pull request may have landed meanwhile.

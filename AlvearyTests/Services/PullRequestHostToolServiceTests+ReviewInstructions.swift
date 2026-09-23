@@ -26,6 +26,9 @@ extension PullRequestHostToolServiceTests {
         let content = try object(result.structuredContent)
         XCTAssertEqual(content["repository"], .string("octo/alpha"))
         XCTAssertEqual(content["number"], .number(7))
+        // Only the title and URL are needed, so the light read proves the pull request exists.
+        XCTAssertEqual(fixture.pullRequests.reviewContextCallCount, 1)
+        XCTAssertEqual(fixture.pullRequests.detailCallCount, 0)
     }
 
     /// Both routes fetch their guidance through this tool, and the tool composes it through the
@@ -143,8 +146,13 @@ extension PullRequestHostToolServiceTests {
             $0.pullRequestReviewPrompt = "Replacement review criteria."
         }
 
+        let readsBeforeDestination = launch.host.pullRequests.detailCallCount + launch.host.pullRequests.reviewContextCallCount
         let destinationInstructions = await launch.host.handle(
             PullRequestHostToolCatalog.reviewInstructionsToolName, context: destinationContext
+        )
+        // The launch already fetched this pull request; its saved instructions need no GitHub read.
+        XCTAssertEqual(
+            launch.host.pullRequests.detailCallCount + launch.host.pullRequests.reviewContextCallCount, readsBeforeDestination
         )
         let sourceInstructions = await launch.host.handle(PullRequestHostToolCatalog.reviewInstructionsToolName)
 

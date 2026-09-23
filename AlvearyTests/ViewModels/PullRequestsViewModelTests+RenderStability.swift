@@ -282,6 +282,22 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(viewModel.activePaneSummaryStatus, .closed)
     }
 
+    /// The detail snapshot mirror is what reconciles a stored link from the pane's own load instead of a second fetch.
+    func testActivePaneDetailSummaryFollowsTheLoadedDetail() throws {
+        let viewModel = makePullRequestsViewModel(service: StubPullRequestsService())
+        let summary = makePullRequestSummary(number: 7, status: .open)
+        viewModel.requestDetails(summary)
+        let target = PullRequestPaneTarget.details(summary.id)
+        let generation = try XCTUnwrap(viewModel.paneSessions[target]?.generation)
+        let detail = makePullRequestDetail(id: summary.id, title: "Renamed", status: .merged)
+
+        viewModel.updateSession(target, generation: generation) { $0.detail = detail }
+
+        XCTAssertEqual(viewModel.activePaneDetailSummary, PullRequestLinkService.makeSummary(from: detail, linkedAt: .distantPast))
+        viewModel.deactivatePane()
+        XCTAssertNil(viewModel.activePaneDetailSummary)
+    }
+
     /// A session write that cannot change the status must leave the mirror alone —
     /// publishing one anyway would re-render the root for a file collapse.
     func testActivePaneSummaryStatusIgnoresUnrelatedSessionWrites() {

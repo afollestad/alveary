@@ -116,15 +116,15 @@ final class PullRequestLinksViewModel {
         save()
     }
 
-    /// Rewrites a link's stored snapshot from GitHub. Called when its pane opens
-    /// so the toolbar glyph follows merges and closures without its own polling.
-    func refreshSnapshot(_ identifier: PullRequestIdentifier, owner: PullRequestLinkOwner) async {
-        guard let detail = try? await service.fetchDetail(identifier),
-              var links = modelContext.linkedPullRequests(for: owner),
-              let index = links.firstIndex(where: { $0.id == identifier }) else {
+    /// Rewrites a link's stored snapshot from a detail its open pane already loaded, so the toolbar glyph follows
+    /// merges and closures without a fetch of its own. Idempotent: an unchanged snapshot writes nothing.
+    func applySnapshot(_ summary: PullRequestSummary, owner: PullRequestLinkOwner) {
+        guard var links = modelContext.linkedPullRequests(for: owner),
+              let index = links.firstIndex(where: { $0.id == summary.id }),
+              links[index].summary != summary else {
             return
         }
-        links[index].summary = Self.makeSummary(from: detail)
+        links[index].summary = summary
         modelContext.setLinkedPullRequests(links, for: owner)
         save()
     }

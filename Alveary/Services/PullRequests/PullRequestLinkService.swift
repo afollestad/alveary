@@ -76,7 +76,9 @@ final class PullRequestLinkService {
         } else if let summary, summary.id == identifier {
             storedSummary = { _ in summary }
         } else {
-            let fetched = try await service.fetchDetail(identifier)
+            let fetched = try await GitHubRequestOrigin.$current.withValue(GitHubRequestOrigin.current ?? "link") {
+                try await service.fetchDetail(identifier)
+            }
             storedSummary = { Self.makeSummary(from: fetched, linkedAt: $0) }
         }
 

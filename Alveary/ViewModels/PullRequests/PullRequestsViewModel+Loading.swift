@@ -247,11 +247,9 @@ extension PullRequestsViewModel {
                 )
                 group.addTask { [service] in
                     do {
-                        let result = try await service.listInvolvedPullRequests(
-                            buckets: [bucket],
-                            status: status,
-                            options: options
-                        )
+                        let result = try await GitHubRequestOrigin.$current.withValue("pr-list") {
+                            try await service.listInvolvedPullRequests(buckets: [bucket], status: status, options: options)
+                        }
                         return (bucket, .success(result))
                     } catch let error as PullRequestsServiceError {
                         return (bucket, .failure(error))

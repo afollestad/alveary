@@ -112,7 +112,19 @@ extension PullRequestReviewProposalCoordinator {
             if previews[proposalID] == nil {
                 previews[proposalID] = .loading
             }
-            let load = await loadPreview(for: presentation)
+            if let seed = await freshSeed(for: presentation) {
+                guard !Task.isCancelled, presentations[proposalID] != nil else {
+                    return
+                }
+                previewTasks[proposalID] = nil
+                previews[proposalID] = .loaded(Self.preview(from: seed, presentation: presentation))
+                notifyChanged()
+                return
+            }
+            invalidatedProposalIDs.remove(proposalID)
+            let load = await GitHubRequestOrigin.$current.withValue("proposal-card") {
+                await loadPreview(for: presentation)
+            }
             guard !Task.isCancelled, presentations[proposalID] != nil else {
                 return
             }
@@ -123,6 +135,28 @@ extension PullRequestReviewProposalCoordinator {
             notifyChanged()
         }
     }
+
+    /// The entry propose time or team staging just wrote, when it is still the whole truth: those already read
+    /// the detail and diff seconds ago, so refreshing behind the paint would only spend the user's GitHub quota.
+    ///
+    /// Only for a proposal whose snapshot saw no GitHub-side draft comments, because the entry deliberately omits
+    /// those; and never after `invalidatePreview`, whose drop must not be answered from cache.
+    private func freshSeed(
+        for presentation: PullRequestReviewProposalPresentation
+    ) async -> PullRequestReviewProposalPreviewCache.Entry? {
+        guard let previewCache, presentation.pendingCommentCount == 0,
+              !invalidatedProposalIDs.contains(presentation.id),
+              let entry = await previewCache.load()[presentation.id],
+              entry.identifier == presentation.identifier,
+              currentDate.timeIntervalSince(entry.fetchedAt) < Self.seedFreshness else {
+            return nil
+        }
+        return entry
+    }
+
+    /// Long enough to cover the card rendering after propose time or staging, short enough that a relaunch still
+    /// refreshes behind its paint.
+    static let seedFreshness: TimeInterval = 120
 
     /// Publishes a refresh and caches what it parsed.
     ///
@@ -161,6 +195,7 @@ extension PullRequestReviewProposalCoordinator {
     func invalidatePreview(proposalID: String) {
         previews[proposalID] = nil
         refreshedProposalIDs.remove(proposalID)
+        invalidatedProposalIDs.insert(proposalID)
         previewTasks[proposalID]?.cancel()
         previewTasks[proposalID] = nil
     }

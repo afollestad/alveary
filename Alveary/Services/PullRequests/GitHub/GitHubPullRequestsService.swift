@@ -8,6 +8,7 @@ actor GitHubPullRequestsService: PullRequestsService {
     let shellRunner: any ShellRunner
     let sharedReads = GitHubSharedReads()
     var quotaState = GitHubQuotaState()
+    var usageLedger = GitHubUsageLedger(startedAt: .now)
     private static let maxTransientRetries = 2
 
     /// What one list or detail attempt may take, and what the whole call may take including
