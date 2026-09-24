@@ -16,14 +16,16 @@ enum UserNotificationGateway {
 
     /// `DefaultNotificationManager` and `ScheduledTaskDefinitionFailureNotifier` can race at launch
     /// and whichever asks first fixes what the user granted, so the option set lives here once
-    /// instead of being repeated per poster where the two copies could drift apart.
+    /// instead of being repeated per poster where the two copies could drift apart. An option
+    /// added later reaches existing grants only through
+    /// `DefaultNotificationManager.requestAuthorizationIfNeeded()`.
     private static let authorizationOptions: UNAuthorizationOptions = [.alert, .sound, .badge]
 
-    /// Reports `.denied` while suppressed, not `.notDetermined`, so `postAgentNotification` and
-    /// `ScheduledTaskDefinitionFailureNotifier.post` short-circuit before they can join a shared
-    /// authorization request, and `requestAuthorizationIfNeeded()` bails at its `.notDetermined`
-    /// guard. It also makes unstubbed suites deterministic: they previously read whatever the
-    /// developer's machine happened to have granted.
+    /// Reports `.denied` while suppressed, not `.notDetermined` or `.authorized`, so
+    /// `postAgentNotification`, `ScheduledTaskDefinitionFailureNotifier.post`, and
+    /// `requestAuthorizationIfNeeded()` all short-circuit before they can join a shared
+    /// authorization request. It also makes unstubbed suites deterministic: they previously read
+    /// whatever the developer's machine happened to have granted.
     static func authorizationStatus() async -> UNAuthorizationStatus {
         guard !isSuppressed else {
             return .denied

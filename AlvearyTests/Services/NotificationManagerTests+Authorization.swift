@@ -82,10 +82,20 @@ final class NotificationManagerAuthorizationTests: XCTestCase {
         await osDisabled.requestAuthorizationIfNeeded()
         XCTAssertEqual(osDisabledRecorder.requestCount, 0)
 
-        let authorizedRecorder = AuthorizationRecorder()
-        let authorized = try makeManager(status: .authorized, recorder: authorizedRecorder)
-        await authorized.requestAuthorizationIfNeeded()
-        XCTAssertEqual(authorizedRecorder.requestCount, 0)
+        let deniedRecorder = AuthorizationRecorder()
+        let denied = try makeManager(status: .denied, recorder: deniedRecorder)
+        await denied.requestAuthorizationIfNeeded()
+        XCTAssertEqual(deniedRecorder.requestCount, 0)
+    }
+
+    func testRequestAuthorizationIfNeededReRequestsWhenAuthorizedToRegisterNewOptions() async throws {
+        let recorder = AuthorizationRecorder()
+        let manager = try makeManager(status: .authorized, recorder: recorder)
+
+        await manager.requestAuthorizationIfNeeded()
+        await manager.requestAuthorizationIfNeeded()
+
+        XCTAssertEqual(recorder.requestCount, 1)
     }
 
     private func makeManager(

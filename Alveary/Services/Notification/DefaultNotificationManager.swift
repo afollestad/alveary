@@ -344,15 +344,21 @@ final class DefaultNotificationManager: NotificationManager {
 
     /// Asks up front, once onboarding is out of the way, so the system prompt does not land
     /// mid-turn and swallow the notification that triggered it.
+    ///
+    /// Also re-asks when already authorized: a grant keeps the options it was made with, and
+    /// repeat requests never prompt, so this is the only way installs granted before `.badge`
+    /// joined the option set get a Dock badge.
     func requestAuthorizationIfNeeded() async {
         let settings = settingsService.current.notifications
         guard settings.enabled, settings.osNotifications else {
             return
         }
-        guard await notificationAuthorizationStatus() == .notDetermined else {
+        switch await notificationAuthorizationStatus() {
+        case .notDetermined, .authorized:
+            _ = await sharedAuthorizationRequest()
+        default:
             return
         }
-        _ = await sharedAuthorizationRequest()
     }
 
     private func sharedAuthorizationRequest() async -> Bool {
