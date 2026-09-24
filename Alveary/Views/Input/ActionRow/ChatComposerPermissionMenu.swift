@@ -165,7 +165,7 @@ enum ComposerPermissionMenuMetrics {
     static let headerInset: CGFloat = ComposerReasoningMenuMetrics.headerInset
     static let headerHeight: CGFloat = ComposerReasoningMenuMetrics.headerHeight
     static let headerBottomSpacing: CGFloat = ComposerReasoningMenuMetrics.headerBottomSpacing
-    static let rowHeight: CGFloat = ComposerReasoningMenuMetrics.permissionRowHeight
+    static let rowHeight: CGFloat = ComposerReasoningMenuMetrics.subtitledRowHeight
 
     /// Base row height plus however much a wrapped subtitle grows beyond its
     /// single-line height, so one-line rows keep the historical 50pt footprint.

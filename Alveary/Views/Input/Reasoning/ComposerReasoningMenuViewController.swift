@@ -42,6 +42,7 @@ final class ComposerReasoningMenuViewController: NSViewController {
             onEffortCancel: { [weak self] in self?.cancelEffortPreview(requestClose: true) },
             onModelsExpansionChanged: { [weak self] in self?.setModelsExpanded($0, animated: true) },
             onModelSelected: { [weak self] in self?.selectModel($0) },
+            onInheritSelected: { [weak self] in self?.selectInherit() },
             onFastModeChanged: { [weak self] in self?.selectFastMode(isEnabled: $0) },
             onCancel: { [weak self] in self?.requestClose() },
             reducesMotion: reducesMotion
@@ -77,14 +78,13 @@ final class ComposerReasoningMenuViewController: NSViewController {
 
     func selectModel(_ request: ReasoningModelSelectionRequest) {
         cancelEffortPreview()
-        switch configuration.onModelChange(request) {
-        case .rejected:
-            menuView?.update(configuration: configuration, isModelsExpanded: isModelsExpanded)
-            onDisplaySelectionChanged(nil)
-            onRequestCloseMainMenu()
-        case .unchanged(let selection), .applied(let selection):
-            applyLocallyAcceptedSelection(selection)
-        }
+        handle(configuration.onModelChange(request), inherits: false)
+    }
+
+    func selectInherit() {
+        guard let inheritChoice = configuration.inheritChoice else { return }
+        cancelEffortPreview()
+        handle(inheritChoice.onSelect(), inherits: true)
     }
 
     func cancelEffortPreview() {
@@ -125,12 +125,11 @@ final class ComposerReasoningMenuViewController: NSViewController {
         guard configuration.onEffortChange(option.value) else {
             previewSelection = nil
             hasDisplaySelectionOverride = false
-            menuView?.update(configuration: configuration, isModelsExpanded: isModelsExpanded)
-            onDisplaySelectionChanged(nil)
-            onRequestCloseMainMenu()
+            rejectChange()
             return
         }
         previewSelection = nil
+        configuration.inheritChoice?.option.isSelected = false
         applyLocallyAcceptedSelection(selection)
     }
 
@@ -138,12 +137,27 @@ final class ComposerReasoningMenuViewController: NSViewController {
         cancelEffortPreview()
         let speedMode: AgentSpeedMode = isEnabled ? .fast : .standard
         guard configuration.onSpeedChange(speedMode) else {
-            menuView?.update(configuration: configuration, isModelsExpanded: isModelsExpanded)
-            onDisplaySelectionChanged(nil)
-            onRequestCloseMainMenu()
+            rejectChange()
             return
         }
         applyLocallyAcceptedSelection(configuration.selection.updatingSpeedMode(speedMode))
+    }
+
+    /// Moves the inherit checkmark locally with an accepted change, so it tracks the selection before the host re-renders.
+    private func handle(_ outcome: ReasoningModelSelectionOutcome, inherits: Bool) {
+        switch outcome {
+        case .rejected:
+            rejectChange()
+        case .unchanged(let selection), .applied(let selection):
+            configuration.inheritChoice?.option.isSelected = inherits
+            applyLocallyAcceptedSelection(selection)
+        }
+    }
+
+    private func rejectChange() {
+        menuView?.update(configuration: configuration, isModelsExpanded: isModelsExpanded)
+        onDisplaySelectionChanged(nil)
+        onRequestCloseMainMenu()
     }
 
     private func applyLocallyAcceptedSelection(_ selection: ReasoningSelection) {

@@ -24,7 +24,7 @@ Shared popover surface and divider chrome belongs to `Alveary/Views/Components/A
 
 - **Every composer popover opens above its anchor; none open downward.** Derive the edge from the anchor's `isFlipped` through `ComposerReasoningMenuPresenter.upwardEdge(for:)`, whose doc comment owns the coordinate-space rule.
 - **Menu-anchor buttons fire on mouse-up**; do not switch them to mouse-down activation (explicit user decision).
-- **Permission rows wrap subtitles to at most two lines**, measured per option by `ComposerPermissionMenuMetrics.rowHeight(for:)`, and always reserve the trailing icon slot so selection cannot change wrap width. Reasoning rows stay single-line.
+- **Permission rows wrap subtitles to at most two lines**, measured per option by `ComposerPermissionMenuMetrics.rowHeight(for:)`, and always reserve the trailing icon slot so selection cannot change wrap width. Reasoning rows follow `Alveary/Views/Input/Reasoning/AGENTS.md`.
 
 #### Plus Menu
 

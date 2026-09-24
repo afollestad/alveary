@@ -74,7 +74,7 @@ enum ComposerReasoningMenuMetrics {
     // inset before the selectable rows that follow.
     static let headerHeight: CGFloat = 18
     static let headerBottomSpacing: CGFloat = 4
-    static let permissionRowHeight: CGFloat = 50
+    static let subtitledRowHeight: CGFloat = 50
     static let dividerSpacing: CGFloat = 7
     static let iconOpticalLeadingAdjustment: CGFloat = 3
     static let iconLeading: CGFloat = headerInset - horizontalInset - iconOpticalLeadingAdjustment
@@ -111,7 +111,9 @@ enum ComposerReasoningMenuMetrics {
         let sliderSectionHeight = configuration.selection.effortOptions.isEmpty
             ? 0
             : sliderHeight + sliderBottomSpacing
-        let expandedHeight = isModelsExpanded ? modelsSectionHeight(groups: configuration.modelGroups) : 0
+        let expandedHeight = isModelsExpanded
+            ? modelsSectionHeight(groups: configuration.modelGroups, showsInheritRow: configuration.inheritChoice != nil)
+            : 0
         return NSSize(
             width: width,
             height: topInset + bottomInset +
@@ -122,31 +124,35 @@ enum ComposerReasoningMenuMetrics {
     }
 
     @MainActor
-    static func modelsSectionHeight(groups: [ReasoningModelGroup]) -> CGFloat {
-        dividerSpacing + AppKitComposerPopoverDividerView.height + dividerSpacing + modelViewportHeight(groups: groups)
+    static func modelsSectionHeight(groups: [ReasoningModelGroup], showsInheritRow: Bool = false) -> CGFloat {
+        dividerSpacing + AppKitComposerPopoverDividerView.height + dividerSpacing +
+            modelViewportHeight(groups: groups, showsInheritRow: showsInheritRow)
     }
 
     @MainActor
-    static func modelViewportHeight(groups: [ReasoningModelGroup]) -> CGFloat {
-        min(maxModelHeight, modelDocumentHeight(groups: groups))
+    static func modelViewportHeight(groups: [ReasoningModelGroup], showsInheritRow: Bool = false) -> CGFloat {
+        min(maxModelHeight, modelDocumentHeight(groups: groups, showsInheritRow: showsInheritRow))
     }
 
     @MainActor
-    static func modelDocumentHeight(groups: [ReasoningModelGroup]) -> CGFloat {
+    static func modelDocumentHeight(groups: [ReasoningModelGroup], showsInheritRow: Bool = false) -> CGFloat {
         let visibleGroups = groups.filter { !$0.options.isEmpty }
         let modelCount = max(1, visibleGroups.flatMap(\.options).count)
         let showsHarnessHeaders = visibleGroups.count > 1
         let headerCount = showsHarnessHeaders ? visibleGroups.count : 0
         let dividerCount = showsHarnessHeaders ? max(0, visibleGroups.count - 1) : 0
-        return modelMenuTopInset(showsHarnessHeaders: showsHarnessHeaders) +
+        let inheritHeight = showsInheritRow ? subtitledRowHeight + AppKitComposerPopoverDividerView.height + dividerSpacing * 2 : 0
+        return modelMenuTopInset(showsHarnessHeaders: showsHarnessHeaders, showsInheritRow: showsInheritRow) +
             modelListBottomInset +
+            inheritHeight +
             rowHeight * CGFloat(modelCount) +
             (headerHeight + headerBottomSpacing) * CGFloat(headerCount) +
             (AppKitComposerPopoverDividerView.height + dividerSpacing * 2) * CGFloat(dividerCount)
     }
 
-    static func modelMenuTopInset(showsHarnessHeaders: Bool) -> CGFloat {
-        showsHarnessHeaders ? harnessHeaderTopInset : headerlessModelMenuTopInset
+    /// The inherit row leads the list when present, so the list takes the headerless inset even above harness headers.
+    static func modelMenuTopInset(showsHarnessHeaders: Bool, showsInheritRow: Bool = false) -> CGFloat {
+        showsHarnessHeaders && !showsInheritRow ? harnessHeaderTopInset : headerlessModelMenuTopInset
     }
 }
 

@@ -47,6 +47,23 @@ extension SnapshotTests {
         )
     }
 
+    func testComposerReasoningMenuWithInheritRowContent() {
+        var configuration = makeSnapshotReasoningMenuConfiguration(groups: makeMultipleHarnessReasoningModelGroups())
+        configuration.inheritChoice = ReasoningInheritChoice(
+            option: .init(title: "Threads default", detail: "Codex · GPT-5.6-Sol · Medium", isSelected: true, isEnabled: true),
+            onSelect: { .rejected }
+        )
+        let controller = makeSnapshotReasoningMenuController(configuration: configuration)
+        controller.setModelsExpanded(true, animated: false)
+
+        assertMacSnapshot(
+            ComposerReasoningMenuSnapshot(controller: controller),
+            size: controller.preferredContentSize,
+            named: "composer_reasoning_menu_with_inherit_row_content",
+            colorScheme: .dark
+        )
+    }
+
     func testComposerReasoningMenuFastEnabledContent() {
         let controller = makeSnapshotReasoningMenuController(
             configuration: makeSnapshotReasoningMenuConfiguration(

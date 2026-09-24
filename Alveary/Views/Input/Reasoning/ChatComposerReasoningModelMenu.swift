@@ -3,15 +3,19 @@ import AppKit
 @MainActor
 final class ComposerReasoningModelListView: NSView {
     private var groups: [ReasoningModelGroup]
+    private var inheritOption: ReasoningInheritOption?
     private var selectedHarnessID: String
     private var selectedModelID: String
     private let onModelSelected: (ReasoningModelSelectionRequest) -> Void
+    private let onInheritSelected: () -> Void
     private let onCancel: () -> Void
     private let scrollView = NSScrollView()
     private let documentView = ComposerReasoningModelDocumentView()
     private var structure: Structure
     private var arrangedViews: [NSView] = []
     private var rowsByIdentity: [String: ComposerReasoningMenuRowView] = [:]
+    /// Kept apart from `rowsByIdentity` so no `harness:model` identity can collide with it.
+    private var inheritRow: ComposerReasoningMenuRowView?
 
     override var isFlipped: Bool { true }
 
@@ -22,6 +26,9 @@ final class ComposerReasoningModelListView: NSView {
     /// Where keyboard focus should land when the list is revealed programmatically, so arrow keys
     /// start from the current model rather than the top of the list.
     var preferredFocusRow: ComposerReasoningMenuRowView? {
+        if inheritOption?.isSelected == true, let inheritRow, inheritRow.acceptsFirstResponder {
+            return inheritRow
+        }
         let selectedIdentity = "\(selectedHarnessID):\(selectedModelID)"
         if let selectedRow = rowsByIdentity[selectedIdentity], selectedRow.acceptsFirstResponder {
             return selectedRow
@@ -31,17 +38,21 @@ final class ComposerReasoningModelListView: NSView {
 
     init(
         groups: [ReasoningModelGroup],
+        inheritOption: ReasoningInheritOption? = nil,
         selectedHarnessID: String,
         selectedModelID: String,
         onModelSelected: @escaping (ReasoningModelSelectionRequest) -> Void,
+        onInheritSelected: @escaping () -> Void = {},
         onCancel: @escaping () -> Void
     ) {
         self.groups = groups
+        self.inheritOption = inheritOption
         self.selectedHarnessID = selectedHarnessID
         self.selectedModelID = selectedModelID
         self.onModelSelected = onModelSelected
+        self.onInheritSelected = onInheritSelected
         self.onCancel = onCancel
-        structure = Structure(groups: groups)
+        structure = Structure(groups: groups, showsInheritRow: inheritOption != nil)
         super.init(frame: .zero)
         setup()
         rebuildRows()
@@ -53,12 +64,14 @@ final class ComposerReasoningModelListView: NSView {
 
     func update(
         groups: [ReasoningModelGroup],
+        inheritOption: ReasoningInheritOption? = nil,
         selectedHarnessID: String,
         selectedModelID: String
     ) {
-        let nextStructure = Structure(groups: groups)
+        let nextStructure = Structure(groups: groups, showsInheritRow: inheritOption != nil)
         let structureChanged = structure != nextStructure
         self.groups = groups
+        self.inheritOption = inheritOption
         self.selectedHarnessID = selectedHarnessID
         self.selectedModelID = selectedModelID
         structure = nextStructure
@@ -88,6 +101,8 @@ final class ComposerReasoningModelListView: NSView {
     var debugScrollOrigin: NSPoint { scrollView.contentView.bounds.origin }
     var debugDocumentHeight: CGFloat { documentView.frame.height }
     var debugModelRowIdentities: [String] { structure.options.map(\.identity) }
+    var debugInheritRow: ComposerReasoningMenuRowView? { inheritRow }
+    var debugArrangedViews: [NSView] { arrangedViews }
     #endif
 
     private func setup() {
@@ -103,6 +118,15 @@ final class ComposerReasoningModelListView: NSView {
         arrangedViews.forEach { $0.removeFromSuperview() }
         arrangedViews = []
         rowsByIdentity = [:]
+        inheritRow = nil
+
+        if let inheritOption {
+            let row = ComposerReasoningMenuRowView()
+            configure(inheritRow: row, option: inheritOption)
+            inheritRow = row
+            append(row)
+            append(AppKitComposerPopoverDividerView())
+        }
 
         let visibleGroups = structure.visibleGroups
         guard !visibleGroups.isEmpty else {
@@ -140,6 +164,9 @@ final class ComposerReasoningModelListView: NSView {
     }
 
     private func updateRowSelections() {
+        if let inheritRow, let inheritOption {
+            configure(inheritRow: inheritRow, option: inheritOption)
+        }
         for option in structure.options {
             guard let row = rowsByIdentity[option.identity] else { continue }
             configure(row: row, option: option)
@@ -150,7 +177,8 @@ final class ComposerReasoningModelListView: NSView {
         row: ComposerReasoningMenuRowView,
         option: ReasoningModelOption
     ) {
-        let isSelected = option.harnessID == selectedHarnessID && option.value == selectedModelID
+        let isSelected = inheritOption?.isSelected != true &&
+            option.harnessID == selectedHarnessID && option.value == selectedModelID
         row.configure(.init(
             title: option.title,
             iconName: nil,
@@ -162,6 +190,24 @@ final class ComposerReasoningModelListView: NSView {
             activatesWithRightArrow: false,
             action: { [weak self] in
                 self?.onModelSelected(.init(harnessID: option.harnessID, modelID: option.value))
+            },
+            cancelAction: onCancel
+        ))
+    }
+
+    private func configure(inheritRow row: ComposerReasoningMenuRowView, option: ReasoningInheritOption) {
+        row.configure(.init(
+            title: option.title,
+            subtitle: option.detail,
+            iconName: nil,
+            trailingIconName: option.isSelected ? "checkmark" : nil,
+            accessibilityLabel: "\(option.title), \(option.detail)",
+            isSelected: option.isSelected,
+            isEnabled: option.isEnabled,
+            showsFocusBackground: true,
+            activatesWithRightArrow: false,
+            action: { [weak self] in
+                self?.onInheritSelected()
             },
             cancelAction: onCancel
         ))
@@ -185,7 +231,10 @@ final class ComposerReasoningModelListView: NSView {
     }
 
     private func layoutRows() {
-        let contentHeight = ComposerReasoningMenuMetrics.modelDocumentHeight(groups: groups)
+        let contentHeight = ComposerReasoningMenuMetrics.modelDocumentHeight(
+            groups: groups,
+            showsInheritRow: structure.showsInheritRow
+        )
         documentView.frame = NSRect(
             x: 0,
             y: 0,
@@ -194,7 +243,8 @@ final class ComposerReasoningModelListView: NSView {
         )
 
         var nextY = ComposerReasoningMenuMetrics.modelMenuTopInset(
-            showsHarnessHeaders: structure.showsHarnessHeaders
+            showsHarnessHeaders: structure.showsHarnessHeaders,
+            showsInheritRow: structure.showsInheritRow
         )
         for arrangedView in arrangedViews {
             let layout = layoutMetrics(for: arrangedView)
@@ -230,7 +280,7 @@ final class ComposerReasoningModelListView: NSView {
         return LayoutMetrics(
             originX: ComposerReasoningMenuMetrics.horizontalInset,
             horizontalInsets: ComposerReasoningMenuMetrics.horizontalInset * 2,
-            height: ComposerReasoningMenuMetrics.rowHeight,
+            height: view === inheritRow ? ComposerReasoningMenuMetrics.subtitledRowHeight : ComposerReasoningMenuMetrics.rowHeight,
             leadingSpacing: 0,
             trailingSpacing: 0
         )
@@ -240,9 +290,11 @@ final class ComposerReasoningModelListView: NSView {
 private extension ComposerReasoningModelListView {
     struct Structure: Equatable {
         let visibleGroups: [ReasoningModelGroup]
+        let showsInheritRow: Bool
 
-        init(groups: [ReasoningModelGroup]) {
+        init(groups: [ReasoningModelGroup], showsInheritRow: Bool) {
             visibleGroups = groups.filter { !$0.options.isEmpty }
+            self.showsInheritRow = showsInheritRow
         }
 
         var showsHarnessHeaders: Bool { visibleGroups.count > 1 }

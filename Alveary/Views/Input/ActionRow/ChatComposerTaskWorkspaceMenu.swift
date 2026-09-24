@@ -324,7 +324,7 @@ enum ComposerTaskWorkspaceMenuMetrics {
     static let headerInset: CGFloat = ComposerReasoningMenuMetrics.headerInset
     static let headerHeight: CGFloat = ComposerReasoningMenuMetrics.headerHeight
     static let headerBottomSpacing: CGFloat = ComposerReasoningMenuMetrics.headerBottomSpacing
-    static let rowHeight: CGFloat = ComposerReasoningMenuMetrics.permissionRowHeight
+    static let rowHeight: CGFloat = ComposerReasoningMenuMetrics.subtitledRowHeight
     static let dividerSpacing: CGFloat = ComposerReasoningMenuMetrics.dividerSpacing
 
     @MainActor

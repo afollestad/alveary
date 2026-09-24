@@ -8,6 +8,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
     private let onEffortCancel: () -> Void
     private let onModelsExpansionChanged: (Bool) -> Void
     private let onModelSelected: (ReasoningModelSelectionRequest) -> Void
+    private let onInheritSelected: () -> Void
     private let onFastModeChanged: (Bool) -> Void
     private let onCancel: () -> Void
     let effortSlider = ComposerReasoningEffortSlider()
@@ -40,6 +41,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
         onEffortCancel: @escaping () -> Void,
         onModelsExpansionChanged: @escaping (Bool) -> Void,
         onModelSelected: @escaping (ReasoningModelSelectionRequest) -> Void,
+        onInheritSelected: @escaping () -> Void,
         onFastModeChanged: @escaping (Bool) -> Void,
         onCancel: @escaping () -> Void,
         reducesMotion: @escaping () -> Bool
@@ -51,6 +53,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
         self.onEffortCancel = onEffortCancel
         self.onModelsExpansionChanged = onModelsExpansionChanged
         self.onModelSelected = onModelSelected
+        self.onInheritSelected = onInheritSelected
         self.onFastModeChanged = onFastModeChanged
         self.onCancel = onCancel
         modelsDisclosure = ComposerReasoningModelsDisclosureControl(reducesMotion: reducesMotion)
@@ -59,9 +62,11 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
         hasBuiltModelRows = isModelsExpanded
         modelList = ComposerReasoningModelListView(
             groups: isModelsExpanded ? configuration.modelGroups : [],
+            inheritOption: isModelsExpanded ? configuration.inheritChoice?.option : nil,
             selectedHarnessID: configuration.selection.harnessID,
             selectedModelID: configuration.selection.modelID,
             onModelSelected: onModelSelected,
+            onInheritSelected: onInheritSelected,
             onCancel: onCancel
         )
         super.init(frame: NSRect(
@@ -86,12 +91,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
         self.configuration = configuration
         self.isModelsExpanded = isModelsExpanded
         if hasBuiltModelRows || isModelsExpanded {
-            hasBuiltModelRows = true
-            modelList.update(
-                groups: configuration.modelGroups,
-                selectedHarnessID: configuration.selection.harnessID,
-                selectedModelID: configuration.selection.modelID
-            )
+            updateModelList()
         }
         configureControls(animatedDisclosure: false)
         frame.size = ComposerReasoningMenuMetrics.mainContentSize(
@@ -110,12 +110,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
             // Build the deferred model rows synchronously before the resize
             // below so the expansion still sizes immediately, per the
             // no-animation disclosure contract.
-            hasBuiltModelRows = true
-            modelList.update(
-                groups: configuration.modelGroups,
-                selectedHarnessID: configuration.selection.harnessID,
-                selectedModelID: configuration.selection.modelID
-            )
+            updateModelList()
         }
         self.isModelsExpanded = isExpanded
         if modelsDisclosure.isExpanded != isExpanded {
@@ -147,7 +142,11 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
 
         nextY = layoutControlsRow(at: nextY)
 
-        let sectionHeight = ComposerReasoningMenuMetrics.modelsSectionHeight(groups: configuration.modelGroups)
+        let showsInheritRow = configuration.inheritChoice != nil
+        let sectionHeight = ComposerReasoningMenuMetrics.modelsSectionHeight(
+            groups: configuration.modelGroups,
+            showsInheritRow: showsInheritRow
+        )
         let visibleSectionHeight = min(
             sectionHeight,
             max(0, bounds.height - nextY - ComposerReasoningMenuMetrics.bottomInset)
@@ -165,7 +164,10 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
                 AppKitComposerPopoverDividerView.height +
                 ComposerReasoningMenuMetrics.dividerSpacing,
             width: bounds.width,
-            height: ComposerReasoningMenuMetrics.modelViewportHeight(groups: configuration.modelGroups)
+            height: ComposerReasoningMenuMetrics.modelViewportHeight(
+                groups: configuration.modelGroups,
+                showsInheritRow: showsInheritRow
+            )
         )
     }
 
@@ -186,6 +188,16 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
         modelsSection.addSubview(divider)
         modelsSection.addSubview(modelList)
         addSubview(modelsSection)
+    }
+
+    private func updateModelList() {
+        hasBuiltModelRows = true
+        modelList.update(
+            groups: configuration.modelGroups,
+            inheritOption: configuration.inheritChoice?.option,
+            selectedHarnessID: configuration.selection.harnessID,
+            selectedModelID: configuration.selection.modelID
+        )
     }
 
     private func layoutControlsRow(at originY: CGFloat) -> CGFloat {
