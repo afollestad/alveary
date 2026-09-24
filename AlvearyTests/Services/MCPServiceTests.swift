@@ -208,8 +208,7 @@ private struct MCPServiceFixture {
         let root: [String: Any] = [
             "projects": [
                 "/tmp/project": [
-                    "hasTrustDialogAccepted": true,
-                    "hasCompletedProjectOnboarding": true
+                    "hasTrustDialogAccepted": true
                 ]
             ]
         ]

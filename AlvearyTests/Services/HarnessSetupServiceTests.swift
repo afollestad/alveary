@@ -20,7 +20,6 @@ final class HarnessSetupServiceTests: XCTestCase {
         let projects = try XCTUnwrap(root["projects"] as? [String: Any])
         let trustedProject = try XCTUnwrap(projects[CanonicalPath.normalize(workingDirectory.path)] as? [String: Any])
         XCTAssertEqual(trustedProject["hasTrustDialogAccepted"] as? Bool, true)
-        XCTAssertEqual(trustedProject["hasCompletedProjectOnboarding"] as? Bool, true)
     }
 
     func testPrepareForSpawnSkipsTrustWriteWhenAutoTrustIsDisabled() async throws {
