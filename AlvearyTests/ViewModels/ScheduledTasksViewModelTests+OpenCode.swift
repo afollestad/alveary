@@ -23,7 +23,8 @@ extension ScheduledTasksViewModelTests {
         await refresh.value
 
         XCTAssertTrue(fixture.viewModel.editorHarnessIDs(for: draft).contains("opencode"))
-        XCTAssertEqual(fixture.viewModel.modelOptions(for: "opencode", draft: draft).map(\.id), ["default", "project/model"])
+        let openCodeGroup = fixture.viewModel.agentPresentation(for: draft).modelGroups.first { $0.harnessID == "opencode" }
+        XCTAssertEqual(openCodeGroup?.options.map(\.value), ["default", "project/model"])
         XCTAssertEqual(fixture.viewModel.effortOptions(
             for: "opencode", modelSelection: draft.modelSelection, draft: draft
         ).map(\.value), [AppSettings.openCodeDefaultEffort, "project-variant"])

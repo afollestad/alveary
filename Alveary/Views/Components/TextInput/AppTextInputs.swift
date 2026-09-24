@@ -322,6 +322,8 @@ enum AppInputStyle {
     /// AppKit menu fields deepen the resting fill on interaction rather than overlaying a separate highlight.
     static let menuHoverBackgroundOpacity: CGFloat = 0.2
     static let menuPressedBackgroundOpacity: CGFloat = 0.26
+    /// SwiftUI draws a disabled plain-style menu's whole label, fill included, at this opacity; AppKit menu fields match it.
+    static let disabledMenuOpacity: CGFloat = 0.5
 
     static let backgroundColor = Color.secondary.opacity(backgroundOpacity)
     static let borderColor = Color.secondary.opacity(borderOpacity)

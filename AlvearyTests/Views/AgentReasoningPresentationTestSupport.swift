@@ -20,6 +20,39 @@ func makeAgentReasoningInheritance(isOffered: Bool) -> AgentReasoningPresentatio
     )
 }
 
+/// Clicks `model`'s row (a catalog id, model value, or alias) in `presentation`'s popover.
+@discardableResult
+func pickAgentModel(
+    _ model: String,
+    harnessID: String,
+    in presentation: AgentReasoningPresentation,
+    apply: @escaping (AgentReasoningPins) -> Bool
+) -> ReasoningModelSelectionOutcome {
+    let options = presentation.harnesses.first { $0.id == harnessID }?.modelOptions ?? []
+    let modelID = AgentModelOptionSelection.pickerValue(in: options, matching: model)
+    return ReasoningConfiguration(presentation: presentation, apply: apply)
+        .onModelChange(.init(harnessID: harnessID, modelID: modelID))
+}
+
+/// Drags `presentation`'s effort slider to `effort`, in picker form.
+@discardableResult
+func dragAgentEffort(
+    _ effort: String,
+    in presentation: AgentReasoningPresentation,
+    apply: @escaping (AgentReasoningPins) -> Bool
+) -> Bool {
+    ReasoningConfiguration(presentation: presentation, apply: apply).onEffortChange(effort)
+}
+
+/// Clicks `presentation`'s inherit row; `nil` when the popover has none.
+@discardableResult
+func pickAgentInherit(
+    in presentation: AgentReasoningPresentation,
+    apply: @escaping (AgentReasoningPins) -> Bool
+) -> ReasoningModelSelectionOutcome? {
+    ReasoningConfiguration(presentation: presentation, apply: apply).inheritChoice?.onSelect()
+}
+
 extension AgentReasoningPresentation.Harness {
     static var testClaude: Self {
         .init(id: "claude", title: "Claude", modelOptions: [

@@ -207,10 +207,7 @@ struct SettingsScreen: View {
         case .threads:
             ThreadsSettingsTabView(
                 viewModel: viewModel,
-                defaultHarness: binding(for: \.defaultHarness),
-                defaultModel: binding(for: \.defaultModel),
                 permissionMode: binding(for: \.permissionMode),
-                effort: binding(for: \.effort),
                 defaultThreadCleanupAction: binding(for: \.defaultThreadCleanupAction),
                 defaultEnterBehavior: binding(for: \.defaultEnterBehavior),
                 autoTrustProjects: binding(for: \.autoTrustProjects),

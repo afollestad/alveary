@@ -2,9 +2,10 @@ import Foundation
 
 /// The sheet snapshots settings for editing, but Save owns only the review lead and peers.
 extension SettingsViewModel {
+    /// Permissions are harness-scoped, so only a lead whose effective harness changes clears the review permission pin.
     func setPullRequestReviewTeam(_ draft: AppSettings) {
         settingsService.update { settings in
-            if settings.pullRequestReviewHarness != draft.pullRequestReviewHarness {
+            if reviewTeamDraftLead(settings).harnessID != reviewTeamDraftLead(draft).harnessID {
                 settings.pullRequestReviewPermissionMode = nil
             }
             settings.pullRequestReviewHarness = draft.pullRequestReviewHarness
@@ -29,74 +30,61 @@ extension SettingsViewModel {
         )
     }
 
-    func reviewTeamLeadHarnessOptions(_ settings: AppSettings) -> [String] {
-        let inherited = HarnessFeaturePolicy.supportsIsolatedReviewWorkers(harnessID: settings.defaultHarness)
-            ? [Self.pullRequestReviewInheritValue] : []
-        return inherited + pullRequestReviewPeerHarnessOptions(including: reviewTeamDraftLead(settings).harnessID)
-    }
-
-    func reviewTeamLeadModelOptions(_ settings: AppSettings) -> [String] {
-        [Self.pullRequestReviewInheritValue] + pullRequestReviewPeerModelOptions(reviewTeamDraftLead(settings))
-    }
-
-    func reviewTeamLeadModelSelection(_ settings: AppSettings) -> String {
-        guard settings.pullRequestReviewModel != nil else { return Self.pullRequestReviewInheritValue }
-        return pullRequestReviewPeerModelSelection(reviewTeamDraftLead(settings))
-    }
-
-    func reviewTeamLeadEffortOptions(_ settings: AppSettings) -> [String] {
-        [Self.pullRequestReviewInheritValue] + pullRequestReviewPeerEffortOptions(reviewTeamDraftLead(settings))
-    }
-
-    func reviewTeamLeadEffortSelection(_ settings: AppSettings) -> String {
-        guard settings.pullRequestReviewEffort != nil else { return Self.pullRequestReviewInheritValue }
-        return pullRequestReviewPeerEffortSelection(reviewTeamDraftLead(settings))
-    }
-
-    func reviewTeamLeadHarnessLabel(_ value: String, settings: AppSettings) -> String {
-        value == Self.pullRequestReviewInheritValue
-            ? "Default (\(harnessDisplayName(for: settings.defaultHarness)))"
-            : harnessDisplayName(for: value)
-    }
-
-    func reviewTeamLeadModelLabel(_ value: String, settings: AppSettings) -> String {
-        var inherited = settings
+    /// Inherits the stored Threads default strictly, as `PullRequestReviewTeamResolver` does, so an unready or
+    /// non-concrete default reads on the button for repair rather than falling back.
+    func reviewTeamLeadPresentation(_ draft: AppSettings) -> AgentReasoningPresentation {
+        var inherited = draft
+        inherited.pullRequestReviewHarness = nil
         inherited.pullRequestReviewModel = nil
-        let lead = reviewTeamDraftLead(value == Self.pullRequestReviewInheritValue ? inherited : settings)
-        let label = pullRequestReviewPeerModelLabel(
-            value == Self.pullRequestReviewInheritValue ? lead.model : value,
-            harnessID: lead.harnessID
-        )
-        return value == Self.pullRequestReviewInheritValue ? "Default (\(label))" : label
-    }
-
-    func reviewTeamLeadEffortLabel(_ value: String, settings: AppSettings) -> String {
-        var inherited = settings
         inherited.pullRequestReviewEffort = nil
-        let lead = reviewTeamDraftLead(value == Self.pullRequestReviewInheritValue ? inherited : settings)
-        let label = pullRequestReviewPeerEffortLabel(value == Self.pullRequestReviewInheritValue ? lead.effort : value, peer: lead)
-        return value == Self.pullRequestReviewInheritValue ? "Default (\(label))" : label
+        return AgentReasoningPresentation(
+            harnesses: reviewTeamAgentHarnesses,
+            pins: .init(harnessID: draft.pullRequestReviewHarness, model: draft.pullRequestReviewModel, effort: draft.pullRequestReviewEffort),
+            effective: reviewTeamResolvedAgent(reviewTeamDraftLead(draft)),
+            inheritance: .init(
+                title: "Threads default",
+                target: reviewTeamResolvedAgent(reviewTeamDraftLead(inherited)),
+                isOffered: HarnessFeaturePolicy.supportsIsolatedReviewWorkers(harnessID: draft.defaultHarness)
+            ),
+            isChecking: isCheckingThreadDefaultHarnesses
+        )
     }
 
-    func setReviewTeamLeadHarness(_ value: String, in settings: inout AppSettings) {
-        settings.pullRequestReviewHarness = value == Self.pullRequestReviewInheritValue ? nil : value
-        settings.pullRequestReviewModel = nil
-        settings.pullRequestReviewEffort = nil
+    func applyReviewTeamLead(_ pins: AgentReasoningPins, in draft: inout AppSettings) -> Bool {
+        draft.pullRequestReviewHarness = pins.harnessID
+        draft.pullRequestReviewModel = pins.model
+        draft.pullRequestReviewEffort = pins.effort
+        return true
     }
 
-    func setReviewTeamLeadModel(_ value: String, in settings: inout AppSettings) {
-        if value == Self.pullRequestReviewInheritValue {
-            settings.pullRequestReviewModel = nil
-            settings.pullRequestReviewEffort = nil
-        } else {
-            let harnessID = reviewTeamDraftLead(settings).harnessID
-            let model = pullRequestReviewPeerStoredModel(harnessID: harnessID, selection: value)
-            settings.pullRequestReviewModel = model
-            settings.pullRequestReviewEffort = pullRequestReviewPeerDefaultEffort(harnessID: harnessID, model: model)
+    func reviewTeamPeerPresentation(_ peer: PullRequestReviewPeer) -> AgentReasoningPresentation {
+        AgentReasoningPresentation(
+            harnesses: reviewTeamAgentHarnesses,
+            pins: .init(harnessID: peer.harnessID, model: peer.model, effort: peer.effort),
+            effective: reviewTeamResolvedAgent(peer),
+            isChecking: isCheckingThreadDefaultHarnesses
+        )
+    }
+
+    /// Applies by `id` because removing a reviewer shifts every later index.
+    func applyReviewTeamPeer(_ pins: AgentReasoningPins, id: String, in draft: inout AppSettings) -> Bool {
+        guard let harnessID = pins.harnessID, let model = pins.model, let effort = pins.effort,
+              let index = draft.pullRequestReviewPeers.firstIndex(where: { $0.id == id }) else {
+            return false
         }
+        draft.pullRequestReviewPeers[index].harnessID = harnessID
+        draft.pullRequestReviewPeers[index].model = model
+        draft.pullRequestReviewPeers[index].effort = effort
+        return true
     }
 
-    func setReviewTeamLeadEffort(_ value: String, in settings: inout AppSettings) {
-        settings.pullRequestReviewEffort = value == Self.pullRequestReviewInheritValue ? nil : value
+    private var reviewTeamAgentHarnesses: [AgentReasoningPresentation.Harness] {
+        threadDefaultHarnessIDs
+            .filter { HarnessFeaturePolicy.supportsIsolatedReviewWorkers(harnessID: $0) }
+            .map { reviewTeamAgentHarness(for: $0) }
+    }
+
+    private func reviewTeamResolvedAgent(_ worker: PullRequestReviewPeer) -> AgentReasoningPresentation.Resolved {
+        AgentReasoningPresentation.Resolved(harness: reviewTeamAgentHarness(for: worker.harnessID), model: worker.model, effort: worker.effort)
     }
 }

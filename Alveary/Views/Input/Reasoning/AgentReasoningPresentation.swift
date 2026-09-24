@@ -84,14 +84,15 @@ struct AgentReasoningPresentation: Equatable {
         Self.selection(for: effective, showsEffort: offersModel(of: effective))
     }
 
-    /// Harnesses with an empty catalog are omitted, except the effective one, whose group keeps a repair row. A model
-    /// a concrete-only harness rejects gets a repair row after that harness's catalog.
+    /// Harnesses with an empty catalog are omitted, except the effective one, whose group holds only its repair row:
+    /// the composer's synthesized default is withheld because review team workers cannot launch it. A model a
+    /// concrete-only harness rejects gets the same repair row after that harness's catalog.
     var modelGroups: [ReasoningModelGroup] {
         let repair = ReasoningModelOption(harnessID: effective.harness.id, value: selection.modelID, title: selection.modelTitle)
         return harnesses.compactMap { harness in
             let isEffective = harness.id == effective.harness.id
-            guard isEffective || !harness.modelOptions.isEmpty else {
-                return nil
+            guard !harness.modelOptions.isEmpty else {
+                return isEffective ? ReasoningModelGroup(harnessID: harness.id, harnessTitle: harness.title, options: [repair]) : nil
             }
             let group = ReasoningModelGroup(
                 harnessID: harness.id,
@@ -122,6 +123,10 @@ struct AgentReasoningPresentation: Equatable {
 
     /// The full pin a model-row pick writes, or `nil` for a row this host does not offer. Effort carries over when the
     /// new model supports it and otherwise falls to the model's default, matching the composer.
+    ///
+    /// Re-picking the checked row keeps the stored pins, so a stored `AppSettings.defaultModelValue` or partial pin
+    /// is not rewritten as the concrete model it resolves to. It still writes to repair a harness the host fell back
+    /// from or an effort the model dropped, which a model without effort options offers no slider to fix.
     func pins(for request: ReasoningModelSelectionRequest) -> AgentReasoningPins? {
         guard let harness = harnesses.first(where: { $0.id == request.harnessID }),
               modelGroups.contains(where: { group in
@@ -141,6 +146,13 @@ struct AgentReasoningPresentation: Equatable {
         let effort = carriesEffort
             ? AgentModelOptionSelection.normalizedEffort(effective.effort, options: options, selectedModel: model)
             : AgentModelOptionSelection.defaultEffortValue(in: options, selectedModel: model)
+        let isCheckedRow = !isInherited
+            && request.harnessID == effective.harness.id
+            && request.modelID == selection.modelID
+            && (pins.harnessID ?? effective.harness.id) == effective.harness.id
+        if isCheckedRow, effort == effective.effort {
+            return pins
+        }
         return AgentReasoningPins(harnessID: harness.id, model: model, effort: effort)
     }
 

@@ -65,7 +65,7 @@ struct PullRequestReviewTeamEditorSheet: View {
                         ) {
                             ForEach(peers) { peer in
                                 if let index = peers.firstIndex(where: { $0.id == peer.id }) {
-                                    peerSection(index: index)
+                                    peerSection(peer, index: index)
                                 }
                             }
                         }
@@ -129,48 +129,18 @@ private extension PullRequestReviewTeamEditorSheet {
         }
     }
 
-    func peerSection(index: Int) -> some View {
+    func peerSection(_ peer: PullRequestReviewPeer, index: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             peerHeader(index: index)
 
             SettingsFormSection {
                 SettingsFormRow(showsDivider: false) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        SettingsResponsiveControlRow("Harness", horizontalControlSizing: .selectedContent) {
-                            SettingsMenuPicker(
-                                "Reviewer \(index + 2) harness",
-                                selection: harnessBinding(index: index),
-                                options: viewModel.pullRequestReviewPeerHarnessOptions(
-                                    including: peers[index].harnessID
-                                ),
-                                label: { viewModel.harnessDisplayName(for: $0) }
-                            )
-                        }
-
-                        SettingsResponsiveControlRow("Model", horizontalControlSizing: .selectedContent) {
-                            SettingsMenuPicker(
-                                "Reviewer \(index + 2) model",
-                                selection: modelBinding(index: index),
-                                options: viewModel.pullRequestReviewPeerModelOptions(peers[index]),
-                                label: { value in
-                                    viewModel.pullRequestReviewPeerModelLabel(
-                                        value,
-                                        harnessID: peers[index].harnessID
-                                    )
-                                }
-                            )
-                        }
-
-                        SettingsResponsiveControlRow("Effort", horizontalControlSizing: .selectedContent) {
-                            SettingsMenuPicker(
-                                "Reviewer \(index + 2) effort",
-                                selection: effortBinding(index: index),
-                                options: viewModel.pullRequestReviewPeerEffortOptions(peers[index]),
-                                label: { value in
-                                    viewModel.pullRequestReviewPeerEffortLabel(value, peer: peers[index])
-                                }
-                            )
-                        }
+                    SettingsResponsiveControlRow("Agent", horizontalControlSizing: .selectedContent) {
+                        SettingsAgentSelector(
+                            accessibilityLabel: "Reviewer \(index + 2) agent",
+                            presentation: viewModel.reviewTeamPeerPresentation(peer),
+                            apply: { viewModel.applyReviewTeamPeer($0, id: peer.id, in: &draft) }
+                        )
                     }
                 }
             }
@@ -214,50 +184,5 @@ private extension PullRequestReviewTeamEditorSheet {
             return
         }
         peers.append(peer)
-    }
-
-    func harnessBinding(index: Int) -> Binding<String> {
-        Binding(
-            get: { peers[index].harnessID },
-            set: { harnessID in
-                if let replacement = viewModel.defaultPullRequestReviewPeer(
-                    harnessID: harnessID,
-                    excluding: peers.enumerated().compactMap { $0.offset == index ? nil : $0.element },
-                    settings: draft
-                ) {
-                    peers[index].harnessID = harnessID
-                    peers[index].model = replacement.model
-                    peers[index].effort = replacement.effort
-                } else {
-                    peers[index].harnessID = harnessID
-                    peers[index].model = ""
-                    peers[index].effort = viewModel.pullRequestReviewPeerDefaultEffort(harnessID: harnessID, model: "")
-                }
-            }
-        )
-    }
-
-    func modelBinding(index: Int) -> Binding<String> {
-        Binding(
-            get: { viewModel.pullRequestReviewPeerModelSelection(peers[index]) },
-            set: { selection in
-                let model = viewModel.pullRequestReviewPeerStoredModel(
-                    harnessID: peers[index].harnessID,
-                    selection: selection
-                )
-                peers[index].model = model
-                peers[index].effort = viewModel.pullRequestReviewPeerDefaultEffort(
-                    harnessID: peers[index].harnessID,
-                    model: model
-                )
-            }
-        )
-    }
-
-    func effortBinding(index: Int) -> Binding<String> {
-        Binding(
-            get: { viewModel.pullRequestReviewPeerEffortSelection(peers[index]) },
-            set: { peers[index].effort = $0 }
-        )
     }
 }

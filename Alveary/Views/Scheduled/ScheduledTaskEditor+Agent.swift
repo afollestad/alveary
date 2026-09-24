@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Groups the whole agent configuration; "Harness" names only its runtime choice.
+/// Groups the whole agent configuration; the Agent row picks harness, model, and effort as one selection.
 struct ScheduledTaskEditorAgentSection: View {
     let viewModel: ScheduledTasksViewModel
     @Binding var draft: ScheduledTaskEditorDraft
@@ -8,33 +8,11 @@ struct ScheduledTaskEditorAgentSection: View {
     var body: some View {
         SettingsFormSection("Agent") {
             SettingsFormRow {
-                SettingsResponsiveControlRow("Harness", horizontalControlSizing: .selectedContent) {
-                    ScheduledTaskMenuPicker(
-                        accessibilityLabel: "Harness",
-                        selection: Binding(get: { draft.harnessID }, set: {
-                            draft.harnessID = $0
-                            viewModel.normalizeHarnessDependentFields(&draft, explicitSelectionChange: true)
-                        }),
-                        options: viewModel.editorHarnessIDs(for: draft).map {
-                            .init(value: $0, label: viewModel.harnessDisplayName(for: $0))
-                        }
-                    )
-                }
-            }
-
-            SettingsFormRow {
-                SettingsResponsiveControlRow("Model", horizontalControlSizing: .selectedContent) {
-                    ScheduledTaskMenuPicker(
-                        accessibilityLabel: "Model",
-                        selection: Binding(get: { draft.modelSelection }, set: {
-                            draft.modelSelection = $0
-                            viewModel.normalizeHarnessDependentFields(&draft, explicitSelectionChange: true)
-                        }),
-                        options: viewModel.modelPickerOptions(
-                            for: draft.harnessID,
-                            including: draft.modelSelection,
-                            draft: draft
-                        ).map { .init(value: $0.value, label: $0.label) }
+                SettingsResponsiveControlRow("Agent", horizontalControlSizing: .selectedContent) {
+                    SettingsAgentSelector(
+                        accessibilityLabel: "Agent",
+                        presentation: viewModel.agentPresentation(for: draft),
+                        apply: { viewModel.applyAgent($0, to: &draft) }
                     )
                 }
             }
@@ -44,17 +22,6 @@ struct ScheduledTaskEditorAgentSection: View {
                 modelSelection: draft.modelSelection,
                 draft: draft
             )
-            if !effortOptions.isEmpty {
-                SettingsFormRow {
-                    SettingsResponsiveControlRow("Effort", horizontalControlSizing: .selectedContent) {
-                        ScheduledTaskMenuPicker(
-                            accessibilityLabel: "Effort",
-                            selection: $draft.effort,
-                            options: effortOptions.map { .init(value: $0.value, label: $0.label) }
-                        )
-                    }
-                }
-            }
             if draft.harnessID == "opencode", draft.effort != AppSettings.openCodeDefaultEffort,
                !viewModel.isOpenCodeEditorCatalogPending(for: draft),
                !effortOptions.contains(where: { $0.value == draft.effort }) {

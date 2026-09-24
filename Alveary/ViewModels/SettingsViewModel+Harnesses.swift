@@ -16,25 +16,8 @@ extension SettingsViewModel {
         threadDefaultResolution.readyHarnessIDs
     }
 
-    var hasReadyThreadDefaultHarness: Bool {
-        threadDefaultResolution.hasReadyHarness
-    }
-
     var threadDefaultHarnessSelection: String {
         threadDefaultResolution.harnessID ?? settingsService.current.defaultHarness
-    }
-
-    var threadDefaultModelSelection: String {
-        AgentModelOptionSelection.pickerValue(
-            in: threadDefaultResolution.modelOptions,
-            matching: threadDefaultResolution.storedThreadModel
-        )
-    }
-
-    var threadDefaultModelOptionValues: [String] {
-        let options = threadDefaultResolution.modelOptions
-        let values = options.map(AgentModelOptionSelection.pickerValue(for:))
-        return values.isEmpty ? [AppSettings.defaultModelValue] : values
     }
 
     var threadDefaultPermissionModeOptions: [String] {
@@ -44,62 +27,60 @@ extension SettingsViewModel {
         return permissionModeOptions(for: harnessID)
     }
 
-    var threadDefaultEffortOptions: [AgentCLIKit.AgentHarnessOption] {
-        AgentModelOptionSelection.effortOptions(
-            in: threadDefaultResolution.modelOptions,
-            selectedModel: threadDefaultResolution.storedThreadModel
+    /// Lists only ready harnesses; a stored default that is not ready still reads on the button, with effort hidden.
+    var threadDefaultAgentPresentation: AgentReasoningPresentation {
+        let settings = settingsService.current
+        return AgentReasoningPresentation(
+            harnesses: threadDefaultHarnessIDs.map { agentReasoningHarness(for: $0) },
+            pins: .init(harnessID: settings.defaultHarness, model: settings.defaultModel, effort: settings.effort),
+            effective: threadDefaultResolvedAgent,
+            isChecking: isCheckingThreadDefaultHarnesses
         )
     }
 
-    var supportedModels: [String] {
-        modelOptionValues(for: defaultHarness, including: settingsService.current.defaultModel)
+    /// What new threads launch with, which hosts inheriting the Threads default also resolve to.
+    var threadDefaultResolvedAgent: AgentReasoningPresentation.Resolved {
+        let resolution = threadDefaultResolution
+        return AgentReasoningPresentation.Resolved(
+            harness: agentReasoningHarness(for: resolution.harnessID ?? settingsService.current.defaultHarness),
+            model: resolution.storedThreadModel ?? AppSettings.defaultModelValue,
+            effort: resolution.effort
+        )
     }
 
-    var defaultHarness: String {
-        get { settingsService.current.defaultHarness }
-        set {
-            let options = modelOptions(for: newValue)
-            settingsService.update { settings in
-                settings.defaultHarness = newValue
-                settings.setHarness(newValue, enabled: true)
-                if AgentModelOptionSelection.option(in: options, matching: settings.defaultModel) == nil {
-                    settings.defaultModel = AppSettings.defaultModelValue
-                }
-                if !AppSettings.supportedPermissionModes(forHarness: newValue).contains(settings.permissionMode) {
-                    settings.permissionMode = AppSettings.defaultPermissionMode(forHarness: newValue)
-                }
-                settings.effort = AgentModelOptionSelection.normalizedEffort(
-                    settings.effort,
-                    options: options,
-                    selectedModel: settings.defaultModel
-                )
-            }
-        }
+    var threadDefaultResolution: ThreadDefaultResolution {
+        ThreadDefaultResolver.resolve(
+            settings: settingsService.current,
+            harnessOrdering: harnessOrdering,
+            harnessStatuses: harnessStatuses,
+            allowStaticFallback: harnessDiscovery == nil
+        )
     }
 
-    var defaultModel: String {
-        get {
-            AgentModelOptionSelection.pickerValue(
-                in: modelOptions(for: settingsService.current.defaultHarness),
-                matching: settingsService.current.defaultModel
-            )
+    /// Writes a pick in one update so harness, model, effort, and permission invalidate together. A model change seeds
+    /// that model's default effort while the stored effort is still the untouched `AppSettings.defaultEffortLevel`,
+    /// because new threads seed from it. The change is measured against the resolved agent, not the stored fields: an
+    /// effort drag pins the resolved harness and model, which differ from the stored ones after a fallback.
+    func applyThreadDefaultAgent(_ pins: AgentReasoningPins) -> Bool {
+        guard let harnessID = pins.harnessID, let model = pins.model, let effort = pins.effort else {
+            return false
         }
-        set {
-            let options = modelOptions(for: settingsService.current.defaultHarness)
-            let storedModel = AgentModelOptionSelection.storedModelValue(in: options, matching: newValue)
-            settingsService.update { settings in
-                let previousEffort = settings.effort
-                settings.defaultModel = storedModel
-                let normalizedEffort = AgentModelOptionSelection.normalizedEffort(
-                    previousEffort,
-                    options: options,
-                    selectedModel: storedModel
-                )
-                settings.effort = previousEffort == AppSettings.defaultEffortLevel
-                    ? AgentModelOptionSelection.defaultEffortValue(in: options, selectedModel: storedModel)
-                    : normalizedEffort
+        let options = modelOptions(for: harnessID)
+        let resolved = threadDefaultAgentPresentation.effective
+        let changesModel = resolved.harness.id != harnessID || resolved.model != model
+        settingsService.update { settings in
+            let seedsModelDefault = settings.effort == AppSettings.defaultEffortLevel && changesModel
+            settings.defaultHarness = harnessID
+            settings.setHarness(harnessID, enabled: true)
+            settings.defaultModel = model
+            if !AppSettings.supportedPermissionModes(forHarness: harnessID).contains(settings.permissionMode) {
+                settings.permissionMode = AppSettings.defaultPermissionMode(forHarness: harnessID)
             }
+            settings.effort = seedsModelDefault
+                ? AgentModelOptionSelection.defaultEffortValue(in: options, selectedModel: model)
+                : AgentModelOptionSelection.normalizedEffort(effort, options: options, selectedModel: model)
         }
+        return true
     }
 
     var permissionMode: String {
@@ -272,13 +253,6 @@ extension SettingsViewModel {
         }
     }
 
-    func effortOptions(for harnessId: String, model: String?) -> [AgentCLIKit.AgentHarnessOption] {
-        AgentModelOptionSelection.effortOptions(
-            in: modelOptions(for: harnessId),
-            selectedModel: model
-        )
-    }
-
     func harnessDisplayName(for harnessId: String) -> String {
         harnessStatus(for: harnessId)?.definition?.displayName
             ?? agentRegistry.agent(for: harnessId)?.name
@@ -298,26 +272,17 @@ extension SettingsViewModel {
         }
     }
 
-    func modelOptionValues(for harnessId: String, including selectedModel: String? = nil) -> [String] {
-        let options = modelOptions(for: harnessId)
-        var values = options.map(AgentModelOptionSelection.pickerValue(for:))
-        if values.isEmpty {
-            values = [AppSettings.defaultModelValue]
-        }
-        if let selectedModel,
-           !selectedModel.isEmpty,
-           AgentModelOptionSelection.option(in: options, matching: selectedModel) == nil,
-           !values.contains(selectedModel) {
-            values.append(AppSettings.normalizedModelSelection(selectedModel))
-        }
-        return values
-    }
-
-    func modelLabel(for model: String, harnessId: String) -> String {
-        if let option = AgentModelOptionSelection.option(in: modelOptions(for: harnessId), matching: model) {
-            return option.label
-        }
-        return ChatComposerTextSupport.modelLabel(for: model)
+    /// `concreteModelOptions` replaces the harness's full catalog for a host that launches only concrete models.
+    func agentReasoningHarness(
+        for harnessID: String,
+        concreteModelOptions: [AgentCLIKit.AgentModelOption]? = nil
+    ) -> AgentReasoningPresentation.Harness {
+        AgentReasoningPresentation.Harness(
+            id: harnessID,
+            title: harnessDisplayName(for: harnessID),
+            modelOptions: concreteModelOptions ?? modelOptions(for: harnessID),
+            requiresConcreteModel: concreteModelOptions != nil
+        )
     }
 
     func modelOptions(for harnessId: String) -> [AgentCLIKit.AgentModelOption] {
@@ -356,15 +321,6 @@ extension SettingsViewModel {
 }
 
 private extension SettingsViewModel {
-    var threadDefaultResolution: ThreadDefaultResolution {
-        ThreadDefaultResolver.resolve(
-            settings: settingsService.current,
-            harnessOrdering: harnessOrdering,
-            harnessStatuses: harnessStatuses,
-            allowStaticFallback: harnessDiscovery == nil
-        )
-    }
-
     func persistResolvedThreadDefaultsIfNeeded() {
         let current = settingsService.current
         // A team launch treats inherited defaults as strict lead pins; persisting the Threads

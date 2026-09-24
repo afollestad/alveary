@@ -29,10 +29,10 @@ struct ReviewTeamSettingsDraftTests {
             )
             await viewModel.refreshHarnessStatuses()
 
-            #expect(viewModel.utilityHarnessOptions.contains(harnessID))
+            #expect(viewModel.utilityAgentPresentation.harnesses.map(\.id).contains(harnessID))
             #expect(viewModel.utilityUnavailableMessage == nil)
-            #expect(viewModel.reviewTeamLeadHarnessOptions(settings).contains(harnessID))
-            #expect(viewModel.pullRequestReviewPeerHarnessOptions(including: harnessID).contains(harnessID))
+            let leadGroup = viewModel.reviewTeamLeadPresentation(settings).modelGroups.first { $0.harnessID == harnessID }
+            #expect(leadGroup?.options.map(\.value) == [model.id])
             let worker = try PullRequestReviewTeamResolver.resolveLead(settings: settings, harnessStatuses: [definition.id: status])
             #expect(worker.harnessID == harnessID)
             #expect(worker.launchModel == model.model)
@@ -53,8 +53,7 @@ struct ReviewTeamSettingsDraftTests {
             PullRequestReviewPeer(id: "peer", harnessID: "claude", model: "sonnet", effort: "high")
         ]
 
-        viewModel.setReviewTeamLeadHarness("codex", in: &draft)
-        viewModel.setReviewTeamLeadModel("gpt-5.5", in: &draft)
+        pickLeadModel("gpt-5.5", harnessID: "codex", in: &draft, viewModel: viewModel)
 
         #expect(service.current == original)
         #expect(service.updateCount == updates)
@@ -69,7 +68,7 @@ struct ReviewTeamSettingsDraftTests {
     @Test func `saving team edits preserves newer feedback and thread settings`() async {
         let (viewModel, service) = await makeViewModel()
         var draft = viewModel.reviewTeamEditorSettings()
-        viewModel.setReviewTeamLeadHarness("codex", in: &draft)
+        pickLeadModel("gpt-5.5", harnessID: "codex", in: &draft, viewModel: viewModel)
         service.update {
             $0.pullRequestAddressFeedbackHarness = "claude"
             $0.pullRequestAddressFeedbackModel = "haiku"
@@ -115,10 +114,11 @@ struct ReviewTeamSettingsDraftTests {
         let (viewModel, _) = await makeViewModel(settings: settings)
         let draft = viewModel.reviewTeamEditorSettings()
 
-        #expect(viewModel.reviewTeamLeadHarnessOptions(draft).contains("codex"))
-        #expect(viewModel.reviewTeamLeadModelSelection(draft) == "retired-model")
-        #expect(viewModel.reviewTeamLeadModelOptions(draft).contains("retired-model"))
-        #expect(viewModel.reviewTeamLeadEffortOptions(draft).contains("retired-effort"))
+        let lead = viewModel.reviewTeamLeadPresentation(draft)
+        #expect(lead.pins == .init(harnessID: "codex", model: "retired-model", effort: "retired-effort"))
+        #expect(lead.effective.harness.id == "codex")
+        #expect(lead.selection.modelID == "retired-model")
+        #expect(lead.selection.effortOptions.isEmpty)
         guard case .needsAttention = viewModel.pullRequestReviewTeamSettingsStatus(
             peers: draft.pullRequestReviewPeers, settings: draft
         ) else {
@@ -133,8 +133,7 @@ struct ReviewTeamSettingsDraftTests {
         var draft = service.current
         draft.pullRequestReviewPeers = [peer]
         #expect(viewModel.pullRequestReviewTeamSettingsStatus(peers: [peer], settings: draft) == .ready)
-        viewModel.setReviewTeamLeadHarness("codex", in: &draft)
-        viewModel.setReviewTeamLeadModel("gpt-5.5", in: &draft)
+        pickLeadModel("gpt-5.5", harnessID: "codex", in: &draft, viewModel: viewModel)
 
         guard case .needsAttention(let message) = viewModel.pullRequestReviewTeamSettingsStatus(peers: [peer], settings: draft) else {
             Issue.record("Duplicating the lead must block Save")
@@ -156,21 +155,73 @@ struct ReviewTeamSettingsDraftTests {
 
         #expect(draft.pullRequestReviewHarness == nil)
         #expect(viewModel.reviewTeamDraftLead(draft).model == "provider/text")
-        #expect(viewModel.reviewTeamLeadHarnessOptions(draft).contains("opencode"))
-        #expect(viewModel.pullRequestReviewPeerHarnessOptions(including: "opencode").contains("opencode"))
-        #expect(viewModel.reviewTeamLeadModelOptions(draft).contains("provider/text"))
+        let leadGroup = viewModel.reviewTeamLeadPresentation(draft).modelGroups.first { $0.harnessID == "opencode" }
+        #expect(leadGroup?.options.map(\.value) == ["provider/text", "provider/reasoning"])
         let peer = try #require(viewModel.defaultPullRequestReviewPeer(harnessID: "opencode", excluding: [], settings: draft))
         #expect(peer.model == "provider/reasoning")
         #expect(peer.effort == AppSettings.openCodeDefaultEffort)
-        #expect(viewModel.pullRequestReviewPeerEffortOptions(peer) == [AppSettings.openCodeDefaultEffort, "native"])
-        #expect(viewModel.pullRequestReviewPeerEffortLabel(peer.effort, peer: peer) == "Default")
+        let peerSelection = viewModel.reviewTeamPeerPresentation(peer).selection
+        #expect(peerSelection.effortOptions.map(\.value) == [AppSettings.openCodeDefaultEffort, "native"])
+        #expect(peerSelection.effortTitle == "Default")
+        let defaultPeer = PullRequestReviewPeer(
+            id: "default", harnessID: "opencode", model: AppSettings.defaultModelValue, effort: AppSettings.openCodeDefaultEffort
+        )
+        let defaultPeerPresentation = viewModel.reviewTeamPeerPresentation(defaultPeer)
+        #expect(defaultPeerPresentation.selection.modelID == AppSettings.defaultModelValue)
+        let defaultPeerGroup = defaultPeerPresentation.modelGroups.first { $0.harnessID == "opencode" }
+        #expect(defaultPeerGroup?.options.map(\.value) == ["provider/text", "provider/reasoning", AppSettings.defaultModelValue])
         draft.pullRequestReviewPeers = [peer]
         #expect(viewModel.pullRequestReviewTeamSettingsStatus(peers: [peer], settings: draft) == .ready)
 
-        viewModel.setReviewTeamLeadModel("provider/reasoning", in: &draft)
+        pickLeadModel("provider/reasoning", harnessID: "opencode", in: &draft, viewModel: viewModel)
         #expect(draft.pullRequestReviewEffort == AppSettings.openCodeDefaultEffort)
         #expect(viewModel.pullRequestReviewTeamSettingsStatus(peers: [peer], settings: draft) != .ready)
         #expect(service.current == original)
+    }
+
+    @Test func `lead inherit row clears every pin and pinning the inherited harness keeps review permissions`() async {
+        var settings = AppSettings()
+        settings.pullRequestReviewPermissionMode = "acceptEdits"
+        let (viewModel, service) = await makeViewModel(settings: settings)
+        var draft = service.current
+        draft.pullRequestReviewPeers = [PullRequestReviewPeer(id: "peer", harnessID: "codex", model: "gpt-5.5", effort: "medium")]
+
+        pickLeadModel("opus", harnessID: "claude", in: &draft, viewModel: viewModel)
+        viewModel.setPullRequestReviewTeam(draft)
+        #expect(service.current.pullRequestReviewAgent == PullRequestAgentSettings(
+            harness: "claude", model: "opus", effort: "medium", permissionMode: "acceptEdits"
+        ))
+
+        pickAgentInherit(in: viewModel.reviewTeamLeadPresentation(draft)) { viewModel.applyReviewTeamLead($0, in: &draft) }
+        #expect(draft.pullRequestReviewHarness == nil)
+        #expect(draft.pullRequestReviewModel == nil)
+        #expect(draft.pullRequestReviewEffort == nil)
+    }
+
+    @Test func `peer picks apply by id without inheriting`() async {
+        let (viewModel, service) = await makeViewModel()
+        var draft = service.current
+        let first = PullRequestReviewPeer(id: "first", harnessID: "claude", model: "sonnet", effort: "max")
+        let second = PullRequestReviewPeer(id: "second", harnessID: "claude", model: "fable", effort: "high")
+        draft.pullRequestReviewPeers = [first, second]
+        let presentation = viewModel.reviewTeamPeerPresentation(second)
+        #expect(presentation.inheritOption == nil)
+
+        pickAgentModel("gpt-5.5", harnessID: "codex", in: presentation) { viewModel.applyReviewTeamPeer($0, id: second.id, in: &draft) }
+
+        #expect(draft.pullRequestReviewPeers == [
+            first,
+            PullRequestReviewPeer(id: "second", harnessID: "codex", model: "gpt-5.5", effort: "high")
+        ])
+        #expect(service.current.pullRequestReviewPeers.isEmpty)
+    }
+
+    private func pickLeadModel(_ model: String, harnessID: String, in draft: inout AppSettings, viewModel: SettingsViewModel) {
+        var edited = draft
+        pickAgentModel(model, harnessID: harnessID, in: viewModel.reviewTeamLeadPresentation(draft)) {
+            viewModel.applyReviewTeamLead($0, in: &edited)
+        }
+        draft = edited
     }
 
     private func makeViewModel(settings: AppSettings = AppSettings()) async -> (SettingsViewModel, InMemorySettingsService) {

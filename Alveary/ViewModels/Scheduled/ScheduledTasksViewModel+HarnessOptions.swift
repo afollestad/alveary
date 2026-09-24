@@ -31,16 +31,6 @@ extension ScheduledTasksViewModel {
         return ThreadDefaultResolver.modelOptions(for: harnessID, harnessStatuses: harnessStatuses)
     }
 
-    func modelPickerOptions(
-        for harnessID: String, including selection: String, draft: ScheduledTaskEditorDraft? = nil
-    ) -> [ScheduledTaskPickerOption] {
-        AgentModelOptionSelection.menuItems(
-            in: modelOptions(for: harnessID, draft: draft),
-            selectedModel: selection,
-            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
-        ).map { ScheduledTaskPickerOption(value: $0.value, label: $0.title) }
-    }
-
     func effortOptions(
         for harnessID: String, modelSelection: String, draft: ScheduledTaskEditorDraft? = nil
     ) -> [ScheduledTaskPickerOption] {
@@ -80,17 +70,44 @@ extension ScheduledTasksViewModel {
         return pickerOptions
     }
 
+    /// A schedule always pins a whole agent, so there is no inherit row. Checking covers only the first harness load,
+    /// since every pane open refreshes and would otherwise blank the selector.
+    func agentPresentation(for draft: ScheduledTaskEditorDraft) -> AgentReasoningPresentation {
+        let harness = agentHarness(for: draft.harnessID, draft: draft)
+        let model = AgentModelOptionSelection.storedModelValue(in: harness.modelOptions, matching: draft.modelSelection)
+        return AgentReasoningPresentation(
+            harnesses: editorHarnessIDs(for: draft).map { agentHarness(for: $0, draft: draft) },
+            pins: .init(harnessID: draft.harnessID, model: model, effort: draft.effort),
+            effective: .init(harness: harness, model: model, effort: draft.effort),
+            isChecking: isLoadingHarnesses && harnessStatuses.isEmpty
+        )
+    }
+
+    /// Normalizes after storing so a harness switch also resets a permission mode the new harness lacks.
+    func applyAgent(_ pins: AgentReasoningPins, to draft: inout ScheduledTaskEditorDraft) -> Bool {
+        guard let harnessID = pins.harnessID, let model = pins.model, let effort = pins.effort else {
+            return false
+        }
+        draft.harnessID = harnessID
+        draft.modelSelection = AgentModelOptionSelection.pickerValue(in: modelOptions(for: harnessID, draft: draft), matching: model)
+        draft.effort = effort
+        normalizeHarnessDependentFields(&draft, explicitSelectionChange: true)
+        return true
+    }
+
     /// Discovery and unrelated edits must preserve native selections so preflight can explain unavailable variants.
     func normalizeHarnessDependentFields(_ draft: inout ScheduledTaskEditorDraft, explicitSelectionChange: Bool = false) {
         guard draft.harnessID != "opencode" || explicitSelectionChange else { return }
-        let modelOptions = modelPickerOptions(for: draft.harnessID, including: AppSettings.defaultModelValue, draft: draft)
-        if !modelOptions.contains(where: { $0.value == draft.modelSelection }) {
+        let catalog = modelOptions(for: draft.harnessID, draft: draft)
+        let offeredModels = AgentModelOptionSelection.menuItems(
+            in: catalog,
+            selectedModel: nil,
+            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
+        ).map(\.value)
+        if !offeredModels.contains(draft.modelSelection) {
             // Resolve the harness's own default rather than taking the first row: a harness is free to list its
             // strongest model first, and falling into that would silently upgrade the task's cost on a harness switch.
-            draft.modelSelection = AgentModelOptionSelection.pickerValue(
-                in: self.modelOptions(for: draft.harnessID, draft: draft),
-                matching: AppSettings.defaultModelValue
-            )
+            draft.modelSelection = AgentModelOptionSelection.pickerValue(in: catalog, matching: AppSettings.defaultModelValue)
         }
 
         let effortOptions = effortOptions(for: draft.harnessID, modelSelection: draft.modelSelection, draft: draft)
@@ -124,6 +141,10 @@ extension ScheduledTasksViewModel {
             uniqueKeysWithValues: resolvedStatuses.map { ($0.key.rawValue, $0.value) }
         )
         isLoadingHarnesses = false
+    }
+
+    private func agentHarness(for harnessID: String, draft: ScheduledTaskEditorDraft) -> AgentReasoningPresentation.Harness {
+        .init(id: harnessID, title: harnessDisplayName(for: harnessID), modelOptions: modelOptions(for: harnessID, draft: draft))
     }
 }
 

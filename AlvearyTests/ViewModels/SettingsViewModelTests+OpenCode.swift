@@ -19,10 +19,11 @@ extension SettingsViewModelTests {
         )
         await viewModel.refreshHarnessStatuses()
 
-        XCTAssertEqual(viewModel.pullRequestReviewEffectiveHarnessID, "opencode")
-        XCTAssertEqual(viewModel.addressFeedbackEffectiveHarnessID, "opencode")
-        XCTAssertFalse(viewModel.pullRequestReviewModelOptions.contains("sonnet"))
-        XCTAssertFalse(viewModel.addressFeedbackPermissionOptions.contains("acceptEdits"))
+        for editor in [viewModel.reviewAgentEditor, viewModel.addressFeedbackAgentEditor] {
+            XCTAssertEqual(editor.presentation.effective.harness.id, "opencode")
+            XCTAssertTrue(editor.presentation.selection.effortOptions.isEmpty)
+            XCTAssertFalse(editor.permissionOptions.contains("acceptEdits"))
+        }
         XCTAssertEqual(settingsService.current.pullRequestReviewAgent, settings.pullRequestReviewAgent)
     }
 
@@ -32,8 +33,8 @@ extension SettingsViewModelTests {
         settings.defaultModel = "provider/reasoning"
         let service = InMemorySettingsService(current: settings)
         let viewModel = SettingsViewModel(settingsService: service)
-        viewModel.harnessStatuses["opencode"] = AgentHarnessStatus(
-            harnessId: .opencode, definition: OpenCodeHarnessDefinition.definition,
+        viewModel.harnessStatuses["opencode"] = Self.harnessStatus(
+            for: .opencode,
             modelOptions: [
                 AgentModelOption(harnessId: .opencode, id: "default", model: nil, label: "Default", isDefault: true),
                 AgentModelOption(
@@ -42,8 +43,9 @@ extension SettingsViewModelTests {
                 )
             ]
         )
-        XCTAssertTrue(viewModel.pullRequestReviewEffortOptions.contains { $0.value == "native" })
-        XCTAssertTrue(viewModel.addressFeedbackEffortOptions.contains { $0.value == "native" })
+        for editor in [viewModel.reviewAgentEditor, viewModel.addressFeedbackAgentEditor] {
+            XCTAssertTrue(editor.presentation.selection.effortOptions.contains { $0.value == "native" })
+        }
     }
 
     func testExplicitOpenCodeReviewModelWithoutVariantsResetsEffortToConfiguredDefault() {
@@ -53,17 +55,17 @@ extension SettingsViewModelTests {
         settings.pullRequestReviewAgent = PullRequestAgentSettings(harness: "opencode", effort: "saved-native-variant")
         let service = InMemorySettingsService(current: settings)
         let viewModel = SettingsViewModel(settingsService: service)
-        viewModel.harnessStatuses["opencode"] = AgentHarnessStatus(
-            harnessId: .opencode, definition: OpenCodeHarnessDefinition.definition,
+        viewModel.harnessStatuses["opencode"] = Self.harnessStatus(
+            for: .opencode,
             modelOptions: [AgentModelOption(harnessId: .opencode, id: "provider/text", model: "provider/text", label: "Text")]
         )
 
-        viewModel.setPullRequestReviewModel("provider/text")
-        viewModel.setAddressFeedbackModel("provider/text")
+        for editor in [viewModel.reviewAgentEditor, viewModel.addressFeedbackAgentEditor] {
+            pickAgentModel("provider/text", harnessID: "opencode", in: editor.presentation) { editor.apply($0) }
+        }
 
         XCTAssertEqual(service.current.pullRequestReviewEffort, AppSettings.openCodeDefaultEffort)
         XCTAssertEqual(service.current.pullRequestAddressFeedbackEffort, AppSettings.openCodeDefaultEffort)
         XCTAssertEqual(service.current.effort, "inherited-native-variant")
     }
-
 }

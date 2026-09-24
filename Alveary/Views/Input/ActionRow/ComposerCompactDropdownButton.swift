@@ -275,9 +275,10 @@ class ComposerCompactDropdownButton: NSView {
             case .highlighted: AppInputStyle.menuHoverBackgroundOpacity
             case .pressed: AppInputStyle.menuPressedBackgroundOpacity
             }
+            let enabledOpacity = controlIsEnabled ? 1 : AppInputStyle.disabledMenuOpacity
             // Scales the system color's own alpha, as `AppInputStyle.menuBackgroundColor` does.
             let base = NSColor.secondaryLabelColor.resolved(for: appKitRenderingAppearance)
-            return base.withAlphaComponent(base.alphaComponent * opacity)
+            return base.withAlphaComponent(base.alphaComponent * opacity * enabledOpacity)
         }
     }
 

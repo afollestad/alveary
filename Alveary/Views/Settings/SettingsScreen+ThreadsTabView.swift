@@ -2,10 +2,7 @@ import SwiftUI
 
 struct ThreadsSettingsTabView: View {
     let viewModel: SettingsViewModel
-    @Binding var defaultHarness: String
-    @Binding var defaultModel: String
     @Binding var permissionMode: String
-    @Binding var effort: String
     @Binding var defaultThreadCleanupAction: ThreadCleanupAction
     @Binding var defaultEnterBehavior: ThreadEnterDefaultBehavior
     @Binding var autoTrustProjects: Bool
@@ -78,46 +75,12 @@ private extension ThreadsSettingsTabView {
     @ViewBuilder
     var defaultsSectionRows: some View {
         SettingsFormRow {
-            SettingsResponsiveControlRow("Harness", horizontalControlSizing: .intrinsic) {
-                SettingsMenuPicker(
-                    "Harness",
-                    selection: threadDefaultHarnessBinding,
-                    options: viewModel.threadDefaultHarnessIDs,
-                    placeholder: harnessPlaceholder,
-                    isDisabled: viewModel.isCheckingThreadDefaultHarnesses || viewModel.threadDefaultHarnessIDs.isEmpty,
-                    label: { viewModel.harnessDisplayName(for: $0) }
+            SettingsResponsiveControlRow("Agent", horizontalControlSizing: .intrinsic) {
+                SettingsAgentSelector(
+                    accessibilityLabel: "Agent",
+                    presentation: viewModel.threadDefaultAgentPresentation,
+                    apply: { viewModel.applyThreadDefaultAgent($0) }
                 )
-            }
-        }
-
-        SettingsFormRow {
-            SettingsResponsiveControlRow("Model", horizontalControlSizing: .intrinsic) {
-                SettingsMenuPicker(
-                    "Model",
-                    selection: threadDefaultModelBinding,
-                    options: viewModel.threadDefaultModelOptionValues,
-                    placeholder: dependentPlaceholder,
-                    isDisabled: threadDefaultControlsDisabled,
-                    label: { viewModel.modelLabel(for: $0, harnessId: viewModel.threadDefaultHarnessSelection) }
-                )
-            }
-        }
-
-        let effortOptions = viewModel.threadDefaultEffortOptions
-        if !effortOptions.isEmpty {
-            SettingsFormRow {
-                SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
-                    SettingsMenuPicker(
-                        "Effort",
-                        selection: $effort,
-                        options: effortOptions.map(\.value),
-                        isDisabled: viewModel.isCheckingThreadDefaultHarnesses,
-                        label: { value in
-                            effortOptions.first { $0.value == value }?.label
-                                ?? ChatComposerTextSupport.effortLabel(for: value)
-                        }
-                    )
-                }
             }
         }
 
@@ -167,35 +130,6 @@ private extension ThreadsSettingsTabView {
                 )
             }
         }
-    }
-
-    var harnessPlaceholder: String? {
-        if viewModel.isCheckingThreadDefaultHarnesses {
-            return "Checking harnesses..."
-        }
-        return viewModel.threadDefaultHarnessIDs.isEmpty ? "No ready harnesses" : nil
-    }
-
-    var dependentPlaceholder: String? {
-        threadDefaultControlsDisabled ? harnessPlaceholder : nil
-    }
-
-    var threadDefaultControlsDisabled: Bool {
-        viewModel.isCheckingThreadDefaultHarnesses || !viewModel.hasReadyThreadDefaultHarness
-    }
-
-    var threadDefaultHarnessBinding: Binding<String> {
-        Binding(
-            get: { viewModel.threadDefaultHarnessSelection },
-            set: { defaultHarness = $0 }
-        )
-    }
-
-    var threadDefaultModelBinding: Binding<String> {
-        Binding(
-            get: { viewModel.threadDefaultModelSelection },
-            set: { defaultModel = $0 }
-        )
     }
 }
 

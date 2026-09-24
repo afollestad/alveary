@@ -412,12 +412,14 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         NSFont.preferredFont(forTextStyle: .body)
     }
 
-    /// The field keeps the system's own label alphas, matching `SettingsMenuPicker`; the composer sets its own.
+    /// The field keeps the system's own label alphas, matching `SettingsMenuPicker` enabled or disabled; the composer
+    /// sets its own.
     private func textColor(_ color: NSColor, composerAlpha: CGFloat) -> NSColor {
-        guard presentation == .settingsField, controlIsEnabled || showsProgress else {
+        guard presentation == .settingsField else {
             return color.appKitResolvedColor(in: self, alpha: composerAlpha)
         }
-        return color.resolved(for: appKitRenderingAppearance)
+        let resolved = color.resolved(for: appKitRenderingAppearance)
+        return controlIsEnabled ? resolved : resolved.withAlphaComponent(resolved.alphaComponent * AppInputStyle.disabledMenuOpacity)
     }
 
     private var reasoningTextAlpha: CGFloat {

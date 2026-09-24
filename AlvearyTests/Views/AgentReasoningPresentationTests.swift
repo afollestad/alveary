@@ -17,6 +17,16 @@ final class AgentReasoningPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.selection.effortOptions.isEmpty)
     }
 
+    func testAnEmptyEffectiveCatalogListsOnlyTheRepairRow() {
+        let presentation = makeAgentReasoningPresentation(
+            harnesses: [.testClaude, .testEmptyOpenCode],
+            effective: .init(harness: .testEmptyOpenCode, model: "provider/gone", effort: AppSettings.openCodeDefaultEffort)
+        )
+
+        XCTAssertEqual(presentation.modelGroups.last?.options.map(\.value), ["provider/gone"])
+        XCTAssertNil(presentation.pins(for: .init(harnessID: "opencode", modelID: AppSettings.defaultModelValue)))
+    }
+
     func testEffortHidesWhenTheEffectiveHarnessIsNotOffered() {
         let presentation = makeAgentReasoningPresentation(
             harnesses: [.testCodex],
@@ -61,6 +71,7 @@ final class AgentReasoningPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.inheritOption?.isSelected, false)
         XCTAssertEqual(presentation.buttonTitle, "Claude · Opus 5.5")
         XCTAssertEqual(presentation.selection.effortTitle, "High")
+        XCTAssertEqual(presentation.pins(for: .init(harnessID: "claude", modelID: "claude-opus-5-5")), presentation.pins)
     }
 
     func testModelPickKeepsSupportedEffortAndOtherwiseFallsToModelDefault() {
@@ -78,6 +89,18 @@ final class AgentReasoningPresentationTests: XCTestCase {
         )
         XCTAssertNil(presentation.pins(for: .init(harnessID: "claude", modelID: "claude-unlisted")))
         XCTAssertNil(presentation.pins(for: .init(harnessID: "opencode", modelID: "provider/model")))
+    }
+
+    func testRePickingTheCheckedRowRepairsAnEffortTheModelDropped() {
+        let presentation = makeAgentReasoningPresentation(
+            pins: .init(harnessID: "claude", model: "claude-haiku", effort: "max"),
+            effective: .init(harness: .testClaude, model: "claude-haiku", effort: "max")
+        )
+
+        XCTAssertEqual(
+            presentation.pins(for: .init(harnessID: "claude", modelID: "claude-haiku")),
+            .init(harnessID: "claude", model: "claude-haiku", effort: "low")
+        )
     }
 
     func testModelPickAcrossHarnessesDropsEffortTheNewModelCannotCheck() {

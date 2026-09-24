@@ -4,8 +4,8 @@ import XCTest
 
 @testable import Alveary
 
-/// The Git tab's agentic-review harness pickers: a leading inherit row that persists as
-/// nil, and the lockstep clearing that keeps a pinned model from outliving its harness.
+/// The Git tab's agentic-review agent pickers: a leading inherit row that persists as nil, and the
+/// permission clearing that keeps a pinned permission from outliving its harness.
 @MainActor
 extension SettingsViewModelTests {
     /// Lets a test change what the loader answers after the view model is built, which is what
@@ -45,58 +45,59 @@ extension SettingsViewModelTests {
 
     func testUnpinnedReviewAgentSettingsSelectTheInheritRow() async {
         let (viewModel, _) = await reviewViewModel()
+        let editor = viewModel.reviewAgentEditor
 
-        XCTAssertEqual(viewModel.pullRequestReviewHarnessSelection, SettingsViewModel.pullRequestReviewInheritValue)
-        XCTAssertEqual(viewModel.pullRequestReviewModelSelection, SettingsViewModel.pullRequestReviewInheritValue)
-        XCTAssertEqual(viewModel.pullRequestReviewEffortSelection, SettingsViewModel.pullRequestReviewInheritValue)
-        XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
-        XCTAssertEqual(viewModel.pullRequestReviewLabel(forHarness: SettingsViewModel.pullRequestReviewInheritValue), "Default")
-        XCTAssertEqual(viewModel.pullRequestReviewLabel(forPermission: SettingsViewModel.pullRequestReviewInheritValue), "Use thread default")
+        XCTAssertTrue(editor.presentation.isInherited)
+        XCTAssertEqual(editor.presentation.inheritOption?.isSelected, true)
+        XCTAssertEqual(editor.presentation.buttonTitle, "Default (Claude · Sonnet)")
+        XCTAssertEqual(editor.permissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
+        XCTAssertEqual(editor.label(forPermission: SettingsViewModel.pullRequestReviewInheritValue), "Use thread default")
     }
 
-    func testTheInheritRowLeadsEveryPickerExactlyOnce() async {
+    func testTheInheritRowLeadsTheAgentAndPermissionPickersExactlyOnce() async {
         let (viewModel, _) = await reviewViewModel()
+        let editor = viewModel.reviewAgentEditor
 
-        XCTAssertEqual(viewModel.pullRequestReviewHarnessOptions.first, SettingsViewModel.pullRequestReviewInheritValue)
-        XCTAssertEqual(viewModel.pullRequestReviewModelOptions.first, SettingsViewModel.pullRequestReviewInheritValue)
+        XCTAssertEqual(editor.presentation.inheritOption?.title, "Threads default")
+        XCTAssertFalse(editor.presentation.modelGroups.contains { group in
+            group.options.contains { $0.value == SettingsViewModel.pullRequestReviewInheritValue }
+        })
         XCTAssertEqual(
-            viewModel.pullRequestReviewModelOptions.filter { $0 == SettingsViewModel.pullRequestReviewInheritValue }.count,
-            1
-        )
-        XCTAssertEqual(
-            viewModel.pullRequestReviewPermissionOptions,
+            editor.permissionOptions,
             [SettingsViewModel.pullRequestReviewInheritValue, "default", "acceptEdits", "auto", "bypassPermissions"]
         )
     }
 
-    func testPickingTheInheritRowClearsTheStoredValue() async {
+    func testPickingTheInheritRowClearsEveryStoredPinInOneWrite() async {
         var settings = AppSettings()
-        settings.pullRequestReviewHarness = "codex"
-        settings.pullRequestReviewPermissionMode = "never"
+        settings.pullRequestReviewAgent = PullRequestAgentSettings(
+            harness: "codex", model: "gpt-5.5", effort: "high", permissionMode: "never"
+        )
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+        let editor = viewModel.reviewAgentEditor
         let initialUpdateCount = settingsService.updateCount
 
-        viewModel.setPullRequestReviewHarness(SettingsViewModel.pullRequestReviewInheritValue)
+        pickAgentInherit(in: editor.presentation) { editor.apply($0) }
 
-        XCTAssertNil(settingsService.current.pullRequestReviewHarness)
-        XCTAssertNil(settingsService.current.pullRequestReviewPermissionMode)
+        XCTAssertEqual(settingsService.current.pullRequestReviewAgent, PullRequestAgentSettings())
         XCTAssertEqual(settingsService.updateCount, initialUpdateCount + 1)
     }
 
-    func testPinningAHarnessClearsDependentOverridesInOneWrite() async {
+    func testPickingAnotherHarnessesModelWritesAWholePinAndClearsPermissionInOneWrite() async {
         var settings = AppSettings()
         settings.pullRequestReviewModel = "sonnet"
         settings.pullRequestReviewEffort = "max"
         settings.pullRequestReviewPermissionMode = "bypassPermissions"
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+        let editor = viewModel.reviewAgentEditor
         let initialUpdateCount = settingsService.updateCount
 
-        viewModel.setPullRequestReviewHarness("codex")
+        pickAgentModel("gpt-5.5", harnessID: "codex", in: editor.presentation) { editor.apply($0) }
 
-        XCTAssertEqual(settingsService.current.pullRequestReviewHarness, "codex")
-        XCTAssertNil(settingsService.current.pullRequestReviewModel)
-        XCTAssertNil(settingsService.current.pullRequestReviewEffort)
-        XCTAssertNil(settingsService.current.pullRequestReviewPermissionMode)
+        XCTAssertEqual(
+            settingsService.current.pullRequestReviewAgent,
+            PullRequestAgentSettings(harness: "codex", model: "gpt-5.5", effort: "medium")
+        )
         XCTAssertEqual(settingsService.updateCount, initialUpdateCount + 1)
     }
 
@@ -106,23 +107,24 @@ extension SettingsViewModelTests {
             harness: "codex", model: "gpt-5.5", effort: "high", permissionMode: "never"
         )
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+        let feedback = viewModel.addressFeedbackAgentEditor
 
-        viewModel.setAddressFeedbackHarness("claude")
-        viewModel.setAddressFeedbackModel("haiku")
-        viewModel.setAddressFeedbackEffort("low")
-        viewModel.setAddressFeedbackPermission("acceptEdits")
+        feedback.setPermission("acceptEdits")
+        pickAgentModel("haiku", harnessID: "claude", in: feedback.presentation) { feedback.apply($0) }
+        dragAgentEffort("low", in: feedback.presentation) { feedback.apply($0) }
 
         XCTAssertEqual(settingsService.current.pullRequestReviewAgent, settings.pullRequestReviewAgent)
+        // Pinning the harness the route already inherited keeps its permission.
         XCTAssertEqual(
             settingsService.current.pullRequestAddressFeedbackAgent,
             PullRequestAgentSettings(harness: "claude", model: "haiku", effort: "low", permissionMode: "acceptEdits")
         )
-        XCTAssertEqual(viewModel.addressFeedbackEffectiveHarnessID, "claude")
-        XCTAssertEqual(viewModel.addressFeedbackModelSelection, "haiku")
-        XCTAssertEqual(viewModel.addressFeedbackEffortSelection, "low")
-        XCTAssertEqual(viewModel.addressFeedbackPermissionSelection, "acceptEdits")
+        XCTAssertEqual(feedback.presentation.selection.modelID, "haiku")
+        XCTAssertEqual(feedback.presentation.selection.effortValue, "low")
+        XCTAssertEqual(feedback.permissionSelection, "acceptEdits")
 
-        viewModel.setPullRequestReviewHarness("claude")
+        let review = viewModel.reviewAgentEditor
+        pickAgentModel("sonnet", harnessID: "claude", in: review.presentation) { review.apply($0) }
 
         XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackModel, "haiku")
         XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackPermissionMode, "acceptEdits")
@@ -134,83 +136,80 @@ extension SettingsViewModelTests {
             harness: "claude", model: "sonnet", effort: "high", permissionMode: "acceptEdits"
         )
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+        let feedback = viewModel.addressFeedbackAgentEditor
         let beforeUpdates = settingsService.updateCount
 
-        viewModel.setAddressFeedbackHarness("codex")
+        pickAgentModel("gpt-5.5", harnessID: "codex", in: feedback.presentation) { feedback.apply($0) }
 
-        XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackAgent, PullRequestAgentSettings(harness: "codex"))
+        XCTAssertEqual(
+            settingsService.current.pullRequestAddressFeedbackAgent,
+            PullRequestAgentSettings(harness: "codex", model: "gpt-5.5", effort: "high")
+        )
         XCTAssertEqual(settingsService.updateCount, beforeUpdates + 1)
-        XCTAssertTrue(viewModel.addressFeedbackModelOptions.contains("gpt-5.5"))
-        XCTAssertFalse(viewModel.addressFeedbackModelOptions.contains("sonnet"))
+        XCTAssertEqual(feedback.presentation.selection.harnessID, "codex")
 
-        viewModel.setAddressFeedbackHarness(SettingsViewModel.pullRequestReviewInheritValue)
+        pickAgentInherit(in: feedback.presentation) { feedback.apply($0) }
 
         XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackAgent, PullRequestAgentSettings())
-        XCTAssertEqual(viewModel.addressFeedbackHarnessSelection, SettingsViewModel.pullRequestReviewInheritValue)
+        XCTAssertTrue(feedback.presentation.isInherited)
     }
 
-    func testPinningAModelPersistsItAndTheEffortRowFollowsThatModel() async {
+    func testPinningAModelPersistsItAndTheEffortSliderFollowsThatModel() async {
         let (viewModel, settingsService) = await reviewViewModel()
+        let editor = viewModel.reviewAgentEditor
 
-        viewModel.setPullRequestReviewModel("haiku")
+        pickAgentModel("haiku", harnessID: "claude", in: editor.presentation) { editor.apply($0) }
 
         XCTAssertEqual(settingsService.current.pullRequestReviewModel, "haiku")
-        XCTAssertEqual(viewModel.pullRequestReviewModelSelection, "haiku")
-        // Haiku offers low/medium/high, so an xhigh row must not be on the effort picker.
-        XCTAssertFalse(viewModel.pullRequestReviewEffortOptions.contains { $0.value == "xhigh" })
+        XCTAssertEqual(editor.presentation.selection.modelID, "haiku")
+        // Haiku offers low/medium/high, so the slider must not offer xhigh.
+        XCTAssertFalse(editor.presentation.selection.effortOptions.contains { $0.value == "xhigh" })
     }
 
-    func testSwitchingToAModelThatDropsTheStoredEffortClearsIt() async {
+    func testSwitchingToAModelThatDropsTheStoredEffortFallsToThatModelsDefault() async {
         var settings = AppSettings()
         settings.pullRequestReviewModel = "fable"
         settings.pullRequestReviewEffort = "xhigh"
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+        let editor = viewModel.reviewAgentEditor
 
-        viewModel.setPullRequestReviewModel("haiku")
+        pickAgentModel("haiku", harnessID: "claude", in: editor.presentation) { editor.apply($0) }
 
         XCTAssertEqual(settingsService.current.pullRequestReviewModel, "haiku")
         // Haiku has no xhigh; leaving it stored would show an effort the spawn would silently drop.
-        XCTAssertNil(settingsService.current.pullRequestReviewEffort)
+        XCTAssertEqual(settingsService.current.pullRequestReviewEffort, "medium")
     }
 
-    func testPickingTheInheritModelRowAlsoClearsTheEffort() async {
-        var settings = AppSettings()
-        settings.pullRequestReviewModel = "fable"
-        settings.pullRequestReviewEffort = "xhigh"
-        let (viewModel, settingsService) = await reviewViewModel(settings: settings)
-
-        viewModel.setPullRequestReviewModel(SettingsViewModel.pullRequestReviewInheritValue)
-
-        XCTAssertNil(settingsService.current.pullRequestReviewModel)
-        XCTAssertNil(settingsService.current.pullRequestReviewEffort)
-    }
-
-    func testPinningAnEffortPersistsItAndTheInheritRowClearsIt() async {
+    func testDraggingEffortWhileInheritedPinsTheResolvedAgent() async {
         let (viewModel, settingsService) = await reviewViewModel()
+        let editor = viewModel.reviewAgentEditor
+        let inherited = editor.presentation.effective
 
-        viewModel.setPullRequestReviewEffort("high")
-        XCTAssertEqual(settingsService.current.pullRequestReviewEffort, "high")
+        dragAgentEffort("high", in: editor.presentation) { editor.apply($0) }
 
-        viewModel.setPullRequestReviewEffort(SettingsViewModel.pullRequestReviewInheritValue)
-        XCTAssertNil(settingsService.current.pullRequestReviewEffort)
+        XCTAssertEqual(
+            settingsService.current.pullRequestReviewAgent,
+            PullRequestAgentSettings(harness: inherited.harness.id, model: inherited.model, effort: "high")
+        )
     }
 
     func testReviewPermissionPersistsAnExplicitDefaultAndClearsTheInheritRow() async {
         var settings = AppSettings()
         settings.permissionMode = "acceptEdits"
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+        let editor = viewModel.reviewAgentEditor
 
-        viewModel.setPullRequestReviewPermission("default")
+        editor.setPermission("default")
 
         XCTAssertEqual(settingsService.current.pullRequestReviewPermissionMode, "default")
-        XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, "default")
-        XCTAssertEqual(viewModel.pullRequestReviewLabel(forPermission: "default"), "Default (Claude)")
+        XCTAssertEqual(editor.permissionSelection, "default")
+        XCTAssertEqual(editor.label(forPermission: "default"), "Default (Claude)")
         XCTAssertEqual(settingsService.current.permissionMode, "acceptEdits")
 
-        viewModel.setPullRequestReviewPermission(SettingsViewModel.pullRequestReviewInheritValue)
+        editor.setPermission(SettingsViewModel.pullRequestReviewInheritValue)
 
         XCTAssertNil(settingsService.current.pullRequestReviewPermissionMode)
-        XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
+        XCTAssertEqual(editor.permissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
     }
 
     func testAnUnavailableReviewHarnessShowsInheritedPermissionWithoutDiscardingThePin() async {
@@ -225,19 +224,21 @@ extension SettingsViewModelTests {
             ])
         )
         await viewModel.refreshHarnessStatuses()
+        let editor = viewModel.reviewAgentEditor
         let initialUpdateCount = settingsService.updateCount
 
-        XCTAssertEqual(viewModel.pullRequestReviewEffectiveHarnessID, "claude")
-        XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
+        XCTAssertEqual(editor.effectiveHarnessID, "claude")
+        XCTAssertEqual(editor.presentation.buttonTitle, "Claude · Sonnet")
+        XCTAssertEqual(editor.permissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
         XCTAssertEqual(settingsService.current.pullRequestReviewPermissionMode, "never")
         XCTAssertEqual(settingsService.updateCount, initialUpdateCount)
 
-        XCTAssertTrue(viewModel.pullRequestReviewPermissionOptions.contains("acceptEdits"))
-        viewModel.setPullRequestReviewPermission("acceptEdits")
+        XCTAssertTrue(editor.permissionOptions.contains("acceptEdits"))
+        editor.setPermission("acceptEdits")
 
         XCTAssertEqual(settingsService.current.pullRequestReviewHarness, "codex")
         XCTAssertEqual(settingsService.current.pullRequestReviewPermissionMode, "acceptEdits")
-        XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, "acceptEdits")
+        XCTAssertEqual(editor.permissionSelection, "acceptEdits")
     }
 
     func testTheReviewPromptPassesThroughToSettings() async {
@@ -343,7 +344,9 @@ extension SettingsViewModelTests {
         )
 
         XCTAssertNil(viewModel.defaultPullRequestReviewPeer(harnessID: "claude", excluding: []))
-        XCTAssertEqual(viewModel.pullRequestReviewPeerModelOptions(stalePeer), ["sonnet"])
+        // An empty live catalog offers only the stale pin's repair row, never a synthesized harness default.
+        let staleGroup = viewModel.reviewTeamPeerPresentation(stalePeer).modelGroups.first { $0.harnessID == "claude" }
+        XCTAssertEqual(staleGroup?.options.map(\.value), ["sonnet"])
         guard case .needsAttention = viewModel.pullRequestReviewTeamSettingsStatus(peers: [stalePeer]) else {
             return XCTFail("Expected the absent live catalog to need attention")
         }
@@ -364,7 +367,7 @@ extension SettingsViewModelTests {
             return XCTFail("Expected an invalid model pin to need attention")
         }
         XCTAssertEqual(settingsService.current.pullRequestReviewPeers, [stalePeer])
-        XCTAssertTrue(viewModel.pullRequestReviewPeerModelOptions(stalePeer).contains("retired-model"))
+        XCTAssertEqual(viewModel.reviewTeamPeerPresentation(stalePeer).selection.modelID, "retired-model")
     }
 
     func testAPinnedHarnessSuppliesModelAndPermissionOptions() async {
@@ -372,15 +375,16 @@ extension SettingsViewModelTests {
         settings.pullRequestReviewHarness = "codex"
         let (viewModel, _) = await reviewViewModel(settings: settings)
 
-        XCTAssertEqual(viewModel.pullRequestReviewEffectiveHarnessID, "codex")
-        XCTAssertTrue(viewModel.pullRequestReviewModelOptions.contains("gpt-5.5"))
-        XCTAssertFalse(viewModel.pullRequestReviewModelOptions.contains("sonnet"))
+        let editor = viewModel.reviewAgentEditor
+
+        XCTAssertEqual(editor.effectiveHarnessID, "codex")
+        XCTAssertEqual(editor.presentation.selection.modelID, "gpt-5.5")
         XCTAssertEqual(
-            viewModel.pullRequestReviewPermissionOptions,
+            editor.permissionOptions,
             [SettingsViewModel.pullRequestReviewInheritValue, "untrusted", "on-request", "never"]
         )
         // Every review task launches in a network-less sandbox, so its route never offers full access.
-        XCTAssertEqual(viewModel.pullRequestReviewLabel(forPermission: "never"), "Never ask")
+        XCTAssertEqual(editor.label(forPermission: "never"), "Never ask")
     }
 
     /// Addressing feedback keeps shell network to push, so its route still means full access.
@@ -389,7 +393,7 @@ extension SettingsViewModelTests {
         settings.pullRequestAddressFeedbackHarness = "codex"
         let (viewModel, _) = await reviewViewModel(settings: settings)
 
-        XCTAssertEqual(viewModel.addressFeedbackLabel(forPermission: "never"), "Full access")
+        XCTAssertEqual(viewModel.addressFeedbackAgentEditor.label(forPermission: "never"), "Full access")
     }
 
     func testTasksLeadsBothSectionPickersAsTheNilRow() async {

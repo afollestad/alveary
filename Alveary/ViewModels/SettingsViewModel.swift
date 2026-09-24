@@ -130,23 +130,6 @@ final class SettingsViewModel {
         }
     }
 
-    var effort: String {
-        get {
-            let settings = settingsService.current
-            return settings.defaultHarness == "opencode" ? AppSettings.openCodePickerEffort(stored: settings.effort) : settings.effort
-        }
-        set {
-            let options = modelOptions(for: settingsService.current.defaultHarness)
-            settingsService.update {
-                $0.effort = AgentModelOptionSelection.normalizedEffort(
-                    newValue,
-                    options: options,
-                    selectedModel: $0.defaultModel
-                )
-            }
-        }
-    }
-
     var defaultThreadCleanupAction: ThreadCleanupAction {
         get { settingsService.current.defaultThreadCleanupAction }
         set { settingsService.update { $0.defaultThreadCleanupAction = newValue } }

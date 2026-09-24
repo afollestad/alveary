@@ -106,12 +106,12 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(settingsService: service)
 
         XCTAssertEqual(viewModel.lastSettingsPage, .terminal)
-        XCTAssertEqual(viewModel.defaultHarness, "claude")
-        // The picker value resolves the stored alias against the static catalog, mirroring what a
-        // discovery-backed screen shows.
-        XCTAssertEqual(viewModel.defaultModel, "claude-opus-5-5")
+        let agent = viewModel.threadDefaultAgentPresentation
+        XCTAssertEqual(agent.effective.harness.id, "claude")
+        // The stored alias resolves against the static catalog, mirroring what a discovery-backed screen shows.
+        XCTAssertEqual(agent.selection.modelID, "claude-opus-5-5")
+        XCTAssertEqual(agent.selection.effortValue, "high")
         XCTAssertEqual(viewModel.permissionMode, "acceptEdits")
-        XCTAssertEqual(viewModel.effort, "high")
         XCTAssertEqual(viewModel.defaultThreadCleanupAction, .delete)
         XCTAssertEqual(viewModel.defaultEnterBehavior, .steer)
         XCTAssertTrue(viewModel.reopenLastThreadAndConversationOnLaunch)
@@ -178,10 +178,7 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(settingsService: service)
 
         viewModel.lastSettingsPage = .git
-        viewModel.defaultHarness = "claude"
-        viewModel.defaultModel = "sonnet"
         viewModel.permissionMode = "acceptEdits"
-        viewModel.effort = "max"
         viewModel.defaultThreadCleanupAction = .delete
         viewModel.defaultEnterBehavior = .steer
         viewModel.reopenLastThreadAndConversationOnLaunch = true
@@ -200,11 +197,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.branchPrefix = "feature/"
 
         XCTAssertEqual(service.current.lastSettingsPage, .git)
-        XCTAssertEqual(service.current.defaultHarness, "claude")
-        // Writes store the catalog id the typed alias resolves to, mirroring a discovery-backed screen.
-        XCTAssertEqual(service.current.defaultModel, "claude-sonnet-5")
         XCTAssertEqual(service.current.permissionMode, "acceptEdits")
-        XCTAssertEqual(service.current.effort, "max")
         XCTAssertEqual(service.current.defaultThreadCleanupAction, .delete)
         XCTAssertEqual(service.current.defaultEnterBehavior, .steer)
         XCTAssertTrue(service.current.reopenLastThreadAndConversationOnLaunch)
@@ -233,119 +226,6 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(service.updateCount, 0)
         XCTAssertEqual(service.current.lastSettingsPage, .notifications)
-    }
-
-    // Settings Effort picker must not silently retain a value the new model rejects.
-    func testDefaultModelSetterCoercesEffortWhenNewModelDoesNotSupportIt() async {
-        let limitedSonnet = AgentCLIKit.AgentModelOption(
-            harnessId: .claude,
-            id: "sonnet",
-            model: "sonnet",
-            label: "Sonnet",
-            supportedEffortOptions: [AgentModelOptionTestFixtures.medium, AgentModelOptionTestFixtures.high],
-            defaultEffortOption: AgentModelOptionTestFixtures.high
-        )
-        let opus = AgentCLIKit.AgentModelOption(
-            harnessId: .claude,
-            id: "opus",
-            model: "opus",
-            label: "Opus",
-            supportedEffortOptions: AgentModelOptionTestFixtures.claudeOpusEfforts,
-            defaultEffortOption: AgentModelOptionTestFixtures.high
-        )
-        let service = InMemorySettingsService()
-        service.update {
-            $0.defaultModel = "opus"
-            $0.effort = "xhigh"
-        }
-        let viewModel = SettingsViewModel(
-            settingsService: service,
-            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
-                .claude: Self.harnessStatus(for: .claude, modelOptions: [limitedSonnet, opus])
-            ])
-        )
-        await viewModel.refreshHarnessStatuses()
-
-        viewModel.defaultModel = "sonnet"
-
-        XCTAssertEqual(service.current.defaultModel, "sonnet")
-        XCTAssertEqual(service.current.effort, "high")
-    }
-
-    func testDefaultModelSetterPreservesEffortWhenNewModelStillSupportsIt() async {
-        let service = InMemorySettingsService()
-        service.update {
-            $0.defaultModel = "claude-sonnet-5"
-            $0.effort = "high"
-        }
-        let viewModel = SettingsViewModel(
-            settingsService: service,
-            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
-                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .claude))
-            ])
-        )
-        await viewModel.refreshHarnessStatuses()
-
-        viewModel.defaultModel = "opus"
-
-        XCTAssertEqual(service.current.defaultModel, "claude-opus-5-5")
-        XCTAssertEqual(service.current.effort, "high")
-    }
-
-    func testDefaultModelGetterUsesOptionIDWhileSetterStoresHarnessModelValue() async {
-        let modelOption = AgentCLIKit.AgentModelOption(
-            harnessId: .codex,
-            id: "codex-fast",
-            model: "gpt-5.4-mini",
-            label: "GPT-5.4-Mini",
-            isDefault: true,
-            supportedEffortOptions: AgentModelOptionTestFixtures.codexDefaultEfforts,
-            defaultEffortOption: AgentModelOptionTestFixtures.medium
-        )
-        let service = InMemorySettingsService()
-        service.update {
-            $0.defaultHarness = "codex"
-            $0.defaultModel = "gpt-5.4-mini"
-        }
-        let viewModel = SettingsViewModel(
-            settingsService: service,
-            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
-                .codex: Self.harnessStatus(for: .codex, modelOptions: [modelOption])
-            ])
-        )
-        await viewModel.refreshHarnessStatuses()
-
-        XCTAssertEqual(viewModel.defaultModel, "codex-fast")
-
-        viewModel.defaultModel = "codex-fast"
-
-        XCTAssertEqual(service.current.defaultModel, "gpt-5.4-mini")
-    }
-
-    /// Switching models with untouched effort uses that version's default; older explicit pins retain their own default.
-    func testDefaultModelSetterUsesPerModelDefaultForUntouchedEffort() async {
-        let service = InMemorySettingsService()
-        let viewModel = SettingsViewModel(
-            settingsService: service,
-            harnessDiscovery: RecordingHarnessDiscoveryService(statuses: [
-                .claude: Self.harnessStatus(for: .claude, modelOptions: AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .claude))
-            ])
-        )
-        await viewModel.refreshHarnessStatuses()
-        for (model, expectedModel, expectedEffort) in [
-            ("opus", "claude-opus-5-5", "medium"),
-            ("claude-opus-5", "claude-opus-5", "high")
-        ] {
-            service.update {
-                $0.defaultModel = "claude-sonnet-5"
-                $0.effort = AppSettings.defaultEffortLevel
-            }
-
-            viewModel.defaultModel = model
-
-            XCTAssertEqual(service.current.defaultModel, expectedModel)
-            XCTAssertEqual(service.current.effort, expectedEffort)
-        }
     }
 
     func testSoundNameFallsBackToGlassWhenStoredValueIsNil() {

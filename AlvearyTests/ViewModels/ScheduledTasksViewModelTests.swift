@@ -257,26 +257,21 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         XCTAssertFalse(fixture.viewModel.pendingPaneDismissals.contains(request))
     }
 
-    func testHarnessSwitchNormalizesIncompatiblePermissionMode() throws {
+    func testAgentPickOnAnotherHarnessNormalizesIncompatiblePermissionMode() throws {
         let fixture = try ScheduledTasksViewModelFixture()
         var draft = fixture.viewModel.makeNewDraft()
         draft.permissionMode = "acceptEdits"
+        XCTAssertTrue(fixture.viewModel.permissionModeOptions(for: draft.harnessID).contains { $0.value == "acceptEdits" })
+        let presentation = fixture.viewModel.agentPresentation(for: draft)
+        XCTAssertNil(presentation.inheritOption)
+        let codexModel = try XCTUnwrap(presentation.modelGroups.first { $0.harnessID == "codex" }?.options.first?.value)
 
-        XCTAssertTrue(
-            fixture.viewModel.permissionModeOptions(
-                for: draft.harnessID,
-                including: draft.permissionMode
-            ).contains(where: { $0.value == "acceptEdits" })
-        )
+        pickAgentModel(codexModel, harnessID: "codex", in: presentation) { fixture.viewModel.applyAgent($0, to: &draft) }
 
-        draft.harnessID = "codex"
-        fixture.viewModel.normalizeHarnessDependentFields(&draft)
-
+        XCTAssertEqual(draft.harnessID, "codex")
+        XCTAssertEqual(draft.modelSelection, codexModel)
         XCTAssertEqual(draft.permissionMode, "on-request")
-        XCTAssertTrue(
-            fixture.viewModel.permissionModeOptions(for: "codex")
-                .contains(where: { $0.value == draft.permissionMode })
-        )
+        XCTAssertTrue(fixture.viewModel.permissionModeOptions(for: "codex").contains { $0.value == draft.permissionMode })
     }
 
     func testRunNowUsesRevisionCheckedRequestWithoutChangingDefinitionCadence() throws {

@@ -14,23 +14,28 @@ extension SettingsViewModelTests {
         settings.utilityEffort = "variant"
         let service = InMemorySettingsService(current: settings)
         let viewModel = SettingsViewModel(settingsService: service)
-        XCTAssertEqual(viewModel.utilityHarnessSelection, "opencode")
-        XCTAssertTrue(viewModel.utilityHarnessOptions.contains("opencode"))
+        let presentation = viewModel.utilityAgentPresentation
+        XCTAssertEqual(presentation.pins, .init(harnessID: "opencode", model: "provider/model", effort: "variant"))
+        XCTAssertEqual(presentation.effective.harness.id, "opencode")
+        XCTAssertTrue(presentation.selection.effortOptions.isEmpty)
         XCTAssertNotNil(viewModel.utilityUnavailableMessage)
-        XCTAssertTrue(viewModel.canConfigureUtilityModel)
         XCTAssertEqual(service.updateCount, 0)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(service.current))
         XCTAssertEqual(decoded.utilityHarness, "opencode")
         XCTAssertEqual(decoded.utilityModel, "provider/model")
         XCTAssertEqual(decoded.utilityEffort, "variant")
 
-        viewModel.setUtilityHarness("claude")
+        pickAgentModel("opus", harnessID: "claude", in: presentation) { viewModel.applyUtilityAgent($0) }
         XCTAssertEqual(service.current.utilityHarness, "claude")
-        XCTAssertNil(service.current.utilityModel)
-        XCTAssertNil(service.current.utilityEffort)
-        XCTAssertEqual(service.current.effectiveUtilityModel, "default")
+        XCTAssertEqual(service.current.utilityModel, "claude-opus-5-5")
+        XCTAssertEqual(service.current.utilityEffort, "medium")
         XCTAssertNil(viewModel.utilityUnavailableMessage)
         XCTAssertEqual(service.current.defaultHarness, "opencode")
+
+        pickAgentInherit(in: viewModel.utilityAgentPresentation) { viewModel.applyUtilityAgent($0) }
+        XCTAssertNil(service.current.utilityHarness)
+        XCTAssertNil(service.current.utilityModel)
+        XCTAssertNil(service.current.utilityEffort)
     }
 
     func testCreatingReviewPeersPreservesInvalidSavedLeadWithoutFallback() {
@@ -54,11 +59,13 @@ extension SettingsViewModelTests {
         let viewModel = SettingsViewModel(settingsService: service)
         XCTAssertEqual(viewModel.utilityHarnessID, "opencode")
         XCTAssertNotNil(viewModel.utilityUnavailableMessage)
-        XCTAssertTrue(viewModel.utilityHarnessOptions.contains(SettingsViewModel.pullRequestReviewInheritValue))
+        XCTAssertEqual(viewModel.utilityAgentPresentation.inheritOption?.isSelected, true)
         XCTAssertEqual(viewModel.reviewTeamEditorSettings().defaultHarness, "opencode")
         XCTAssertNil(viewModel.reviewTeamEditorSettings().pullRequestReviewHarness)
-        XCTAssertTrue(viewModel.reviewTeamLeadHarnessOptions(settings).contains("opencode"))
-        XCTAssertTrue(viewModel.reviewTeamLeadHarnessOptions(settings).contains(SettingsViewModel.pullRequestReviewInheritValue))
+        let lead = viewModel.reviewTeamLeadPresentation(settings)
+        XCTAssertEqual(lead.effective.harness.id, "opencode")
+        XCTAssertEqual(lead.inheritOption?.isSelected, true)
+        XCTAssertEqual(lead.inheritOption?.isEnabled, true)
         XCTAssertNil(viewModel.defaultPullRequestReviewPeer(harnessID: "opencode", excluding: []))
         XCTAssertEqual(service.updateCount, 0)
     }
@@ -75,19 +82,19 @@ extension SettingsViewModelTests {
             AgentModelOption(harnessId: .opencode, id: "provider/text", model: "provider/text", label: "Text")
         ])
 
-        viewModel.setUtilityModel("provider/text")
+        pickAgentModel("provider/text", harnessID: "opencode", in: viewModel.utilityAgentPresentation) { viewModel.applyUtilityAgent($0) }
 
         XCTAssertEqual(service.current.effectiveUtilityEffort, AppSettings.openCodeDefaultEffort)
         XCTAssertNil(viewModel.utilityUnavailableMessage)
-        XCTAssertFalse(viewModel.utilityModelOptions.contains("default"))
+        let openCodeGroup = viewModel.utilityAgentPresentation.modelGroups.first { $0.harnessID == "opencode" }
+        XCTAssertEqual(openCodeGroup?.options.map(\.value), ["provider/text"])
         XCTAssertEqual(service.current.effort, "native")
         service.update { $0.utilityEffort = "retired" }
         XCTAssertNotNil(viewModel.utilityUnavailableMessage)
-        XCTAssertTrue(viewModel.utilityEffortOptions.contains("retired"))
-        XCTAssertTrue(viewModel.utilityEffortOptions.contains(AppSettings.openCodeDefaultEffort))
-        XCTAssertEqual(viewModel.utilityEffortLabel(SettingsViewModel.pullRequestReviewInheritValue), "Follow defaults")
-        XCTAssertEqual(viewModel.utilityEffortLabel(AppSettings.openCodeDefaultEffort), "Default")
-        viewModel.setUtilityEffort(AppSettings.openCodeDefaultEffort)
+        // A variant-less model offers no effort slider, so re-picking it is the repair.
+        XCTAssertTrue(viewModel.utilityAgentPresentation.selection.effortOptions.isEmpty)
+        pickAgentModel("provider/text", harnessID: "opencode", in: viewModel.utilityAgentPresentation) { viewModel.applyUtilityAgent($0) }
+        XCTAssertEqual(service.current.utilityEffort, AppSettings.openCodeDefaultEffort)
         XCTAssertNil(viewModel.utilityUnavailableMessage)
     }
 
@@ -108,38 +115,34 @@ extension SettingsViewModelTests {
                 supportedEffortOptions: [.init(value: native, label: native, description: "Native variant")]
             )
         ])
-        let utilityOptions = viewModel.utilityEffortOptions
-        XCTAssertEqual(Set(utilityOptions).count, utilityOptions.count)
-        let selection = try XCTUnwrap(utilityOptions.first { viewModel.utilityEffortLabel($0) == native })
-        XCTAssertEqual(viewModel.utilityEffortSelection, selection)
-        XCTAssertEqual(viewModel.addressFeedbackEffortSelection, selection)
-        XCTAssertEqual(viewModel.effort, selection)
+        let utilityOptions = viewModel.utilityAgentPresentation.selection.effortOptions
+        XCTAssertEqual(Set(utilityOptions.map(\.value)).count, utilityOptions.count)
+        let selection = try XCTUnwrap(utilityOptions.first { $0.title == native }?.value)
+        XCTAssertEqual(viewModel.utilityAgentPresentation.selection.effortValue, selection)
+        XCTAssertEqual(viewModel.addressFeedbackAgentEditor.presentation.selection.effortValue, selection)
+        XCTAssertEqual(viewModel.threadDefaultAgentPresentation.selection.effortValue, selection)
         XCTAssertEqual(service.current, original)
-        viewModel.setUtilityEffort(selection)
+        dragAgentEffort(selection, in: viewModel.utilityAgentPresentation) { viewModel.applyUtilityAgent($0) }
         XCTAssertEqual(AppSettings.openCodeNativeEffort(stored: service.current.utilityEffort), native)
         XCTAssertNil(viewModel.utilityUnavailableMessage)
 
         var draft = settings
-        let leadOptions = viewModel.reviewTeamLeadEffortOptions(draft)
-        XCTAssertEqual(Set(leadOptions).count, leadOptions.count)
-        XCTAssertTrue(leadOptions.contains(selection))
-        XCTAssertEqual(viewModel.reviewTeamLeadEffortSelection(draft), SettingsViewModel.pullRequestReviewInheritValue)
-        XCTAssertEqual(viewModel.pullRequestReviewPeerEffortSelection(viewModel.reviewTeamDraftLead(draft)), selection)
+        let lead = viewModel.reviewTeamLeadPresentation(draft)
+        XCTAssertEqual(Set(lead.selection.effortOptions.map(\.value)).count, lead.selection.effortOptions.count)
+        XCTAssertTrue(lead.isInherited)
+        XCTAssertEqual(lead.selection.effortValue, selection)
         draft.pullRequestReviewEffort = native
-        XCTAssertEqual(viewModel.reviewTeamLeadEffortSelection(draft), selection)
+        XCTAssertEqual(viewModel.reviewTeamLeadPresentation(draft).selection.effortValue, selection)
         XCTAssertEqual(draft.pullRequestReviewEffort, native)
-        viewModel.setReviewTeamLeadEffort(selection, in: &draft)
+        dragAgentEffort(selection, in: viewModel.reviewTeamLeadPresentation(draft)) { viewModel.applyReviewTeamLead($0, in: &draft) }
         viewModel.setPullRequestReviewTeam(draft)
         XCTAssertEqual(AppSettings.openCodeNativeEffort(stored: service.current.pullRequestReviewEffort), native)
-        viewModel.setAddressFeedbackEffort(selection)
+        let feedback = viewModel.addressFeedbackAgentEditor
+        dragAgentEffort(selection, in: feedback.presentation) { feedback.apply($0) }
         XCTAssertEqual(AppSettings.openCodeNativeEffort(stored: service.current.pullRequestAddressFeedbackEffort), native)
-        XCTAssertEqual(viewModel.pullRequestReviewLabel(forEffort: SettingsViewModel.pullRequestReviewInheritValue), "Follow defaults")
-        XCTAssertEqual(viewModel.addressFeedbackLabel(forEffort: SettingsViewModel.pullRequestReviewInheritValue), "Follow defaults")
-        XCTAssertEqual(viewModel.pullRequestReviewLabel(forEffort: AppSettings.openCodeDefaultEffort), "Default")
-        XCTAssertEqual(viewModel.addressFeedbackLabel(forEffort: selection), native)
 
-        viewModel.setUtilityEffort(SettingsViewModel.pullRequestReviewInheritValue)
-        viewModel.setReviewTeamLeadEffort(SettingsViewModel.pullRequestReviewInheritValue, in: &draft)
+        pickAgentInherit(in: viewModel.utilityAgentPresentation) { viewModel.applyUtilityAgent($0) }
+        pickAgentInherit(in: viewModel.reviewTeamLeadPresentation(draft)) { viewModel.applyReviewTeamLead($0, in: &draft) }
         XCTAssertNil(service.current.utilityEffort)
         XCTAssertNil(draft.pullRequestReviewEffort)
     }

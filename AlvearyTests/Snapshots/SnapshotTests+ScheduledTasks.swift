@@ -405,4 +405,14 @@ extension SnapshotTests {
         )
     }
 
+    func testScheduledTaskEditorAgentSectionAtMinimumWidth() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
+
+        assertMacSnapshot(
+            ScheduledTaskEditorAgentSection(viewModel: fixture.viewModel, draft: .constant(fixture.viewModel.makeNewDraft()))
+                .padding(24),
+            size: CGSize(width: 320, height: 230),
+            named: "scheduled_task_editor_agent_section_minimum_width"
+        )
+    }
 }

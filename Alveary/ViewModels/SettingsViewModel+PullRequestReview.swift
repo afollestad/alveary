@@ -95,62 +95,9 @@ extension SettingsViewModel {
         return draft
     }
 
-    func pullRequestReviewPeerHarnessOptions(including harnessID: String) -> [String] {
-        var values = threadDefaultHarnessIDs.filter { HarnessFeaturePolicy.supportsIsolatedReviewWorkers(harnessID: $0) }
-        if HarnessFeaturePolicy.supportsIsolatedReviewWorkers(harnessID: harnessID), !values.contains(harnessID) {
-            values.append(harnessID)
-        }
-        return values
-    }
-
-    func pullRequestReviewPeerModelSelection(_ peer: PullRequestReviewPeer) -> String {
-        concreteModelOption(for: peer.model, harnessID: peer.harnessID)?.id ?? peer.model
-    }
-
-    func pullRequestReviewPeerModelOptions(_ peer: PullRequestReviewPeer) -> [String] {
-        var values = concreteModelOptions(for: peer.harnessID).map(\.id)
-        let selection = pullRequestReviewPeerModelSelection(peer)
-        if !selection.isEmpty, !values.contains(selection) {
-            values.append(selection)
-        }
-        return values
-    }
-
-    func pullRequestReviewPeerStoredModel(harnessID: String, selection: String) -> String {
-        concreteModelOptions(for: harnessID).first { $0.id == selection }?.model ?? selection
-    }
-
-    func pullRequestReviewPeerEffortOptions(_ peer: PullRequestReviewPeer) -> [String] {
-        let option = concreteModelOption(for: peer.model, harnessID: peer.harnessID)
-        var values = peer.harnessID == "opencode" ? [AppSettings.openCodeDefaultEffort] : []
-        values += (option?.supportedEffortOptions ?? []).map {
-            peer.harnessID == "opencode" ? AppSettings.openCodeStoredEffort(nativeVariant: $0.value) : $0.value
-        }
-        let selection = pullRequestReviewPeerEffortSelection(peer)
-        if !selection.isEmpty, !values.contains(selection) {
-            values.append(selection)
-        }
-        if values.isEmpty {
-            values = [AppSettings.defaultEffortLevel]
-        }
-        return values
-    }
-
-    func pullRequestReviewPeerEffortSelection(_ peer: PullRequestReviewPeer) -> String {
-        peer.harnessID == "opencode" ? AppSettings.openCodePickerEffort(stored: peer.effort) : peer.effort
-    }
-
-    func pullRequestReviewPeerModelLabel(_ value: String, harnessID: String) -> String {
-        concreteModelOption(for: value, harnessID: harnessID)?.label
-            ?? ChatComposerTextSupport.modelLabel(for: value)
-    }
-
-    func pullRequestReviewPeerEffortLabel(_ value: String, peer: PullRequestReviewPeer) -> String {
-        if peer.harnessID == "opencode", value == AppSettings.openCodeDefaultEffort { return "Default" }
-        let option = concreteModelOption(for: peer.model, harnessID: peer.harnessID)
-        let nativeValue = peer.harnessID == "opencode" ? AppSettings.openCodeNativeEffort(stored: value) : value
-        return option?.supportedEffortOptions.first { $0.value == nativeValue }?.label
-            ?? (peer.harnessID == "opencode" ? nativeValue ?? "Default" : ChatComposerTextSupport.effortLabel(for: value))
+    /// Team workers launch only concrete models from the live catalog, so the team sheet's selectors offer nothing else.
+    func reviewTeamAgentHarness(for harnessID: String) -> AgentReasoningPresentation.Harness {
+        agentReasoningHarness(for: harnessID, concreteModelOptions: concreteModelOptions(for: harnessID))
     }
 
     func defaultPullRequestReviewPeer(
@@ -188,38 +135,6 @@ extension SettingsViewModel {
         }
         return nil
     }
-
-    func pullRequestReviewPeerDefaultEffort(harnessID: String, model: String) -> String {
-        if harnessID == "opencode" { return AppSettings.openCodeDefaultEffort }
-        let option = concreteModelOption(for: model, harnessID: harnessID)
-        return option?.defaultEffortOption?.value
-            ?? option?.supportedEffortOptions.first?.value
-            ?? AppSettings.defaultEffortLevel
-    }
-
-    var pullRequestReviewEffectiveHarnessID: String { reviewAgentEditor.effectiveHarnessID }
-    var pullRequestReviewHarnessSelection: String { reviewAgentEditor.harnessSelection }
-    var pullRequestReviewHarnessOptions: [String] {
-        pullRequestReviewMode == .reviewTeam
-            ? reviewTeamLeadHarnessOptions(settingsService.current)
-            : reviewAgentEditor.harnessOptions
-    }
-    var pullRequestReviewModelSelection: String { reviewAgentEditor.modelSelection }
-    var pullRequestReviewModelOptions: [String] { reviewAgentEditor.modelOptions }
-    var pullRequestReviewEffortSelection: String { reviewAgentEditor.effortSelection }
-    var pullRequestReviewEffortOptions: [AgentHarnessOption] { reviewAgentEditor.effortOptions }
-    var pullRequestReviewPermissionSelection: String { reviewAgentEditor.permissionSelection }
-    var pullRequestReviewPermissionOptions: [String] { reviewAgentEditor.permissionOptions }
-
-    func setPullRequestReviewHarness(_ value: String) { reviewAgentEditor.setHarness(value) }
-    func setPullRequestReviewModel(_ value: String) { reviewAgentEditor.setModel(value) }
-    func setPullRequestReviewEffort(_ value: String) { reviewAgentEditor.setEffort(value) }
-    func setPullRequestReviewPermission(_ value: String) { reviewAgentEditor.setPermission(value) }
-
-    func pullRequestReviewLabel(forHarness value: String) -> String { reviewAgentEditor.label(forHarness: value) }
-    func pullRequestReviewLabel(forModel value: String) -> String { reviewAgentEditor.label(forModel: value) }
-    func pullRequestReviewLabel(forEffort value: String) -> String { reviewAgentEditor.label(forEffort: value) }
-    func pullRequestReviewLabel(forPermission value: String) -> String { reviewAgentEditor.label(forPermission: value) }
 
     /// A review thread and a feedback thread can belong in different places. Both degrade on *read* — an id no longer
     /// among the options shows `Tasks` while the stored value survives, so re-creating the
@@ -287,6 +202,14 @@ extension SettingsViewModel {
             return exact
         }
         return harnessID != "opencode" && selection == AppSettings.defaultModelValue ? options.first(where: \.isDefault) : nil
+    }
+
+    private func pullRequestReviewPeerDefaultEffort(harnessID: String, model: String) -> String {
+        if harnessID == "opencode" { return AppSettings.openCodeDefaultEffort }
+        let option = concreteModelOption(for: model, harnessID: harnessID)
+        return option?.defaultEffortOption?.value
+            ?? option?.supportedEffortOptions.first?.value
+            ?? AppSettings.defaultEffortLevel
     }
 
     private func resolvedPullRequestReviewLead(settings draftSettings: AppSettings?) -> ReviewWorkerConfiguration? {
