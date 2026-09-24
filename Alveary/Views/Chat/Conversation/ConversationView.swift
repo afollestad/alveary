@@ -210,29 +210,14 @@ private extension ConversationView {
 
     var composerReasoningSelection: ReasoningSelection {
         let selectedModel = selectedComposerModelOptionID(for: activeAgentHarnessID)
-        let options = modelOptions(for: activeAgentHarnessID)
-        let modelTitle = AgentModelOptionSelection.menuItems(
-            in: options,
-            selectedModel: selectedModel,
-            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
-        ).first { $0.value == selectedModel }?.title ?? ChatComposerTextSupport.modelLabel(for: selectedModel)
-        let effortOptions = reasoningEffortOptions(for: activeAgentHarnessID, selectedModel: selectedModel)
-        let defaultEffort = AgentModelOptionSelection.defaultEffortValue(in: options, selectedModel: selectedModel)
-        let effortValue = conversation.thread?.effort ?? AppSettings.defaultEffortLevel
-        let effortTitle = effortOptions.first { $0.value == effortValue }?.title
-            ?? ChatComposerTextSupport.effortLabel(for: effortValue)
-        let speedMode = composerCapabilities.supportsSpeedMode ? conversation.thread?.normalizedSpeedMode ?? .standard : .standard
-
         return ReasoningSelection(
             harnessID: activeHarnessID,
             harnessTitle: activeAgentHarnessID.map(harnessDisplayName(for:)) ?? activeHarnessID.capitalized,
+            modelOptions: modelOptions(for: activeAgentHarnessID),
             modelID: selectedModel,
-            modelTitle: modelTitle,
-            effortValue: effortValue,
-            effortTitle: effortTitle,
-            effortOptions: effortOptions,
-            defaultEffortValue: effortOptions.contains { $0.value == defaultEffort } ? defaultEffort : effortOptions.first?.value,
-            speedMode: speedMode,
+            effortOptions: reasoningEffortOptions(for: activeAgentHarnessID, selectedModel: selectedModel),
+            effortValue: conversation.thread?.effort ?? AppSettings.defaultEffortLevel,
+            speedMode: composerCapabilities.supportsSpeedMode ? conversation.thread?.normalizedSpeedMode ?? .standard : .standard,
             supportsSpeedMode: composerCapabilities.supportsSpeedMode
         )
     }
@@ -280,25 +265,13 @@ private extension ConversationView {
         for harnessID: AgentCLIKit.AgentHarnessID,
         harnessTitle: String?
     ) -> ReasoningModelGroup {
-        let selectedModel = harnessID.rawValue == activeHarnessID
-            ? conversation.thread?.model ?? AppSettings.defaultModelValue
-            : AppSettings.defaultModelValue
-        let options = AgentModelOptionSelection.menuItems(
-            in: modelOptions(for: harnessID),
-            selectedModel: selectedModel,
-            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
-        ).map { item in
-            ReasoningModelOption(
-                harnessID: harnessID.rawValue,
-                value: item.value,
-                title: item.title,
-                shortName: item.shortName
-            )
-        }
-        return ReasoningModelGroup(
+        ReasoningModelGroup(
             harnessID: harnessID.rawValue,
             harnessTitle: harnessTitle,
-            options: options
+            modelOptions: modelOptions(for: harnessID),
+            selectedModel: harnessID.rawValue == activeHarnessID
+                ? conversation.thread?.model ?? AppSettings.defaultModelValue
+                : AppSettings.defaultModelValue
         )
     }
 
@@ -312,7 +285,7 @@ private extension ConversationView {
     func reasoningEffortOptions(
         for harnessID: AgentCLIKit.AgentHarnessID?,
         selectedModel: String
-    ) -> [ReasoningMenuOption] {
+    ) -> [AgentCLIKit.AgentHarnessOption] {
         guard let harnessID,
               HarnessFeaturePolicy(
                 harnessID: harnessID.rawValue,
@@ -322,9 +295,7 @@ private extension ConversationView {
         return AgentModelOptionSelection.effortOptions(
             in: modelOptions(for: harnessID),
             selectedModel: selectedModel
-        ).map { option in
-            ReasoningMenuOption(value: option.value, title: option.label)
-        }
+        )
     }
 
     func applyComposerReasoningEffortChange(_ effort: String) -> Bool {
