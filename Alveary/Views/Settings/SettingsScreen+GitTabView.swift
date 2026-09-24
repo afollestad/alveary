@@ -46,15 +46,24 @@ struct GitSettingsTabView: View {
                     }
                 }
 
-                SettingsFormSection("Commits") {
+                SettingsFormSection("Commit & PR generation") {
                     SettingsPromptEditorRow(
-                        "Commit message generation prompt",
+                        "Commit message prompt",
                         helpText: GitSettingsHelp.commitMessageGenerationPrompt,
                         prompt: $commitMessageGenerationPrompt,
                         defaultPrompt: AppSettings.defaultCommitMessageGenerationPrompt,
-                        placeholder: "Write the prompt used to generate commit messages.",
-                        showsDivider: false
+                        placeholder: "Write the prompt used to generate commit messages."
                     )
+
+                    SettingsPromptEditorRow(
+                        "Pull request prompt",
+                        helpText: GitSettingsHelp.pullRequestGenerationPrompt,
+                        prompt: $pullRequestGenerationPrompt,
+                        defaultPrompt: AppSettings.defaultPullRequestGenerationPrompt,
+                        placeholder: "Write the prompt used to generate pull request titles and descriptions."
+                    )
+
+                    UtilityAgentSettingsRows(viewModel: viewModel)
                 }
 
                 SettingsFormSection("GitHub") {
@@ -76,16 +85,8 @@ struct GitSettingsTabView: View {
                         "Automatically link PRs",
                         helpText: GitSettingsHelp.automaticallyLinkPullRequests,
                         isOn: $automaticallyLinkPullRequests,
+                        showsDivider: false,
                         isDisabled: !pullRequestsEnabled
-                    )
-
-                    SettingsPromptEditorRow(
-                        "Pull request generation prompt",
-                        helpText: GitSettingsHelp.pullRequestGenerationPrompt,
-                        prompt: $pullRequestGenerationPrompt,
-                        defaultPrompt: AppSettings.defaultPullRequestGenerationPrompt,
-                        placeholder: "Write the prompt used to generate pull request titles and descriptions.",
-                        showsDivider: false
                     )
 
                     SettingsFormSubsectionHeader("Address feedback")

@@ -49,7 +49,7 @@ extension SnapshotTests {
                 onClose: {},
                 initialTabRawValue: "git"
             ),
-            size: CGSize(width: 1100, height: 1400),
+            size: CGSize(width: 1100, height: 1640),
             named: "settings_screen_git_review_team"
         )
     }
@@ -200,7 +200,7 @@ extension SnapshotTests {
                 onClose: {},
                 initialTabRawValue: "git"
             ),
-            size: CGSize(width: 1100, height: 1700),
+            size: CGSize(width: 1100, height: 1940),
             named: "settings_screen_git_custom_sections"
         )
     }
@@ -257,7 +257,7 @@ extension SnapshotTests {
                 onClose: {},
                 initialTabRawValue: "git"
             ),
-            size: CGSize(width: 1100, height: 1400),
+            size: CGSize(width: 1100, height: 1640),
             named: "settings_screen_git_dark_subsection_headers",
             colorScheme: .dark
         )

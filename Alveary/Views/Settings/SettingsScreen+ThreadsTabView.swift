@@ -51,8 +51,6 @@ struct ThreadsSettingsTabView: View {
                 )
             }
 
-            UtilitySettingsSection(viewModel: viewModel)
-
             SettingsFormSection("Voice Input") {
                 SettingsFormRow(showsDivider: false) {
                     SettingsResponsiveControlRow(

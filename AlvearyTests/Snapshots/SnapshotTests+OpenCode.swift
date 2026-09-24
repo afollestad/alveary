@@ -64,7 +64,7 @@ extension SnapshotTests {
         settings.defaultHarness = "opencode"
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
         assertMacSnapshot(
-            UtilitySettingsSection(viewModel: viewModel).padding(16),
+            SettingsFormSection { UtilityAgentSettingsRows(viewModel: viewModel) }.padding(16),
             size: CGSize(width: 610, height: 240), named: "opencode_utility_model_required"
         )
     }

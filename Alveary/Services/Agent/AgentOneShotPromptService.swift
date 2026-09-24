@@ -98,11 +98,17 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
             throw AgentOneShotPromptError.failed(HarnessFeaturePolicy.unavailableUtilityMessage(harnessID: harnessId))
         }
         guard settings.isHarnessEnabled(harnessId) else {
-            throw AgentOneShotPromptError.failed("The selected utility harness is disabled. Enable it or choose another harness in Utility settings.")
+            throw AgentOneShotPromptError.failed(
+                "The commit and pull request generation harness is disabled. "
+                    + "Enable it in Harnesses or choose another under Commit & PR generation in Git settings."
+            )
         }
         let model = Self.normalizedModel(settings.effectiveUtilityModel)
         guard harnessId != "opencode" || model != nil else {
-            throw AgentOneShotPromptError.failed("Choose an available OpenCode model in Utility settings. Utility prompts require a concrete model.")
+            throw AgentOneShotPromptError.failed(
+                "Commit and pull request generation requires a concrete model. "
+                    + "Choose an available OpenCode model under Commit & PR generation in Git settings."
+            )
         }
         let normalizedWorkingDirectory = CanonicalPath.normalize(workingDirectory)
 

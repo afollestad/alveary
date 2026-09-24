@@ -24,11 +24,11 @@ extension SettingsViewModel {
             return HarnessFeaturePolicy.unavailableUtilityMessage(harnessID: utilityHarnessID)
         }
         guard settingsService.current.isHarnessEnabled(utilityHarnessID) else {
-            return "The selected utility harness is disabled. Enable it in Harnesses or select another harness."
+            return "The selected harness is disabled. Enable it in Harnesses or select another harness."
         }
         if utilityHarnessID == "opencode" {
             guard let model = utilityOpenCodeModel else {
-                return "Choose an available OpenCode model. Utility prompts require a concrete model."
+                return "Choose an available OpenCode model. Commit and pull request generation requires a concrete model."
             }
             if let variant = AppSettings.openCodeNativeEffort(stored: settingsService.current.effectiveUtilityEffort),
                !model.supportedEffortOptions.contains(where: { $0.value == variant }) {

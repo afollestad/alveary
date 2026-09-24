@@ -16,7 +16,7 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
             _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
             XCTFail("Expected a concrete utility model")
         } catch AppOneShotPromptError.failed(let message) {
-            XCTAssertTrue(message.contains("require a concrete model"))
+            XCTAssertTrue(message.contains("requires a concrete model"))
         } catch {
             XCTFail("Unexpected error: \(error)")
         }

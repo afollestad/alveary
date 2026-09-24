@@ -84,7 +84,8 @@ struct HarnessFeaturePolicy: Sendable {
     }
 
     static func unavailableUtilityMessage(harnessID: String) -> String {
-        "\(displayName(harnessID)) does not support read-only utility prompts. Choose an available harness in Utility settings."
+        "\(displayName(harnessID)) does not support read-only commit and pull request generation. "
+            + "Choose another harness under Commit & PR generation in Git settings."
     }
 
     static func unavailableReviewMessage(harnessID: String) -> String {
