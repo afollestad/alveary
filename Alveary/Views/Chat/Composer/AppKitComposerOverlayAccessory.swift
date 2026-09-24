@@ -6,7 +6,7 @@
 /// implement on a different model than they planned on. `AskUserQuestion` overlays leave this `nil`
 /// so their geometry is unchanged — answer controls there are the option rows only.
 struct AppKitComposerOverlayAccessory {
-    let selection: ChatComposerActionRowView.ReasoningSelection
-    let reasoning: ChatComposerActionRowView.ReasoningConfiguration
+    let selection: ReasoningSelection
+    let reasoning: ReasoningConfiguration
     let isEnabled: Bool
 }

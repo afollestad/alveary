@@ -144,9 +144,9 @@ extension SnapshotTests {
 
 @MainActor
 private func makeSnapshotReasoningMenuConfiguration(
-    groups: [ChatComposerActionRowView.ReasoningModelGroup],
+    groups: [ReasoningModelGroup],
     selectedSpeedMode: AgentSpeedMode = .standard
-) -> ChatComposerActionRowView.ReasoningConfiguration {
+) -> ReasoningConfiguration {
     let selectedGroup = groups.first
     let selectedModel = selectedGroup?.options.first
     return makeReasoningConfiguration(
@@ -179,13 +179,13 @@ private struct ComposerReasoningMenuSnapshot: NSViewControllerRepresentable {
 
 @MainActor
 private func makeSnapshotReasoningMenuController(
-    configuration: ChatComposerActionRowView.ReasoningConfiguration
+    configuration: ReasoningConfiguration
 ) -> ComposerReasoningMenuViewController {
     ComposerReasoningMenuViewController(configuration: configuration, onRequestCloseMainMenu: {})
 }
 
 @MainActor
-private func makeSingleHarnessReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
+private func makeSingleHarnessReasoningModelGroups() -> [ReasoningModelGroup] {
     [
         .init(
             harnessID: "codex",
@@ -201,7 +201,7 @@ private func makeSingleHarnessReasoningModelGroups() -> [ChatComposerActionRowVi
 }
 
 @MainActor
-private func makeMultipleHarnessReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
+private func makeMultipleHarnessReasoningModelGroups() -> [ReasoningModelGroup] {
     [
         .init(
             harnessID: "claude",

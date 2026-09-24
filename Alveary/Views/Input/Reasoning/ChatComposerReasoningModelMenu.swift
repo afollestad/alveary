@@ -2,10 +2,10 @@ import AppKit
 
 @MainActor
 final class ComposerReasoningModelListView: NSView {
-    private var groups: [ChatComposerActionRowView.ReasoningModelGroup]
+    private var groups: [ReasoningModelGroup]
     private var selectedHarnessID: String
     private var selectedModelID: String
-    private let onModelSelected: (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void
+    private let onModelSelected: (ReasoningModelSelectionRequest) -> Void
     private let onCancel: () -> Void
     private let scrollView = NSScrollView()
     private let documentView = ComposerReasoningModelDocumentView()
@@ -30,10 +30,10 @@ final class ComposerReasoningModelListView: NSView {
     }
 
     init(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup],
+        groups: [ReasoningModelGroup],
         selectedHarnessID: String,
         selectedModelID: String,
-        onModelSelected: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void,
+        onModelSelected: @escaping (ReasoningModelSelectionRequest) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.groups = groups
@@ -52,7 +52,7 @@ final class ComposerReasoningModelListView: NSView {
     }
 
     func update(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup],
+        groups: [ReasoningModelGroup],
         selectedHarnessID: String,
         selectedModelID: String
     ) {
@@ -148,7 +148,7 @@ final class ComposerReasoningModelListView: NSView {
 
     private func configure(
         row: ComposerReasoningMenuRowView,
-        option: ChatComposerActionRowView.ReasoningModelOption
+        option: ReasoningModelOption
     ) {
         let isSelected = option.harnessID == selectedHarnessID && option.value == selectedModelID
         row.configure(.init(
@@ -168,7 +168,7 @@ final class ComposerReasoningModelListView: NSView {
     }
 
     private func accessibilityLabel(
-        for option: ChatComposerActionRowView.ReasoningModelOption
+        for option: ReasoningModelOption
     ) -> String {
         guard structure.showsHarnessHeaders,
               let group = structure.visibleGroups.first(where: { $0.harnessID == option.harnessID }) else {
@@ -239,14 +239,14 @@ final class ComposerReasoningModelListView: NSView {
 
 private extension ComposerReasoningModelListView {
     struct Structure: Equatable {
-        let visibleGroups: [ChatComposerActionRowView.ReasoningModelGroup]
+        let visibleGroups: [ReasoningModelGroup]
 
-        init(groups: [ChatComposerActionRowView.ReasoningModelGroup]) {
+        init(groups: [ReasoningModelGroup]) {
             visibleGroups = groups.filter { !$0.options.isEmpty }
         }
 
         var showsHarnessHeaders: Bool { visibleGroups.count > 1 }
-        var options: [ChatComposerActionRowView.ReasoningModelOption] { visibleGroups.flatMap(\.options) }
+        var options: [ReasoningModelOption] { visibleGroups.flatMap(\.options) }
     }
 
     struct LayoutMetrics {

@@ -2,20 +2,20 @@ import AppKit
 
 @MainActor
 final class ComposerReasoningMenuViewController: NSViewController {
-    private var configuration: ChatComposerActionRowView.ReasoningConfiguration
+    private var configuration: ReasoningConfiguration
     private let onRequestCloseMainMenu: () -> Void
-    private let onDisplaySelectionChanged: (ChatComposerActionRowView.ReasoningSelection?) -> Void
+    private let onDisplaySelectionChanged: (ReasoningSelection?) -> Void
     private let onContentSizeChanged: (NSSize) -> Void
     private let reducesMotion: () -> Bool
     private var menuView: ComposerReasoningMenuView?
-    private var previewSelection: ChatComposerActionRowView.ReasoningSelection?
+    private var previewSelection: ReasoningSelection?
     private var hasDisplaySelectionOverride = false
     private(set) var isModelsExpanded = false
 
     init(
-        configuration: ChatComposerActionRowView.ReasoningConfiguration,
+        configuration: ReasoningConfiguration,
         onRequestCloseMainMenu: @escaping () -> Void,
-        onDisplaySelectionChanged: @escaping (ChatComposerActionRowView.ReasoningSelection?) -> Void = { _ in },
+        onDisplaySelectionChanged: @escaping (ReasoningSelection?) -> Void = { _ in },
         onContentSizeChanged: @escaping (NSSize) -> Void = { _ in },
         reducesMotion: @escaping () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     ) {
@@ -51,7 +51,7 @@ final class ComposerReasoningMenuViewController: NSViewController {
         view = menuView
     }
 
-    func update(configuration: ChatComposerActionRowView.ReasoningConfiguration) {
+    func update(configuration: ReasoningConfiguration) {
         let previousVisualState = ReasoningMenuVisualState(configuration: self.configuration)
         let visualState = ReasoningMenuVisualState(configuration: configuration)
         let preservesActivePreview = menuView?.hasActiveEffortInteraction == true &&
@@ -75,7 +75,7 @@ final class ComposerReasoningMenuViewController: NSViewController {
         applyContentSize()
     }
 
-    func selectModel(_ request: ChatComposerActionRowView.ReasoningModelSelectionRequest) {
+    func selectModel(_ request: ReasoningModelSelectionRequest) {
         cancelEffortPreview()
         switch configuration.onModelChange(request) {
         case .rejected:
@@ -146,7 +146,7 @@ final class ComposerReasoningMenuViewController: NSViewController {
         applyLocallyAcceptedSelection(configuration.selection.updatingSpeedMode(speedMode))
     }
 
-    private func applyLocallyAcceptedSelection(_ selection: ChatComposerActionRowView.ReasoningSelection) {
+    private func applyLocallyAcceptedSelection(_ selection: ReasoningSelection) {
         configuration.selection = selection
         previewSelection = nil
         hasDisplaySelectionOverride = true

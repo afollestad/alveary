@@ -6,7 +6,7 @@ import XCTest
 @MainActor
 extension ChatComposerReasoningMenuLayoutTests {
     func groupedController(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup]
+        groups: [ReasoningModelGroup]
     ) -> ComposerReasoningMenuViewController {
         var configuration = makeReasoningConfiguration()
         configuration.modelGroups = groups
@@ -34,7 +34,7 @@ extension ChatComposerReasoningMenuLayoutTests {
         harnessID: String,
         title: String,
         models: [(String, String)]
-    ) -> ChatComposerActionRowView.ReasoningModelGroup {
+    ) -> ReasoningModelGroup {
         .init(
             harnessID: harnessID,
             harnessTitle: title,
@@ -46,7 +46,7 @@ extension ChatComposerReasoningMenuLayoutTests {
 }
 
 @MainActor
-func makeGroupedReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
+func makeGroupedReasoningModelGroups() -> [ReasoningModelGroup] {
     [
         .init(
             harnessID: "claude",
@@ -70,9 +70,9 @@ func makeGroupedReasoningConfiguration(
     supportsSpeedMode: Bool = false,
     onEffortChange: @escaping (String) -> Bool = { _ in true },
     onSpeedChange: @escaping (AgentSpeedMode) -> Bool = { _ in true },
-    onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
-        -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected }
-) -> ChatComposerActionRowView.ReasoningConfiguration {
+    onModelChange: @escaping (ReasoningModelSelectionRequest)
+        -> ReasoningModelSelectionOutcome = { _ in .rejected }
+) -> ReasoningConfiguration {
     let groups = makeGroupedReasoningModelGroups()
     return makeReasoningConfiguration(
         harnessOptions: groups.map {
@@ -98,7 +98,7 @@ func makeGroupedReasoningConfiguration(
 @MainActor
 func makeGroupedReasoningMenu(
     isModelsExpanded: Bool = true,
-    onModelSelected: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void = { _ in },
+    onModelSelected: @escaping (ReasoningModelSelectionRequest) -> Void = { _ in },
     onRequestCloseMainMenu: @escaping () -> Void = {}
 ) -> ComposerReasoningMenuViewController {
     let controller = ComposerReasoningMenuViewController(

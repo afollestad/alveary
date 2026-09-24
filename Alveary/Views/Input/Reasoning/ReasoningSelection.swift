@@ -1,0 +1,58 @@
+import Foundation
+
+struct ReasoningMenuOption: Equatable {
+    let value: String
+    let title: String
+}
+
+struct ReasoningSelection: Equatable {
+    let harnessID: String
+    let harnessTitle: String
+    let modelID: String
+    let modelTitle: String
+    let effortValue: String
+    let effortTitle: String
+    let effortOptions: [ReasoningMenuOption]
+    let defaultEffortValue: String?
+    let speedMode: AgentSpeedMode
+    let supportsSpeedMode: Bool
+
+    /// The compact selection names the active choice; the menu keeps its action-oriented default label.
+    var compactModelTitle: String {
+        harnessID == "opencode" && modelID == AppSettings.defaultModelValue ? "OpenCode default" : modelTitle
+    }
+
+    var accessibilityValue: String {
+        let reasoningValue = effortOptions.isEmpty ? compactModelTitle : "\(compactModelTitle), \(effortTitle)"
+        guard supportsSpeedMode, speedMode == .fast else {
+            return reasoningValue
+        }
+        return "\(reasoningValue), Fast"
+    }
+}
+
+struct ReasoningModelOption: Equatable {
+    let harnessID: String
+    let value: String
+    let title: String
+    /// Harness-supplied alias the `/model` command accepts as typed input.
+    let shortName: String
+
+    init(harnessID: String, value: String, title: String, shortName: String? = nil) {
+        self.harnessID = harnessID
+        self.value = value
+        self.title = title
+        self.shortName = shortName ?? value
+    }
+
+    var identity: String {
+        // Model IDs such as `default` can appear under multiple harnesses.
+        "\(harnessID):\(value)"
+    }
+}
+
+struct ReasoningModelGroup: Equatable {
+    let harnessID: String
+    let harnessTitle: String?
+    let options: [ReasoningModelOption]
+}

@@ -9,7 +9,7 @@ import XCTest
 extension SnapshotTests {
     func testOpenCodeModelPickerOpensExpanded() {
         let defaults = AgentDefaultModelOptions.staticOptions(for: .opencode).map {
-            ChatComposerActionRowView.MenuOption(value: $0.id, title: $0.label)
+            ReasoningMenuOption(value: $0.id, title: $0.label)
         }
         let configuration = makeReasoningConfiguration(
             harnessOptions: [.init(value: "opencode", title: "OpenCode")],

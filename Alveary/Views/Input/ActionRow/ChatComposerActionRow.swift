@@ -9,7 +9,7 @@ import SwiftUI
 /// position and performance issues in this UX, so new composer internals should
 /// prefer native views.
 struct ChatComposerActionRow: NSViewRepresentable {
-    let reasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration
+    let reasoningConfiguration: ReasoningConfiguration
     let supportedPermissionModes: [PermissionModeOption]
     @Binding var selectedPermissionMode: String
     let showWorktreePicker: Bool
@@ -88,11 +88,6 @@ struct ChatComposerActionRow: NSViewRepresentable {
 final class ChatComposerActionRowView: NSView {
     nonisolated static let defaultHeight: CGFloat = 30
     nonisolated static let defaultSettingsControlHeight: CGFloat = 24
-
-    struct MenuOption: Equatable {
-        let value: String
-        let title: String
-    }
 
     /// The app the `+` menu offers to attach as an app shot.
     ///

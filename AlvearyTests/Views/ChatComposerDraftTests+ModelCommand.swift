@@ -35,7 +35,7 @@ extension ChatComposerDraftTests {
     func testModelCommandAppliesShortNameCaseInsensitivelyWithoutSending() async throws {
         let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
-        var requests: [ChatComposerActionRowView.ReasoningModelSelectionRequest] = []
+        var requests: [ReasoningModelSelectionRequest] = []
         fixture.viewModel.replaceInputDraft("/model SOL", source: .blockInputMarkdown)
         let chatView = makeChatView(
             fixture: fixture,
@@ -152,7 +152,7 @@ extension ChatComposerDraftTests {
     func testModelCommandSwitchesHarnessWhenGroupsSpanHarnesses() async throws {
         let fixture = try ConversationViewModelTestFixture(harnessId: "codex")
         let appState = AppState()
-        var requests: [ChatComposerActionRowView.ReasoningModelSelectionRequest] = []
+        var requests: [ReasoningModelSelectionRequest] = []
         fixture.viewModel.replaceInputDraft("/model opus", source: .blockInputMarkdown)
         let chatView = makeChatView(
             fixture: fixture,
@@ -181,7 +181,7 @@ extension ChatComposerDraftTests {
             fixture: fixture,
             appState: appState,
             modelGroups: [
-                ChatComposerActionRowView.ReasoningModelGroup(
+                ReasoningModelGroup(
                     harnessID: "codex",
                     harnessTitle: "Codex",
                     options: [Self.modelOption(value: "gpt-5.6-sol", shortName: "sol", title: "GPT-5.6-Sol")]
@@ -203,9 +203,9 @@ extension ChatComposerDraftTests {
         }
     }
 
-    private static var codexModelGroups: [ChatComposerActionRowView.ReasoningModelGroup] {
+    private static var codexModelGroups: [ReasoningModelGroup] {
         [
-            ChatComposerActionRowView.ReasoningModelGroup(
+            ReasoningModelGroup(
                 harnessID: "codex",
                 harnessTitle: "Codex",
                 options: [
@@ -217,9 +217,9 @@ extension ChatComposerDraftTests {
         ]
     }
 
-    private static var claudeModelGroups: [ChatComposerActionRowView.ReasoningModelGroup] {
+    private static var claudeModelGroups: [ReasoningModelGroup] {
         [
-            ChatComposerActionRowView.ReasoningModelGroup(
+            ReasoningModelGroup(
                 harnessID: "claude",
                 harnessTitle: "Claude",
                 options: [
@@ -229,8 +229,8 @@ extension ChatComposerDraftTests {
         ]
     }
 
-    private static var appliedSelection: ChatComposerActionRowView.ReasoningSelection {
-        ChatComposerActionRowView.ReasoningSelection(
+    private static var appliedSelection: ReasoningSelection {
+        ReasoningSelection(
             harnessID: "codex",
             harnessTitle: "Codex",
             modelID: "gpt-5.6-sol",
@@ -249,8 +249,8 @@ extension ChatComposerDraftTests {
         value: String,
         shortName: String,
         title: String
-    ) -> ChatComposerActionRowView.ReasoningModelOption {
-        ChatComposerActionRowView.ReasoningModelOption(
+    ) -> ReasoningModelOption {
+        ReasoningModelOption(
             harnessID: harnessID,
             value: value,
             title: title,

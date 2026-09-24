@@ -374,7 +374,7 @@ extension ChatView {
         }
 
         let outcome = reasoningConfiguration.onModelChange(
-            ChatComposerActionRowView.ReasoningModelSelectionRequest(
+            ReasoningModelSelectionRequest(
                 harnessID: option.harnessID,
                 modelID: option.value
             )

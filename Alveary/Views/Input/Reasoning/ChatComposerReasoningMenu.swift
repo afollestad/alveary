@@ -2,12 +2,12 @@ import AppKit
 
 @MainActor
 final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
-    private var configuration: ChatComposerActionRowView.ReasoningConfiguration
+    private var configuration: ReasoningConfiguration
     private let onEffortPreview: (Int) -> Void
     private let onEffortCommit: (Int) -> Void
     private let onEffortCancel: () -> Void
     private let onModelsExpansionChanged: (Bool) -> Void
-    private let onModelSelected: (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void
+    private let onModelSelected: (ReasoningModelSelectionRequest) -> Void
     private let onFastModeChanged: (Bool) -> Void
     private let onCancel: () -> Void
     let effortSlider = ComposerReasoningEffortSlider()
@@ -33,13 +33,13 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
     #endif
 
     init(
-        configuration: ChatComposerActionRowView.ReasoningConfiguration,
+        configuration: ReasoningConfiguration,
         isModelsExpanded: Bool,
         onEffortPreview: @escaping (Int) -> Void,
         onEffortCommit: @escaping (Int) -> Void,
         onEffortCancel: @escaping () -> Void,
         onModelsExpansionChanged: @escaping (Bool) -> Void,
-        onModelSelected: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void,
+        onModelSelected: @escaping (ReasoningModelSelectionRequest) -> Void,
         onFastModeChanged: @escaping (Bool) -> Void,
         onCancel: @escaping () -> Void,
         reducesMotion: @escaping () -> Bool
@@ -80,7 +80,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
     }
 
     func update(
-        configuration: ChatComposerActionRowView.ReasoningConfiguration,
+        configuration: ReasoningConfiguration,
         isModelsExpanded: Bool
     ) {
         self.configuration = configuration

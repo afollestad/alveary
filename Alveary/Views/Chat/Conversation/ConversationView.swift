@@ -198,8 +198,8 @@ struct ConversationView: View {
 }
 
 private extension ConversationView {
-    var composerReasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration {
-        ChatComposerActionRowView.ReasoningConfiguration(
+    var composerReasoningConfiguration: ReasoningConfiguration {
+        ReasoningConfiguration(
             selection: composerReasoningSelection,
             modelGroups: composerReasoningModelGroups,
             onEffortChange: applyComposerReasoningEffortChange(_:),
@@ -208,7 +208,7 @@ private extension ConversationView {
         )
     }
 
-    var composerReasoningSelection: ChatComposerActionRowView.ReasoningSelection {
+    var composerReasoningSelection: ReasoningSelection {
         let selectedModel = selectedComposerModelOptionID(for: activeAgentHarnessID)
         let options = modelOptions(for: activeAgentHarnessID)
         let modelTitle = AgentModelOptionSelection.menuItems(
@@ -223,7 +223,7 @@ private extension ConversationView {
             ?? ChatComposerTextSupport.effortLabel(for: effortValue)
         let speedMode = composerCapabilities.supportsSpeedMode ? conversation.thread?.normalizedSpeedMode ?? .standard : .standard
 
-        return ChatComposerActionRowView.ReasoningSelection(
+        return ReasoningSelection(
             harnessID: activeHarnessID,
             harnessTitle: activeAgentHarnessID.map(harnessDisplayName(for:)) ?? activeHarnessID.capitalized,
             modelID: selectedModel,
@@ -237,7 +237,7 @@ private extension ConversationView {
         )
     }
 
-    var composerReasoningModelGroups: [ChatComposerActionRowView.ReasoningModelGroup] {
+    var composerReasoningModelGroups: [ReasoningModelGroup] {
         let hasStartedThread = conversation.thread?.hasCompletedInitialSetup == true
         if hasStartedThread {
             guard let harnessID = activeAgentHarnessID else {
@@ -279,7 +279,7 @@ private extension ConversationView {
     func reasoningModelGroup(
         for harnessID: AgentCLIKit.AgentHarnessID,
         harnessTitle: String?
-    ) -> ChatComposerActionRowView.ReasoningModelGroup {
+    ) -> ReasoningModelGroup {
         let selectedModel = harnessID.rawValue == activeHarnessID
             ? conversation.thread?.model ?? AppSettings.defaultModelValue
             : AppSettings.defaultModelValue
@@ -288,14 +288,14 @@ private extension ConversationView {
             selectedModel: selectedModel,
             fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
         ).map { item in
-            ChatComposerActionRowView.ReasoningModelOption(
+            ReasoningModelOption(
                 harnessID: harnessID.rawValue,
                 value: item.value,
                 title: item.title,
                 shortName: item.shortName
             )
         }
-        return ChatComposerActionRowView.ReasoningModelGroup(
+        return ReasoningModelGroup(
             harnessID: harnessID.rawValue,
             harnessTitle: harnessTitle,
             options: options
@@ -312,7 +312,7 @@ private extension ConversationView {
     func reasoningEffortOptions(
         for harnessID: AgentCLIKit.AgentHarnessID?,
         selectedModel: String
-    ) -> [ChatComposerActionRowView.MenuOption] {
+    ) -> [ReasoningMenuOption] {
         guard let harnessID,
               HarnessFeaturePolicy(
                 harnessID: harnessID.rawValue,
@@ -323,7 +323,7 @@ private extension ConversationView {
             in: modelOptions(for: harnessID),
             selectedModel: selectedModel
         ).map { option in
-            ChatComposerActionRowView.MenuOption(value: option.value, title: option.label)
+            ReasoningMenuOption(value: option.value, title: option.label)
         }
     }
 
@@ -340,8 +340,8 @@ private extension ConversationView {
     }
 
     func applyComposerReasoningModelChange(
-        _ request: ChatComposerActionRowView.ReasoningModelSelectionRequest
-    ) -> ChatComposerActionRowView.ReasoningModelSelectionOutcome {
+        _ request: ReasoningModelSelectionRequest
+    ) -> ReasoningModelSelectionOutcome {
         guard composerReasoningModelGroups.contains(where: { group in
             group.harnessID == request.harnessID && group.options.contains { $0.value == request.modelID }
         }),

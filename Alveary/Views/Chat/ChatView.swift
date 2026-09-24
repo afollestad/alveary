@@ -8,7 +8,7 @@ struct ChatView: View {
     let viewModel: ConversationViewModel
     let conversation: Conversation
     let composerCapabilities: ComposerCapabilities
-    let reasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration
+    let reasoningConfiguration: ReasoningConfiguration
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let harnessID: String
     let runtimeStatus: ActivitySignal
@@ -122,7 +122,7 @@ struct ChatView: View {
         viewModel: ConversationViewModel,
         conversation: Conversation,
         composerCapabilities: ComposerCapabilities,
-        reasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration,
+        reasoningConfiguration: ReasoningConfiguration,
         defaultEnterBehavior: ThreadEnterDefaultBehavior,
         harnessID: String,
         runtimeStatus: ActivitySignal,

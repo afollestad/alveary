@@ -1,10 +1,10 @@
 import Foundation
 
 struct ReasoningMenuVisualState: Equatable {
-    let selection: ChatComposerActionRowView.ReasoningSelection
-    let modelGroups: [ChatComposerActionRowView.ReasoningModelGroup]
+    let selection: ReasoningSelection
+    let modelGroups: [ReasoningModelGroup]
 
-    init(configuration: ChatComposerActionRowView.ReasoningConfiguration) {
+    init(configuration: ReasoningConfiguration) {
         selection = configuration.selection
         modelGroups = configuration.modelGroups
     }

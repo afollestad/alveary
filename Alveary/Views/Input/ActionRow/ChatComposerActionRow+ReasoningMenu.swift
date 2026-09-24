@@ -61,30 +61,6 @@ extension ChatComposerActionRowView {
         }
     }
 
-    struct ReasoningModelSelectionRequest: Equatable {
-        let harnessID: String
-        let modelID: String
-    }
-
-    enum ReasoningModelSelectionOutcome {
-        case rejected
-        case unchanged(ReasoningSelection)
-        case applied(selection: ReasoningSelection)
-    }
-
-    struct ReasoningConfiguration {
-        var selection: ReasoningSelection
-        var modelGroups: [ReasoningModelGroup]
-        var onEffortChange: (String) -> Bool
-        var onSpeedChange: (AgentSpeedMode) -> Bool
-        var onModelChange: (ReasoningModelSelectionRequest) -> ReasoningModelSelectionOutcome
-
-        /// Model selection is the only useful content when neither effort nor speed controls are available.
-        var showsOnlyModels: Bool {
-            selection.effortOptions.isEmpty && !selection.supportsSpeedMode
-        }
-    }
-
     func toggleReasoningMenu() {
         guard let configuration,
               !configuration.areControlsDisabled else {

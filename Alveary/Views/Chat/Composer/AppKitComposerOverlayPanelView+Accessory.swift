@@ -36,7 +36,7 @@ extension AppKitComposerOverlayPanelView {
         )
     }
 
-    func applyAccessoryDisplaySelectionOverride(_ selection: ChatComposerActionRowView.ReasoningSelection?) {
+    func applyAccessoryDisplaySelectionOverride(_ selection: ReasoningSelection?) {
         accessoryDisplaySelectionOverride = selection
         guard let accessory = configuration?.accessory else {
             return
@@ -53,7 +53,7 @@ extension AppKitComposerOverlayPanelView {
 
     private func applyAccessoryButtonConfiguration(
         _ accessory: AppKitComposerOverlayAccessory,
-        selection: ChatComposerActionRowView.ReasoningSelection?
+        selection: ReasoningSelection?
     ) {
         accessoryButton.configure(
             selection: selection ?? accessory.selection,

@@ -266,7 +266,7 @@ extension ChatComposerPlusMenuTests {
         XCTAssertNil(row.reasoningPopover)
     }
 
-    private static var reasoningStabilityEffortOptions: [ChatComposerActionRowView.MenuOption] {
+    private static var reasoningStabilityEffortOptions: [ReasoningMenuOption] {
         [
             .init(value: "low", title: "Low"),
             .init(value: "medium", title: "Medium"),

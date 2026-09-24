@@ -12,7 +12,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     private static let textFieldFittingReserve: CGFloat = 2
     private static let fastIconSymbolName = "bolt.fill"
 
-    private var selection: ChatComposerActionRowView.ReasoningSelection?
+    private var selection: ReasoningSelection?
     private var showsProgress = false
     private var isModelTitleTruncated = false
     private let fastIconView = NSImageView()
@@ -39,7 +39,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     }
 
     func configure(
-        selection: ChatComposerActionRowView.ReasoningSelection,
+        selection: ReasoningSelection,
         height: CGFloat,
         isEnabled: Bool,
         showsProgress: Bool,

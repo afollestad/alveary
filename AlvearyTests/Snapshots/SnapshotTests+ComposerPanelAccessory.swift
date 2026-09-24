@@ -8,7 +8,7 @@ import XCTest
 @MainActor
 extension SnapshotTests {
     var exitPlanModeReasoningAccessory: AppKitComposerOverlayAccessory {
-        let selection = ChatComposerActionRowView.ReasoningSelection(
+        let selection = ReasoningSelection(
             harnessID: "claude",
             harnessTitle: "Claude Code",
             modelID: "opus",
@@ -25,10 +25,10 @@ extension SnapshotTests {
         )
         return AppKitComposerOverlayAccessory(
             selection: selection,
-            reasoning: ChatComposerActionRowView.ReasoningConfiguration(
+            reasoning: ReasoningConfiguration(
                 selection: selection,
                 modelGroups: [
-                    ChatComposerActionRowView.ReasoningModelGroup(
+                    ReasoningModelGroup(
                         harnessID: "claude",
                         harnessTitle: nil,
                         options: [

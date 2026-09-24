@@ -318,8 +318,8 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
 
     func testAppliedModelSelectionFromRealRowKeepsExpandedMenuOpen() throws {
         var closeCount = 0
-        var requests: [ChatComposerActionRowView.ReasoningModelSelectionRequest] = []
-        let modelOptions: [ChatComposerActionRowView.MenuOption] = [
+        var requests: [ReasoningModelSelectionRequest] = []
+        let modelOptions: [ReasoningMenuOption] = [
             .init(value: "sonnet", title: "Sonnet"),
             .init(value: "opus", title: "Opus")
         ]
@@ -350,7 +350,7 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
         XCTAssertEqual(opusRow.accessibilityValue() as? String, "Selected")
     }
 
-    var reasoningEffortOptions: [ChatComposerActionRowView.MenuOption] {
+    var reasoningEffortOptions: [ReasoningMenuOption] {
         [
             .init(value: "low", title: "Low"),
             .init(value: "medium", title: "Medium"),
@@ -361,7 +361,7 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
     }
 
     func makeController(
-        configuration: ChatComposerActionRowView.ReasoningConfiguration
+        configuration: ReasoningConfiguration
     ) -> ComposerReasoningMenuViewController {
         ComposerReasoningMenuViewController(configuration: configuration, onRequestCloseMainMenu: {})
     }

@@ -306,7 +306,7 @@ extension ChatComposerReasoningMenuLayoutTests {
             title: "Claude",
             models: [("sonnet", "Sonnet"), ("opus", "Opus")]
         )]
-        var requests: [ChatComposerActionRowView.ReasoningModelSelectionRequest] = []
+        var requests: [ReasoningModelSelectionRequest] = []
         let controller = ComposerReasoningMenuViewController(
             configuration: makeReasoningConfiguration(
                 modelGroups: groups,
@@ -344,7 +344,7 @@ extension ChatComposerReasoningMenuLayoutTests {
 
     func testModelRowShowsHoverPressedAndFocusInteractionStates() throws {
         let groups = [modelGroup(harnessID: "claude", title: "Claude", models: [("sonnet", "Sonnet")])]
-        var requests: [ChatComposerActionRowView.ReasoningModelSelectionRequest] = []
+        var requests: [ReasoningModelSelectionRequest] = []
         let selection = makeReasoningConfiguration(modelGroups: groups).selection
         let controller = ComposerReasoningMenuViewController(
             configuration: makeReasoningConfiguration(
@@ -389,13 +389,13 @@ extension ChatComposerReasoningMenuLayoutTests {
             modelGroup(harnessID: "codex", title: "Codex", models: [("fast", "Fast model")]),
             modelGroup(harnessID: "claude", title: "Claude", models: [("slow", "Slow model")])
         ]
-        let supportedEfforts: [ChatComposerActionRowView.MenuOption] = [.init(value: "low", title: "Low"), .init(value: "high", title: "High")]
-        let slowEfforts: [ChatComposerActionRowView.MenuOption] = [.init(value: "minimal", title: "Minimal"), .init(value: "ultra", title: "Ultra")]
+        let supportedEfforts: [ReasoningMenuOption] = [.init(value: "low", title: "Low"), .init(value: "high", title: "High")]
+        let slowEfforts: [ReasoningMenuOption] = [.init(value: "minimal", title: "Minimal"), .init(value: "ultra", title: "Ultra")]
         let unsupportedSelection = makeReasoningConfiguration(modelGroups: groups, effortOptions: slowEfforts, selectedHarness: "claude",
             selectedModel: "slow", selectedEffort: "ultra", selectedSpeedMode: .standard, supportsSpeedMode: false).selection
         let restoredSelection = makeReasoningConfiguration(modelGroups: groups, effortOptions: supportedEfforts, selectedHarness: "codex",
             selectedModel: "fast", selectedEffort: "low", selectedSpeedMode: .standard, supportsSpeedMode: true).selection
-        var displayedSelections: [ChatComposerActionRowView.ReasoningSelection] = []
+        var displayedSelections: [ReasoningSelection] = []
         var closeCount = 0
         let controller = ComposerReasoningMenuViewController(
             configuration: makeReasoningConfiguration(

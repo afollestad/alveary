@@ -312,9 +312,9 @@ final class ChatComposerActionRowTests: XCTestCase {
 
 func makeConfiguration(
     mode: ComposerMode,
-    harnessOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
-    modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
-    effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
+    harnessOptions: [ReasoningMenuOption] = [.init(value: "claude", title: "Claude Code")],
+    modelOptions: [ReasoningMenuOption] = [.init(value: "sonnet", title: "Sonnet")],
+    effortOptions: [ReasoningMenuOption] = [.init(value: "medium", title: "Medium")],
     selectedEffort: String = "medium",
     defaultEffort: String? = nil,
     supportedPermissionModes: [ChatComposerActionRowView.PermissionOptionPresentation] = [.init(value: "default", title: "Default")],
@@ -336,8 +336,8 @@ func makeConfiguration(
     taskWorkspace: ChatComposerActionRowView.TaskWorkspaceConfiguration? = nil,
     onEffortChange: @escaping (String) -> Bool = { _ in true },
     onSpeedChange: @escaping (AgentSpeedMode) -> Bool = { _ in true },
-    onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
-        -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected },
+    onModelChange: @escaping (ReasoningModelSelectionRequest)
+        -> ReasoningModelSelectionOutcome = { _ in .rejected },
     onSubmit: @escaping () -> Void = {},
     onStop: @escaping () -> Void = {},
     onAddPhotosAndFiles: @escaping () -> Void = {}
@@ -383,10 +383,10 @@ func makeConfiguration(
 }
 
 func makeReasoningConfiguration(
-    harnessOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
-    modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
-    modelGroups: [ChatComposerActionRowView.ReasoningModelGroup]? = nil,
-    effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
+    harnessOptions: [ReasoningMenuOption] = [.init(value: "claude", title: "Claude Code")],
+    modelOptions: [ReasoningMenuOption] = [.init(value: "sonnet", title: "Sonnet")],
+    modelGroups: [ReasoningModelGroup]? = nil,
+    effortOptions: [ReasoningMenuOption] = [.init(value: "medium", title: "Medium")],
     selectedHarness: String = "claude",
     selectedModel: String = "sonnet",
     selectedEffort: String = "medium",
@@ -395,15 +395,15 @@ func makeReasoningConfiguration(
     supportsSpeedMode: Bool = false,
     onEffortChange: @escaping (String) -> Bool = { _ in true },
     onSpeedChange: @escaping (AgentSpeedMode) -> Bool = { _ in true },
-    onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
-        -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected }
-) -> ChatComposerActionRowView.ReasoningConfiguration {
+    onModelChange: @escaping (ReasoningModelSelectionRequest)
+        -> ReasoningModelSelectionOutcome = { _ in .rejected }
+) -> ReasoningConfiguration {
     let resolvedModelGroups = modelGroups ?? harnessOptions.map { harness in
-        ChatComposerActionRowView.ReasoningModelGroup(
+        ReasoningModelGroup(
             harnessID: harness.value,
             harnessTitle: harness.title,
             options: modelOptions.map { model in
-                ChatComposerActionRowView.ReasoningModelOption(
+                ReasoningModelOption(
                     harnessID: harness.value,
                     value: model.value,
                     title: model.title
@@ -417,7 +417,7 @@ func makeReasoningConfiguration(
     let defaultEffortOption = defaultEffort.flatMap { defaultEffort in
         effortOptions.first { $0.value == defaultEffort }
     } ?? effortOptions.first
-    return ChatComposerActionRowView.ReasoningConfiguration(
+    return ReasoningConfiguration(
         selection: .init(
             harnessID: selectedGroup?.harnessID ?? selectedHarness,
             harnessTitle: selectedGroup?.harnessTitle ?? selectedHarness.capitalized,

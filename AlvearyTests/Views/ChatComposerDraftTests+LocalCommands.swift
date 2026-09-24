@@ -422,7 +422,7 @@ extension ChatComposerDraftTests {
         XCTAssertTrue(sentMessages.isEmpty)
     }
 
-    private var effortMenuOptions: [ChatComposerActionRowView.MenuOption] {
+    private var effortMenuOptions: [ReasoningMenuOption] {
         [
             .init(value: "low", title: "Low"),
             .init(value: "medium", title: "Medium"),

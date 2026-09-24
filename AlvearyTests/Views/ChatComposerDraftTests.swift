@@ -395,12 +395,12 @@ final class ChatComposerDraftTests: XCTestCase {
         supportsPlanMode: Bool = false,
         supportsSpeedMode: Bool = false,
         supportsLocalImageInput: Bool = false,
-        effortOptions: [ChatComposerActionRowView.MenuOption] = [],
+        effortOptions: [ReasoningMenuOption] = [],
         selectedEffort: String = AppSettings.defaultEffortLevel,
         onEffortChange: @escaping (String) -> Bool = { _ in true },
-        modelGroups: [ChatComposerActionRowView.ReasoningModelGroup]? = nil,
-        onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
-            -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected },
+        modelGroups: [ReasoningModelGroup]? = nil,
+        onModelChange: @escaping (ReasoningModelSelectionRequest)
+            -> ReasoningModelSelectionOutcome = { _ in .rejected },
         harnessID: String = "claude",
         settingsService: SettingsService? = nil,
         voiceInputService: (any VoiceInputService)? = nil,

@@ -321,10 +321,10 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
 
     private var actionRowConfiguration: ChatComposerActionRowView.Configuration {
         let modelOptions = AgentModelOptionTestFixtures.claudeModelOptions.map {
-            ChatComposerActionRowView.MenuOption(value: $0.id, title: $0.label)
+            ReasoningMenuOption(value: $0.id, title: $0.label)
         }
         let effortOptions = ["low", "medium", "high"].map {
-            ChatComposerActionRowView.MenuOption(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0))
+            ReasoningMenuOption(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0))
         }
         return ChatComposerActionRowView.Configuration(
             reasoning: makeReasoningConfiguration(

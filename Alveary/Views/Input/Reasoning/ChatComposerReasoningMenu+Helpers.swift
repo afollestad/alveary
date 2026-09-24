@@ -69,8 +69,8 @@ final class ComposerReasoningModelsSectionClipView: NSView {
     }
 }
 
-extension ChatComposerActionRowView.ReasoningSelection {
-    func updatingEffort(_ option: ChatComposerActionRowView.MenuOption) -> Self {
+extension ReasoningSelection {
+    func updatingEffort(_ option: ReasoningMenuOption) -> Self {
         Self(
             harnessID: harnessID,
             harnessTitle: harnessTitle,

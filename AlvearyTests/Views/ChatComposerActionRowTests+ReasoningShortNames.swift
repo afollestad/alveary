@@ -75,7 +75,7 @@ extension ChatComposerActionRowTests {
     }
 
     func testReasoningModelOptionDefaultsShortNameToItsValue() {
-        let option = ChatComposerActionRowView.ReasoningModelOption(
+        let option = ReasoningModelOption(
             harnessID: "claude",
             value: "opus",
             title: "Opus"

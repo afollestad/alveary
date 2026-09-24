@@ -32,11 +32,11 @@ final class ComposerReasoningMenuPresenter: NSObject {
     /// the menu to the opposite side of the anchor mid-interaction.
     private var presentedEdge: NSRectEdge = ComposerReasoningMenuPresenter.preferredEdge
 
-    private let onDisplaySelectionChanged: (ChatComposerActionRowView.ReasoningSelection?) -> Void
+    private let onDisplaySelectionChanged: (ReasoningSelection?) -> Void
     private let onClosed: () -> Void
 
     init(
-        onDisplaySelectionChanged: @escaping (ChatComposerActionRowView.ReasoningSelection?) -> Void,
+        onDisplaySelectionChanged: @escaping (ReasoningSelection?) -> Void,
         onClosed: @escaping () -> Void = {}
     ) {
         self.onDisplaySelectionChanged = onDisplaySelectionChanged
@@ -46,7 +46,7 @@ final class ComposerReasoningMenuPresenter: NSObject {
     var isShown: Bool { popover?.isShown == true }
 
     func toggle(
-        configuration: ChatComposerActionRowView.ReasoningConfiguration,
+        configuration: ReasoningConfiguration,
         anchorView: NSView,
         anchorRect: NSRect
     ) {
@@ -58,7 +58,7 @@ final class ComposerReasoningMenuPresenter: NSObject {
     }
 
     func present(
-        configuration: ChatComposerActionRowView.ReasoningConfiguration,
+        configuration: ReasoningConfiguration,
         anchorView: NSView,
         anchorRect: NSRect
     ) {
@@ -121,7 +121,7 @@ final class ComposerReasoningMenuPresenter: NSObject {
         controller?.focusModelList()
     }
 
-    func update(configuration: ChatComposerActionRowView.ReasoningConfiguration) {
+    func update(configuration: ReasoningConfiguration) {
         controller?.update(configuration: configuration)
     }
 

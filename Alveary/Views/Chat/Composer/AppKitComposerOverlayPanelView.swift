@@ -86,7 +86,7 @@ final class AppKitComposerOverlayPanelView: NSView {
             self?.accessoryButton.releaseMenuFocusIfNeeded()
         }
     )
-    var accessoryDisplaySelectionOverride: ChatComposerActionRowView.ReasoningSelection?
+    var accessoryDisplaySelectionOverride: ReasoningSelection?
     var rowViews: [AppKitComposerOverlayOptionRowView] = []
     var configuration: Configuration?
     private var lastMeasuredHeight: CGFloat = -1

@@ -105,7 +105,7 @@ enum ComposerReasoningMenuMetrics {
 
     @MainActor
     static func mainContentSize(
-        for configuration: ChatComposerActionRowView.ReasoningConfiguration,
+        for configuration: ReasoningConfiguration,
         isModelsExpanded: Bool = false
     ) -> NSSize {
         let sliderSectionHeight = configuration.selection.effortOptions.isEmpty
@@ -122,17 +122,17 @@ enum ComposerReasoningMenuMetrics {
     }
 
     @MainActor
-    static func modelsSectionHeight(groups: [ChatComposerActionRowView.ReasoningModelGroup]) -> CGFloat {
+    static func modelsSectionHeight(groups: [ReasoningModelGroup]) -> CGFloat {
         dividerSpacing + AppKitComposerPopoverDividerView.height + dividerSpacing + modelViewportHeight(groups: groups)
     }
 
     @MainActor
-    static func modelViewportHeight(groups: [ChatComposerActionRowView.ReasoningModelGroup]) -> CGFloat {
+    static func modelViewportHeight(groups: [ReasoningModelGroup]) -> CGFloat {
         min(maxModelHeight, modelDocumentHeight(groups: groups))
     }
 
     @MainActor
-    static func modelDocumentHeight(groups: [ChatComposerActionRowView.ReasoningModelGroup]) -> CGFloat {
+    static func modelDocumentHeight(groups: [ReasoningModelGroup]) -> CGFloat {
         let visibleGroups = groups.filter { !$0.options.isEmpty }
         let modelCount = max(1, visibleGroups.flatMap(\.options).count)
         let showsHarnessHeaders = visibleGroups.count > 1
