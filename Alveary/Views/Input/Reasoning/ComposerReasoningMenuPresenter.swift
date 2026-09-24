@@ -1,9 +1,9 @@
 @preconcurrency import AppKit
 
 /// Owns the reasoning popover's lifecycle so every surface that offers model/effort controls presents
-/// it identically. The composer action row and the `ExitPlanMode` overlay both host one of these; the
-/// mechanics — transient behavior, suppressed animation, one-time placement, anchor reuse on resize,
-/// close bookkeeping — must not drift between them.
+/// it identically. The composer action row, the `ExitPlanMode` overlay, and `SettingsAgentSelector` each
+/// host one of these; the mechanics — transient behavior, suppressed animation, one-time placement,
+/// anchor reuse on resize, close bookkeeping — must not drift between them.
 @MainActor
 final class ComposerReasoningMenuPresenter: NSObject {
     /// Composer hosts open the menu above their anchor, away from the window's bottom edge; a settings
