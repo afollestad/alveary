@@ -22,7 +22,7 @@ These instructions cover `Alveary/Views/Input/ActionRow/` — the settings and a
 
 Shared popover surface and divider chrome belongs to `Alveary/Views/Components/AppKit/AGENTS.md`.
 
-- **Every composer popover opens above its anchor; none open downward.** Derive the edge from the anchor's `isFlipped` through `ComposerReasoningMenuPresenter.upwardEdge(for:)`, whose doc comment owns the coordinate-space rule.
+- **Composer popovers open above their anchor.** Derive the edge from the anchor's `isFlipped` through `ComposerReasoningMenuPresenter.upwardEdge(for:)`, whose doc comment owns the coordinate-space rule. Only the reasoning popover may settle below, when too few model rows fit above; its presenter's `placement(preferring:anchorOnScreen:visibleFrame:minimumContentHeight:)` owns that.
 - **Menu-anchor buttons fire on mouse-up**; do not switch them to mouse-down activation (explicit user decision).
 - **Permission rows wrap subtitles to at most two lines**, measured per option by `ComposerPermissionMenuMetrics.rowHeight(for:)`, and always reserve the trailing icon slot so selection cannot change wrap width. Reasoning rows follow `Alveary/Views/Input/Reasoning/AGENTS.md`.
 

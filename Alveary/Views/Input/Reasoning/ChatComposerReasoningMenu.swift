@@ -21,6 +21,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
     private let smarterLabel = ComposerReasoningDragDirectionLabel(title: "Smarter")
     private(set) var isModelsExpanded: Bool
     private(set) var showsEffortDragDirections = false
+    private let maximumContentHeight: CGFloat?
     private var hasBuiltModelRows = false
 
     var hasActiveEffortInteraction: Bool { effortSlider.isTrackingInteraction }
@@ -36,6 +37,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
     init(
         configuration: ReasoningConfiguration,
         isModelsExpanded: Bool,
+        maximumContentHeight: CGFloat?,
         onEffortPreview: @escaping (Int) -> Void,
         onEffortCommit: @escaping (Int) -> Void,
         onEffortCancel: @escaping () -> Void,
@@ -48,6 +50,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
     ) {
         self.configuration = configuration
         self.isModelsExpanded = isModelsExpanded
+        self.maximumContentHeight = maximumContentHeight
         self.onEffortPreview = onEffortPreview
         self.onEffortCommit = onEffortCommit
         self.onEffortCancel = onEffortCancel
@@ -73,7 +76,8 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
             origin: .zero,
             size: ComposerReasoningMenuMetrics.mainContentSize(
                 for: configuration,
-                isModelsExpanded: isModelsExpanded
+                isModelsExpanded: isModelsExpanded,
+                maximumHeight: maximumContentHeight
             )
         ))
         setup()
@@ -96,7 +100,8 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
         configureControls(animatedDisclosure: false)
         frame.size = ComposerReasoningMenuMetrics.mainContentSize(
             for: configuration,
-            isModelsExpanded: isModelsExpanded
+            isModelsExpanded: isModelsExpanded,
+            maximumHeight: maximumContentHeight
         )
         needsLayout = true
     }
@@ -158,16 +163,19 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
             width: bounds.width - AppKitComposerPopoverDividerView.horizontalInset * 2,
             height: AppKitComposerPopoverDividerView.height
         )
+        let listY = ComposerReasoningMenuMetrics.dividerSpacing +
+            AppKitComposerPopoverDividerView.height +
+            ComposerReasoningMenuMetrics.dividerSpacing
+        let viewportHeight = ComposerReasoningMenuMetrics.modelViewportHeight(
+            groups: configuration.modelGroups,
+            showsInheritRow: showsInheritRow
+        )
         modelList.frame = NSRect(
             x: 0,
-            y: ComposerReasoningMenuMetrics.dividerSpacing +
-                AppKitComposerPopoverDividerView.height +
-                ComposerReasoningMenuMetrics.dividerSpacing,
+            y: listY,
             width: bounds.width,
-            height: ComposerReasoningMenuMetrics.modelViewportHeight(
-                groups: configuration.modelGroups,
-                showsInheritRow: showsInheritRow
-            )
+            // A height-capped popover leaves less than the full viewport; the list scrolls within what is visible.
+            height: isModelsExpanded ? min(viewportHeight, max(0, visibleSectionHeight - listY)) : viewportHeight
         )
     }
 

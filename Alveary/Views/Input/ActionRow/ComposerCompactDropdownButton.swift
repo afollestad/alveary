@@ -2,6 +2,13 @@ import AppKit
 
 @MainActor
 class ComposerCompactDropdownButton: NSView {
+    /// `composer` stays bare until hovered. `field` sits among settings menu pickers, so it keeps their resting
+    /// fill and deepens it on interaction instead.
+    enum ChromeStyle {
+        case composer
+        case field
+    }
+
     var actionHandler: (() -> Void)?
     /// Lets a host claim keys the dropdown does not act on itself, so a panel that owns Tab, Esc, and
     /// arrow navigation keeps them when one of its dropdowns holds focus. Returns `true` when handled.
@@ -19,6 +26,7 @@ class ComposerCompactDropdownButton: NSView {
     var reservesTrailingSlot: Bool { true }
     var drawsChevron: Bool { true }
     var measuredContentWidth: CGFloat { 0 }
+    var chromeStyle: ChromeStyle { .composer }
     var chevronColor: NSColor {
         NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: controlIsEnabled ? 0.72 : 0.18)
     }
@@ -242,7 +250,7 @@ class ComposerCompactDropdownButton: NSView {
     }
 
     private func drawChrome() {
-        NSColor.labelColor.appKitResolvedColor(in: self, alpha: backgroundAlpha).setFill()
+        chromeFillColor.setFill()
         let path = NSBezierPath(roundedRect: bounds, xRadius: AppCornerRadius.standard, yRadius: AppCornerRadius.standard)
         path.fill()
         if window?.firstResponder === self, controlIsEnabled {
@@ -252,17 +260,38 @@ class ComposerCompactDropdownButton: NSView {
         }
     }
 
-    private var backgroundAlpha: CGFloat {
+    private var chromeFillColor: NSColor {
+        switch chromeStyle {
+        case .composer:
+            let alpha: CGFloat = switch interactionState {
+            case .resting: 0
+            case .highlighted: 0.13
+            case .pressed: 0.18
+            }
+            return NSColor.labelColor.appKitResolvedColor(in: self, alpha: alpha)
+        case .field:
+            let opacity = switch interactionState {
+            case .resting: AppInputStyle.menuBackgroundOpacity
+            case .highlighted: AppInputStyle.menuHoverBackgroundOpacity
+            case .pressed: AppInputStyle.menuPressedBackgroundOpacity
+            }
+            // Scales the system color's own alpha, as `AppInputStyle.menuBackgroundColor` does.
+            let base = NSColor.secondaryLabelColor.resolved(for: appKitRenderingAppearance)
+            return base.withAlphaComponent(base.alphaComponent * opacity)
+        }
+    }
+
+    private var interactionState: InteractionState {
         guard controlIsEnabled else {
-            return 0
+            return .resting
         }
         if isPressed {
-            return 0.18
+            return .pressed
         }
         if isHovering || window?.firstResponder === self {
-            return 0.13
+            return .highlighted
         }
-        return 0
+        return .resting
     }
 
     private func drawChevron() {
@@ -288,4 +317,10 @@ class ComposerCompactDropdownButton: NSView {
     #if DEBUG
     var debugChevronColor: NSColor { chevronColor }
     #endif
+
+    private enum InteractionState {
+        case resting
+        case highlighted
+        case pressed
+    }
 }

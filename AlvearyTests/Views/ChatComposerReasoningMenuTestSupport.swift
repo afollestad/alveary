@@ -6,11 +6,16 @@ import XCTest
 @MainActor
 extension ChatComposerReasoningMenuLayoutTests {
     func groupedController(
-        groups: [ReasoningModelGroup]
+        groups: [ReasoningModelGroup],
+        maximumContentHeight: CGFloat? = nil
     ) -> ComposerReasoningMenuViewController {
         var configuration = makeReasoningConfiguration()
         configuration.modelGroups = groups
-        let controller = ComposerReasoningMenuViewController(configuration: configuration, onRequestCloseMainMenu: {})
+        let controller = ComposerReasoningMenuViewController(
+            configuration: configuration,
+            maximumContentHeight: maximumContentHeight,
+            onRequestCloseMainMenu: {}
+        )
         controller.loadViewIfNeeded()
         return controller
     }

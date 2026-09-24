@@ -23,8 +23,9 @@ struct ReasoningSelection: Equatable {
         harnessID == "opencode" && modelID == AppSettings.defaultModelValue ? "OpenCode default" : modelTitle
     }
 
-    var accessibilityValue: String {
-        let reasoningValue = effortOptions.isEmpty ? compactModelTitle : "\(compactModelTitle), \(effortTitle)"
+    /// `displayedTitle` is the button's model-slot text, which a host may replace.
+    func accessibilityValue(displayedTitle: String) -> String {
+        let reasoningValue = effortOptions.isEmpty ? displayedTitle : "\(displayedTitle), \(effortTitle)"
         guard supportsSpeedMode, speedMode == .fast else {
             return reasoningValue
         }

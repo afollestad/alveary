@@ -57,6 +57,10 @@ final class ComposerReasoningHeaderView: NSTextField {
 enum ComposerReasoningMenuMetrics {
     static let width: CGFloat = 260
     static let maxModelHeight: CGFloat = 360
+    /// The fewest model rows worth keeping a popover on its preferred side for.
+    static let minimumModelViewportHeight: CGFloat = rowHeight * 3
+    /// Screen room a shown popover needs beyond its content: AppKit's arrow and chrome take 26pt, plus an edge margin.
+    static let popoverScreenAllowance: CGFloat = 34
     static let disclosureAnimationDuration: TimeInterval = 0.16
     static let horizontalInset: CGFloat = 6
     static let topInset: CGFloat = 14
@@ -103,24 +107,30 @@ enum ComposerReasoningMenuMetrics {
         return style
     }
 
+    /// `maximumHeight` shrinks only the expanded model viewport, which scrolls; the controls above it never clip.
     @MainActor
     static func mainContentSize(
         for configuration: ReasoningConfiguration,
-        isModelsExpanded: Bool = false
+        isModelsExpanded: Bool = false,
+        maximumHeight: CGFloat? = nil
     ) -> NSSize {
         let sliderSectionHeight = configuration.selection.effortOptions.isEmpty
             ? 0
             : sliderHeight + sliderBottomSpacing
+        let collapsedHeight = topInset + bottomInset + sliderSectionHeight + controlsHeight
         let expandedHeight = isModelsExpanded
             ? modelsSectionHeight(groups: configuration.modelGroups, showsInheritRow: configuration.inheritChoice != nil)
             : 0
-        return NSSize(
-            width: width,
-            height: topInset + bottomInset +
-                sliderSectionHeight +
-                controlsHeight +
-                expandedHeight
-        )
+        let height = collapsedHeight + expandedHeight
+        return NSSize(width: width, height: maximumHeight.map { max(collapsedHeight, min(height, $0)) } ?? height)
+    }
+
+    /// The shortest expanded popover worth showing: its controls plus a few model rows.
+    @MainActor
+    static func minimumExpandedContentHeight(for configuration: ReasoningConfiguration) -> CGFloat {
+        let viewportHeight = modelViewportHeight(groups: configuration.modelGroups, showsInheritRow: configuration.inheritChoice != nil)
+        return mainContentSize(for: configuration, isModelsExpanded: true).height - viewportHeight
+            + min(viewportHeight, minimumModelViewportHeight)
     }
 
     @MainActor

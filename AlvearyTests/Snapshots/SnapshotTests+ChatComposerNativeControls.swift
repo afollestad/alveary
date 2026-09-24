@@ -41,6 +41,23 @@ extension SnapshotTests {
         )
     }
 
+    func testReasoningButtonSettingsFieldStates() {
+        assertMacSnapshot(
+            reasoningButtonSettingsFieldStates,
+            size: CGSize(width: 580, height: 196),
+            named: "reasoning_button_settings_field_states"
+        )
+    }
+
+    func testReasoningButtonSettingsFieldStatesDark() {
+        assertMacSnapshot(
+            reasoningButtonSettingsFieldStates,
+            size: CGSize(width: 580, height: 196),
+            named: "reasoning_button_settings_field_states_dark",
+            colorScheme: .dark
+        )
+    }
+
     private var nativeActionControlInteractionStates: some View {
         HStack(spacing: 16) {
             ComposerReasoningButtonSnapshot(state: .hovered)
@@ -69,6 +86,35 @@ extension SnapshotTests {
                 .frame(width: 140, height: 24)
             ComposerWorktreeLocationButtonSnapshot(useWorktree: true, state: .pressed)
                 .frame(width: 150, height: 24)
+        }
+        .padding(20)
+    }
+
+    /// Leads with a `SettingsMenuPicker` so the field chrome can be compared against the pickers it sits beside.
+    private var reasoningButtonSettingsFieldStates: some View {
+        let width: CGFloat = 260
+        let height = SettingsScreenLayout.settingsControlSurfaceHeight
+        return HStack(alignment: .top, spacing: 20) {
+            VStack(spacing: 12) {
+                SettingsMenuPicker("Model", selection: .constant("Claude · Opus 5.5"), options: ["Claude · Opus 5.5"]) { $0 }
+                    .frame(width: width)
+                ReasoningSettingsFieldSnapshot()
+                    .frame(width: width, height: height)
+                ReasoningSettingsFieldSnapshot(state: .hovered)
+                    .frame(width: width, height: height)
+                ReasoningSettingsFieldSnapshot(state: .pressed)
+                    .frame(width: width, height: height)
+            }
+            VStack(spacing: 12) {
+                ReasoningSettingsFieldSnapshot(title: "Default (Claude · Opus 5.5)")
+                    .frame(width: width, height: height)
+                ReasoningSettingsFieldSnapshot(title: "Default (Codex · GPT-5.3-Codex-Spark-Extended-Context)")
+                    .frame(width: width, height: height)
+                ReasoningSettingsFieldSnapshot(title: "Checking harnesses…", effortTitle: nil, isEnabled: false, showsProgress: true)
+                    .frame(width: width, height: height)
+                ReasoningSettingsFieldSnapshot(title: "No harnesses available", effortTitle: nil, isEnabled: false)
+                    .frame(width: width, height: height)
+            }
         }
         .padding(20)
     }
@@ -220,6 +266,68 @@ private struct ReasoningButtonTruncationSnapshot: NSViewRepresentable {
             actionHandler: {}
         )
         view.mouseEntered(with: Self.event)
+    }
+
+    private static var event: NSEvent {
+        NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) ?? NSEvent()
+    }
+}
+
+private struct ReasoningSettingsFieldSnapshot: NSViewRepresentable {
+    var title = "Claude · Opus 5.5"
+    var effortTitle: String? = "Max"
+    var state: ComposerControlSnapshotState = .idle
+    var isEnabled = true
+    var showsProgress = false
+
+    func makeNSView(context: Context) -> ComposerReasoningButton {
+        let view = ComposerReasoningButton(presentation: .settingsField)
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: ComposerReasoningButton, context: Context) {
+        configure(view)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: ComposerReasoningButton, context: Context) -> CGSize? {
+        CGSize(
+            width: proposal.width ?? nsView.intrinsicContentSize.width,
+            height: SettingsScreenLayout.settingsControlSurfaceHeight
+        )
+    }
+
+    private func configure(_ view: ComposerReasoningButton) {
+        view.configure(
+            selection: makeReasoningConfiguration(
+                effortOptions: effortTitle.map { [.init(value: "max", title: $0)] } ?? [],
+                selectedEffort: "max"
+            ).selection,
+            title: title,
+            height: SettingsScreenLayout.settingsControlSurfaceHeight,
+            isEnabled: isEnabled,
+            showsProgress: showsProgress,
+            actionHandler: {}
+        )
+        switch state {
+        case .idle:
+            break
+        case .hovered:
+            view.mouseEntered(with: Self.event)
+        case .pressed:
+            view.mouseEntered(with: Self.event)
+            view.mouseDown(with: Self.event)
+        }
     }
 
     private static var event: NSEvent {

@@ -7,13 +7,17 @@ final class ComposerReasoningMenuViewController: NSViewController {
     private let onDisplaySelectionChanged: (ReasoningSelection?) -> Void
     private let onContentSizeChanged: (NSSize) -> Void
     private let reducesMotion: () -> Bool
+    private let maximumContentHeight: CGFloat?
     private var menuView: ComposerReasoningMenuView?
     private var previewSelection: ReasoningSelection?
     private var hasDisplaySelectionOverride = false
     private(set) var isModelsExpanded = false
 
+    /// `maximumContentHeight` is the screen room on the popover's side, so an expanded model list scrolls within it
+    /// instead of AppKit moving the popover to the anchor's other side.
     init(
         configuration: ReasoningConfiguration,
+        maximumContentHeight: CGFloat? = nil,
         onRequestCloseMainMenu: @escaping () -> Void,
         onDisplaySelectionChanged: @escaping (ReasoningSelection?) -> Void = { _ in },
         onContentSizeChanged: @escaping (NSSize) -> Void = { _ in },
@@ -24,9 +28,10 @@ final class ComposerReasoningMenuViewController: NSViewController {
         self.onDisplaySelectionChanged = onDisplaySelectionChanged
         self.onContentSizeChanged = onContentSizeChanged
         self.reducesMotion = reducesMotion
+        self.maximumContentHeight = maximumContentHeight
         isModelsExpanded = configuration.showsOnlyModels
         super.init(nibName: nil, bundle: nil)
-        preferredContentSize = ComposerReasoningMenuMetrics.mainContentSize(for: configuration, isModelsExpanded: isModelsExpanded)
+        preferredContentSize = fittedContentSize
     }
 
     required init?(coder: NSCoder) {
@@ -37,6 +42,7 @@ final class ComposerReasoningMenuViewController: NSViewController {
         let menuView = ComposerReasoningMenuView(
             configuration: configuration,
             isModelsExpanded: isModelsExpanded,
+            maximumContentHeight: maximumContentHeight,
             onEffortPreview: { [weak self] in self?.previewEffort(at: $0) },
             onEffortCommit: { [weak self] in self?.commitEffort(at: $0) },
             onEffortCancel: { [weak self] in self?.cancelEffortPreview(requestClose: true) },
@@ -187,8 +193,16 @@ final class ComposerReasoningMenuViewController: NSViewController {
         onRequestCloseMainMenu()
     }
 
+    private var fittedContentSize: NSSize {
+        ComposerReasoningMenuMetrics.mainContentSize(
+            for: configuration,
+            isModelsExpanded: isModelsExpanded,
+            maximumHeight: maximumContentHeight
+        )
+    }
+
     private func applyContentSize() {
-        let size = ComposerReasoningMenuMetrics.mainContentSize(for: configuration, isModelsExpanded: isModelsExpanded)
+        let size = fittedContentSize
         guard preferredContentSize != size else {
             menuView?.frame.size = size
             menuView?.needsLayout = true

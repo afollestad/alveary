@@ -319,6 +319,9 @@ enum AppInputStyle {
     static let backgroundOpacity: CGFloat = 0.08
     static let borderOpacity: CGFloat = 0.2
     static let menuBackgroundOpacity: CGFloat = 0.14
+    /// AppKit menu fields deepen the resting fill on interaction rather than overlaying a separate highlight.
+    static let menuHoverBackgroundOpacity: CGFloat = 0.2
+    static let menuPressedBackgroundOpacity: CGFloat = 0.26
 
     static let backgroundColor = Color.secondary.opacity(backgroundOpacity)
     static let borderColor = Color.secondary.opacity(borderOpacity)

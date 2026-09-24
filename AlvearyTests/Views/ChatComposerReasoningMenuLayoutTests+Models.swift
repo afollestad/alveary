@@ -451,4 +451,21 @@ extension ChatComposerReasoningMenuLayoutTests {
         XCTAssertEqual(try XCTUnwrap(controller.debugEffortSlider).frame.minY, ComposerReasoningMenuMetrics.topInset)
     }
 
+    func testHeightCapShrinksOnlyTheScrollingModelList() throws {
+        let models = (0 ..< 30).map { ("model-\($0)", "Model \($0)") }
+        let controller = groupedController(groups: [modelGroup(harnessID: "claude", title: "Claude", models: models)], maximumContentHeight: 300)
+        let collapsedHeight = controller.preferredContentSize.height
+        controller.setModelsExpanded(true)
+        controller.view.layoutSubtreeIfNeeded()
+
+        let list = try XCTUnwrap(controller.debugModelList)
+        let section = try XCTUnwrap(controller.debugModelsSection)
+        XCTAssertEqual(controller.preferredContentSize.height, 300)
+        XCTAssertEqual(section.convert(list.frame, to: controller.view).maxY, section.frame.maxY, accuracy: 0.5)
+        XCTAssertGreaterThan(list.debugDocumentHeight, list.frame.height)
+        XCTAssertEqual(try XCTUnwrap(controller.debugEffortSlider).frame.minY, ComposerReasoningMenuMetrics.topInset)
+
+        controller.setModelsExpanded(false)
+        XCTAssertEqual(controller.preferredContentSize.height, collapsedHeight)
+    }
 }

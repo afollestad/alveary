@@ -12,7 +12,9 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     private static let textFieldFittingReserve: CGFloat = 2
     private static let fastIconSymbolName = "bolt.fill"
 
+    private(set) var presentation: Presentation = .composer
     private var selection: ReasoningSelection?
+    private var titleOverride: String?
     private var showsProgress = false
     private var isModelTitleTruncated = false
     private let fastIconView = NSImageView()
@@ -21,9 +23,16 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     private let chevronView = NSImageView()
     private let progressIndicator = NSProgressIndicator()
 
-    override var minimumDropdownWidth: CGFloat { Self.minWidth }
-    override var maximumDropdownWidth: CGFloat { Self.maxWidth }
-    override var chevronMaxSize: CGFloat { Self.caretMaximumSize }
+    override var minimumDropdownWidth: CGFloat { presentation.minimumWidth }
+    override var maximumDropdownWidth: CGFloat { presentation.maximumWidth }
+    override var horizontalPadding: CGFloat {
+        presentation == .settingsField ? AppInputStyle.menuHorizontalPadding : super.horizontalPadding
+    }
+    override var chevronMaxSize: CGFloat { presentation.chevronPointSize }
+    override var chromeStyle: ChromeStyle { presentation.chromeStyle }
+    override var chevronColor: NSColor {
+        presentation == .settingsField ? textColor(.labelColor, composerAlpha: reasoningTextAlpha) : super.chevronColor
+    }
     override var reservesTrailingSlot: Bool { false }
     override var drawsChevron: Bool { false }
     override var measuredContentWidth: CGFloat { measuredSpeedIconWidth + measuredLabelWidth }
@@ -38,17 +47,27 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         setupReasoningButton()
     }
 
+    convenience init(presentation: Presentation) {
+        self.init(frame: .zero)
+        self.presentation = presentation
+        modelLabel.font = modelFont
+        updateContentPresentation()
+    }
+
+    /// `title` replaces the selection's model title, for hosts whose label names more than the model.
     func configure(
         selection: ReasoningSelection,
+        title: String? = nil,
         height: CGFloat,
         isEnabled: Bool,
         showsProgress: Bool,
         actionHandler: @escaping () -> Void
     ) {
         self.selection = selection
+        titleOverride = title
         self.showsProgress = showsProgress
         configureBase(height: height, isEnabled: isEnabled, actionHandler: actionHandler)
-        setAccessibilityValue(selection.accessibilityValue)
+        setAccessibilityValue(selection.accessibilityValue(displayedTitle: displayedTitle))
         updateContentPresentation()
         updateProgressIndicator()
     }
@@ -117,13 +136,17 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         updateContentPresentation()
     }
 
+    private var displayedTitle: String {
+        titleOverride ?? selection?.compactModelTitle ?? ""
+    }
+
     private var measuredLabelWidth: CGFloat {
         guard let selection else {
             return 0
         }
-        let modelWidth = textWidth(selection.compactModelTitle, attributes: [.font: modelFont])
-        let trailingWidth = max(Self.progressIndicatorSize, chevronDrawingWidth)
-        let trailingSpacing = Self.caretTextSpacing + trailingWidth
+        let modelWidth = textWidth(displayedTitle, attributes: [.font: modelFont])
+        let trailingWidth = max(Self.progressIndicatorSize, chevronSlotSize.width)
+        let trailingSpacing = presentation.accessorySpacing + trailingWidth
         guard !selection.effortOptions.isEmpty else {
             return modelWidth + trailingSpacing
         }
@@ -189,11 +212,11 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
             return
         }
         modelLabel.isHidden = false
-        modelLabel.stringValue = selection.compactModelTitle
-        modelLabel.textColor = NSColor.labelColor.appKitResolvedColor(in: self, alpha: reasoningTextAlpha)
+        modelLabel.stringValue = displayedTitle
+        modelLabel.textColor = textColor(.labelColor, composerAlpha: reasoningTextAlpha)
         effortLabel.isHidden = selection.effortOptions.isEmpty
         effortLabel.stringValue = selection.effortTitle
-        effortLabel.textColor = NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: reasoningSubtleTextAlpha)
+        effortLabel.textColor = textColor(.secondaryLabelColor, composerAlpha: reasoningSubtleTextAlpha)
         fastIconView.isHidden = !showsFastIcon
         fastIconView.image = fastIconImage()
         chevronView.isHidden = showsProgress
@@ -208,20 +231,20 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         }
 
         let contentRect = contentRowRect
-        let trailingWidth = showsProgress ? Self.progressIndicatorSize : chevronDrawingWidth
+        let trailingWidth = showsProgress ? Self.progressIndicatorSize : chevronSlotSize.width
         let naturalEffortWidth = selection.effortOptions.isEmpty
             ? 0
             : textWidth(selection.effortTitle, attributes: [.font: effortFont])
-        let modelStartX = modelLeadingX(in: contentRect)
+        let modelStartX = modelLeadingX(in: contentRect) + presentation.titleLeadingOffset
         let effortSpacing = selection.effortOptions.isEmpty ? 0 : Self.modelEffortSpacing
-        let fixedTrailingWidth = naturalEffortWidth + effortSpacing + Self.caretTextSpacing + trailingWidth
+        let fixedTrailingWidth = naturalEffortWidth + effortSpacing + presentation.accessorySpacing + trailingWidth
         let modelMaxWidth = max(0, contentRect.maxX - modelStartX - fixedTrailingWidth)
-        let displayedModelTitle = displayedModelTitle(for: selection.compactModelTitle, maxWidth: modelMaxWidth)
+        let displayedModelTitle = displayedModelTitle(for: displayedTitle, maxWidth: modelMaxWidth)
         let modelWidth = textWidth(displayedModelTitle, attributes: [.font: modelFont])
         var nextX = modelStartX
 
         modelLabel.stringValue = displayedModelTitle
-        isModelTitleTruncated = displayedModelTitle != selection.compactModelTitle
+        isModelTitleTruncated = displayedModelTitle != displayedTitle
         modelLabel.frame = centeredFrame(
             originX: nextX,
             width: modelWidth,
@@ -238,7 +261,10 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
             contentRect: contentRect
         )
 
-        layoutTrailingAccessory(at: nextX + Self.caretTextSpacing, width: trailingWidth, in: contentRect)
+        let accessoryX = presentation.pinsTrailingAccessory
+            ? contentRect.maxX - trailingWidth
+            : nextX + presentation.accessorySpacing
+        layoutTrailingAccessory(at: accessoryX, width: trailingWidth, in: contentRect)
     }
 
     private var contentRowRect: NSRect {
@@ -294,7 +320,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
             chevronView.frame = centeredFrame(
                 originX: originX,
                 width: width,
-                height: chevronMaxSize,
+                height: chevronSlotSize.height,
                 in: contentRect
             )
             progressIndicator.frame = .zero
@@ -340,14 +366,24 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     }
 
     private func chevronImage() -> NSImage? {
-        symbolImage(named: "chevron.down", pointSize: chevronMaxSize, color: chevronColor)
+        symbolImage(
+            named: presentation.chevronSymbolName,
+            pointSize: chevronMaxSize,
+            color: chevronColor,
+            weight: presentation.chevronWeight
+        )
     }
 
-    private var chevronDrawingWidth: CGFloat {
+    /// The field draws its chevron at natural size, matching `SettingsMenuPicker`'s glyph; the composer fits it
+    /// inside a `chevronMaxSize` square.
+    private var chevronSlotSize: NSSize {
         guard let image = chevronImage() else {
-            return chevronMaxSize
+            return NSSize(width: chevronMaxSize, height: chevronMaxSize)
         }
-        return symbolDrawingSize(for: image, maxSize: chevronMaxSize).width
+        guard presentation == .composer else {
+            return image.size
+        }
+        return NSSize(width: symbolDrawingSize(for: image, maxSize: chevronMaxSize).width, height: chevronMaxSize)
     }
 
     private func textHeight(for label: NSTextField) -> CGFloat {
@@ -364,7 +400,48 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         )
     }
 
-    private func displayedModelTitle(for title: String, maxWidth: CGFloat) -> String {
+    private var modelFont: NSFont {
+        let font = NSFont.preferredFont(forTextStyle: .body)
+        guard presentation == .composer else {
+            return font
+        }
+        return NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
+    }
+
+    private var effortFont: NSFont {
+        NSFont.preferredFont(forTextStyle: .body)
+    }
+
+    /// The field keeps the system's own label alphas, matching `SettingsMenuPicker`; the composer sets its own.
+    private func textColor(_ color: NSColor, composerAlpha: CGFloat) -> NSColor {
+        guard presentation == .settingsField, controlIsEnabled || showsProgress else {
+            return color.appKitResolvedColor(in: self, alpha: composerAlpha)
+        }
+        return color.resolved(for: appKitRenderingAppearance)
+    }
+
+    private var reasoningTextAlpha: CGFloat {
+        controlIsEnabled || showsProgress ? 0.9 : 0.26
+    }
+
+    private var reasoningSubtleTextAlpha: CGFloat {
+        controlIsEnabled || showsProgress ? 0.62 : 0.22
+    }
+
+    private func updateProgressIndicator() {
+        progressIndicator.isHidden = !showsProgress
+        if showsProgress {
+            progressIndicator.startAnimation(nil)
+        } else {
+            progressIndicator.stopAnimation(nil)
+        }
+        chevronView.isHidden = showsProgress
+        needsLayout = true
+    }
+}
+
+private extension ComposerReasoningButton {
+    func displayedModelTitle(for title: String, maxWidth: CGFloat) -> String {
         guard maxWidth >= minimumVisibleModelWidth else {
             return ""
         }
@@ -389,45 +466,18 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         return bestFit
     }
 
-    private var minimumVisibleModelWidth: CGFloat {
+    var minimumVisibleModelWidth: CGFloat {
         textWidth("…", attributes: [.font: modelFont])
     }
 
-    private func textWidth(_ text: String, attributes: [NSAttributedString.Key: Any]) -> CGFloat {
+    func textWidth(_ text: String, attributes: [NSAttributedString.Key: Any]) -> CGFloat {
         guard !text.isEmpty else {
             return 0
         }
         return ceil(textSize(text, attributes: attributes).width + Self.textFieldFittingReserve)
     }
 
-    private func textSize(_ text: String, attributes: [NSAttributedString.Key: Any]) -> NSSize {
+    func textSize(_ text: String, attributes: [NSAttributedString.Key: Any]) -> NSSize {
         (text as NSString).size(withAttributes: attributes)
-    }
-
-    private var modelFont: NSFont {
-        NSFontManager.shared.convert(NSFont.preferredFont(forTextStyle: .body), toHaveTrait: .boldFontMask)
-    }
-
-    private var effortFont: NSFont {
-        NSFont.preferredFont(forTextStyle: .body)
-    }
-
-    private var reasoningTextAlpha: CGFloat {
-        controlIsEnabled || showsProgress ? 0.9 : 0.26
-    }
-
-    private var reasoningSubtleTextAlpha: CGFloat {
-        controlIsEnabled || showsProgress ? 0.62 : 0.22
-    }
-
-    private func updateProgressIndicator() {
-        progressIndicator.isHidden = !showsProgress
-        if showsProgress {
-            progressIndicator.startAnimation(nil)
-        } else {
-            progressIndicator.stopAnimation(nil)
-        }
-        chevronView.isHidden = showsProgress
-        needsLayout = true
     }
 }
