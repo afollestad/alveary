@@ -25,6 +25,9 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
     let bottomSpacerView = NSView()
     private var rows: [AppKitTranscriptLayoutRow] = []
     private var rowFramesByID: [String: CGRect] = [:]
+    /// The same frames in row order. Rows stack top to bottom, so `minY` and `maxY` are both
+    /// monotonic and every viewport query is a binary search instead of a walk over the transcript.
+    private var orderedRowFrames: [AppKitTranscriptOrderedRowFrame] = []
     private var measuredHeightsByRowID: [String: RowHeightMeasurement] = [:]
     private var dirtyRowIDs: Set<String> = []
     private var lastContentWidth: CGFloat?
@@ -42,7 +45,7 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
 
     override var isFlipped: Bool { true }
 
-    var scrollableContentBottomY: CGFloat { rowFramesByID.values.map(\.maxY).max() ?? 0 }
+    var scrollableContentBottomY: CGFloat { orderedRowFrames.last?.frame.maxY ?? 0 }
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         addSubview(bottomSpacerView)
@@ -71,6 +74,8 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
         self.rows = rows
         let liveRowIDs = Set(rows.map(\.id))
         dirtyRowIDs.formIntersection(liveRowIDs)
+        // Frames of removed rows must not answer viewport queries before the next layout.
+        orderedRowFrames.removeAll { !liveRowIDs.contains($0.id) }
         measuredHeightsByRowID = measuredHeightsByRowID.filter { rowID, measurement in
             incomingKeySet.contains(RowCacheKey(id: rowID, viewID: measurement.viewID))
         }
@@ -101,12 +106,15 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
             }
             return
         }
+        let signpost = AppKitTranscriptSignposts.begin("layoutRows")
+        defer { AppKitTranscriptSignposts.end(signpost) }
         if lastContentWidth.map({ abs($0 - contentWidth) > 0.5 }) ?? true {
             markAllRowHeightsDirty()
             lastContentWidth = contentWidth
         }
         let previousFramesByID = rowFramesByID
         rowFramesByID = [:]
+        orderedRowFrames.removeAll(keepingCapacity: true)
         let shouldAnimate = shouldAnimateNextLayoutChange && window != nil
         shouldAnimateNextLayoutChange = false
         let measuredLayout = measuredRowLayout(contentWidth: contentWidth, previousFramesByID: previousFramesByID)
@@ -155,10 +163,8 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
     @discardableResult
     func hydrateRows(intersecting hydrationRect: CGRect) -> Int {
         var hydratedCount = 0
-        for row in rows {
-            guard let rowFrame = rowFramesByID[row.id],
-                  rowFrame.intersects(hydrationRect),
-                  let hydratableRow = row.view as? AppKitTranscriptViewportHydratable,
+        for rowFrame in rowFrames(intersecting: hydrationRect) {
+            guard let hydratableRow = rowFrame.view as? AppKitTranscriptViewportHydratable,
                   !hydratableRow.isTranscriptViewportHydrated
             else {
                 continue
@@ -169,13 +175,41 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
         return hydratedCount
     }
 
+    /// Laid-out rows whose frames intersect `rect`, in row order.
+    func rowFrames(intersecting rect: CGRect) -> [AppKitTranscriptOrderedRowFrame] {
+        let start = firstOrderedRowIndex(withMaxYAtOrAbove: rect.minY)
+        guard start < orderedRowFrames.count else {
+            return []
+        }
+        var end = start
+        while end < orderedRowFrames.count, orderedRowFrames[end].frame.minY <= rect.maxY {
+            end += 1
+        }
+        // Zero-height rows sit inside the range without intersecting; keep the exact test.
+        return orderedRowFrames[start..<end].filter { $0.frame.intersects(rect) }
+    }
+
     func firstRow(atOrBelow offsetY: CGFloat) -> (id: String, frame: CGRect)? {
-        rows.lazy.compactMap { row -> (id: String, frame: CGRect)? in
-            guard let frame = self.rowFramesByID[row.id], frame.maxY >= offsetY else {
-                return nil
+        let index = firstOrderedRowIndex(withMaxYAtOrAbove: offsetY)
+        guard index < orderedRowFrames.count else {
+            return nil
+        }
+        let rowFrame = orderedRowFrames[index]
+        return (rowFrame.id, rowFrame.frame)
+    }
+
+    private func firstOrderedRowIndex(withMaxYAtOrAbove offsetY: CGFloat) -> Int {
+        var low = 0
+        var high = orderedRowFrames.count
+        while low < high {
+            let middle = (low + high) / 2
+            if orderedRowFrames[middle].frame.maxY >= offsetY {
+                high = middle
+            } else {
+                low = middle + 1
             }
-            return (row.id, frame)
-        }.first
+        }
+        return low
     }
 
     private func measuredHeight(
@@ -224,6 +258,7 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
             let rowFrame = CGRect(x: transcriptScrollLeadingInset, y: currentY, width: contentWidth, height: rowHeight)
             frameUpdates.append(RowFrameUpdate(view: row.view, frame: rowFrame, previousFrame: previousFramesByID[row.id]))
             rowFramesByID[row.id] = rowFrame
+            orderedRowFrames.append(AppKitTranscriptOrderedRowFrame(id: row.id, view: row.view, frame: rowFrame))
             currentY += rowHeight + rowSpacing
         }
         if !rows.isEmpty {
@@ -248,4 +283,10 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
         let documentSizeChanged = abs(frame.height - documentHeight) > 0.5 || abs(frame.width - documentWidth) > 0.5
         return frameChanged || documentSizeChanged
     }
+}
+
+struct AppKitTranscriptOrderedRowFrame {
+    let id: String
+    let view: NSView
+    let frame: CGRect
 }

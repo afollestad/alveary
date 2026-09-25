@@ -12,9 +12,12 @@ struct AppKitTranscriptPreparedUpdate {
     let scrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
 
     var contentSignature: ContentSignature {
-        ContentSignature(
+        ContentSignature(persisted: persistedSignature, transientRows: transientRows)
+    }
+
+    private var persistedSignature: PersistedSignature {
+        PersistedSignature(
             items: items,
-            transientRows: transientRows,
             bubbleMaxWidth: rowConfiguration.bubbleMaxWidth,
             typography: rowConfiguration.typography,
             markdownBaseURL: rowConfiguration.markdownBaseURL,
@@ -111,9 +114,17 @@ struct AppKitTranscriptPreparedUpdate {
         }, uniquingKeysWith: { _, latest in latest })
     }
 
+    /// Split so the coordinator can tell a streaming flush from a transcript change: equal
+    /// `persisted` halves mean every installed persisted row and its prepared markdown still
+    /// apply, and only the transient rows need rebuilding. Every row-configuration input still
+    /// belongs in one of the two halves.
     struct ContentSignature: Equatable {
-        let items: [ChatItem]
+        let persisted: PersistedSignature
         let transientRows: AppKitTranscriptTransientRows
+    }
+
+    struct PersistedSignature: Equatable {
+        let items: [ChatItem]
         let bubbleMaxWidth: CGFloat
         let typography: TranscriptTypography
         let markdownBaseURL: URL?

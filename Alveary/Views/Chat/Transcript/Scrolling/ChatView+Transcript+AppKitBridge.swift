@@ -37,15 +37,26 @@ extension ChatTranscriptView {
         }
     }
 
+    /// Memoized per render input; the key reads every observable the projection depends on.
     var appKitTranscriptItems: [ChatItem] {
-        appKitTranscriptItems(reviewTeamRun: pullRequestReviewTeamCoordinator?.runs[viewModel.conversationID])
+        let reviewTeamRun = pullRequestReviewTeamCoordinator?.runs[viewModel.conversationID]
+        let grouper = viewModel.state.grouper
+        let key = AppKitTranscriptPresentationCache.TranscriptItemsKey(
+            grouper: ObjectIdentifier(grouper),
+            itemsRevision: grouper.itemsRevision,
+            terminalizesInterruptedActivity: terminalizesInterruptedActivity,
+            reviewTeamRun: reviewTeamRun,
+            conversationID: viewModel.conversationID
+        )
+        return appKitTranscriptPresentationCache.transcriptItems(for: key) {
+            appKitTranscriptItems(reviewTeamRun: reviewTeamRun)
+        }
     }
 
     /// A failed save leaves the durable event unchanged; render the coordinator's state without altering that event.
     func appKitTranscriptItems(reviewTeamRun: ReviewTeamRun?) -> [ChatItem] {
         let items = viewModel.state.grouper.items.visibleTranscriptItems
-        let visibleItems = viewModel.state.shouldShowInterruptedCue && !viewModel.turnState.isActive
-            ? items.interruptedActivityTerminalized : items
+        let visibleItems = terminalizesInterruptedActivity ? items.interruptedActivityTerminalized : items
         return visibleItems.map { item in
             guard let run = reviewTeamRun,
                   run.conversationID == viewModel.conversationID,
@@ -55,6 +66,10 @@ extension ChatTranscriptView {
                   persisted.id == run.id else { return item }
             return ChatItem.collectiveReviewRun(id: id, run: run)
         }
+    }
+
+    private var terminalizesInterruptedActivity: Bool {
+        viewModel.state.shouldShowInterruptedCue && !viewModel.turnState.isActive
     }
 
     var appKitTransientRows: AppKitTranscriptTransientRows {
@@ -286,14 +301,21 @@ extension ChatTranscriptView {
     }
 
     var appKitApprovalSelectionLoadID: String {
-        appKitApprovalRequests.map(\.sessionId).joined(separator: "|")
+        cachedAppKitApprovalRequests.loadID
     }
 
     var appKitApprovalRequests: [ToolApprovalRequest] {
-        var seenSessionIDs: Set<String> = []
-        return viewModel.state.grouper.items.visibleTranscriptItems
-            .flatMap(\.appKitApprovalRequests)
-            .filter { seenSessionIDs.insert($0.sessionId).inserted }
+        cachedAppKitApprovalRequests.requests
+    }
+
+    private var cachedAppKitApprovalRequests: AppKitTranscriptPresentationCache.ApprovalRequests {
+        let grouper = viewModel.state.grouper
+        return appKitTranscriptPresentationCache.approvalRequests(grouper: grouper) {
+            var seenSessionIDs: Set<String> = []
+            return grouper.items.visibleTranscriptItems
+                .flatMap(\.appKitApprovalRequests)
+                .filter { seenSessionIDs.insert($0.sessionId).inserted }
+        }
     }
 
     func loadAppKitApprovalSelectionsIfNeeded() async {

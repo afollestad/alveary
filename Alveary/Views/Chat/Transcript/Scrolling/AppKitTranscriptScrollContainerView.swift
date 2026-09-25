@@ -7,7 +7,10 @@ final class AppKitTranscriptScrollContainerView: NSView {
     let transcriptDocumentView = AppKitTranscriptDocumentLayoutView()
     var activeScrollAnimationToken: UUID?
     private(set) var paginationGeneration = 0
-    var onScrollMetricsChanged: ((ChatTranscriptScrollMetrics) -> Void)?
+    /// A new receiver gets the current metrics even when they match the last publish.
+    var onScrollMetricsChanged: ((ChatTranscriptScrollMetrics) -> Void)? {
+        didSet { lastPublishedScrollMetrics = nil }
+    }
     /// Called only after real-width layout settles, including an empty document awaiting prepared rows.
     var onStableLayout: (() -> Void)?
     var preservesBottomOnResize = true
@@ -27,6 +30,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
     var viewportPrewarmGeneration = 0
     private(set) var hasMountedWindow = false
     private var rowIDAliases: [String: String] = [:]
+    private var lastPublishedScrollMetrics: ChatTranscriptScrollMetrics?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -311,6 +315,8 @@ final class AppKitTranscriptScrollContainerView: NSView {
 
     @discardableResult
     func hydrateViewportRows() -> Int {
+        let signpost = AppKitTranscriptSignposts.begin("hydrateViewportRows")
+        defer { AppKitTranscriptSignposts.end(signpost) }
         let visibleRect = scrollView.contentView.bounds
         let prefetchMargin = visibleRect.height * 1.5
         let hydrationRect = visibleRect.insetBy(dx: 0, dy: -prefetchMargin)
@@ -321,15 +327,19 @@ final class AppKitTranscriptScrollContainerView: NSView {
         return hydratedCount
     }
 
+    /// Publishes only when the metrics moved. Every streaming tick and viewport hydration ends
+    /// here, and each publish re-evaluates the SwiftUI transcript body, so a repeat of the last
+    /// metrics would cost a full bridge update for nothing.
     func publishScrollMetrics() {
         guard layoutTransactionDepth == 0, !isLoadingForTesting else { return }
-        onScrollMetricsChanged?(
-            ChatTranscriptScrollMetrics(
-                offsetY: scrollOffsetY,
-                contentHeight: documentHeight,
-                containerHeight: scrollView.contentView.bounds.height
-            )
+        let metrics = ChatTranscriptScrollMetrics(
+            offsetY: scrollOffsetY,
+            contentHeight: documentHeight,
+            containerHeight: scrollView.contentView.bounds.height
         )
+        guard metrics != lastPublishedScrollMetrics else { return }
+        lastPublishedScrollMetrics = metrics
+        onScrollMetricsChanged?(metrics)
     }
 
     func setIsLoading(_ isLoading: Bool) {

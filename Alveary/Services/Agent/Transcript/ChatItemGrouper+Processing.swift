@@ -61,6 +61,7 @@ extension ChatItemGrouper {
         subAgentProgressRefreshTask?.cancel()
         subAgentProgressRefreshTask = nil
         items = []
+        mayContainIncompleteTaskListBlock = false
         processedCount = 0
         pendingGroupTools = []
         currentGroupId = nil

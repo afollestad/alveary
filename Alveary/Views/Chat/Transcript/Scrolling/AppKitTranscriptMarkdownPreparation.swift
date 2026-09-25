@@ -6,6 +6,16 @@ struct AppKitTranscriptMarkdownPrepRequest: Equatable, Hashable {
     let markdown: String
     let inlineCodeStyle: AppMarkdownInlineCodeStyle
     let composerChipMode: AppMarkdownComposerChipMode
+
+    /// Hashes the markdown by length only. The coordinator rebuilds and hashes one request per
+    /// text bubble on every transcript update, so hashing the bodies scanned every byte of the
+    /// transcript per update; `==` still compares them in full on a bucket match.
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(rowID)
+        hasher.combine(markdown.utf8.count)
+        hasher.combine(inlineCodeStyle)
+        hasher.combine(composerChipMode)
+    }
 }
 
 extension AppKitTranscriptMarkdownPrepRequest {

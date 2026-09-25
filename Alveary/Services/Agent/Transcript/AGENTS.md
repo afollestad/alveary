@@ -16,6 +16,7 @@ These instructions cover `Alveary/Services/Agent/Transcript/` — `ChatItemGroup
 
 - **One `.taskListBlock` per logical list, keyed by `ConversationEventRecord.toolId`.** A `TodoWrite` with the same tool ID updates that block. Claude also re-emits progress under fresh tool IDs, so a new ID whose content overlaps the latest incomplete block updates it and keeps that block's existing ID; only a genuinely unrelated list appends, and prior blocks stay.
 - **Pin only the latest incomplete list.** Route every other row through `appendTranscriptItem(_:)` so it inserts above that block. Once the latest list is complete, later rows append below it in normal transcript order.
+    - **Write task-list blocks only through the grouper helpers that set `mayContainIncompleteTaskListBlock`.** It gates the pinned-tail scan, so a block written straight into `items` is never pinned.
 - **Use `AgentTaskListReducer` for the harness task tools.** `TaskCreate`, `TaskUpdate`, `TaskList`, and `TaskGet` must not have their Claude wire shape parsed here; their snapshots arrive as persisted `task_list` records and reuse the same block helpers, including when rebuilding from saved rows.
     - Suppress task-only `ToolSearch(select:TaskCreate,TaskUpdate,TaskList,TaskGet)` rows, but keep mixed or unrelated `ToolSearch` rows visible.
 

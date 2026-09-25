@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct TranscriptTypography: Equatable {
+struct TranscriptTypography: Hashable {
     let chatFontSize: CGFloat
     let codeFontFamily: String
     let codeFontSize: CGFloat
@@ -33,8 +33,14 @@ struct TranscriptTypography: Equatable {
         )
     }
 
+    /// Memoized per typography value: building it resolves the code font family through
+    /// `NSFontManager` twice, and every transcript row asks for it on every configure.
+    @MainActor
     var appKitMarkdownTypography: AppKitMarkdownTypography {
-        AppKitMarkdownTypography(
+        if let cached = Self.appKitMarkdownTypographyCache[self] {
+            return cached
+        }
+        let typography = AppKitMarkdownTypography(
             title1: nsFont(.title, weight: .semibold),
             title2: nsFont(.title, weight: .semibold),
             headline: nsFont(.headline, weight: .semibold),
@@ -43,7 +49,15 @@ struct TranscriptTypography: Equatable {
             codeBlock: codeNSFont,
             inlineCode: codeNSFont
         )
+        if Self.appKitMarkdownTypographyCache.count >= 8 {
+            Self.appKitMarkdownTypographyCache.removeAll()
+        }
+        Self.appKitMarkdownTypographyCache[self] = typography
+        return typography
     }
+
+    @MainActor
+    private static var appKitMarkdownTypographyCache: [TranscriptTypography: AppKitMarkdownTypography] = [:]
 
     var codeNSFont: NSFont {
         NSFontManager.shared.font(

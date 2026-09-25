@@ -24,7 +24,7 @@ extension ChatItemGrouper {
             appendTranscriptItem(.taskListBlock(id: id, tasks: tasks))
             return true
         }
-        items[index] = .taskListBlock(id: id, tasks: tasks)
+        replaceTaskListBlock(at: index, id: id, tasks: tasks)
         return true
     }
 
@@ -49,7 +49,7 @@ extension ChatItemGrouper {
             return false
         }
 
-        items[index] = .taskListBlock(id: id, tasks: tasks)
+        replaceTaskListBlock(at: index, id: id, tasks: tasks)
         return true
     }
 

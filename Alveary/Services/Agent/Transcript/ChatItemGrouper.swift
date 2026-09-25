@@ -7,7 +7,12 @@ import Observation
 final class ChatItemGrouper {
     nonisolated static let handledPromptSummary = "Response already handled."
 
-    var items: [ChatItem] = []
+    /// Bumped by every write to `items`, in-place element mutations included, so transcript caches
+    /// can key on it instead of comparing `[ChatItem]` element by element after each rebuild.
+    private(set) var itemsRevision = 0
+    var items: [ChatItem] = [] {
+        didSet { itemsRevision &+= 1 }
+    }
     var processedCount = 0
     var pendingGroupTools: [ToolEntry] = []
     var currentGroupId: String?
@@ -32,6 +37,10 @@ final class ChatItemGrouper {
     var toolApprovalStatusesByToolId: [String: ToolApprovalStatus] = [:]
     var currentToolApprovalBatch: ToolApprovalBatchState?
     var pinnedPermissionApprovalItemIDs: Set<String> = []
+    /// Set by every write that can leave an incomplete task list in `items`, cleared once a scan
+    /// proves none remains. Insertion order depends on the latest incomplete list, and scanning
+    /// the whole transcript for one on every append made a full rebuild quadratic.
+    @ObservationIgnored var mayContainIncompleteTaskListBlock = false
     var markdownSnapshotsByPath: [String: MarkdownSnapshot] = [:]
     var exitPlanModePlanMarkdowns: [String] = []
     var subAgentProgressRefreshTask: Task<Void, Never>?
@@ -258,6 +267,11 @@ final class ChatItemGrouper {
             return
         }
 
+        defer {
+            if item.isTaskListBlock {
+                mayContainIncompleteTaskListBlock = true
+            }
+        }
         guard let insertionIndex = transcriptPinnedTailInsertionIndex(for: item) else {
             items.append(item)
             return
@@ -273,7 +287,15 @@ final class ChatItemGrouper {
         }
 
         items[index] = item
+        if item.isTaskListBlock {
+            mayContainIncompleteTaskListBlock = true
+        }
         updatePinnedPermissionApprovalTracking(for: item)
+    }
+
+    func replaceTaskListBlock(at index: Array<ChatItem>.Index, id: String, tasks: [TaskEntry]) {
+        items[index] = .taskListBlock(id: id, tasks: tasks)
+        mayContainIncompleteTaskListBlock = true
     }
 
     func updatePinnedPermissionApprovalTracking(for item: ChatItem) {
@@ -291,7 +313,7 @@ final class ChatItemGrouper {
     private func releaseResolvedPinnedPermissionApprovalsIfNeeded(beforeAppending item: ChatItem) {
         pruneMissingPinnedPermissionApprovals()
 
-        guard item.opensPinnedPermissionApprovalBoundary else {
+        guard !pinnedPermissionApprovalItemIDs.isEmpty, item.opensPinnedPermissionApprovalBoundary else {
             return
         }
 
@@ -319,11 +341,10 @@ final class ChatItemGrouper {
 
     private func transcriptPinnedTailInsertionIndex(for item: ChatItem) -> Array<ChatItem>.Index? {
         var candidates: [Array<ChatItem>.Index] = []
-        if !item.isTaskListBlock,
-           let latestTaskListIndex = items.lastIndex(where: \.isIncompleteTaskListBlock) {
+        if !item.isTaskListBlock, let latestTaskListIndex = latestIncompleteTaskListIndex() {
             candidates.append(latestTaskListIndex)
         }
-        if let firstApprovalIndex = items.firstIndex(where: { pinnedPermissionApprovalItemIDs.contains($0.id) }) {
+        if let firstApprovalIndex = firstPinnedPermissionApprovalIndex() {
             candidates.append(firstApprovalIndex)
         }
         return candidates.min()
@@ -331,16 +352,37 @@ final class ChatItemGrouper {
 
     private func transcriptActivePinnedTailInsertionIndex() -> Array<ChatItem>.Index? {
         var candidates: [Array<ChatItem>.Index] = []
-        if let latestTaskListIndex = items.lastIndex(where: \.isIncompleteTaskListBlock) {
+        if let latestTaskListIndex = latestIncompleteTaskListIndex() {
             candidates.append(latestTaskListIndex)
         }
-        if let firstApprovalIndex = items.firstIndex(where: { pinnedPermissionApprovalItemIDs.contains($0.id) }) {
+        if let firstApprovalIndex = firstPinnedPermissionApprovalIndex() {
             candidates.append(firstApprovalIndex)
         }
         return candidates.min()
     }
 
+    private func latestIncompleteTaskListIndex() -> Array<ChatItem>.Index? {
+        guard mayContainIncompleteTaskListBlock else {
+            return nil
+        }
+        let index = items.lastIndex(where: \.isIncompleteTaskListBlock)
+        if index == nil {
+            mayContainIncompleteTaskListBlock = false
+        }
+        return index
+    }
+
+    private func firstPinnedPermissionApprovalIndex() -> Array<ChatItem>.Index? {
+        guard !pinnedPermissionApprovalItemIDs.isEmpty else {
+            return nil
+        }
+        return items.firstIndex(where: { pinnedPermissionApprovalItemIDs.contains($0.id) })
+    }
+
     private func pruneMissingPinnedPermissionApprovals() {
+        guard !pinnedPermissionApprovalItemIDs.isEmpty else {
+            return
+        }
         pinnedPermissionApprovalItemIDs.formIntersection(Set(items.map(\.id)))
     }
 }

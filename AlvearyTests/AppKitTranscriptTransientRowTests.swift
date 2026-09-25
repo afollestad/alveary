@@ -48,6 +48,21 @@ final class AppKitTranscriptTransientRowTests: XCTestCase {
         XCTAssertLessThan(bubbleView.frame.width, 120)
     }
 
+    func testStreamingBubbleHugsWidestLineAcrossHardLineBreaks() throws {
+        let row = AppKitTranscriptStreamingBubbleView()
+        row.frame = NSRect(x: 0, y: 0, width: 320, height: 200)
+        let bubbleView = try XCTUnwrap(row.subviews.first)
+
+        row.configure(.init(text: "- one\n- two\n- three", bubbleMaxWidth: 220))
+        row.layoutSubtreeIfNeeded()
+        XCTAssertLessThan(bubbleView.frame.width, 120)
+        XCTAssertGreaterThan(row.intrinsicContentSize.height, chatBubbleVerticalPadding * 2 + 40)
+
+        row.configure(.init(text: "- one\n- two\n- three " + String(repeating: "wraps ", count: 12), bubbleMaxWidth: 220))
+        row.layoutSubtreeIfNeeded()
+        XCTAssertEqual(bubbleView.frame.width, 220, accuracy: 0.5)
+    }
+
     func testStreamingBubblePinsTextToTopPaddingWhileGrowing() throws {
         let row = AppKitTranscriptStreamingBubbleView()
         row.frame = NSRect(x: 0, y: 0, width: 320, height: 400)

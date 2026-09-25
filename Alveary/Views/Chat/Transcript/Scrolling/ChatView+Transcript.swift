@@ -245,7 +245,10 @@ extension ChatTranscriptView {
         oldMetrics: ChatTranscriptScrollMetrics,
         newMetrics: ChatTranscriptScrollMetrics
     ) {
-        latestMetrics = newMetrics
+        // Writing an equal value still re-evaluates `body`, and with it the whole bridge update.
+        if latestMetrics != newMetrics {
+            latestMetrics = newMetrics
+        }
         if let pendingProgrammaticScrollMode {
             let action = ChatTranscriptScrollBehavior.pendingScrollAction(
                 pending: pendingProgrammaticScrollMode,

@@ -21,6 +21,7 @@ final class AppKitTranscriptScrollBridgeCoordinator {
     private(set) var isPreparingInitialContent = false
 #if DEBUG
     var documentLoaderForTesting: ((AppKitTranscriptMarkdownPrepRequest) async -> AppMarkdownDocument)?
+    var persistedRowBuildCountForTesting: Int { rowFactory.persistedRowBuildCountForTesting }
 #endif
 
     deinit { markdownPreparationTask?.cancel() }
@@ -37,6 +38,8 @@ final class AppKitTranscriptScrollBridgeCoordinator {
         onLoadingStateChanged: @escaping (Bool) -> Void = { _ in },
         onScrollMetricsChanged: @escaping (ChatTranscriptScrollMetrics) -> Void = { _ in }
     ) {
+        let signpost = AppKitTranscriptSignposts.begin("bridge.update")
+        defer { AppKitTranscriptSignposts.end(signpost) }
         self.onLoadingStateChanged = onLoadingStateChanged
         cancelPendingScrollIfUserMovedAway(
             container: container, isFollowing: isFollowing, bottomRequest: scrollToBottomRequest, rowTopRequest: scrollToRowTopRequest
@@ -58,17 +61,35 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             scrollToRowTopRequest: scrollToRowTopRequest
         )
         latestUpdate = update
-        latestSignature = update.contentSignature
+        let previousSignature = latestSignature
+        let signature = update.contentSignature
+        latestSignature = signature
 
         // Cancel a pending B even when reverting to the already installed A. The old early
         // return left B alive, allowing its eventual completion to overwrite the new selection.
-        if lastAppliedContentSignature == latestSignature {
+        if lastAppliedContentSignature == signature {
             cancelPreparation()
             setInitialLoading(false, container: container)
             applyLatestIfReady(container: container)
             return
         }
+        // Only transient rows changed: the persisted rows' markdown is already prepared (or still
+        // preparing for these same items), so skip recomputing requests over the whole transcript.
+        if lastAppliedContentSignature?.persisted == signature.persisted {
+            cancelPreparation()
+            setInitialLoading(false, container: container)
+            applyLatestIfReady(container: container)
+            return
+        }
+        if markdownPreparationTask != nil, previousSignature?.persisted == signature.persisted { return }
+        prepareMarkdownThenApply(container: container, items: items, rowConfiguration: rowConfiguration)
+    }
 
+    private func prepareMarkdownThenApply(
+        container: AppKitTranscriptScrollContainerView,
+        items: [ChatItem],
+        rowConfiguration: AppKitTranscriptRowFactory.Configuration
+    ) {
         let requests = rowFactory.markdownPreparationRequests(for: items, configuration: rowConfiguration)
         if markdownPreparationTask != nil, preparationRequests == requests { return }
         cancelPreparation()
@@ -189,7 +210,12 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             )
         }
         rowFactory.preparedMarkdownDocuments = preparedDocuments
-        let rows = rowFactory.makeRows(for: update.presentation, transientRows: update.transientRows, configuration: configuration)
+        let rows = rowFactory.makeRows(
+            for: update.presentation,
+            transientRows: update.transientRows,
+            configuration: configuration,
+            reusingPersistedRows: lastAppliedContentSignature?.persisted == signature.persisted
+        )
         isBuildingRows = false
         container.configure(
             rows: rows, dirtyRowIDs: dirtyRowIDs, rowIDAliases: update.presentation.rowIDAliases,

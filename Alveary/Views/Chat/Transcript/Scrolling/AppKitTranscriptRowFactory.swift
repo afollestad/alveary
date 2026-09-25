@@ -89,9 +89,16 @@ final class AppKitTranscriptRowFactory {
     }
 
     private var cachedViewsByRowID: [String: NSView] = [:]
+    /// Persisted rows from the last build, handed back unchanged when the coordinator proves their
+    /// inputs did not move; rebuilding them reconfigured every row on each streaming flush.
+    private var lastPersistedRows: [AppKitTranscriptLayoutRow] = []
+    private var lastTransientRowIDs: Set<String> = []
     /// The coordinator retains prepared documents through installation so cache eviction cannot
     /// force an offscreen row's first exact measurement back onto the main actor.
     var preparedMarkdownDocuments: [AppKitTranscriptMarkdownPrepRequest: AppMarkdownDocument] = [:]
+#if DEBUG
+    private(set) var persistedRowBuildCountForTesting = 0
+#endif
 
     func makeRows(
         for items: [ChatItem],
@@ -101,15 +108,34 @@ final class AppKitTranscriptRowFactory {
         makeRows(for: AppKitTranscriptPresentation(items: items), transientRows: transientRows, configuration: configuration)
     }
 
+    /// `reusingPersistedRows` is the caller's assertion that nothing a persisted row reads has
+    /// changed since the previous call; the factory then rebuilds only the transient rows.
     func makeRows(
         for presentation: AppKitTranscriptPresentation,
         transientRows: AppKitTranscriptTransientRows = .init(),
-        configuration: Configuration
+        configuration: Configuration,
+        reusingPersistedRows: Bool = false
     ) -> [AppKitTranscriptLayoutRow] {
-        let rows = presentation.visualRows.flatMap { layoutRows(for: $0, configuration: configuration) }
-            + layoutRows(for: transientRows, configuration: configuration)
+        let signpost = AppKitTranscriptSignposts.begin("makeRows")
+        defer { AppKitTranscriptSignposts.end(signpost) }
+        let transientLayoutRows = layoutRows(for: transientRows, configuration: configuration)
+        let transientRowIDs = Set(transientLayoutRows.map(\.id))
+        if reusingPersistedRows {
+            for rowID in lastTransientRowIDs where !transientRowIDs.contains(rowID) {
+                cachedViewsByRowID[rowID] = nil
+            }
+            lastTransientRowIDs = transientRowIDs
+            return lastPersistedRows + transientLayoutRows
+        }
+        let persistedRows = presentation.visualRows.flatMap { layoutRows(for: $0, configuration: configuration) }
+        let rows = persistedRows + transientLayoutRows
         let liveRowIDs = Set(rows.map(\.id))
         cachedViewsByRowID = cachedViewsByRowID.filter { rowID, _ in liveRowIDs.contains(rowID) }
+        lastPersistedRows = persistedRows
+        lastTransientRowIDs = transientRowIDs
+#if DEBUG
+        persistedRowBuildCountForTesting += 1
+#endif
         return rows
     }
 

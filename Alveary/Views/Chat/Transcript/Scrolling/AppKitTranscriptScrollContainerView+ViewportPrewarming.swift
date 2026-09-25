@@ -38,6 +38,8 @@ extension AppKitTranscriptScrollContainerView {
     }
 
     /// Replaces queued candidates on every viewport change so scrolled-away or removed rows stop consuming UI work.
+    /// Only rows the document lays out inside `rect` are considered, so a scroll frame costs the
+    /// viewport, not the transcript.
     func updateViewportPrewarming(in rect: CGRect) {
         // Off-window test hosts can prewarm; a previously mounted conversation must stay cancelled after switching away.
         guard !hasMountedWindow || window != nil else {
@@ -45,13 +47,12 @@ extension AppKitTranscriptScrollContainerView {
             return
         }
         var candidates: [AppKitTranscriptPrewarmCandidate] = []
-        for rowID in viewportPrewarmRowOrder {
-            guard let entry = viewportPrewarmRegistry[rowID],
+        for rowFrame in transcriptDocumentView.rowFrames(intersecting: rect) {
+            guard let entry = viewportPrewarmRegistry[rowFrame.id],
                   !entry.candidates.isEmpty,
                   let rootView = entry.rootView,
-                  !rootView.isHiddenOrHasHiddenAncestor,
-                  rootView.isDescendant(of: transcriptDocumentView),
-                  rootView.convert(rootView.bounds, to: transcriptDocumentView).intersects(rect)
+                  rootView === rowFrame.view,
+                  !rootView.isHiddenOrHasHiddenAncestor
             else {
                 continue
             }
