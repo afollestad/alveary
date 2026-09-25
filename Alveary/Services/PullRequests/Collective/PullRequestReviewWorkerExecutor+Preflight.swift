@@ -22,10 +22,16 @@ extension DefaultPullRequestReviewWorkerExecutor {
         }
 
         let result = try await capabilityOutput(configuration, harnessID: harnessID)
-        guard result.succeeded,
-              !result.stdoutWasTruncated,
-              !result.stderrWasTruncated else {
+        guard !result.stdoutWasTruncated, !result.stderrWasTruncated else {
             throw PullRequestReviewWorkerError.executableUnavailable(configuration.executablePath)
+        }
+        guard result.succeeded else {
+            let diagnostic = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw PullRequestReviewWorkerError.capabilityCheckFailed(
+                harnessID: configuration.harnessID,
+                exitCode: result.exitCode,
+                message: ReviewTeamDiagnostics.persisted(diagnostic.isEmpty ? Self.missingDiagnostic : diagnostic)
+            )
         }
         let help = [result.stdout, result.stderr].joined(separator: "\n")
         let requiredFlags = Self.requiredFlags(for: harnessID)

@@ -28,6 +28,7 @@ These instructions cover harness-neutral interfaces under `Alveary/Services/Agen
 - Speed mode is harness-reported capability from `AgentCLIKit.AgentHarnessCapabilities.supportsSpeedMode`. Do not add app-owned harness/model speed maps; Claude stays Standard unless AgentCLIKit reports otherwise.
 - Project-level one-shot prompts should use `AgentCLIKit.AgentOneShotPromptRunning` directly. Keep active-thread hidden commit
   generation runtime-backed so it can use existing thread context.
+    - **Build every Claude one-shot environment through `ClaudeOneShotLaunchPolicy`**, including collective review workers; its doc comment owns why.
 - Plan mode is collaboration state, not an approval policy. Alveary should pass it through `AgentSpawnConfig.planModeEnabled`/AgentCLIKit `collaborationMode` and keep `"plan"` out of permission-picker option sources.
 - Keep denied `ExitPlanMode` copy in shared `ExitPlanModeDenialPolicy`; add harness-specific transport guidance there only when a harness cannot reliably infer Alveary's host-side plan-mode state.
 - Harness task-list snapshots should persist through Alveary's harness-neutral `task_list` event records; keep harness-specific task parsing in `AgentCLIKit`. Treat interrupted task rows as terminal for the stopped turn, but let later harness snapshots or updates reactivate them.

@@ -29,9 +29,31 @@ extension PullRequestReviewWorkerExecutorTests {
                 try await fixture.executor.preflight(fixture.configuration)
                 XCTFail("Expected failed or truncated capability capture")
             } catch let error as PullRequestReviewWorkerError {
-                XCTAssertEqual(error, .executableUnavailable(fixture.configuration.executablePath))
+                let expected: PullRequestReviewWorkerError = exitCode == 0
+                    ? .executableUnavailable(fixture.configuration.executablePath)
+                    : .capabilityCheckFailed(
+                        harnessID: "claude",
+                        exitCode: Int32(exitCode),
+                        message: DefaultPullRequestReviewWorkerExecutor.missingDiagnostic
+                    )
+                XCTAssertEqual(error, expected)
             }
             XCTAssertFalse(fixture.registry.hasLiveProcesses)
+        }
+    }
+
+    func testClaudePreflightReportsFailedCapabilityCheckDiagnostic() async throws {
+        let fixture = try await makeFixture(harnessID: "claude", script: """
+        #!/bin/sh
+        echo "Error: broken install" >&2
+        exit 3
+        """)
+
+        do {
+            try await fixture.executor.preflight(fixture.configuration)
+            XCTFail("Expected failed capability check")
+        } catch let error as PullRequestReviewWorkerError {
+            XCTAssertEqual(error, .capabilityCheckFailed(harnessID: "claude", exitCode: 3, message: "Error: broken install"))
         }
     }
 

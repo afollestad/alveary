@@ -20,6 +20,7 @@ enum PullRequestReviewWorkerError: Error, Equatable, LocalizedError {
     case unsupportedHarness(String)
     case executableUnavailable(String)
     case missingCapabilities(harnessID: String, flags: [String])
+    case capabilityCheckFailed(harnessID: String, exitCode: Int32, message: String)
     case unsafeCommand(String)
     case duplicateExecution(String)
     case outputTooLarge
@@ -36,6 +37,8 @@ enum PullRequestReviewWorkerError: Error, Equatable, LocalizedError {
             "The review worker executable is unavailable: \(path)"
         case .missingCapabilities(let harnessID, let flags):
             "The \(harnessID) CLI does not support required review worker flags: \(flags.joined(separator: ", "))"
+        case .capabilityCheckFailed(let harnessID, let exitCode, let message):
+            "The \(harnessID) CLI capability check exited with code \(exitCode). \(message)"
         case .duplicateExecution(let executionID):
             "Review worker execution is already active: \(executionID)"
         case .outputTooLarge:
@@ -53,6 +56,7 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
     /// Deep reviews of large diffs can outlast twenty minutes, and a kill discards the worker's paid work; a hung worker only
     /// delays a run the user can cancel. OpenCode stays bounded by AgentCLIKit's shorter credential-validity `executionDeadline`.
     static let timeoutSeconds: TimeInterval = 60 * 60
+    static let missingDiagnostic = "No harness diagnostic was returned."
     private static let stdoutLimitBytes = 16 * 1024 * 1024
     private static let stderrLimitBytes = 2 * 1024 * 1024
     private static let claudeArguments = [
@@ -266,13 +270,11 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
             throw PullRequestReviewWorkerError.outputTooLarge
         }
         guard result.succeeded else {
-            // Stdout is a harness event stream and may contain intermediate reasoning or tool content.
-            let diagnostic = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            let message = diagnostic.isEmpty ? "No harness diagnostic was returned." : diagnostic
+            let diagnostic = await failureDiagnostic(from: result, request: request, adapter: adapter)
             throw PullRequestReviewWorkerError.commandFailed(
                 harnessID: request.harnessId.rawValue,
                 exitCode: result.exitCode,
-                message: ReviewTeamDiagnostics.persisted(message)
+                message: ReviewTeamDiagnostics.persisted(diagnostic)
             )
         }
         let rawText = try await adapter.finalOneShotPromptText(
@@ -285,6 +287,23 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
             throw PullRequestReviewWorkerError.emptyOutput(request.harnessId.rawValue)
         }
         return text
+    }
+
+    /// Harnesses can exit unsuccessfully with an empty stderr and report the cause only in stdout, such as Claude's terminal
+    /// `result` frame. Stderr is joined here rather than passed to the adapter, so a classified message never repeats it.
+    private func failureDiagnostic(
+        from result: ShellResult,
+        request: AgentCLIKit.AgentOneShotPromptRequest,
+        adapter: any AgentCLIKit.AgentHarnessAdapter
+    ) async -> String {
+        let reported = await adapter.reportedOneShotPromptFailure(stdout: result.stdout, stderr: "", request: request)?
+            .reportedMessage
+        var parts: [String] = []
+        for part in [reported, result.stderr].compactMap({ $0?.trimmingCharacters(in: .whitespacesAndNewlines) })
+            where !part.isEmpty && !parts.contains(part) {
+            parts.append(part)
+        }
+        return parts.isEmpty ? Self.missingDiagnostic : parts.joined(separator: "\n")
     }
 
     static func validatedHarnessID(
@@ -425,6 +444,6 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
         for key in harnessKeys where result[key] == nil {
             result[key] = processEnvironment[key]
         }
-        return result
+        return ClaudeOneShotLaunchPolicy.environment(harnessID: harnessID.rawValue, baseEnvironment: result)
     }
 }

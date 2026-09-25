@@ -104,6 +104,7 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         XCTAssertEqual(request.environment["PATH"], "/opt/homebrew/bin:/usr/bin")
         XCTAssertEqual(request.environment["ALVEARY_TEST"], "1")
         XCTAssertEqual(request.environment["CLAUDE_CODE_DISABLE_CRON"], "1")
+        XCTAssertEqual(request.environment["CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS"], "1")
         XCTAssertNil(request.model)
         XCTAssertEqual(request.effort, AppSettings.defaultEffortLevel)
         XCTAssertEqual(try XCTUnwrap(request.timeout), 7, accuracy: 0.001)

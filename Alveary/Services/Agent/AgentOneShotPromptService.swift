@@ -123,9 +123,12 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
             harnessID: harnessId,
             configuredArguments: []
         )
-        let environment = ClaudeNativeSchedulingLaunchPolicy.environment(
+        let environment = ClaudeOneShotLaunchPolicy.environment(
             harnessID: harnessId,
-            baseEnvironment: oneShotEnvironment(detectedPath: detectedPath)
+            baseEnvironment: ClaudeNativeSchedulingLaunchPolicy.environment(
+                harnessID: harnessId,
+                baseEnvironment: oneShotEnvironment(detectedPath: detectedPath)
+            )
         )
 
         return AgentCLIKit.AgentOneShotPromptRequest(

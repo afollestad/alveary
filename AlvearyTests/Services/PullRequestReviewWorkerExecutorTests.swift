@@ -101,6 +101,34 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         }
     }
 
+    func testFailedExecutionReportsStructuredHarnessError() async throws {
+        let script = Self.failedClaudeScript(diagnostic: "", resultError: "API Error: 400 bad request")
+        let fixture = try await makeFixture(harnessID: "claude", script: script)
+        do {
+            _ = try await fixture.executor.execute(
+                configuration: fixture.configuration,
+                packet: fixture.packet,
+                prompt: "Review the packet",
+                runID: fixture.packet.runID,
+                generation: 1,
+                executionID: "failed-claude"
+            )
+            XCTFail("Expected harness failure")
+        } catch let error as PullRequestReviewWorkerError {
+            XCTAssertEqual(error, .commandFailed(harnessID: "claude", exitCode: 7, message: "API Error: 400 bad request"))
+        }
+    }
+
+    func testOnlyClaudeWorkersDisableExperimentalBetas() async throws {
+        let fixture = try await makeFixture(harnessID: "claude", script: Self.claudeScript)
+
+        let claude = await fixture.executor.workerEnvironment(for: .claude)
+        let codex = await fixture.executor.workerEnvironment(for: .codex)
+
+        XCTAssertEqual(claude["CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS"], "1")
+        XCTAssertNil(codex["CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS"])
+    }
+
     func testPreflightRejectsExecutableRemovedAfterSuccessfulCheck() async throws {
         let fixture = try await makeFixture(harnessID: "claude", script: Self.claudeScript)
         try await fixture.executor.preflight(fixture.configuration)
@@ -298,8 +326,9 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
     print qq({"type":"result","subtype":"success","is_error":false,"result":"CLAUDE-OK"}\n);
     """#
 
-    private static func failedClaudeScript(diagnostic: String) -> String {
-        #"""
+    private static func failedClaudeScript(diagnostic: String, resultError: String? = nil) -> String {
+        let resultFrame = resultError.map { #"print qq({"type":"result","is_error":true,"result":"\#($0)"}\n);"# } ?? ""
+        return #"""
         #!/usr/bin/perl
         use strict;
         if (grep { $_ eq '--help' } @ARGV) {
@@ -309,6 +338,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         }
         my $prompt = do { local $/; <STDIN> };
         print qq({"type":"assistant","message":{"content":[{"type":"thinking","thinking":"private-intermediate-marker"}]}}\n);
+        \#(resultFrame)
         print STDERR "\#(diagnostic)";
         exit 7;
         """#
