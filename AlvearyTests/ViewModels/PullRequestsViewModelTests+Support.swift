@@ -375,7 +375,8 @@ extension PullRequestsViewModelTests {
     @MainActor
     struct OpenedReviewPane {
         let viewModel: PullRequestsViewModel
-        let id: PullRequestIdentifier
+        let summary: PullRequestSummary
+        var id: PullRequestIdentifier { summary.id }
         /// The private bus both the tracker and the view model are on, so a test can stand in for
         /// the runtime by posting the status changes the tracker listens for.
         let notificationCenter: NotificationCenter
@@ -401,9 +402,10 @@ extension PullRequestsViewModelTests {
         }
     }
 
+    /// A nil `origin` leaves the list loaded with no pane open, where a row menu starts a route.
     func openedReviewPane(
         settingsService: (any SettingsService)? = nil,
-        origin: PullRequestPaneOrigin = .screen,
+        origin: PullRequestPaneOrigin? = .screen,
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         startupGrace: Duration = .seconds(30),
         reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator? = nil,
@@ -441,11 +443,13 @@ extension PullRequestsViewModelTests {
             notificationCenter: notificationCenter
         )
         await viewModel.refresh()
-        viewModel.requestDetails(summary, origin: origin)
-        await waitForPaneContent(viewModel, target: .details(summary.id))
+        if let origin {
+            viewModel.requestDetails(summary, origin: origin)
+            await waitForPaneContent(viewModel, target: .details(summary.id))
+        }
         return OpenedReviewPane(
             viewModel: viewModel,
-            id: summary.id,
+            summary: summary,
             notificationCenter: notificationCenter
         )
     }

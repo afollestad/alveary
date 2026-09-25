@@ -26,6 +26,12 @@ struct PullRequestIdentifier: Hashable, Sendable, Codable {
     var displayKey: String {
         "\(nameWithOwner)#\(number)"
     }
+
+    /// The pull request's page, for callers holding no API-provided `url` — an identifier-opened
+    /// pane before its detail lands, or a summary whose search row carried none.
+    var webURL: URL? {
+        URL(string: "https://github.com/\(nameWithOwner)/pull/\(number)")
+    }
 }
 
 // String-backed so persisted copies (settings filters, the list cache) stay readable, and

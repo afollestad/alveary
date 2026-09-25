@@ -249,7 +249,12 @@ private extension ContentView {
                 dismissalRequests: rightPaneDismissalRequests,
                 onDeactivate: deactivateRightPane,
                 onDismiss: dismissRightPane,
-                mainContent: { mainPane.equatable() },
+                // The list's row menu opens linked threads; the action's stable `id` keeps this
+                // injection from invalidating the memoized middle pane.
+                mainContent: {
+                    mainPane.equatable()
+                        .environment(\.pullRequestLinkedOwnerOpenAction, linkedOwnerOpenAction)
+                },
                 paneContent: rightPaneContent
             )
 

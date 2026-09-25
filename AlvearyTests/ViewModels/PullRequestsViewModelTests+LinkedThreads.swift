@@ -56,7 +56,7 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(viewModel.visibleListItems(for: .authored), originalAuthored)
     }
 
-    private func rowModels(in items: [PullRequestListItem]) -> [PullRequestRowModel] {
+    func rowModels(in items: [PullRequestListItem]) -> [PullRequestRowModel] {
         items.compactMap { item in
             guard case .row(let model) = item else { return nil }
             return model

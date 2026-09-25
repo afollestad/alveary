@@ -95,6 +95,14 @@ extension PullRequestsViewModel {
         requestRefresh()
     }
 
+    func clearError() {
+        errorMessage = nil
+    }
+
+    func dismissWarnings() {
+        warnings = []
+    }
+
     /// Ages every loaded bucket out of the freshness window while keeping its rows on screen, so
     /// the visible tab refetches on its next load and the others refetch when next shown. For the
     /// events that invalidate all buckets at once: a status-filter change, or Alveary itself

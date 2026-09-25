@@ -76,6 +76,21 @@ extension SnapshotTests {
         ) { fixture.screen }
     }
 
+    /// One working row carries a linked thread and one does not, so the spinner's place ahead of
+    /// the thread glyph shows alongside its place ahead of the age.
+    func testPullRequestsScreenAgentWorking() async throws {
+        let fixture = try await PullRequestsSnapshotFixture(includeLinkedThreads: true)
+        let summaries = PullRequestsSnapshotFixture.defaultSummaries
+        fixture.viewModel.agenticThreadActivity.begin(summaries[0].id, kind: .review)
+        fixture.viewModel.agenticThreadActivity.begin(summaries[2].id, kind: .addressFeedback)
+
+        await assertMacModelSnapshot(
+            modelContainer: fixture.container,
+            size: CGSize(width: 1_120, height: 900),
+            named: "pull_requests_agent_working"
+        ) { fixture.screen }
+    }
+
     func testPullRequestsScreenLoadMoreFooter() async throws {
         let fixture = try await PullRequestsSnapshotFixture(hasNextPage: true)
 
@@ -121,7 +136,9 @@ extension SnapshotTests {
                 items: fixture.viewModel.visibleListItems(for: .reviewing),
                 avatarLoader: fixture.viewModel.avatarLoader,
                 activeDetailID: nil,
-                onSelect: { _ in }
+                reviewMode: .singleAgent,
+                onSelect: { _ in },
+                onStartAgenticThread: { _, _ in }
             )
             .padding(20),
             size: CGSize(width: 1_120, height: 460),

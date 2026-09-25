@@ -72,7 +72,8 @@ final class PullRequestsViewModel {
     @ObservationIgnored var reviewTeamSettingsSignature = PullRequestReviewTeamSettingsSignature(settings: AppSettings())
     /// Enablement changes still need discovery after a replacement check or a period in single-agent mode.
     @ObservationIgnored var reviewTeamDiscoveryNeedsRefresh = false
-    @ObservationIgnored var mirroredPullRequestReviewMode = PullRequestReviewMode.singleAgent
+    /// Observed, unlike the status beside it, so the list's row menu re-titles its team review.
+    var mirroredPullRequestReviewMode = PullRequestReviewMode.singleAgent
     @ObservationIgnored var mirroredReviewTeamValidationStatus = PullRequestReviewTeamValidationStatus.notRequired
     /// Debounced detail refetches, keyed by the target whose session they refresh.
     @ObservationIgnored var remoteRefreshTasks: [PullRequestPaneTarget: Task<Void, Never>] = [:]
@@ -118,6 +119,11 @@ final class PullRequestsViewModel {
     var warnings: [String] = []
     /// A refresh failure while stale rows remain visible; unavailability replaces the list instead.
     var errorMessage: String?
+    /// Which listed pull requests have an agentic route running, so rows need not read the tracker
+    /// from a `body`. Written only by `refreshListWorkingAgenticKinds()` in the agentic companion.
+    var listWorkingAgenticKinds: [PullRequestIdentifier: Set<PullRequestAgenticThreadService.Kind>] = [:]
+    /// A list-started route refused for a repository no project holds; the screen's alert.
+    var listAgenticThreadMissingProject: String?
     /// A "Load more" page in flight. Stored rather than derived from `inFlightBuckets`, which a
     /// concurrent page-one refresh also fills — only the footer's own request may disable it.
     var isLoadingMore = false
@@ -289,6 +295,8 @@ final class PullRequestsViewModel {
         )
         knownRepositories.formUnion(items.map(\.repositoryNameWithOwner))
         avatarLoader.prefetch(items.compactMap(\.authorAvatarURL))
+        // A row can land while its route is already running, with no transition left to announce.
+        refreshListWorkingAgenticKinds()
     }
 
     /// Narrows every bucket's GitHub search to one status, persisting it as the next launch's
@@ -323,14 +331,6 @@ final class PullRequestsViewModel {
             return
         }
         referenceDate = value
-    }
-
-    func clearError() {
-        errorMessage = nil
-    }
-
-    func dismissWarnings() {
-        warnings = []
     }
 }
 

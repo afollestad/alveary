@@ -159,7 +159,8 @@ extension PullRequestsViewModel {
     /// stack of headings and rows, each row carrying its own precomputed strings.
     ///
     /// Memoized on top of the sections rather than beside them. Observable display inputs are
-    /// read before consulting the cache; age and local link changes never rerun filtering or sorting.
+    /// read before consulting the cache; age, local link, and agent activity changes never rerun
+    /// filtering or sorting.
     func visibleListItems(
         for tab: PullRequestsFilter,
         linkedThreadIDs: Set<PullRequestIdentifier> = []
@@ -169,22 +170,26 @@ extension PullRequestsViewModel {
         let sections = visibleSections(for: tab)
         let referenceDate = referenceDate
         let showsRepository = showsRepositoryInRows
+        let workingAgenticKinds = listWorkingAgenticKinds
         if let cached = visibleListCaches[tab]?.items,
            cached.referenceDate == referenceDate,
            cached.showsRepository == showsRepository,
-           cached.linkedThreadIDs == linkedThreadIDs {
+           cached.linkedThreadIDs == linkedThreadIDs,
+           cached.workingAgenticKinds == workingAgenticKinds {
             return cached.items
         }
         let items = PullRequestListItem.flatten(
             sections,
             showsRepository: showsRepository,
             referenceDate: referenceDate,
-            linkedThreadIDs: linkedThreadIDs
+            linkedThreadIDs: linkedThreadIDs,
+            workingAgenticKinds: workingAgenticKinds
         )
         visibleListCaches[tab]?.items = PullRequestListItemsCache(
             referenceDate: referenceDate,
             showsRepository: showsRepository,
             linkedThreadIDs: linkedThreadIDs,
+            workingAgenticKinds: workingAgenticKinds,
             items: items
         )
         return items
@@ -303,6 +308,7 @@ struct PullRequestListItemsCache {
     let referenceDate: Date
     let showsRepository: Bool
     let linkedThreadIDs: Set<PullRequestIdentifier>
+    let workingAgenticKinds: [PullRequestIdentifier: Set<PullRequestAgenticThreadService.Kind>]
     let items: [PullRequestListItem]
 }
 

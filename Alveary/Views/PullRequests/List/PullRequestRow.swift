@@ -89,6 +89,13 @@ struct PullRequestRow: View, Equatable {
     private var trailingCluster: some View {
         VStack(alignment: .trailing, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
+                // Colorless per the status mapping in `Views/AGENTS.md`: the spinning shape is the
+                // signal. Covers routes started from the pane's footer as well as this row's menu.
+                if model.isAgentWorking {
+                    StatusIndicatorSpinner(color: .secondary, diameter: 10)
+                        .help("Agent working")
+                        .accessibilityHidden(true)
+                }
                 if model.hasLinkedThread {
                     Image(systemName: "bubble.left.and.bubble.right")
                         .imageScale(.small)

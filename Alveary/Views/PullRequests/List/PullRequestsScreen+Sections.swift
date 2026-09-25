@@ -12,18 +12,23 @@ struct PullRequestsSectionedList: View, Equatable {
     /// The open detail, not an `isSelected` closure: a closure is never equal to the one
     /// from the previous pass, so every row would rebuild on every render.
     let activeDetailID: PullRequestIdentifier?
+    /// Titles the row menu's agentic review, which reads "Review with team" in team mode.
+    let reviewMode: PullRequestReviewMode
     let onSelect: (PullRequestSummary) -> Void
+    let onStartAgenticThread: (PullRequestSummary, PullRequestAgenticThreadService.Kind) -> Void
 
     /// Skips rebuilding every row value during the right pane's slide-in, whose geometry
     /// changes re-run the enclosing `GeometryReader` closure per frame. `onSelect` is
     /// excluded like the row's own action: it captures the view model reference and the
     /// screen's `@FocusState` storage, neither of which a render pass can change.
+    /// `onStartAgenticThread` is excluded too; it captures only the view model.
     ///
     /// `items` carries each row's rendered strings, so the display inputs behind them —
     /// `showsRepository` and `referenceDate` — need no separate comparison here.
     nonisolated static func == (lhs: PullRequestsSectionedList, rhs: PullRequestsSectionedList) -> Bool {
         lhs.items == rhs.items
             && lhs.activeDetailID == rhs.activeDetailID
+            && lhs.reviewMode == rhs.reviewMode
             && lhs.avatarLoader === rhs.avatarLoader
     }
 
@@ -72,6 +77,15 @@ struct PullRequestsSectionedList: View, Equatable {
                 onSelect: { onSelect(model.summary) }
             )
             .equatable()
+            // Outside the row's `appSelectableRow`, so the whole card answers a right-click. The
+            // click deliberately does not select the row: opening a pane costs two `gh` fetches.
+            .contextMenu {
+                PullRequestRowContextMenu(
+                    model: model,
+                    reviewMode: reviewMode,
+                    onStartAgenticThread: { kind in onStartAgenticThread(model.summary, kind) }
+                )
+            }
             // The `ScrollViewReader` target for arrow-key selection, which scrolls by
             // `PullRequestIdentifier`. The `ForEach` identifies items by their string id, so
             // without this the identifier matches nothing and the selection scrolls nowhere.

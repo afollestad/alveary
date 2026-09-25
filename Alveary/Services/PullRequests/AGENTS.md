@@ -26,7 +26,7 @@ App-scoped pull-request services live here; collective runs are owned by `Collec
 
 `+Workspace.swift` resolves where an `.addressFeedback` thread runs; its doc comment owns the rung order, the refusal, and the branch probe. These are the constraints behind them.
 
-- **The ladder refuses rather than degrading past its last rung.** No borrow and no project for the repository throws `StartError.projectMissing` before anything is created, and the pane shows it as a modal. Addressing feedback edits and pushes, so a scratch directory only buys a wasted turn.
+- **The ladder refuses rather than degrading past its last rung.** No borrow and no project for the repository throws `StartError.projectMissing` before anything is created, and the pane or list screen shows it as a modal. Addressing feedback edits and pushes, so a scratch directory only buys a wasted turn.
 - **A borrow is branch-verified, never trusted.** `isOnBranch` compares against `thread.branch`, which every Task thread leaves nil, so the link alone would hand the agent whatever the lender had checked out. Only git settles it — behind `start`'s return, and never by checking the lender's tree out from under it.
 - **`thread.branch` stays nil on every rung, and so do `worktreePath` and `useWorktree`.** `cleanupOwnedTaskWorktree` computes `branchToDelete` from `branch` and `branch -D`s it when git still reports it on the worktree — here that is the user's live pull request head. A Task carries its checkout in the descriptor alone.
 - **A borrow is `.projectLocal`, whose cleanup does nothing**, so deleting the thread leaves the lender's checkout intact. Only rung 3's own worktree is `.projectWorktreeOwned`.

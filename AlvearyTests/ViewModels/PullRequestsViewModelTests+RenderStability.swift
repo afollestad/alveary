@@ -116,8 +116,8 @@ extension PullRequestsViewModelTests {
     }
 
     /// The sectioned list skips rebuilding its rows during the right pane's slide-in, so
-    /// its `==` must ignore the action while tracking everything the rows render.
-    func testSectionedListEqualityIgnoresTheActionAndComparesRenderedInputs() {
+    /// its `==` must ignore the actions while tracking everything the rows render.
+    func testSectionedListEqualityIgnoresTheActionsAndComparesRenderedInputs() {
         let loader = GitHubAvatarLoader()
         let date = Date(timeIntervalSince1970: 1_000)
         let sections = [
@@ -127,17 +127,22 @@ extension PullRequestsViewModelTests {
         func makeList(
             items: [PullRequestListItem] = items,
             activeDetailID: PullRequestIdentifier? = nil,
-            onSelect: @escaping (PullRequestSummary) -> Void = { _ in }
+            reviewMode: PullRequestReviewMode = .singleAgent,
+            onSelect: @escaping (PullRequestSummary) -> Void = { _ in },
+            onStartAgenticThread: @escaping (PullRequestSummary, PullRequestAgenticThreadService.Kind) -> Void = { _, _ in }
         ) -> PullRequestsSectionedList {
             PullRequestsSectionedList(
                 items: items,
                 avatarLoader: loader,
                 activeDetailID: activeDetailID,
-                onSelect: onSelect
+                reviewMode: reviewMode,
+                onSelect: onSelect,
+                onStartAgenticThread: onStartAgenticThread
             )
         }
 
-        XCTAssertEqual(makeList(), makeList(onSelect: { _ = $0 }))
+        XCTAssertEqual(makeList(), makeList(onSelect: { _ = $0 }, onStartAgenticThread: { _, _ in }))
+        XCTAssertNotEqual(makeList(), makeList(reviewMode: .reviewTeam))
         XCTAssertNotEqual(makeList(), makeList(activeDetailID: sections[0].rows[0].id))
         XCTAssertNotEqual(makeList(), makeList(items: []))
     }

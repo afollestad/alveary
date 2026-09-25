@@ -250,11 +250,11 @@ extension ContentView {
         }
     }
 
-    /// Selects a linked thread or project from the pane's linked-owners section.
-    /// The row hands back an owner id rather than a model, so the selection is
+    /// Selects a linked thread or project from the pane's linked-owners section or a list row's
+    /// menu. Each hands back an owner id rather than a model, so the selection is
     /// built from a freshly resolved row. No pane dismissal: origin scoping
     /// already unmounts the pane once the selection moves off its origin.
-    private var linkedOwnerOpenAction: PullRequestLinkedOwnerOpenAction {
+    var linkedOwnerOpenAction: PullRequestLinkedOwnerOpenAction {
         PullRequestLinkedOwnerOpenAction(id: "app-sidebar-selection") { [appState, uiModelContext] owner in
             switch owner {
             case .thread(let id):

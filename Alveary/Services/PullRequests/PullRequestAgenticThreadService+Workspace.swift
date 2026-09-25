@@ -19,7 +19,7 @@ import SwiftData
 /// There is no fourth rung. Addressing feedback means editing files and pushing them, so a thread
 /// left on a private scratch directory could not do the job at all — it would burn a turn
 /// discovering that. When nothing can be borrowed and no project holds the repository, `start`
-/// throws `StartError.projectMissing` before creating anything, and the pane says so.
+/// throws `StartError.projectMissing` before creating anything, and the pane or list screen says so.
 ///
 /// ## Why a borrow is verified rather than trusted
 ///
@@ -180,16 +180,7 @@ extension PullRequestAgenticThreadService {
         identifier: PullRequestIdentifier,
         headRefName: String?
     ) -> [TaskWorkspaceDescriptor] {
-        let threads = (try? lifecycleService.modelContext.fetch(
-            PullRequestLinkedOwnerLookup.linkHoldingThreads
-        )) ?? []
-        return PullRequestLinkedOwnerLookup.owners(projects: [], threads: threads, linking: identifier)
-            .compactMap { owner -> AgentThread? in
-                guard case .thread(let thread) = owner else {
-                    return nil
-                }
-                return thread
-            }
+        PullRequestLinkedOwnerLookup.threads(linking: identifier, in: lifecycleService.modelContext)
             .flatMap { borrowableWorkspaces(of: $0, identifier: identifier, headRefName: headRefName) }
     }
 

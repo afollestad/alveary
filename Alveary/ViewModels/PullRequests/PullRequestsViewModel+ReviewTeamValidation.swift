@@ -92,7 +92,7 @@ extension PullRequestsViewModel {
         let needsDiscoveryRefresh = refreshDiscovery || reviewTeamDiscoveryNeedsRefresh
         reviewTeamSettingsSignature = signature
         cancelReviewTeamValidation()
-        mirroredPullRequestReviewMode = settings.pullRequestReviewMode
+        mirrorPullRequestReviewMode(settings.pullRequestReviewMode)
 
         guard settings.pullRequestReviewMode == .reviewTeam else {
             mirroredReviewTeamValidationStatus = .notRequired
@@ -132,6 +132,14 @@ extension PullRequestsViewModel {
             self?.finishReviewTeamValidation(status, token: token)
         }
         startReviewTeamValidationDeadline(token: token)
+    }
+
+    /// Equality-guarded because the list screen observes the mode, and a forced check rewrites it.
+    private func mirrorPullRequestReviewMode(_ mode: PullRequestReviewMode) {
+        guard mirroredPullRequestReviewMode != mode else {
+            return
+        }
+        mirroredPullRequestReviewMode = mode
     }
 
     private func finishReviewTeamDiscoveryRefresh(token: UUID) {

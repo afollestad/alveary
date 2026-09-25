@@ -14,14 +14,25 @@ struct PullRequestsScreen: View {
     private let emptyStateVerticalOffset: CGFloat = -91
 
     var body: some View {
-        VStack(spacing: 0) {
-            PullRequestsScreenHeader(viewModel: viewModel)
+        missingProjectAlert(
+            VStack(spacing: 0) {
+                PullRequestsScreenHeader(viewModel: viewModel)
 
-            content
-        }
-        .task {
-            await viewModel.refreshForScreen()
-        }
+                content
+            }
+            .task {
+                await viewModel.refreshForScreen()
+            }
+        )
+    }
+
+    /// Raised by a row menu's route, which starts with no pane open to carry the refusal. Lifted
+    /// out of `body` for the type-check budget.
+    private func missingProjectAlert<Content: View>(_ content: Content) -> some View {
+        content.pullRequestMissingProjectAlert(
+            repository: viewModel.listAgenticThreadMissingProject,
+            onDismiss: viewModel.clearListAgenticThreadMissingProject
+        )
     }
 
     @ViewBuilder
@@ -49,6 +60,7 @@ struct PullRequestsScreen: View {
         let linkedThreadIDs = linkedThreadIndex.identifiers(in: linkHoldingThreads)
         let items = viewModel.visibleListItems(for: viewModel.selectedFilter, linkedThreadIDs: linkedThreadIDs)
         let activeDetailID = viewModel.activeDetailIdentifier
+        let reviewMode = viewModel.mirroredPullRequestReviewMode
         let avatarLoader = viewModel.avatarLoader
         let canLoadMore = viewModel.canLoadMore(for: viewModel.selectedFilter)
         let isLoadingMore = viewModel.isLoadingMore
@@ -72,9 +84,13 @@ struct PullRequestsScreen: View {
                                     items: items,
                                     avatarLoader: avatarLoader,
                                     activeDetailID: activeDetailID,
+                                    reviewMode: reviewMode,
                                     onSelect: { summary in
                                         viewModel.requestDetails(summary)
                                         isListFocused = true
+                                    },
+                                    onStartAgenticThread: { summary, kind in
+                                        viewModel.startAgenticThread(kind: kind, for: summary)
                                     }
                                 )
                                 .equatable()

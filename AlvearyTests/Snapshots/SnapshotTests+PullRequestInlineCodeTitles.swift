@@ -92,7 +92,9 @@ private enum PullRequestInlineCodeTitleSnapshots {
             ),
             avatarLoader: GitHubAvatarLoader(),
             activeDetailID: summaries[0].id,
-            onSelect: { _ in }
+            reviewMode: .singleAgent,
+            onSelect: { _ in },
+            onStartAgenticThread: { _, _ in }
         )
         .padding(20)
     }

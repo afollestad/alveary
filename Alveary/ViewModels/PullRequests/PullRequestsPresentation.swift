@@ -62,15 +62,26 @@ struct PullRequestRowModel: Identifiable, Equatable {
     /// row draws.
     let showsRepository: Bool
     let hasLinkedThread: Bool
+    /// Drives both the row's spinner and which of its menu's agentic items are disabled.
+    let workingAgenticKinds: Set<PullRequestAgenticThreadService.Kind>
     let ageText: String
     let accessibilityLabel: String
 
     var id: PullRequestIdentifier { summary.id }
 
-    init(summary: PullRequestSummary, showsRepository: Bool, referenceDate: Date, hasLinkedThread: Bool = false) {
+    var isAgentWorking: Bool { !workingAgenticKinds.isEmpty }
+
+    init(
+        summary: PullRequestSummary,
+        showsRepository: Bool,
+        referenceDate: Date,
+        hasLinkedThread: Bool = false,
+        workingAgenticKinds: Set<PullRequestAgenticThreadService.Kind> = []
+    ) {
         self.summary = summary
         self.showsRepository = showsRepository
         self.hasLinkedThread = hasLinkedThread
+        self.workingAgenticKinds = workingAgenticKinds
         let age = compactRelativeAge(from: summary.updatedAt, relativeTo: referenceDate)
         ageText = age
         var parts = [
@@ -86,6 +97,9 @@ struct PullRequestRowModel: Identifiable, Equatable {
         parts.append("\(summary.additions) added, \(summary.deletions) deleted")
         if hasLinkedThread {
             parts.append("Linked thread")
+        }
+        if !workingAgenticKinds.isEmpty {
+            parts.append("Agent working")
         }
         accessibilityLabel = parts.joined(separator: ", ")
     }
@@ -115,7 +129,8 @@ enum PullRequestListItem: Identifiable, Equatable {
         _ sections: [PullRequestListSection],
         showsRepository: Bool,
         referenceDate: Date,
-        linkedThreadIDs: Set<PullRequestIdentifier> = []
+        linkedThreadIDs: Set<PullRequestIdentifier> = [],
+        workingAgenticKinds: [PullRequestIdentifier: Set<PullRequestAgenticThreadService.Kind>] = [:]
     ) -> [PullRequestListItem] {
         sections.flatMap { section -> [PullRequestListItem] in
             let rows = section.rows.map { summary in
@@ -124,7 +139,8 @@ enum PullRequestListItem: Identifiable, Equatable {
                         summary: summary,
                         showsRepository: showsRepository,
                         referenceDate: referenceDate,
-                        hasLinkedThread: linkedThreadIDs.contains(summary.id)
+                        hasLinkedThread: linkedThreadIDs.contains(summary.id),
+                        workingAgenticKinds: workingAgenticKinds[summary.id] ?? []
                     )
                 )
             }

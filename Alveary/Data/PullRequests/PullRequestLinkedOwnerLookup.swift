@@ -104,6 +104,18 @@ enum PullRequestLinkedOwnerLookup {
         return ordered.map(\.owner)
     }
 
+    /// The threads linking one pull request, freshly fetched — for action paths, which must not
+    /// trust a render's `@Query` snapshot. Ordered like `owners`.
+    static func threads(linking identifier: PullRequestIdentifier, in modelContext: ModelContext) -> [AgentThread] {
+        let threads = (try? modelContext.fetch(linkHoldingThreads)) ?? []
+        return owners(projects: [], threads: threads, linking: identifier).compactMap { owner in
+            guard case .thread(let thread) = owner else {
+                return nil
+            }
+            return thread
+        }
+    }
+
     /// Names only the kinds present, so a list of threads never claims to hold
     /// projects. Callers hide the section when `owners` is empty, so the
     /// threads-only wording doubles as the fallback.

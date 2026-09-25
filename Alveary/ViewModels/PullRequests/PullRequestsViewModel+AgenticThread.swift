@@ -82,7 +82,11 @@ extension PullRequestsViewModel {
     func startAgenticThread(kind: PullRequestAgenticThreadService.Kind) {
         guard let target = activePaneTarget,
               let session = paneSessions[target],
-              canStartAgenticThread(kind: kind, session: session),
+              Self.canStartAgenticThread(
+                  kind: kind,
+                  reviewMode: session.pullRequestReviewMode,
+                  validationStatus: session.pullRequestReviewTeamValidationStatus
+              ),
               !agenticThreadActivity.isWorking(target.identifier, kind: kind),
               let agenticThreadStarter,
               let request = agenticThreadRequest(kind: kind, target: target, session: session) else {
@@ -93,12 +97,65 @@ extension PullRequestsViewModel {
             session.agenticThreadError = nil
             session.agenticThreadMissingProject = nil
         }
+        launchAgenticThread(request, starter: agenticThreadStarter) { error in
+            self.applyAgenticThreadStartFailure(error, target: target, generation: generation)
+        }
+    }
+
+    /// The list row menu's entry: starts a route without opening the pane. No footer is mounted to
+    /// carry a pre-spawn failure, so it toasts — except a missing project, which raises the screen's
+    /// alert for the reason the pane uses a modal: the fix lives elsewhere in the app.
+    func startAgenticThread(kind: PullRequestAgenticThreadService.Kind, for summary: PullRequestSummary) {
+        let identifier = summary.id
+        guard !agenticThreadActivity.isWorking(identifier, kind: kind),
+              let agenticThreadStarter,
+              let url = summary.url ?? identifier.webURL else {
+            return
+        }
+        guard Self.canStartAgenticThread(
+            kind: kind,
+            reviewMode: mirroredPullRequestReviewMode,
+            validationStatus: mirroredReviewTeamValidationStatus
+        ) else {
+            if let message = mirroredReviewTeamValidationStatus.footerMessage {
+                presentToast(message)
+            }
+            // Retries a failed or timed-out check, as opening a pane would.
+            refreshPullRequestReviewConfigurationForPane()
+            return
+        }
+        listAgenticThreadMissingProject = nil
+        let request = PullRequestAgenticThreadRequest(
+            kind: kind,
+            identifier: identifier,
+            url: url,
+            // A retained pane session may already hold the detail, sparing the link a fetch.
+            knownDetail: paneSessions[.details(identifier)]?.detail,
+            knownSummary: summary,
+            preferredProjectID: nil
+        )
+        launchAgenticThread(request, starter: agenticThreadStarter) { error in
+            self.applyListAgenticThreadStartFailure(error)
+        }
+    }
+
+    func clearListAgenticThreadMissingProject() {
+        listAgenticThreadMissingProject = nil
+    }
+
+    /// Anything after the thread exists toasts from both entries: the deferred half can outlive
+    /// the pane or screen that started it.
+    private func launchAgenticThread(
+        _ request: PullRequestAgenticThreadRequest,
+        starter: @escaping @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart,
+        onStartFailure: @escaping @MainActor (Error) -> Void
+    ) {
         Task {
             let start: PullRequestAgenticThreadStart
             do {
-                start = try await agenticThreadStarter(request)
+                start = try await starter(request)
             } catch {
-                applyAgenticThreadStartFailure(error, target: target, generation: generation)
+                onStartFailure(error)
                 return
             }
             do {
@@ -113,14 +170,15 @@ extension PullRequestsViewModel {
     }
 
     /// Team review is the only agentic route whose saved configuration needs strict preflight.
-    private func canStartAgenticThread(
+    private static func canStartAgenticThread(
         kind: PullRequestAgenticThreadService.Kind,
-        session: PullRequestPaneSession
+        reviewMode: PullRequestReviewMode,
+        validationStatus: PullRequestReviewTeamValidationStatus
     ) -> Bool {
-        guard kind == .review, session.pullRequestReviewMode == .reviewTeam else {
+        guard kind == .review, reviewMode == .reviewTeam else {
             return true
         }
-        return session.pullRequestReviewTeamValidationStatus == .valid
+        return validationStatus == .valid
     }
 
     /// A failure from before the thread existed, which the still-mounted footer can show. The
@@ -140,6 +198,14 @@ extension PullRequestsViewModel {
         updateSession(target, generation: generation) { session in
             session.agenticThreadError = error.localizedDescription
         }
+    }
+
+    private func applyListAgenticThreadStartFailure(_ error: Error) {
+        if case PullRequestAgenticThreadService.StartError.projectMissing(let repository) = error {
+            listAgenticThreadMissingProject = repository
+            return
+        }
+        presentToast(error.localizedDescription)
     }
 
     /// Observed synchronously (`queue: nil`) so a transition lands on the pane session inside the
@@ -178,6 +244,23 @@ extension PullRequestsViewModel {
                 session.workingAgenticKinds = working
             }
         }
+        refreshListWorkingAgenticKinds()
+    }
+
+    /// The same mirror for listed rows, which have no session. Looked up per listed identifier
+    /// because the tracker normalizes repository casing, and equality-guarded so a transition on a
+    /// pull request the list does not hold publishes nothing.
+    func refreshListWorkingAgenticKinds() {
+        var working: [PullRequestIdentifier: Set<PullRequestAgenticThreadService.Kind>] = [:]
+        for identifier in items.map(\.id) {
+            let kinds = agenticThreadActivity.workingKinds(for: identifier)
+            if !kinds.isEmpty {
+                working[identifier] = kinds
+            }
+        }
+        if working != listWorkingAgenticKinds {
+            listWorkingAgenticKinds = working
+        }
     }
 
     /// Prefers the API-provided URL; the constructed fallback covers an identifier-opened pane
@@ -188,9 +271,7 @@ extension PullRequestsViewModel {
         session: PullRequestPaneSession
     ) -> PullRequestAgenticThreadRequest? {
         let identifier = target.identifier
-        guard let url = session.detail?.url
-            ?? session.summary?.url
-            ?? URL(string: "https://github.com/\(identifier.nameWithOwner)/pull/\(identifier.number)") else {
+        guard let url = session.detail?.url ?? session.summary?.url ?? identifier.webURL else {
             return nil
         }
         return PullRequestAgenticThreadRequest(
