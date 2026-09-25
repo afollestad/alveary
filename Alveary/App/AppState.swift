@@ -25,7 +25,7 @@ final class AppState {
     var pendingComposerFocusToken: UUID?
     // Launch-only work guards. The app survives its last window closing, so `ContentView` can
     // mount more than once per process and these cannot live in its `@State` — a re-created
-    // window would redo launch restore, which clears the persisted last-open thread.
+    // window would redo launch restore, pulling an empty selection back to the last-open thread.
     var didAttemptLaunchSelectionRestore = false
     var didStartThreadActivityBackfill = false
 

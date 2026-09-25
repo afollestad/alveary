@@ -16,9 +16,20 @@ extension AppDelegateTests {
     /// `MainWindowPresenter` owns reopen, so SwiftUI must not also open one.
     func testDockReopenIsHandledByThePresenter() throws {
         let fixture = try AppDelegateTestFixture()
+        fixture.mainWindowPresenter.register {}
         let appDelegate = fixture.makeAppDelegate()
 
         XCTAssertFalse(
+            appDelegate.applicationShouldHandleReopen(NSApplication.shared, hasVisibleWindows: false)
+        )
+    }
+
+    /// A launch that never presented the scene leaves the presenter nothing to show.
+    func testDockReopenFallsBackToSwiftUIWhenThePresenterHasNothingToShow() throws {
+        let fixture = try AppDelegateTestFixture()
+        let appDelegate = fixture.makeAppDelegate()
+
+        XCTAssertTrue(
             appDelegate.applicationShouldHandleReopen(NSApplication.shared, hasVisibleWindows: false)
         )
     }

@@ -36,19 +36,18 @@ struct AlvearyApp: App {
                     performAppNavigationIfModelPreparationModalAbsent(
                         lifecycleController: AppDI.component.voiceInputLifecycleController
                     ) {
+                        AppDI.component.mainWindowPresenter.activate()
                         appState.openNewProjectFlow()
                     }
                 }
                 .keyboardShortcut(.addProject)
 
-                Button("New Thread") {
-                    performAppNavigationIfModelPreparationModalAbsent(
-                        lifecycleController: AppDI.component.voiceInputLifecycleController
-                    ) {
-                        appState.startNewThreadFlow()
-                    }
+                NewThreadCommandButton(
+                    presenter: AppDI.component.mainWindowPresenter,
+                    voiceInputLifecycleController: AppDI.component.voiceInputLifecycleController
+                ) {
+                    appState.startNewThreadFlow()
                 }
-                .keyboardShortcut(.newThread)
 
                 NewConversationCommandButton(
                     voiceInputLifecycleController: AppDI.component.voiceInputLifecycleController
@@ -60,6 +59,7 @@ struct AlvearyApp: App {
                     performAppNavigationIfModelPreparationModalAbsent(
                         lifecycleController: AppDI.component.voiceInputLifecycleController
                     ) {
+                        AppDI.component.mainWindowPresenter.activate()
                         appState.openSettings()
                     }
                 }
@@ -69,6 +69,7 @@ struct AlvearyApp: App {
                     performAppNavigationIfModelPreparationModalAbsent(
                         lifecycleController: AppDI.component.voiceInputLifecycleController
                     ) {
+                        AppDI.component.mainWindowPresenter.activate()
                         appState.openSettings(targetPage: .appUpdates)
                     }
                 }
@@ -239,6 +240,30 @@ func performVoiceModelCacheClearIfModelPreparationModalAbsent(
     }
     operation()
     return true
+}
+
+/// Owns the main scene's opener: SwiftUI builds the main menu at launch even when it presents no
+/// window (a login-item launch), so this is the one place guaranteed an `OpenWindowAction` before
+/// `ContentView` ever mounts. Registering on every body evaluation only reassigns the same closure.
+private struct NewThreadCommandButton: View {
+    @Environment(\.openWindow) private var openWindow
+    let presenter: MainWindowPresenter
+    let voiceInputLifecycleController: VoiceInputLifecycleController
+    let startNewThreadFlow: () -> Void
+
+    var body: some View {
+        let openWindow = openWindow
+        presenter.register { openWindow(id: MainWindowPresenter.sceneID) }
+        return Button("New Thread") {
+            performAppNavigationIfModelPreparationModalAbsent(
+                lifecycleController: voiceInputLifecycleController
+            ) {
+                presenter.activate()
+                startNewThreadFlow()
+            }
+        }
+        .keyboardShortcut(.newThread)
+    }
 }
 
 /// Reads the window's relayed `newConversationAction` so ⌘T and the toolbar share availability.

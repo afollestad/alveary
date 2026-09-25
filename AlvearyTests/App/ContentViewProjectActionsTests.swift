@@ -319,6 +319,30 @@ final class ContentViewProjectActionsTests: XCTestCase {
         XCTAssertNil(resolvedLastOpenThreadSelection(settings: missingConversationSettings, modelContext: context))
     }
 
+    /// A menu command after a windowless launch navigates before the window first mounts.
+    func testLaunchRestoreKeepsSavedSelectionWhenAMenuCommandNavigatedFirst() throws {
+        let profile = AppStorageProfile.hostedUnitTest(processIdentifier: 44, identifier: UUID())
+        defer { profile.cleanupSettingsDefaults() }
+        let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true, storageProfile: profile)
+        let context = component.modelContainer.mainContext
+        let conversation = Conversation(title: "Main", harness: "claude")
+        let thread = AgentThread(name: "Last Open", conversations: [conversation])
+        context.insert(thread)
+        try context.save()
+        component.settingsService.updateRestoreSelection(
+            threadID: thread.persistentModelID,
+            conversationID: conversation.persistentModelID
+        )
+        let appState = AppState()
+        appState.openSettings()
+
+        ContentView(component: component, appState: appState).restoreLastOpenThreadSelectionIfNeeded()
+
+        XCTAssertEqual(appState.selectedSidebarItem, .settings)
+        XCTAssertEqual(component.settingsService.current.lastOpenThreadID, thread.persistentModelID)
+        XCTAssertEqual(component.settingsService.current.lastOpenConversationID, conversation.persistentModelID)
+    }
+
     func testProjectActionLaunchConfigurationUsesExecutionContextDirectoryAndCommand() throws {
         let project = Project(path: "/tmp/project", name: "Alveary")
         let thread = AgentThread(name: "Toolbar Action", worktreePath: "/tmp/worktree", project: project)

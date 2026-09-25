@@ -40,13 +40,18 @@ extension ContentView {
         }
         appState.didAttemptLaunchSelectionRestore = true
 
+        // A menu command can navigate before a windowless launch first mounts the window; that
+        // selection wins, but the saved IDs are still valid for the next launch.
+        guard appState.selectedSidebarItem == nil else {
+            return
+        }
+
         let settings = settingsService.current
 
-        guard appState.selectedSidebarItem == nil,
-              let selection = resolvedLastOpenThreadSelection(
-                  settings: settings,
-                  modelContext: uiModelContext
-              ) else {
+        guard let selection = resolvedLastOpenThreadSelection(
+            settings: settings,
+            modelContext: uiModelContext
+        ) else {
             clearLastOpenThreadSelectionIfNeeded(settings: settings)
             return
         }

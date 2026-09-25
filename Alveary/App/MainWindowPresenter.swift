@@ -6,8 +6,9 @@ import Foundation
 ///
 /// The app now outlives its last window, so revealing it can mean two different things: order the
 /// existing window front, or ask SwiftUI to build the scene again. Only the view tree can do the
-/// latter — `ContentView` registers the resolved `OpenWindowAction` here at mount and keeps it
-/// separate from the window registration so closing the window does not discard the opener.
+/// latter. `NewThreadCommandButton` in `AlvearyApp.commands` registers the `OpenWindowAction`,
+/// because the main menu exists even when launch presents no window; the opener stays separate
+/// from the window registration so closing the window does not discard it.
 @MainActor
 final class MainWindowPresenter {
     /// The `Window("Alveary", id:)` scene id.
@@ -35,18 +36,24 @@ final class MainWindowPresenter {
         mainWindow = nil
     }
 
-    func activate() {
+    /// Returns `false` when there is neither a window nor an opener, so the caller can fall back.
+    @discardableResult
+    func activate() -> Bool {
         NSApp.unhide(nil)
+        defer { NSApp.activate(ignoringOtherApps: true) }
         if let window = mainWindow {
             if window.isMiniaturized {
                 window.deminiaturize(nil)
             }
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
-        } else {
-            openMainWindow?()
+            return true
         }
-        NSApp.activate(ignoringOtherApps: true)
+        guard let openMainWindow else {
+            return false
+        }
+        openMainWindow()
+        return true
     }
 
     /// Re-creates the window only when the scene is closed.

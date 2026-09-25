@@ -6,7 +6,6 @@ import SwiftUI
 struct ContentView: View {
     @Bindable var appState: AppState
     @Environment(\.modelContext) var uiModelContext
-    @Environment(\.openWindow) private var openWindow
 
     let settingsService: SettingsService
     private let gitHubCLI: GitHubCLIService
@@ -156,10 +155,6 @@ struct ContentView: View {
                 await pullRequestsViewModel.prefetchAtLaunch()
             }
             .onAppear {
-                // The scene can be re-created after the user closes it, and only the view tree
-                // can hand AppKit an action that rebuilds it.
-                let sceneOpener = openWindow
-                mainWindowPresenter.register { sceneOpener(id: MainWindowPresenter.sceneID) }
                 wireNotificationManager()
                 wireMarkdownImageFallbackResolver()
                 startThreadActivityBackfillIfNeeded()

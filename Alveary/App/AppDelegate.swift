@@ -171,11 +171,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
-    /// Single owner for Dock-icon reopen: `MainWindowPresenter` re-creates the closed scene, and
-    /// returning `false` stops SwiftUI from also opening one.
+    /// `MainWindowPresenter` owns Dock-icon reopen, so SwiftUI only opens the scene itself when the
+    /// presenter has nothing to show; otherwise it would open a second one.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        dependencies.mainWindowPresenter.activate()
-        return false
+        !dependencies.mainWindowPresenter.activate()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

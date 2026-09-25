@@ -98,6 +98,21 @@ final class MainWindowPresenterTests: XCTestCase {
         XCTAssertEqual(openCount, 0)
     }
 
+    func testActivateReportsWhenItHasNothingToShow() {
+        let presenter = MainWindowPresenter()
+
+        XCTAssertFalse(presenter.activate())
+    }
+
+    func testActivateOpensTheSceneWhenOnlyAnOpenerIsRegistered() {
+        let presenter = MainWindowPresenter()
+        var openCount = 0
+        presenter.register { openCount += 1 }
+
+        XCTAssertTrue(presenter.activate())
+        XCTAssertEqual(openCount, 1)
+    }
+
     private func makeWindow(title: String = "Alveary") -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
