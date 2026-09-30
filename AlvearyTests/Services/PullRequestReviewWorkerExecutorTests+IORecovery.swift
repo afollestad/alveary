@@ -125,7 +125,7 @@ extension PullRequestReviewWorkerExecutorTests {
 
 enum ReviewWorkerIOTestSupport {
     static let help = """
-    --ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check --strict-config --disable --sandbox
+    --ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check --disable --sandbox
     --safe-mode --no-session-persistence --restricted --strict-mcp-config --permission-mode dontAsk
     --permission-prompts --tools --disable-slash-commands --no-chrome
     """

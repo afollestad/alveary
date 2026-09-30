@@ -48,8 +48,9 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         XCTAssertGreaterThan(ignoreConfigIndex, execIndex)
         XCTAssertTrue(arguments.contains("--ignore-rules"))
         XCTAssertTrue(arguments.contains("--skip-git-repo-check"))
-        XCTAssertTrue(arguments.contains("--strict-config"))
+        XCTAssertFalse(arguments.contains("--strict-config"))
         XCTAssertTrue(arguments.contains("mcp_servers={}"))
+        XCTAssertTrue(arguments.contains("features.multi_agent_v2=false"))
         XCTAssertEqual(values(after: "--disable", in: arguments), [
             "apps", "browser_use", "computer_use", "hooks", "image_generation", "multi_agent", "plugins",
             "standalone_web_search", "web_search_request"
@@ -349,7 +350,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
     use strict;
     use FindBin qw($Bin);
     if (grep { $_ eq '--help' } @ARGV) {
-        print "--ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check --strict-config --disable --sandbox\n";
+        print "--ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check --disable --sandbox\n";
         exit 0;
     }
     my $prompt = do { local $/; <STDIN> };
@@ -363,7 +364,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
     #!/usr/bin/perl
     use strict;
     if (grep { $_ eq '--help' } @ARGV) {
-        print "--ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check --strict-config --disable --sandbox\n";
+        print "--ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check --disable --sandbox\n";
         exit 0;
     }
     my $prompt = do { local $/; <STDIN> };

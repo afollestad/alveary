@@ -71,12 +71,14 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
         "--allow-dangerously-skip-permissions", "--dangerously-skip-permissions", "--mcp-config", "--plugin-dir",
         "--plugin-url", "--resume", "--setting-sources", "--settings"
     ]
+    /// Omits `--strict-config`: enterprise-managed cloud config still loads and can carry fields newer than the installed CLI.
+    /// Features an older CLI may not know are disabled through `-c`, because `--disable` rejects unknown names.
     private static let codexArguments = [
         "--ignore-user-config",
         "--ignore-rules",
         "--skip-git-repo-check",
-        "--strict-config",
         "-c", "mcp_servers={}",
+        "-c", "features.multi_agent_v2=false",
         "--disable", "apps",
         "--disable", "browser_use",
         "--disable", "computer_use",

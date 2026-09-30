@@ -97,7 +97,6 @@ extension DefaultPullRequestReviewWorkerExecutor {
                 "--ignore-user-config",
                 "--ignore-rules",
                 "--skip-git-repo-check",
-                "--strict-config",
                 "--disable",
                 "--sandbox"
             ]
