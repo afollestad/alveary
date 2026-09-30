@@ -54,7 +54,7 @@ final class ThreadDefaultResolverTests: XCTestCase {
         let claudeOptions = ThreadDefaultResolver.modelOptions(for: "claude", harnessStatuses: [:])
         let codexOptions = ThreadDefaultResolver.modelOptions(for: "codex", harnessStatuses: [:])
 
-        XCTAssertEqual(claudeOptions.filter(\.isDefault).map(\.id), ["claude-sonnet-5"])
+        XCTAssertEqual(claudeOptions.filter(\.isDefault).map(\.id), ["claude-sonnet-5-5"])
         XCTAssertEqual(codexOptions.map(\.id), ["default"])
     }
 

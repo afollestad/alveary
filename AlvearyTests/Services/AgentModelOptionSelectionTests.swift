@@ -64,14 +64,16 @@ final class AgentModelOptionSelectionTests: XCTestCase {
         )
 
         XCTAssertEqual(Self.claudeOptions.first?.id, "claude-opus-5-5")
-        XCTAssertEqual(pickerValue, "claude-sonnet-5")
+        XCTAssertEqual(pickerValue, "claude-sonnet-5-5")
     }
 
     /// The composer paints before discovery's first probe lands, so the cold-path catalog must resolve a persisted
     /// pinned id to its real label instead of synthesizing a raw-id row.
     func testStaticCatalogResolvesAPersistedPinnedIDBeforeDiscovery() {
         let options = AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .claude)
-        for (model, label) in [("claude-opus-5-5", "Opus 5.5"), ("claude-opus-5", "Opus 5")] {
+        for (model, label) in [
+            ("claude-opus-5-5", "Opus 5.5"), ("claude-opus-5", "Opus 5"), ("claude-sonnet-5-5", "Sonnet 5.5"), ("claude-sonnet-5", "Sonnet 5")
+        ] {
             let menuItems = AgentModelOptionSelection.menuItems(
                 in: options,
                 selectedModel: model,
@@ -85,14 +87,16 @@ final class AgentModelOptionSelectionTests: XCTestCase {
         }
     }
 
-    func testStaticCatalogNormalizesEffortForTheSelectedOpusVersion() {
+    func testStaticCatalogNormalizesEffortForTheSelectedModelVersion() {
         let options = AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .claude)
 
-        for model in ["opus", "claude-opus-5-5"] {
+        for model in ["opus", "claude-opus-5-5", "sonnet", "claude-sonnet-5-5"] {
             XCTAssertEqual(AgentModelOptionSelection.normalizedEffort("ultra", options: options, selectedModel: model), "medium")
             XCTAssertEqual(AgentModelOptionSelection.normalizedEffort("high", options: options, selectedModel: model), "high")
         }
-        XCTAssertEqual(AgentModelOptionSelection.normalizedEffort("ultra", options: options, selectedModel: "claude-opus-5"), "high")
+        for model in ["claude-opus-5", "claude-sonnet-5"] {
+            XCTAssertEqual(AgentModelOptionSelection.normalizedEffort("ultra", options: options, selectedModel: model), "high")
+        }
     }
 
     func testStaticCatalogResolvesTheDefaultSentinelToTheDefaultOption() {
@@ -101,7 +105,7 @@ final class AgentModelOptionSelectionTests: XCTestCase {
             matching: AppSettings.defaultModelValue
         )
 
-        XCTAssertEqual(pickerValue, "claude-sonnet-5")
+        XCTAssertEqual(pickerValue, "claude-sonnet-5-5")
     }
 
     /// Mirrors the real catalog's shape: the strongest model leads and the default sits further down.
@@ -125,13 +129,13 @@ final class AgentModelOptionSelectionTests: XCTestCase {
         ),
         AgentCLIKit.AgentModelOption(
             harnessId: .claude,
-            id: "claude-sonnet-5",
-            model: "claude-sonnet-5",
-            label: "Sonnet 5",
+            id: "claude-sonnet-5-5",
+            model: "claude-sonnet-5-5",
+            label: "Sonnet 5.5",
             shortName: "sonnet",
             isDefault: true,
             supportedEffortOptions: AgentModelOptionTestFixtures.claudeSonnetEfforts,
-            defaultEffortOption: AgentModelOptionTestFixtures.high
+            defaultEffortOption: AgentModelOptionTestFixtures.medium
         )
     ]
 

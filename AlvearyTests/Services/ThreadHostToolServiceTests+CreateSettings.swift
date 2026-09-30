@@ -99,7 +99,7 @@ extension ThreadHostToolServiceTests {
         XCTAssertFalse(result.isError, result.text)
         let content = try object(result.structuredContent)
         XCTAssertEqual(content["harness"], .string("claude"))
-        XCTAssertEqual(content["model"], .string("claude-sonnet-5"))
+        XCTAssertEqual(content["model"], .string("claude-sonnet-5-5"))
     }
 
     /// A caller running its harness's default model passes that on as-is: the created thread
