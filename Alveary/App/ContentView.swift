@@ -76,13 +76,7 @@ struct ContentView: View {
     @State var voiceInputInteractionLockGeneration = 0
     @State var publishedNewConversationAction: NewConversationAction?
 
-    init(component: AppComponent, appState: AppState) {
-        self.init(dependencies: ContentViewDependencies.resolve(component), appState: appState)
-    }
-
-    // One-to-one dependency and State assignments must remain in the initializer.
-    // swiftlint:disable:next function_body_length
-    init(dependencies: ContentViewDependencies, appState: AppState) {
+    init(dependencies: ContentViewDependencies, bootstrapState: ContentViewBootstrapState, appState: AppState) {
         self.appState = appState
         self.settingsService = dependencies.settingsService
         self.gitHubCLI = dependencies.gitHubCLI
@@ -111,7 +105,7 @@ struct ContentView: View {
         self.voiceInputLifecycleController = dependencies.voiceInputLifecycleController
         self.pullRequestReviewTeamCoordinator = dependencies.pullRequestReviewTeamCoordinator
         _appUpdateManager = State(initialValue: dependencies.appUpdateManager)
-        let settings = dependencies.settingsService.current
+        let settings = bootstrapState.settings
         // Keep UI mutations on the main context so sidebar `@Query` reads and view-model saves stay in sync.
         _viewModelContext = State(initialValue: dependencies.modelContainer.mainContext)
         _rightPaneWidth = State(initialValue: CGFloat(settings.rightPaneWidth))
@@ -119,19 +113,18 @@ struct ContentView: View {
         _diffViewerCommitsTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerCommitsTopSectionFraction))
         _diffViewerMode = State(initialValue: settings.diffViewerMode)
         _terminalPaneHeight = State(initialValue: CGFloat(settings.terminalPaneHeight))
-        let bootstrapState = Self.makeBootstrapState(dependencies: dependencies, appState: appState)
         _sidebarViewModel = State(initialValue: bootstrapState.sidebarViewModel)
-        _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: dependencies.skillsService))
-        _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
-        _scheduledTasksViewModel = State(initialValue: Self.makeScheduledTasksViewModel(dependencies: dependencies))
+        _skillsViewModel = State(initialValue: bootstrapState.skillsViewModel)
+        _mcpViewModel = State(initialValue: bootstrapState.mcpViewModel)
+        _scheduledTasksViewModel = State(initialValue: bootstrapState.scheduledTasksViewModel)
         _scheduledTaskProposalQueueCoordinator = State(initialValue: bootstrapState.scheduledTaskProposalQueueCoordinator)
         _pullRequestReviewProposalCoordinator = State(initialValue: bootstrapState.reviewProposalCoordinator)
-        _unresolvedApprovalRegistry = State(initialValue: Self.makeUnresolvedApprovalRegistry(dependencies: dependencies))
+        _unresolvedApprovalRegistry = State(initialValue: bootstrapState.unresolvedApprovalRegistry)
         _pullRequestsViewModel = State(initialValue: bootstrapState.pullRequestsViewModel)
-        _pullRequestLinksViewModel = State(initialValue: Self.makePullRequestLinksViewModel(dependencies: dependencies))
-        _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
+        _pullRequestLinksViewModel = State(initialValue: bootstrapState.pullRequestLinksViewModel)
+        _settingsViewModel = State(initialValue: bootstrapState.settingsViewModel)
         _archivedThreadsViewModel = State(initialValue: bootstrapState.archivedThreadsViewModel)
-        _onboardingViewModel = State(initialValue: Self.makeOnboardingViewModel(dependencies: dependencies))
+        _onboardingViewModel = State(initialValue: bootstrapState.onboardingViewModel)
         _appShotCaptureController = State(initialValue: bootstrapState.appShotCaptureController)
         _lastActiveProjectRecorder = State(initialValue: bootstrapState.lastActiveProjectRecorder)
         _diffViewModel = State(initialValue: bootstrapState.diffViewModel)

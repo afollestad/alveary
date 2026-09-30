@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+/// The root's view models, plus the settings its layout starts from. `ContentViewHost` builds this
+/// once per window hierarchy; its doc comment owns why `ContentView` must not build it itself.
 struct ContentViewBootstrapState {
     let sidebarViewModel: SidebarViewModel
     let appShotCaptureController: AppShotCaptureController
@@ -8,10 +10,18 @@ struct ContentViewBootstrapState {
     let diffViewModel: DiffViewerViewModel
     let scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator
     let reviewProposalCoordinator: PullRequestReviewProposalCoordinator
-    /// Built here rather than in `ContentView.init` because it needs `reviewProposalCoordinator`,
-    /// which this state already owns.
     let pullRequestsViewModel: PullRequestsViewModel
     let archivedThreadsViewModel: ArchivedThreadsViewModel
+    let skillsViewModel: SkillsViewModel
+    let mcpViewModel: MCPViewModel
+    let scheduledTasksViewModel: ScheduledTasksViewModel
+    let unresolvedApprovalRegistry: UnresolvedApprovalRegistry
+    let pullRequestLinksViewModel: PullRequestLinksViewModel
+    let settingsViewModel: SettingsViewModel
+    let onboardingViewModel: OnboardingViewModel
+    /// What the root's layout `@State` starts from. Snapshotted here because `current` is
+    /// observable, so reading it in `ContentView.init` would subscribe the host to every write.
+    let settings: AppSettings
 }
 
 extension ContentView {
@@ -19,6 +29,7 @@ extension ContentView {
         dependencies: ContentViewDependencies,
         appState: AppState
     ) -> ContentViewBootstrapState {
+        let settings = dependencies.settingsService.current
         let sidebarViewModel = makeSidebarViewModel(dependencies: dependencies, appState: appState)
         let reviewProposalCoordinator = makePullRequestReviewProposalCoordinator(dependencies: dependencies)
         return ContentViewBootstrapState(
@@ -42,7 +53,15 @@ extension ContentView {
                 dependencies: dependencies,
                 sidebarViewModel: sidebarViewModel,
                 appState: appState
-            )
+            ),
+            skillsViewModel: SkillsViewModel(skillsService: dependencies.skillsService),
+            mcpViewModel: MCPViewModel(mcpService: dependencies.mcpService),
+            scheduledTasksViewModel: makeScheduledTasksViewModel(dependencies: dependencies),
+            unresolvedApprovalRegistry: makeUnresolvedApprovalRegistry(dependencies: dependencies),
+            pullRequestLinksViewModel: makePullRequestLinksViewModel(dependencies: dependencies),
+            settingsViewModel: makeSettingsViewModel(dependencies: dependencies),
+            onboardingViewModel: makeOnboardingViewModel(dependencies: dependencies),
+            settings: settings
         )
     }
 

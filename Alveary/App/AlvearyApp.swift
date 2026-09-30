@@ -17,7 +17,7 @@ struct AlvearyApp: App {
 
     var body: some Scene {
         Window("Alveary", id: MainWindowPresenter.sceneID) {
-            ContentView(component: AppDI.component, appState: appState)
+            ContentViewHost(component: AppDI.component, appState: appState)
                 .background {
                     MainWindowRegistration(presenter: AppDI.component.mainWindowPresenter)
                         .frame(width: 0, height: 0)

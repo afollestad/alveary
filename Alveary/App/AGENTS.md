@@ -13,6 +13,7 @@ These instructions cover `Alveary/App/` — the entry point, `AppDelegate`, `App
 
 ## Root Layout
 
+- **Keep `ContentView.init` free of observable reads, constructors included; build root view models in `ContentView.makeBootstrapState`.** The init runs inside `ContentViewHost.body`, so a read there re-runs the whole root on every later write to that value; `ContentViewHost` owns why.
 - **`MiddlePane` is the root's only memoization boundary — keep it `Equatable`.** A new stored input must join `==` unless it is a window-lifetime dependency handle or a closure reading through one; a value-typed input that varies (like `targetSettingsPage`) always joins it.
 - **Keep the native titlebar separator disabled**, and render every `AppSeparatorHairline` surface at the same explicit one-physical-pixel tint.
     - **Keep the root divider unconditional.** The root toolbar hairline stays visible for every selection; a mounted multi-conversation tab strip draws its own bottom `.paneHeader` hairline, so a conditional root divider produces two separators around the strip.

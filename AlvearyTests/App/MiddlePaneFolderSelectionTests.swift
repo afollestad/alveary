@@ -41,10 +41,6 @@ final class MiddlePaneFolderSelectionTests: XCTestCase {
         let dependencies = ContentViewDependencies.resolve(component)
         let appState = AppState()
         let bootstrap = ContentView.makeBootstrapState(dependencies: dependencies, appState: appState)
-        let skillsViewModel = SkillsViewModel(skillsService: dependencies.skillsService)
-        let mcpViewModel = MCPViewModel(mcpService: dependencies.mcpService)
-        let scheduledTasksViewModel = ContentView.makeScheduledTasksViewModel(dependencies: dependencies)
-        let settingsViewModel = ContentView.makeSettingsViewModel(dependencies: dependencies)
 
         return { selectedFolder in
             MiddlePane(
@@ -67,11 +63,11 @@ final class MiddlePaneFolderSelectionTests: XCTestCase {
                 loadInstalledSkills: { [] },
                 diffViewModel: bootstrap.diffViewModel,
                 diffViewerSwitchScope: { .toolbarStatsOnly },
-                skillsViewModel: skillsViewModel,
-                mcpViewModel: mcpViewModel,
-                scheduledTasksViewModel: scheduledTasksViewModel,
+                skillsViewModel: bootstrap.skillsViewModel,
+                mcpViewModel: bootstrap.mcpViewModel,
+                scheduledTasksViewModel: bootstrap.scheduledTasksViewModel,
                 pullRequestsViewModel: bootstrap.pullRequestsViewModel,
-                settingsViewModel: settingsViewModel,
+                settingsViewModel: bootstrap.settingsViewModel,
                 archivedThreadsViewModel: bootstrap.archivedThreadsViewModel,
                 appUpdateManager: dependencies.appUpdateManager,
                 targetSettingsPage: nil,
