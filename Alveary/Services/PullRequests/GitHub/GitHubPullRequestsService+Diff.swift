@@ -7,6 +7,8 @@ extension GitHubPullRequestsService {
     struct DiffComparison: Decodable, Equatable, Sendable {
         let base: String
         let head: String
+        /// Names the `org-<id>` SSH user for organizations that require certificates; see `GitHubPullRequestGitDiff`.
+        var ownerID: Int?
     }
 
     func fetchDiffSnapshot(_ id: PullRequestIdentifier) async throws -> PullRequestDiffSnapshot {
@@ -38,7 +40,7 @@ extension GitHubPullRequestsService {
         let githubCLI = try await resolveGitHubCLI()
         let result = try await runGitHubCLIRetryingTransientFailures(
             executable: githubCLI,
-            args: ["api", "repos/\(id.nameWithOwner)/pulls/\(id.number)", "--jq", "{base: .base.sha, head: .head.sha}"],
+            args: ["api", "repos/\(id.nameWithOwner)/pulls/\(id.number)", "--jq", "{base: .base.sha, head: .head.sha, ownerID: .base.repo.owner.id}"],
             timeout: .seconds(20), stdoutLimitBytes: 4_096, retryBudget: .seconds(25), shareRead: false
         )
         guard result.succeeded else { throw Self.makeError(from: result) }

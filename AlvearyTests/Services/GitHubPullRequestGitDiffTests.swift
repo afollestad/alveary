@@ -64,6 +64,25 @@ struct GitHubPullRequestGitDiffTests {
         #expect(!FileManager.default.fileExists(atPath: directory))
     }
 
+    @Test func `SSH certificate organizations refetch over SSH`() async throws {
+        let shell = MockShellRunner()
+        await shell.setResponder { $0.args.contains("fetch") ? nil : .success(pullRequestsShellResult()) }
+        await shell.enqueue(.success(pullRequestsShellResult(
+            stderr: "remote: This repository requires SSH certificate authentication. Contact the owner to receive a certificate.",
+            exitCode: 128
+        )))
+        await shell.enqueue(.success(pullRequestsShellResult(stderr: "Permission denied (publickey).", exitCode: 128)))
+        let harness = GitHubPullRequestGitDiff(shell: shell, githubCLI: "/test/gh")
+        await #expect(throws: PullRequestsServiceError.transport("Permission denied (publickey).")) {
+            try await harness.prepare(id: .init(owner: "octo", repo: "alpha", number: 7), comparison: .init(
+                base: String(repeating: "a", count: 40), head: String(repeating: "b", count: 40), ownerID: 42
+            ))
+        }
+        let invocations = await shell.invocations.map(\.args)
+        #expect(invocations.filter { $0.contains("fetch") }.count == 2)
+        #expect(invocations.contains { $0.suffix(4) == ["remote", "set-url", "origin", "org-42@github.com:octo/alpha.git"] })
+    }
+
     @Test func `undecodable capture is a failure instead of an empty diff`() async throws {
         let shell = MockShellRunner()
         await shell.enqueue(.success(ShellResult(stdout: "", stdoutData: Data([0xFF]), stderr: "", exitCode: 0,

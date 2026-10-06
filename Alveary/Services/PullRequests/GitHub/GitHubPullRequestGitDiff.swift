@@ -19,10 +19,10 @@ struct GitHubPullRequestGitDiff: Sendable {
             _ = try await run(["remote", "add", "origin", remote], in: repository)
             _ = try await run(["config", "remote.origin.promisor", "true"], in: repository)
             _ = try await run(["config", "remote.origin.partialclonefilter", "blob:none"], in: repository)
-            _ = try await run([
+            try await fetch([
                 "fetch", "--no-tags", "--no-recurse-submodules", "--filter=blob:none", "origin",
                 comparison.base, comparison.head, "refs/pull/\(id.number)/head:refs/heads/pull-request"
-            ], in: repository)
+            ], id: id, ownerID: comparison.ownerID, in: repository)
             let mergeBase = try await run(["merge-base", comparison.base, comparison.head], in: repository)
                 .stdout.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !mergeBase.isEmpty else { throw PullRequestDiffError.invalidComparison }
@@ -44,10 +44,28 @@ struct GitHubPullRequestGitDiff: Sendable {
         }
     }
 
+    /// Organizations that require SSH certificates refuse HTTPS. GitHub's certificate URL uses the `org-<owner ID>` user so
+    /// SSH offers the certificate rather than a personal key. Repointing `origin` also routes the diff's lazy blob fetches.
+    private func fetch(_ args: [String], id: PullRequestIdentifier, ownerID: Int?, in repository: URL) async throws {
+        let result = try await execute(args, in: repository)
+        if let ownerID, !result.succeeded, result.stderr.contains("requires SSH certificate authentication") {
+            _ = try await run(["remote", "set-url", "origin", "org-\(ownerID)@github.com:\(id.nameWithOwner).git"], in: repository)
+            _ = try await run(args, in: repository)
+        } else {
+            _ = try validated(result)
+        }
+    }
+
     private func run(_ args: [String], in directory: URL) async throws -> ShellResult {
+        try await validated(execute(args, in: directory))
+    }
+
+    private func execute(_ args: [String], in directory: URL) async throws -> ShellResult {
         let helper = "!'\(githubCLI.replacingOccurrences(of: "'", with: "'\\''"))' auth git-credential"
         let configuration = [
             "-c", "credential.helper=", "-c", "credential.helper=\(helper)",
+            // BatchMode keeps an SSH host-key or passphrase prompt from blocking until the timeout.
+            "-c", "core.sshCommand=ssh -o BatchMode=yes",
             "-c", "core.hooksPath=/dev/null", "-c", "core.attributesFile=/dev/null",
             "-c", "core.quotePath=false", "-c", "protocol.file.allow=never"
         ]
@@ -55,13 +73,16 @@ struct GitHubPullRequestGitDiff: Sendable {
         let unset = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY",
                      "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_INDEX_FILE", "GIT_SHALLOW_FILE", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS"]
             .flatMap { ["-u", $0] }
-        let result = try await shell.run(
+        return try await shell.run(
             executable: "/usr/bin/env", args: unset + [git] + configuration + args, in: directory.path,
             environment: ["GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
                           "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_COUNT": "0", "GIT_LFS_SKIP_SMUDGE": "1"],
             timeout: .seconds(600), stdoutLimitBytes: 64 * 1024, stderrLimitBytes: 64 * 1024,
             standardInput: .nullDevice
         )
+    }
+
+    private func validated(_ result: ShellResult) throws -> ShellResult {
         guard result.succeeded else { throw GitHubPullRequestsService.makeError(from: result) }
         guard !result.stdoutWasTruncated else { throw PullRequestsServiceError.responseTooLarge }
         return result
