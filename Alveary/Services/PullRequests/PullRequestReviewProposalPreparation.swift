@@ -13,9 +13,8 @@ enum PullRequestReviewProposalPreparation {
         let narrowed = ReviewProposalDiffNarrowing.narrowed(
             files: files ?? [], linesByPath: ReviewProposalDiffNarrowing.linesByPath(for: record.stagedComments)
         )
-        let shown = Array(narrowed.prefix(ReviewProposalDiffNarrowing.maximumFiles))
         await cache.save(PullRequestReviewProposalPreviewCache.Entry(
-            identifier: identifier, files: shown, hiddenFileCount: narrowed.count - shown.count,
+            identifier: identifier, files: narrowed,
             viewerLogin: detail.viewerLogin, viewerAvatarURL: detail.viewerAvatarURL,
             viewerIsAuthor: detail.viewerLogin.map { $0 == detail.authorLogin } ?? false, fetchedAt: date
         ), forProposalID: record.id)

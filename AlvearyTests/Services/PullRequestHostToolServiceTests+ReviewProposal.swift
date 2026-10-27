@@ -126,7 +126,6 @@ extension PullRequestHostToolServiceTests {
         XCTAssertNotNil(try fixture.conversation.pullRequestReviewProposal())
         let entry = try await fixture.waitForSeededPreviewEntry()
         XCTAssertTrue(entry.files.isEmpty)
-        XCTAssertEqual(entry.hiddenFileCount, 0)
         XCTAssertEqual(fixture.pullRequests.diffCallCount, 0)
     }
 

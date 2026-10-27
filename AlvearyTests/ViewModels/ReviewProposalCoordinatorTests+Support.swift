@@ -168,7 +168,6 @@ final class ReviewProposalFixture {
                 files: DiffParser.parse(makeUnifiedDiffFixture(fileCount: fileCount)),
                 linesByPath: ReviewProposalDiffNarrowing.linesByPath(for: comments)
             ),
-            hiddenFileCount: 0,
             viewerLogin: viewerLogin,
             viewerAvatarURL: nil,
             viewerIsAuthor: false,

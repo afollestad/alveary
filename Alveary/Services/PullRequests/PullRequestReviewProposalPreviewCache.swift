@@ -17,10 +17,10 @@ actor PullRequestReviewProposalPreviewCache {
     /// under the wrong review.
     struct Entry: Codable, Equatable, Sendable {
         let identifier: PullRequestIdentifier
-        /// Already narrowed to commented hunks and capped at `ReviewProposalDiffNarrowing.maximumFiles`.
+        /// Already narrowed to commented hunks, but never capped at `ReviewProposalDiffNarrowing.maximumFiles`:
+        /// a cached paint resolves every staged comment against these, so a dropped file would report its
+        /// comments as outdated. The paint applies the cap.
         let files: [DiffFile]
-        /// Files carrying comments that the cap dropped.
-        let hiddenFileCount: Int
         let viewerLogin: String?
         let viewerAvatarURL: URL?
         let viewerIsAuthor: Bool

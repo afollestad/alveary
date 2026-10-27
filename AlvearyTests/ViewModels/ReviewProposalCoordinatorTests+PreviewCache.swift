@@ -286,6 +286,42 @@ extension ReviewProposalCoordinatorTests {
         }
     }
 
+    /// The card draws only its first few files; a comment in a later one is hidden, not outdated.
+    func testACachedPaintKeepsCommentsPastTheFileCapPlaceable() async throws {
+        let cleanup = PullRequestLoadCleanup()
+        try await cleanup.run {
+            let fileCount = ReviewProposalDiffNarrowing.maximumFiles + 2
+            let comments = (0..<fileCount).map { ReviewProposalFixture.stagedComment(path: "File\($0).swift", body: "Guard this.") }
+            let fixture = try ReviewProposalFixture(comments: comments, pendingCommentCount: 0)
+            fixture.service.detailGate = cleanup.makeGate()
+            cleanup.capture(fixture)
+            var detail = makePullRequestDetail(id: ReviewProposalFixture.identifier)
+            detail.viewerLogin = "octocat"
+            await PullRequestReviewProposalPreparation.seedPreview(
+                cache: PullRequestReviewProposalPreviewCache(fileURL: fixture.previewCacheURL),
+                record: try XCTUnwrap(fixture.conversation.pullRequestReviewProposal()),
+                detail: detail,
+                files: DiffParser.parse(makeUnifiedDiffFixture(fileCount: fileCount)),
+                at: Date(timeIntervalSince1970: 1_950)
+            )
+
+            fixture.notificationCenter.post(name: .pullRequestReviewProposalsChanged, object: nil)
+            cleanup.capture(fixture)
+            try await fixture.waitForCachedPaint()
+            cleanup.capture(fixture)
+
+            guard case .loaded(let preview)? = fixture.coordinator.preview(
+                forProposalID: ReviewProposalFixture.proposalID
+            ) else {
+                return XCTFail("expected a loaded preview")
+            }
+            XCTAssertEqual(preview.staleComments.map(\.path), [])
+            XCTAssertEqual(preview.files.count, ReviewProposalDiffNarrowing.maximumFiles)
+            XCTAssertEqual(preview.hiddenFileCount, 2)
+            XCTAssertEqual(fixture.service.diffCallCount, 0)
+        }
+    }
+
     /// A cache written for a proposal that was superseded by one against another pull request must
     /// not paint — those hunks belong to different code.
     func testAnEntryForAnotherPullRequestIsNotPainted() async throws {

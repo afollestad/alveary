@@ -13,8 +13,8 @@ enum PullRequestReviewProposalPreviewState: Equatable {
 /// the pull request pane remains where the whole diff is read.
 struct PullRequestReviewProposalPreview: Equatable {
     /// A transcript card cannot scroll, so a review spanning many files shows its first few and
-    /// sends the rest to the pull request pane. Shared with propose time, which seeds the preview
-    /// cache and has to cap it identically or the card would re-flow when the refresh landed.
+    /// sends the rest to the pull request pane. A cached paint and a refresh cap identically, or
+    /// the card would re-flow when the refresh landed.
     static let maximumFiles = ReviewProposalDiffNarrowing.maximumFiles
 
     /// Hunk-filtered copies of the files carrying comments — the proposal's staged ones and any
@@ -95,13 +95,7 @@ extension PullRequestReviewProposalCoordinator {
                             viewerIsAuthor: viewerIsAuthor
                         )
                     ),
-                    cacheEntry: Self.entry(
-                        for: presentation,
-                        detail: detail,
-                        files: [],
-                        hiddenFileCount: 0,
-                        fetchedAt: currentDate
-                    )
+                    cacheEntry: Self.entry(for: presentation, detail: detail, files: [], fetchedAt: currentDate)
                 )
             }
             let paths = Set(presentation.comments.map(\.path) + pendingThreads.map(\.path))
@@ -152,7 +146,6 @@ extension PullRequestReviewProposalCoordinator {
                 against: parsed
             )
         )
-        let cachedFiles = Array(stagedFiles.prefix(PullRequestReviewProposalPreview.maximumFiles))
         return PullRequestReviewProposalPreviewLoad(
             state: .loaded(
                 PullRequestReviewProposalPreview(
@@ -165,13 +158,7 @@ extension PullRequestReviewProposalCoordinator {
                     viewerIsAuthor: viewerIsAuthor
                 )
             ),
-            cacheEntry: Self.entry(
-                for: presentation,
-                detail: detail,
-                files: cachedFiles,
-                hiddenFileCount: stagedFiles.count - cachedFiles.count,
-                fetchedAt: currentDate
-            )
+            cacheEntry: Self.entry(for: presentation, detail: detail, files: stagedFiles, fetchedAt: currentDate)
         )
     }
 }
@@ -198,12 +185,14 @@ extension PullRequestReviewProposalCoordinator {
             viewerAvatarURL: entry.viewerAvatarURL,
             reviewers: presentation.reviewers
         )
+        let files = commentedFiles(in: entry.files, anchors: Array(annotations.threads.keys))
+        let shown = Array(files.prefix(PullRequestReviewProposalPreview.maximumFiles))
         return PullRequestReviewProposalPreview(
-            files: commentedFiles(in: entry.files, anchors: Array(annotations.threads.keys)),
+            files: shown,
             annotations: annotations,
             pendingCommentCount: presentation.pendingCommentCount,
             proposedCommentCount: presentation.comments.count,
-            hiddenFileCount: entry.hiddenFileCount,
+            hiddenFileCount: files.count - shown.count,
             staleComments: stale,
             viewerIsAuthor: entry.viewerIsAuthor
         )
@@ -418,13 +407,11 @@ private extension PullRequestReviewProposalCoordinator {
         for presentation: PullRequestReviewProposalPresentation,
         detail: PullRequestDetail,
         files: [DiffFile],
-        hiddenFileCount: Int,
         fetchedAt: Date
     ) -> PullRequestReviewProposalPreviewCache.Entry {
         PullRequestReviewProposalPreviewCache.Entry(
             identifier: presentation.identifier,
             files: files,
-            hiddenFileCount: hiddenFileCount,
             viewerLogin: detail.viewerLogin,
             viewerAvatarURL: detail.viewerAvatarURL,
             viewerIsAuthor: detail.viewerLogin.map { $0 == detail.authorLogin } ?? false,
