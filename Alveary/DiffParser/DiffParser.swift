@@ -3,7 +3,11 @@ import Foundation
 enum DiffParser {
     static func parse(_ diffOutput: String) -> [DiffFile] {
         var files: [DiffFile] = []
-        let lines = diffOutput.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        // `"\r\n"` is one `Character`, so split bytes to keep CRLF lines apart and numbered like `PullRequestDiffSnapshot`'s
+        // byte index. Dropping the CR keeps it out of rendered content.
+        let lines = diffOutput.utf8.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false).map { line in
+            String(Substring(line.last == UInt8(ascii: "\r") ? line.dropLast() : line))
+        }
         var index = 0
 
         while index < lines.count {

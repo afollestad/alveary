@@ -50,6 +50,22 @@ final class DiffParserTests: XCTestCase {
         XCTAssertEqual(files[1].newPath, "src/auth.test.swift")
     }
 
+    func testParseSplitsCRLFLinesWithoutSwallowingTheNextFile() {
+        let diff = "diff --git a/run.bat b/run.bat\n--- a/run.bat\n+++ b/run.bat\n@@ -1,2 +1,2 @@ :start\r\n"
+            + " echo\r\n-old\r\n+new\r\n"
+            + "diff --git a/next.txt b/next.txt\n--- a/next.txt\n+++ b/next.txt\n@@ -1 +1 @@\n-x\n+y\n"
+
+        let files = DiffParser.parse(diff)
+
+        XCTAssertEqual(files.map(\.path), ["run.bat", "next.txt"])
+        XCTAssertEqual(files[0].hunks[0].header, ":start")
+        XCTAssertEqual(files[0].hunks[0].lines, [
+            DiffLine(type: .context, content: "echo", oldLineNumber: 1, newLineNumber: 1),
+            DiffLine(type: .deleted, content: "old", oldLineNumber: 2, newLineNumber: nil),
+            DiffLine(type: .added, content: "new", oldLineNumber: nil, newLineNumber: 2)
+        ])
+    }
+
     func testParseHandlesRenameAndBinaryMarkers() {
         let diff = """
         diff --git a/old.txt b/new.txt
