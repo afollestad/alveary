@@ -406,6 +406,7 @@ extension AppKitTranscriptRowFactory {
             return [taskListRow(id: id, tasks: tasks, configuration: configuration)]
         case .hostToolWidget(let id, let entry):
             return [hostToolWidgetRow(id: id, entry: entry, configuration: configuration)]
+                + reviewTeamMessageRows(entry: entry, configuration: configuration)
         case .promptBlock(let id, let prompt):
             return [promptRow(id: id, prompt: prompt, configuration: configuration)]
         case .toolApproval(let id, let approval, let status):

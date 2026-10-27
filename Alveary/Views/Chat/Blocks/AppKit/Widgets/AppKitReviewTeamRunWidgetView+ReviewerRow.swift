@@ -3,27 +3,12 @@ import AppKit
 /// One keyboard-accessible destination per reviewer. Width is prepared before the shell measures
 /// its stack, so wrapping never leaves the following transcript row at an obsolete offset.
 @MainActor
-final class AppKitReviewTeamReviewerRowView: AppKitHostToolWidgetBubbleView {
-    enum FocusPresentation {
-        case mouse, keyboard
-    }
-
+final class AppKitReviewTeamReviewerRowView: AppKitKeyboardFocusableBubbleView {
     let reviewerID: String
-
-    /// Direct restoration after a sheet or rebuild must retain the opening interaction;
-    /// Escape dismissing mouse-opened details is not keyboard navigation into this row.
-    var focusPresentation: FocusPresentation = .mouse {
-        didSet {
-            guard focusPresentation != oldValue else { return }
-            noteFocusRingMaskChanged()
-            needsDisplay = true
-        }
-    }
 
     private let identity = NSTextField(labelWithString: "")
     private let statusLabel = NSTextField(labelWithString: "")
-    private let monogram = AppKitFlippedDynamicColorView()
-    private let monogramLabel = NSTextField(labelWithString: "")
+    private let monogram = AppKitReviewTeamMonogramView()
     private let statusIcon = AppKitDynamicTintImageView()
     private let spinner = AppKitStatusIndicatorSpinner(lineWidth: 1.5)
     private let chevron = AppKitDynamicTintImageView()
@@ -51,7 +36,7 @@ final class AppKitReviewTeamReviewerRowView: AppKitHostToolWidgetBubbleView {
             self?.setLayerFillColor(.secondaryLabelColor, alpha: hovered ? 0.08 : 0)
         }
         configureIdentity(model: model, role: role, typography: typography)
-        configureMonogram(harness: member.harnessID, typography: typography)
+        monogram.configure(harness: member.harnessID, typography: typography)
         configureStatus(status, typography: typography)
         chevron.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
         chevron.symbolConfiguration = .init(pointSize: iconSize, weight: .medium)
@@ -103,8 +88,6 @@ final class AppKitReviewTeamReviewerRowView: AppKitHostToolWidgetBubbleView {
         let metrics = rowLayout
         identity.frame = metrics.identity
         monogram.frame = NSRect(x: 0, y: 3, width: monogramSize, height: monogramSize)
-        let labelHeight = ceil(monogramLabel.fittingSize.height)
-        monogramLabel.frame = NSRect(x: 0, y: (monogramSize - labelHeight) / 2, width: monogramSize, height: labelHeight)
         statusLabel.frame = metrics.status
         let symbolFrame = NSRect(
             x: metrics.status.minX - iconSize - 6,
@@ -115,50 +98,6 @@ final class AppKitReviewTeamReviewerRowView: AppKitHostToolWidgetBubbleView {
         spinner.frame = symbolFrame
         chevron.frame = NSRect(x: max(0, layoutWidth - iconSize), y: 3 + (monogramSize - iconSize) / 2,
                               width: iconSize, height: iconSize)
-    }
-
-    override var acceptsFirstResponder: Bool { true }
-
-    override func becomeFirstResponder() -> Bool {
-        guard super.becomeFirstResponder() else { return false }
-        if let direction = window?.keyViewSelectionDirection, direction != .directSelection {
-            focusPresentation = .keyboard
-        }
-        return true
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        focusPresentation = .mouse
-        super.mouseDown(with: event)
-    }
-
-    override func keyDown(with event: NSEvent) {
-        focusPresentation = .keyboard
-        guard event.modifierFlags.isDisjoint(with: [.command, .control, .option]) else {
-            super.keyDown(with: event)
-            return
-        }
-        switch event.keyCode {
-        case 36, 49, 76:
-            onActivate?()
-        case 48:
-            // NSView does not interpret Tab for a custom control; keep the native key-view
-            // loop reachable so keyboard focus can leave the reviewer rows.
-            if event.modifierFlags.contains(.shift) {
-                window?.selectKeyView(preceding: self)
-            } else {
-                window?.selectKeyView(following: self)
-            }
-        default:
-            super.keyDown(with: event)
-        }
-    }
-
-    override var focusRingMaskBounds: NSRect { bounds }
-
-    override func drawFocusRingMask() {
-        guard focusPresentation == .keyboard else { return }
-        NSBezierPath(roundedRect: bounds, xRadius: AppCornerRadius.standard, yRadius: AppCornerRadius.standard).fill()
     }
 }
 
@@ -208,22 +147,6 @@ private extension AppKitReviewTeamReviewerRowView {
         identity.attributedStringValue = text
         identity.lineBreakMode = .byWordWrapping
         identity.maximumNumberOfLines = 0
-    }
-
-    func configureMonogram(harness: String, typography: TranscriptTypography) {
-        switch harness {
-        case "codex": monogramLabel.stringValue = "Cx"
-        case "claude": monogramLabel.stringValue = "Cl"
-        default: monogramLabel.stringValue = String(harness.prefix(2)).uppercased()
-        }
-        monogramLabel.font = typography.nsFont(.caption, weight: .medium)
-        monogramLabel.textColor = .secondaryLabelColor
-        monogramLabel.alignment = .center
-        monogramLabel.setAccessibilityElement(false)
-        monogram.wantsLayer = true
-        monogram.layer?.cornerRadius = AppCornerRadius.standard
-        monogram.setLayerFillColor(.secondaryLabelColor, alpha: 0.09)
-        monogram.addSubview(monogramLabel)
     }
 
     func configureStatus(_ status: ReviewTeamRunPresentation.ReviewerStatus, typography: TranscriptTypography) {

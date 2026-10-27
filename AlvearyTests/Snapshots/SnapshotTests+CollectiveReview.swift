@@ -52,6 +52,18 @@ extension SnapshotTests {
         )
     }
 
+    func testCollectiveReviewStatusMessages() {
+        let entry = CollectiveReviewSnapshotFixture.widgetEntry(run: CollectiveReviewSnapshotFixture.statusMessagesRun())
+        assertMacSnapshot(
+            AppKitTranscriptScrollViewRepresentable(
+                items: [.hostToolWidget(id: entry.id, entry: entry)],
+                transientRows: .init(isTurnActive: true, isThinkingAnimated: false),
+                rowConfiguration: .init(bubbleMaxWidth: 760)
+            ),
+            size: CGSize(width: 760, height: 720), named: "collective_review_status_messages"
+        )
+    }
+
     func testCollectiveReviewProgressWidget() {
         assertMacSnapshot(
             appKitRowSnapshot {
@@ -345,6 +357,38 @@ private enum CollectiveReviewSnapshotFixture {
                               startedAt: run.createdAt.addingTimeInterval(90), packetHash: "packet", prompt: prompt,
                               inputs: [], status: .running)
         ]
+        return run
+    }
+
+    /// Mid cross-check: every step so far has a message, one reviewer is still working, and one failed.
+    static func statusMessagesRun() -> ReviewTeamRun {
+        var run = progressRun()
+        let candidate = { (id: String, priority: Int) in
+            ReviewCandidate(id: id, priority: priority, path: finding.path, line: finding.line, side: "RIGHT", body: "Body", evidence: "")
+        }
+        run.inspections = [
+            "lead": ReviewInspectionReport(findings: [candidate("lead:1", 1), candidate("lead:2", 2)]),
+            "peer-1": ReviewInspectionReport(findings: [candidate("peer-1:1", 1)]),
+            "peer-2": ReviewInspectionReport(findings: [])
+        ]
+        let prompt = ReviewHistoryArtifact(id: "prompt", name: "prompt.txt", byteCount: 120)
+        var history: [ReviewTeamAttempt] = []
+        let step = { (reviewerID: String, phase: ReviewTeamRun.Phase, status: ReviewTeamAttempt.Status) in
+            history.append(ReviewTeamAttempt(
+                id: "attempt-\(history.count)", reviewerID: reviewerID, phase: phase, generation: 0,
+                startedAt: run.createdAt.addingTimeInterval(TimeInterval(history.count * 30)), packetHash: "packet",
+                prompt: prompt, inputs: [], status: status,
+                error: status == .failed ? "The reviewer timed out after five minutes." : nil
+            ))
+        }
+        step("lead", .inspecting, .succeeded)
+        step("peer-1", .inspecting, .succeeded)
+        step("peer-2", .inspecting, .succeeded)
+        step("lead", .consolidating, .succeeded)
+        step("lead", .crossChecking, .succeeded)
+        step("peer-1", .crossChecking, .running)
+        step("peer-2", .crossChecking, .failed)
+        run.history = history
         return run
     }
 

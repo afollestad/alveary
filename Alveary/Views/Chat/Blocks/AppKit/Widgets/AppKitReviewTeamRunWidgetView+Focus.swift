@@ -6,7 +6,7 @@ import AppKit
 enum AppKitReviewTeamFocus {
     struct Snapshot {
         let identifier: NSUserInterfaceItemIdentifier
-        let reviewerPresentation: AppKitReviewTeamReviewerRowView.FocusPresentation?
+        let reviewerPresentation: AppKitKeyboardFocusableBubbleView.FocusPresentation?
     }
 
     static func capture(in view: NSView) -> Snapshot? {

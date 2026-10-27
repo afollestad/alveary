@@ -67,6 +67,14 @@ final class AppKitReviewTeamRunWidgetView: NSView {
         }
     }
 
+    /// Opens Run details, on `reviewerID`'s activity when given. Shared with the transcript's
+    /// reviewer messages so either surface opens the same sheet.
+    static func requestDetails(for run: ReviewTeamRun, reviewerID: String?, sender: AnyObject) {
+        var info: [String: Any] = ["run": run]
+        if let reviewerID { info["reviewerID"] = reviewerID }
+        NotificationCenter.default.post(name: .reviewTeamDetailsRequested, object: sender, userInfo: info)
+    }
+
     func configure(_ configuration: Configuration) {
         guard self.configuration != configuration else {
             return
@@ -97,7 +105,12 @@ private extension AppKitReviewTeamRunWidgetView {
             stack.removeArrangedSubview($0)
             $0.removeFromSuperview()
         }
-        addTeam(configuration)
+        // The transcript's reviewer messages carry each reviewer's status once the run records history.
+        if !ReviewTeamStatusMessage.carriesReviewerStatus(configuration.run) {
+            addTeam(configuration)
+        } else {
+            reviewers = []
+        }
         if let explanation = ReviewTeamRunCardPresentation.pauseExplanation(configuration.run) {
             stack.addFullWidthArrangedSubview(AppKitTranscriptWidgetLabelFactory.label(
                 explanation, level: .caption, color: .labelColor, typography: configuration.typography, wraps: true
@@ -283,9 +296,7 @@ private extension AppKitReviewTeamRunWidgetView {
 
     func showDetails(reviewerID: String?) {
         guard let run = configuration?.run else { return }
-        var info: [String: Any] = ["run": run]
-        if let reviewerID { info["reviewerID"] = reviewerID }
-        NotificationCenter.default.post(name: .reviewTeamDetailsRequested, object: self, userInfo: info)
+        Self.requestDetails(for: run, reviewerID: reviewerID, sender: self)
     }
 
     @objc

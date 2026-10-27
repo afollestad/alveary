@@ -53,6 +53,18 @@ extension AppKitTranscriptRowFactory {
         )
         return .init(id: id, view: view)
     }
+
+    /// A collective run's status messages follow its card, so they stay above the proposal card it stages.
+    func reviewTeamMessageRows(entry: HostToolWidgetEntry, configuration: Configuration) -> [AppKitTranscriptLayoutRow] {
+        guard case .collectiveReviewRun(let run) = entry.content else { return [] }
+        return ReviewTeamStatusMessage.messages(for: run).map { message in
+            let view = cachedView(for: message.id, as: AppKitTranscriptReviewTeamMessageRowView.self)
+            view.run = run
+            view.onHeightInvalidated = heightInvalidationHandler(for: message.id, animatesLayoutChanges: false, configuration: configuration)
+            view.configure(.init(message: message, bubbleMaxWidth: configuration.bubbleMaxWidth, typography: configuration.typography))
+            return .init(id: message.id, view: view)
+        }
+    }
 }
 
 extension AppKitTranscriptRowFactory.Configuration {

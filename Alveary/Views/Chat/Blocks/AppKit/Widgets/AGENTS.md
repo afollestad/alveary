@@ -25,3 +25,7 @@ These instructions cover `Alveary/Views/Chat/Blocks/AppKit/Widgets/` — the car
 
 - **Rebuild the pane's controls, do not invent transcript ones.** The comment card's jump and three-dot menu read their title, glyph, hit target, and tint from `PullRequestCommentActionsMenu` and `PullRequestCommentRevealAction` rather than respelling them: AppKit cannot mount the SwiftUI originals, and a part that drifts here stops reading as the same control.
 - **Keep summary typing inside the native editor.** Prepare saved Markdown through the transcript bridge, create the editor only for Edit, and invalidate only its row when the capped height changes. `AppKitReviewProposalSummaryView` owns the editing session.
+
+### Collective Review Run
+
+- **Reviewer status renders as transcript messages under the card, projected from `ReviewTeamRun.history` by `ReviewTeamStatusMessage`; never persist them as events.** The card keeps its reviewer rows only for runs `carriesReviewerStatus` rejects, so every run shows each reviewer exactly once.
