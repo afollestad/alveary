@@ -31,18 +31,18 @@
     function applyThemeColor(theme) {
         // Both theme-color metas are media-scoped, so an override has to
         // overwrite each of them; whichever one the browser picks must agree.
-        var themeColor = theme === 'dark' ? '#0b0b0a' : '#f7f7f4';
+        var themeColor = theme === 'dark' ? '#120e07' : '#fffaf0';
         var metas = document.querySelectorAll('meta[name="theme-color"]');
         for (var i = 0; i < metas.length; i++) {
             metas[i].content = themeColor;
         }
     }
 
-    // The screenshots ship in both appearances as a <picture> whose dark
-    // <source> is media-scoped like the stylesheets, so an override has to flip
-    // it the same way. Runs against whatever is parsed so far — in <head> that
-    // is nothing, and the DOMContentLoaded pass below picks them up.
-    function applyScreenshots(theme) {
+    // The app icon and screenshots ship in both appearances as a <picture>
+    // whose dark <source> is media-scoped like the stylesheets, so an override
+    // has to flip it the same way. Runs against whatever is parsed so far — in
+    // <head> that is nothing, and the DOMContentLoaded pass below picks them up.
+    function applyPictures(theme) {
         var sources = document.querySelectorAll('picture source[data-theme]');
         for (var i = 0; i < sources.length; i++) {
             sources[i].media = sources[i].getAttribute('data-theme') === theme ? 'all' : 'not all';
@@ -58,12 +58,12 @@
             darkSheet.media = 'not all';
         }
         applyThemeColor(theme);
-        applyScreenshots(theme);
+        applyPictures(theme);
     }
 
     var currentTheme = getActiveTheme();
 
-    // Without a stored override the stylesheets, the screenshot sources, and the
+    // Without a stored override the stylesheets, the picture sources, and the
     // theme-color metas are all media-scoped, so the browser follows the OS on
     // its own — including live appearance changes. Only an override needs
     // applying here.
@@ -74,7 +74,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         // The <picture> elements didn't exist when an override was applied above.
         if (stored) {
-            applyScreenshots(currentTheme);
+            applyPictures(currentTheme);
         }
 
         var toggle = document.getElementById('theme-toggle');
@@ -95,7 +95,7 @@
             syncPressed();
         });
 
-        // With no stored override the media-scoped stylesheets and screenshot
+        // With no stored override the media-scoped stylesheets and picture
         // sources follow OS appearance changes on their own, but currentTheme
         // (with it the toggle's next-click direction and aria-pressed) would go
         // stale.

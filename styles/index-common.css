@@ -1,112 +1,167 @@
 /* Theme-independent layout for alveary.af.codes.
-   Layered on top of a trimmed Spectre.css build, where 1rem = 20px.
-   Color tokens live in index-light.css / index-dark.css. */
+   Color tokens and the glow and comb painted with them live in
+   index-light.css / index-dark.css. */
 
 :root {
-    --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "Segoe UI Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
     /* Scroll-to-top button geometry. The footer derives its bottom padding from
        these, so the button and the footer text can never collide. */
-    --fab-size: 2rem;
+    --fab-size: 2.5rem;
     --fab-inset: 1.5rem;
 }
 
-body {
-    background: var(--bg);
-    color: var(--fg);
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
 }
 
-/* Spectre styles every anchor purple. Scope it back out; links here are
-   either hero buttons or footer text. */
-a,
-a:visited {
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font);
+    line-height: 1.5;
+    background: var(--bg);
+    color: var(--fg);
+    -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+p {
+    margin: 0;
+}
+
+img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+/* Every themed image is a <picture> so it can carry a dark variant. Left
+   inline it would put the block-level image in an inline box, adding a
+   line-height gap under it. */
+picture {
+    display: block;
+}
+
+a {
     color: inherit;
 }
 
-a:hover {
-    color: var(--accent);
+a:focus-visible,
+button:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
 }
 
-/* Sections --------------------------------------------------------------- */
+.container {
+    max-width: 68rem;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+}
+
+/* Hero ------------------------------------------------------------------- */
 
 .section-hero {
-    /* .top-brand and .top-actions are absolute; without this they would anchor
-       to the initial containing block instead of the hero. */
+    /* .hero-sky, .top-brand and .top-actions are absolute; without this they
+       would anchor to the initial containing block instead of the hero. The
+       glow is wider than narrow viewports, so it's clipped here rather than
+       scrolling the page sideways. */
     position: relative;
-    padding: 4.4rem .5rem 2.2rem;
+    overflow: hidden;
+    overflow: clip;
+    padding: 6rem 0 5rem;
+    text-align: center;
 }
 
-.section-feature {
-    padding: 2.6rem .5rem;
-}
-
-/* Top brand -------------------------------------------------------------- */
-
-/* Mirrors .top-actions on the opposite corner; both rely on the hero being
-   the positioned ancestor. */
-.top-brand {
+/* The theme sheets paint the glow behind the window and color the comb. Both
+   fade out before the hero's bottom edge, where the clip would otherwise cut
+   the glow off in a line. */
+.hero-sky {
     position: absolute;
-    top: .85rem;
-    left: 1.5rem;
-    height: 2rem;
+    inset: 0;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+}
+
+/* The honeycomb, fading out before it reaches the glow, as Chromahora's stars
+   do. */
+.comb {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    color: var(--comb);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, .55) 25%, transparent 50%);
+    mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, .55) 25%, transparent 50%);
+}
+
+.hero-copy,
+.hero-window,
+.top-brand,
+.top-actions {
+    position: relative;
+    z-index: 1;
+}
+
+/* Top brand and actions -------------------------------------------------- */
+
+.top-brand,
+.top-actions {
+    position: absolute;
+    top: 1rem;
+    height: 2.5rem;
     display: flex;
     align-items: center;
+}
+
+.top-brand {
+    left: 1.5rem;
+}
+
+.top-actions {
+    right: 1.5rem;
+    gap: .5rem;
 }
 
 .top-brand .brand-logo {
     display: inline-flex;
-    padding: .2rem;
-}
-
-/* Same substitution as the footer links: drop Spectre's purple focus ring for
-   the accent outline. */
-.top-brand .brand-logo:focus {
-    box-shadow: none;
-}
-
-.top-brand .brand-logo:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-}
-
-.top-brand .brand-logo img {
-    display: block;
-    width: 1.6rem;
-    height: auto;
+    padding: .25rem;
     border-radius: 50%;
 }
 
-/* Top actions ------------------------------------------------------------ */
-
-.top-actions {
-    position: absolute;
-    top: .85rem;
-    right: 1.5rem;
-    height: 2rem;
-    display: flex;
-    align-items: center;
-    gap: .4rem;
+.top-brand .brand-logo img {
+    width: 2rem;
+    border-radius: 50%;
 }
 
 .top-btn {
-    align-items: center;
-    background: none;
-    border: none;
-    border-radius: .1rem;
-    cursor: pointer;
     display: inline-flex;
-    height: 2rem;
+    align-items: center;
     justify-content: center;
-    padding: .2rem;
-    width: 2rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
     color: inherit;
-    opacity: .7;
+    cursor: pointer;
+    opacity: .75;
     transition: opacity .2s ease, color .2s ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
     .top-btn:hover {
         opacity: 1;
+        color: var(--accent-text);
     }
 }
 
@@ -119,59 +174,50 @@ a:hover {
     display: none;
 }
 
-/* App icon --------------------------------------------------------------- */
+/* App icon and title ----------------------------------------------------- */
 
-/* Composites AppIcon.icon for the web: the gradient plate comes from the
-   theme sheets, the bee is the layer artwork. Corner radius approximates the
-   macOS squircle. */
+/* Rendered from AppIcon.icon with Icon Composer's ictool, so the plate and
+   corner mask are already in the image; drop-shadow follows its alpha. */
 .app-icon {
-    width: 7.5rem;
-    aspect-ratio: 1;
+    width: 7rem;
     margin: 0 auto;
-    position: relative;
-    overflow: hidden;
-    border-radius: 22.37%;
 }
 
-.app-icon .bee {
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    width: 90%;
-    /* icon.json: scale 0.9, y translation -14.25pt of 1024 = -1.39% of the
-       icon, which is -1.55% of the bee's own box. Cancels the ~1.24% low bias
-       baked into the artwork, landing it optically centered. */
-    transform: translateY(-1.55%);
+.app-icon img {
+    width: 100%;
+    filter: drop-shadow(0 .6rem 1.2rem var(--icon-shadow));
 }
 
-/* Typography ------------------------------------------------------------- */
-
-h1,
-.section-feature h2 {
-    font-family: var(--font-mono);
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: .06em;
+.hero-copy h1 {
+    display: inline-block;
+    margin-top: 1.5rem;
+    font-size: clamp(2.75rem, 7vw, 4.25rem);
+    font-weight: 700;
+    letter-spacing: -.035em;
+    line-height: 1.1;
+    color: var(--fg);
 }
 
-h1 {
-    font-size: 1.8rem;
-    margin: 1rem 0 0;
-}
-
-.section-feature h2 {
-    font-size: 1.3rem;
-    margin-bottom: .6rem;
+/* The name is painted in the icon's honey wherever text can be a gradient's
+   clip; elsewhere it stays plain --fg. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    .hero-copy h1 {
+        background: var(--title-gradient);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
 }
 
 .tagline {
-    max-width: 30rem;
-    margin: .75rem auto 0;
-    font-size: .9rem;
-    line-height: 1.5rem;
+    max-width: 36rem;
+    margin: 1rem auto 0;
+    font-size: clamp(1.05rem, 1.6vw, 1.2rem);
+    line-height: 1.55;
     color: var(--secondary);
 }
 
+/* A dotted underline, drawn as a background so it sits clear of descenders. */
 .tagline a {
     text-decoration: none;
     padding-bottom: .15em;
@@ -179,82 +225,59 @@ h1 {
 }
 
 .tagline a:hover {
-    --link-underline: var(--accent);
-}
-
-.feature-copy {
-    margin: 0 auto 1.8rem;
-    font-size: .85rem;
-    line-height: 1.4rem;
-    color: var(--secondary);
-}
-
-.section-accent {
-    width: 2.2rem;
-    height: 4px;
-    margin: 0 auto 1.1rem;
-    border-radius: 2px;
-    background: var(--accent);
+    color: var(--accent-text);
+    --link-underline: var(--accent-text);
 }
 
 /* Buttons ---------------------------------------------------------------- */
 
 .cta-row {
     display: flex;
-    justify-content: center;
     flex-wrap: wrap;
-    gap: .6rem;
-    margin-top: 1.6rem;
+    justify-content: center;
+    gap: .75rem;
+    margin-top: 2rem;
 }
 
-.btn-hero {
+.btn-download,
+.btn-ghost {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: .45rem;
-    height: 2.4rem;
-    padding: 0 1.3rem;
-    border-radius: .5rem;
-    font-size: .85rem;
-    font-weight: 700;
+    gap: .5rem;
+    height: 3rem;
+    padding: 0 1.2rem;
+    border-radius: .55rem;
+    font-size: .95rem;
+    font-weight: 600;
+    text-decoration: none;
     white-space: nowrap;
     transition: transform .3s cubic-bezier(0.34, 1.56, 0.64, 1), filter .2s ease;
 }
 
-.btn-hero,
-.btn-hero:hover,
-.btn-hero:focus,
-.btn-hero:active,
-.btn-hero:visited {
-    text-decoration: none;
-}
-
-.btn-download,
-.btn-download:hover,
-.btn-download:focus,
-.btn-download:visited {
+/* Filled with the app's honey, lit along its top edge like the chips. */
+.btn-download {
+    padding: 0 1.4rem;
     background: var(--accent);
     color: var(--on-accent);
-    box-shadow: 0 2px 6px var(--cta-shadow);
+    font-weight: 700;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .45),
+        0 1px 2px rgba(0, 0, 0, .12),
+        0 .5rem 1.25rem -.5rem var(--cta-shadow);
 }
 
-.btn-ghost,
-.btn-ghost:hover,
-.btn-ghost:focus,
-.btn-ghost:visited {
+/* Glass, over the glow. */
+.btn-ghost {
+    border: 1px solid var(--glass-border);
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    backdrop-filter: blur(12px) saturate(160%);
     color: var(--fg);
-    border: 1px solid var(--hairline-strong);
-    font-weight: 600;
-    box-shadow: none;
 }
 
-.btn-hero:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-}
-
-/* Two-line button label. Both lines together are shorter than the button's
-   2.4rem height, so the GitHub button stays level with the download one. */
+/* Two-line label, shorter together than the button, so it stays level with
+   the download button. */
 .btn-stack {
     display: inline-flex;
     flex-direction: column;
@@ -263,7 +286,7 @@ h1 {
 }
 
 .btn-subtext {
-    font-size: .55rem;
+    font-size: .7rem;
     font-weight: 500;
     color: var(--secondary);
 }
@@ -290,7 +313,8 @@ h1 {
 }
 
 @media (hover: hover) and (pointer: fine) {
-    .btn-hero:hover {
+    .btn-download:hover,
+    .btn-ghost:hover {
         transform: scale(1.03);
     }
 
@@ -301,64 +325,93 @@ h1 {
 
 /* Screenshots ------------------------------------------------------------ */
 
-/* Each shot is wrapped in a <picture> so it can carry a dark variant. Left
-   inline it would put the block-level image in an inline box, adding a
-   line-height gap under it. */
-picture {
-    display: block;
-}
-
 /* The shots are cropped to the window, whose own rounded corners are
-   transparent — so no border or radius here; drop-shadow follows the alpha and
-   rounds the shadow to match. */
+   transparent, so no border or radius here; drop-shadow follows the alpha and
+   rounds the shadow to match. The cap keeps them at the 2x the captures are
+   sized for (AGENTS.md has the recipe). */
 .screenshot {
-    display: block;
     width: 100%;
-    height: auto;
+    max-width: 60rem;
+    margin: 0 auto;
     aspect-ratio: 1953 / 1299;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .2)) drop-shadow(0 4px 8px rgba(0, 0, 0, .15));
+    filter: drop-shadow(0 1px 2px var(--window-rim-shadow)) drop-shadow(0 1.25rem 2rem var(--window-shadow));
 }
 
-.screenshot-hero {
-    margin-top: 2.6rem;
+.hero-window {
+    margin-top: 4rem;
+}
+
+/* Features --------------------------------------------------------------- */
+
+.section-feature {
+    padding: 5rem 0;
+}
+
+.section-centered {
+    text-align: center;
+}
+
+.section-centered .feature-copy {
+    max-width: 36rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.section-feature h2 {
+    margin-top: 1rem;
+    font-size: clamp(1.9rem, 3.5vw, 2.6rem);
+    font-weight: 700;
+    letter-spacing: -.03em;
+    line-height: 1.1;
+}
+
+.feature-copy {
+    margin-top: 1rem;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: var(--secondary);
+}
+
+.section-feature .screenshot {
+    margin-top: 3rem;
+}
+
+/* Section labels are capsules filled with the app's honey, matching the
+   download button. */
+.chip {
+    display: inline-flex;
+    padding: .3rem .85rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: .875rem;
+    font-weight: 600;
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, .2),
+        inset 0 1px 0 rgba(255, 255, 255, .3),
+        0 1px 2px rgba(0, 0, 0, .1),
+        0 .35rem .9rem -.35rem var(--accent);
 }
 
 /* Footer ----------------------------------------------------------------- */
 
 .site-footer {
     /* The scroll-to-top button is fixed over the bottom-right corner, and at
-       narrow widths this line is wide enough to run under it once the page is
+       narrow widths this text is wide enough to run under it once the page is
        scrolled to the end. Reserve the button's band plus a gap. */
-    padding: 2.4rem .5rem calc(var(--fab-inset) + var(--fab-size) + .5rem);
+    padding: 6rem 1.25rem calc(var(--fab-inset) + var(--fab-size) + 1rem);
     text-align: center;
-    font-size: .7rem;
+    font-size: .875rem;
     color: var(--secondary);
 }
 
-.site-footer p {
-    margin: 0;
-}
-
-.site-footer a,
-.site-footer a:visited {
-    color: inherit;
+.site-footer a {
     text-decoration: none;
-}
-
-/* Spectre suppresses the UA outline on anchors and substitutes a purple
-   box-shadow focus ring; replace both with the accent outline. */
-.site-footer a:focus {
-    box-shadow: none;
-}
-
-.site-footer a:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
 }
 
 @media (hover: hover) and (pointer: fine) {
     .site-footer a:hover {
-        color: var(--accent);
+        color: var(--accent-text);
         text-decoration: underline;
     }
 }
@@ -367,30 +420,31 @@ picture {
 
 /* Do NOT rename this to a generic "back to top" name (jump-to-top, back-to-top,
    scroll-to-top): ad-block cosmetic filters hide those id/class names, which
-   makes the button vanish in browsers with a content blocker. */
+   makes the button vanish in browsers with a content blocker. Glass, like the
+   ghost button. */
 .overview-return {
     position: fixed;
     right: var(--fab-inset);
     bottom: var(--fab-inset);
-    width: var(--fab-size);
-    height: var(--fab-size);
+    z-index: 300;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: var(--fab-size);
+    height: var(--fab-size);
     padding: 0;
-    border: 1px solid var(--fab-border);
+    border: 1px solid var(--glass-border);
     border-radius: 50%;
-    cursor: pointer;
-    color: var(--fab-fg);
-    background: var(--fab-bg);
+    background: var(--glass);
     -webkit-backdrop-filter: blur(12px) saturate(160%);
     backdrop-filter: blur(12px) saturate(160%);
-    box-shadow: 0 4px 16px var(--fab-shadow);
+    color: var(--fg);
+    box-shadow: 0 4px 16px var(--glass-shadow);
+    cursor: pointer;
     opacity: 0;
     visibility: hidden;
-    transform: translateY(0.5rem);
+    transform: translateY(.5rem);
     transition: opacity .25s ease, transform .3s cubic-bezier(0.34, 1.56, 0.64, 1), visibility .25s ease;
-    z-index: 300;
 }
 
 .overview-return.visible {
@@ -407,35 +461,35 @@ picture {
 
 /* Responsive ------------------------------------------------------------- */
 
+@media (max-width: 820px) {
+    .section-feature {
+        padding: 4rem 0;
+    }
+
+    .section-feature .screenshot {
+        margin-top: 2.5rem;
+    }
+}
+
 @media (max-width: 600px) {
     .section-hero {
-        padding: 3.6rem .5rem 1.4rem;
-    }
-
-    .section-feature {
-        padding: 1.6rem .5rem;
-    }
-
-    /* Bottom padding stays at the base value; it clears the scroll-to-top
-       button, which doesn't shrink here. */
-    .site-footer {
-        padding-top: 1.6rem;
+        padding: 5rem 0 3.5rem;
     }
 
     .app-icon {
         width: 5.5rem;
     }
 
-    h1 {
-        font-size: 1.4rem;
+    .hero-window {
+        margin-top: 3rem;
     }
 
-    .section-feature h2 {
-        font-size: 1.1rem;
+    .section-feature {
+        padding: 3rem 0;
     }
 
-    .screenshot-hero {
-        margin-top: 2rem;
+    .site-footer {
+        padding-top: 4rem;
     }
 }
 
@@ -447,7 +501,8 @@ picture {
         animation-duration: .01ms !important;
     }
 
-    .btn-hero:hover,
+    .btn-download:hover,
+    .btn-ghost:hover,
     .overview-return.visible:hover {
         transform: none;
     }

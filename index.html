@@ -8,34 +8,31 @@
     <meta name="description"
         content="Alveary is a free and open source native macOS app for orchestrating AI coding agents like Claude Code and Codex — with scheduled tasks, Git worktrees, and pull request workflows built in.">
 
-    <meta name="theme-color" content="#f7f7f4" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0b0b0a" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#fffaf0" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#120e07" media="(prefers-color-scheme: dark)">
 
     <meta property="og:title" content="Alveary">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://alveary.af.codes">
     <meta property="og:description"
         content="Alveary is a free and open source native macOS app for orchestrating AI coding agents like Claude Code and Codex — with scheduled tasks, Git worktrees, and pull request workflows built in.">
-    <!-- images/og-image.png is the dark hero screenshot letterboxed onto an
-         opaque #0b0b0a canvas (the dark --bg) at the 1200x630 link previews
-         expect. A preview can't know the reader's theme, so it always gets the
-         dark shot on its matching canvas. Pointing at the WebP instead doesn't
-         work: crawler support for WebP is patchy, filling 1.91:1 from 1953x1299
-         would crop the window, and its rounded corners are transparent, which
-         previews composite unpredictably. Re-export it whenever the hero
-         screenshot changes. -->
+    <!-- images/og-image.png is composed for the 1200x630 link previews expect, on
+         an opaque dark glow, since a preview can't know the reader's theme and
+         composites transparency unpredictably. It has to stay a PNG: crawler
+         support for WebP is patchy. Re-export it whenever the hero screenshot
+         changes; AGENTS.md has the recipe. -->
     <meta property="og:image" content="https://alveary.af.codes/images/og-image.png">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt"
-        content="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files, and a sidebar of pinned threads, projects, and tasks.">
+        content="The Alveary app icon, name, and tagline beside the main window, where an agent works through a thread next to a sidebar of pinned threads, projects, and tasks, over a honeycomb and a warm glow.">
     <!-- Twitter falls back to og:image on its own, but it never reads
          og:image:alt — so the image is repeated here to give its alt an anchor. -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="https://alveary.af.codes/images/og-image.png">
     <meta name="twitter:image:alt"
-        content="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files, and a sidebar of pinned threads, projects, and tasks.">
+        content="The Alveary app icon, name, and tagline beside the main window, where an agent works through a thread next to a sidebar of pinned threads, projects, and tasks, over a honeycomb and a warm glow.">
 
     <!-- The icon mirrors the app icon and stays on the gold plate in both
          appearances. A graphite plate is the obvious dark counterpart, but Safari
@@ -49,7 +46,6 @@
     <link rel="icon" href="favicon-light.png" type="image/png" sizes="96x96">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
-    <link rel="stylesheet" href="styles/spectre.min.css">
     <link rel="stylesheet" href="styles/index-common.css">
 
     <link rel="stylesheet" href="styles/index-dark.css" id="theme-dark" media="(prefers-color-scheme: dark)">
@@ -61,7 +57,26 @@
 </head>
 
 <body>
-    <section class="section-hero text-center" id="overview">
+    <section class="section-hero" id="overview">
+        <!-- A honeycomb fading down from the top, and a warm glow behind the
+             window. The comb's hexagons are a <pattern>, so the lattice tiles
+             without seams at any width; it strokes in currentColor, which .comb
+             takes from the theme sheets' --comb. -->
+        <div class="hero-sky" aria-hidden="true">
+            <svg class="comb" aria-hidden="true" focusable="false">
+                <defs>
+                    <!-- Pointy-top hexagons with 24px sides: a tile is one cell wide
+                         (24√3) and two rows tall (3 × 24), the second row offset
+                         half a cell. -->
+                    <pattern id="comb-cells" width="41.5692" height="72" patternUnits="userSpaceOnUse">
+                        <path fill="none" stroke="currentColor" stroke-width="1"
+                            d="M20.7846 0 L41.5692 12 V36 L20.7846 48 L0 36 V12 Z M20.7846 48 V72"/>
+                    </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#comb-cells)"/>
+            </svg>
+        </div>
+
         <div class="top-brand">
             <a class="brand-logo" href="https://af.codes" aria-label="af.codes — Aidan Follestad">
                 <img src="images/af.png" alt="" decoding="async">
@@ -79,11 +94,11 @@
             </button>
         </div>
 
-        <div class="container grid-lg">
-            <div class="app-icon" aria-hidden="true">
-                <img class="bee bee-light" src="images/app-icon-bee-light.png" alt="" decoding="async">
-                <img class="bee bee-dark" src="images/app-icon-bee-dark.png" alt="" decoding="async">
-            </div>
+        <div class="container hero-copy">
+            <picture class="app-icon">
+                <source srcset="images/app-icon-dark.png" data-theme="dark" media="(prefers-color-scheme: dark)">
+                <img src="images/app-icon-light.png" alt="" width="256" height="256" decoding="async">
+            </picture>
 
             <h1>Alveary</h1>
             <p class="tagline">
@@ -95,7 +110,7 @@
                 <!-- Both labels ship; scripts/platform-gate.js picks between them so
                      non-Mac visitors never see an enabled button flash first. Keep the
                      id non-generic — see the note on the scroll-to-top button below. -->
-                <a class="btn-hero btn-download" id="release-link"
+                <a class="btn-download" id="release-link"
                     href="https://github.com/afollestad/alveary/releases/latest/download/Alveary.app.zip">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -103,7 +118,7 @@
                     <span class="download-label">Download</span>
                     <span class="download-label-unavailable">Only for macOS</span>
                 </a>
-                <a class="btn-hero btn-ghost" href="https://github.com/afollestad/alveary">
+                <a class="btn-ghost" href="https://github.com/afollestad/alveary">
                     <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                         <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/>
                     </svg>
@@ -113,35 +128,33 @@
                     </span>
                 </a>
             </div>
+        </div>
 
-            <!-- Window screenshots are cropped to the window itself; the rounded
-                 corners are transparent, so .screenshot draws no frame of its own.
-                 Each ships in both appearances: the dark shot is the <source>, so
-                 the light one stays the <img> fallback and only the matching
-                 appearance is ever downloaded. scripts/dark-mode.js flips the
-                 source's media when the toggle overrides the system preference. -->
+        <!-- Window screenshots are cropped to the window itself; the rounded
+             corners are transparent, so .screenshot draws no frame of its own.
+             Each ships in both appearances: the dark shot is the <source>, so
+             the light one stays the <img> fallback and only the matching
+             appearance is ever downloaded. scripts/dark-mode.js flips the
+             source's media when the toggle overrides the system preference. -->
+        <div class="container hero-window">
             <picture>
                 <source srcset="images/screenshot-main-dark.webp" type="image/webp" data-theme="dark"
                     media="(prefers-color-scheme: dark)">
-                <img class="screenshot screenshot-hero" src="images/screenshot-main-light.webp"
+                <img class="screenshot" src="images/screenshot-main-light.webp"
                     alt="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with a commit button, and a sidebar of pinned threads, projects, and tasks."
                     width="1953" height="1299" decoding="async" fetchpriority="high">
             </picture>
         </div>
     </section>
 
-    <section class="section-feature text-center">
-        <div class="container grid-lg">
-            <div class="section-accent" aria-hidden="true"></div>
-            <h2>Scheduled Tasks</h2>
-            <div class="columns">
-                <div class="column col-10 col-sm-12 col-mx-auto">
-                    <p class="feature-copy">
-                        Run agents on a schedule — daily briefs, periodic pull request reviews, or any recurring
-                        work you'd rather not kick off by hand.
-                    </p>
-                </div>
-            </div>
+    <section class="section-feature section-centered" id="scheduled-tasks">
+        <div class="container">
+            <p class="chip">Scheduled tasks</p>
+            <h2>Work that starts itself</h2>
+            <p class="feature-copy">
+                Run agents on a schedule — daily briefs, periodic pull request reviews, or any recurring
+                work you'd rather not kick off by hand.
+            </p>
             <picture>
                 <source srcset="images/screenshot-scheduled-tasks-dark.webp" type="image/webp" data-theme="dark"
                     media="(prefers-color-scheme: dark)">
@@ -152,18 +165,14 @@
         </div>
     </section>
 
-    <section class="section-feature text-center">
-        <div class="container grid-lg">
-            <div class="section-accent" aria-hidden="true"></div>
-            <h2>Pull Requests</h2>
-            <div class="columns">
-                <div class="column col-10 col-sm-12 col-mx-auto">
-                    <p class="feature-copy">
-                        Open and manage your own pull requests, and review your teammates' — by hand or with an
-                        agent — all without leaving the app.
-                    </p>
-                </div>
-            </div>
+    <section class="section-feature section-centered" id="pull-requests">
+        <div class="container">
+            <p class="chip">Pull requests</p>
+            <h2>Review without leaving the app</h2>
+            <p class="feature-copy">
+                Open and manage your own pull requests, and review your teammates' — by hand or with an
+                agent — all without leaving the app.
+            </p>
             <picture>
                 <source srcset="images/screenshot-pull-requests-dark.webp" type="image/webp" data-theme="dark"
                     media="(prefers-color-scheme: dark)">
@@ -176,8 +185,8 @@
 
     <footer class="site-footer">
         <p>
-            Built by <a href="https://af.codes" target="_blank">Aidan Follestad</a> &#8226; 
-            <a href="https://github.com/afollestad/alveary">Open source</a> 
+            Built by <a href="https://af.codes" target="_blank">Aidan Follestad</a> &#8226;
+            <a href="https://github.com/afollestad/alveary">Open source</a>
             (<a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0</a>)
         </p>
     </footer>

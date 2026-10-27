@@ -1,62 +1,47 @@
-/* Dark theme.
+/* Dark theme: warm umber under an ember glow.
    Don't forget to update the theme colors in scripts/dark-mode.js if --bg changes,
    and re-export images/og-image.png, which bakes it in as its canvas. */
 
 :root {
     color-scheme: dark;
 
-    --bg: #0b0b0a;
-    --fg: #f7f7f4;
-    --secondary: #aaa9a2;
-    --link-underline: rgba(247, 247, 244, .25);
-    --accent: #F2AC00;
-    --on-accent: #11110f;
-    --hairline-strong: rgba(247, 247, 244, .25);
-    --cta-shadow: rgba(0, 0, 0, .5);
-    --fab-bg: rgba(22, 24, 32, .5);
-    --fab-border: rgba(255, 255, 255, .4);
-    --fab-fg: #ffffff;
-    --fab-shadow: rgba(0, 0, 0, .35);
-}
-
-/* The app icon's gradient is seeded from a Display P3 color. Upgrade in a
-   separate block so browsers without P3 keep the sRGB value above rather than
-   dropping the custom property entirely. */
-@supports (color: color(display-p3 0 0 0)) {
-    :root {
-        --accent: color(display-p3 0.907 0.686 0.21);
-    }
+    --bg: #120e07;
+    --fg: #f8f2e4;
+    --secondary: #b5aa93;
+    --link-underline: rgba(248, 242, 228, .3);
+    /* AccentColor, the same in both appearances. */
+    --accent: #f6c755;
+    --on-accent: #1f1a10;
+    /* Light enough for text as-is, 12:1 on --bg. */
+    --accent-text: #f6c755;
+    --cta-shadow: rgba(242, 172, 0, .35);
+    --glass: rgba(255, 255, 255, .06);
+    --glass-border: rgba(255, 255, 255, .14);
+    --glass-shadow: rgba(0, 0, 0, .4);
+    --icon-shadow: rgba(0, 0, 0, .5);
+    --window-rim-shadow: rgba(0, 0, 0, .5);
+    --window-shadow: rgba(0, 0, 0, .55);
+    --comb: rgba(246, 199, 85, .09);
+    /* AccentColor between a lighter honey and the icon's amber. */
+    --title-gradient: linear-gradient(100deg, #ffe08a 5%, #f6c755 45%, #f2ac00 95%);
 }
 
 html {
     background: var(--bg);
 }
 
-@media (hover: hover) and (pointer: fine) {
-    .top-btn:hover {
-        color: var(--accent);
-    }
-}
-
 .theme-toggle .icon-sun {
     display: block;
 }
 
-.theme-toggle .icon-moon {
-    display: none;
+/* Embers behind the window: the icon's amber, cooling to a deeper orange. */
+.hero-sky {
+    background: radial-gradient(ellipse 1500px 720px at 50% 72%,
+        rgba(242, 172, 0, .35) 0%, rgba(196, 110, 0, .16) 45%, rgba(196, 110, 0, 0) 100%);
 }
 
-/* macOS renders the dark appearance on a dark plate — the gold "matched
-   yellow" bee is drawn for that, and would vanish on the gold gradient. */
-.app-icon {
-    background: linear-gradient(180deg, #3a3a37 0%, #232320 70%);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(247, 247, 244, .06);
-}
-
-.app-icon .bee-light {
-    display: none;
-}
-
-.app-icon .bee-dark {
-    display: block;
+/* The glow returns at the page's bottom edge. */
+.site-footer {
+    background: linear-gradient(to bottom, rgba(242, 172, 0, 0) 0%, rgba(242, 172, 0, .18) 100%);
+    background: linear-gradient(to bottom in oklab, rgba(242, 172, 0, 0) 0%, rgba(242, 172, 0, .18) 100%);
 }
