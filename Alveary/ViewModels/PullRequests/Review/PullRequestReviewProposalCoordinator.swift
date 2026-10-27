@@ -22,6 +22,7 @@ final class PullRequestReviewProposalCoordinator {
     @ObservationIgnored private var observationTask: Task<Void, Never>?
     @ObservationIgnored private var remoteChangeTask: Task<Void, Never>?
     @ObservationIgnored private var bodyChangeTask: Task<Void, Never>?
+    @ObservationIgnored private var publishedChangeTask: Task<Void, Never>?
     @ObservationIgnored var previewCacheTask: Task<Void, Never>?
     @ObservationIgnored var previewWarmTask: Task<Void, Never>?
     /// How long `scheduleRemoteReload` waits before reloading what an announcement invalidated.
@@ -74,6 +75,8 @@ final class PullRequestReviewProposalCoordinator {
     @ObservationIgnored var refreshedProposalIDs: Set<String> = []
     /// Proposals whose cached hunks stopped being true; their next refresh must reach GitHub (`freshSeed`).
     @ObservationIgnored var invalidatedProposalIDs: Set<String> = []
+    /// Ignored because cards register into it while rendering; they re-read on `notifyChanged()` instead.
+    @ObservationIgnored var publishedState = PullRequestPublishedReviewState()
 
     init(
         modelContext: ModelContext,
@@ -99,6 +102,7 @@ final class PullRequestReviewProposalCoordinator {
         observationTask?.cancel()
         remoteChangeTask?.cancel()
         bodyChangeTask?.cancel()
+        publishedChangeTask?.cancel()
         previewCacheTask?.cancel()
         previewWarmTask?.cancel()
         remoteReloadTask?.cancel()
@@ -193,8 +197,10 @@ final class PullRequestReviewProposalCoordinator {
             notifyChanged()
         }
 
+        let published: PullRequestPublishedReview
         do {
-            guard try await submitAgainstFreshDetail(presentation, event: event) else { return false }
+            guard let submitted = try await submitAgainstFreshDetail(presentation, event: event) else { return false }
+            published = submitted
         } catch {
             errorMessages[proposalID] = Self.message(for: error)
             return false
@@ -225,9 +231,12 @@ final class PullRequestReviewProposalCoordinator {
             outcome: .confirmed,
             submittedEvent: PullRequestHostToolRequestParser.reviewEventName(for: event),
             body: presentation.body ?? "",
+            published: published.comments.isEmpty ? nil : published,
             in: modelContext,
             at: now()
         )
+        // Before the regroup, so the card never renders collapsed between the clear and the marker.
+        publishedState.reviews[proposalID] = published.comments.isEmpty ? nil : published
         notificationCenter.post(name: .pullRequestReviewProposalsChanged, object: self)
         reload()
         return true
@@ -409,18 +418,17 @@ final class PullRequestReviewProposalCoordinator {
 
 private extension PullRequestReviewProposalCoordinator {
     /// Re-reads GitHub rather than trusting the snapshot — the pull request can merge, or the draft review can
-    /// change, between proposing and confirming — then submits. False when validation refused, having reported why.
+    /// change, between proposing and confirming — then submits. Nil when validation refused, having reported why.
     func submitAgainstFreshDetail(
         _ presentation: PullRequestReviewProposalPresentation,
         event: PullRequestReviewEvent
-    ) async throws -> Bool {
+    ) async throws -> PullRequestPublishedReview? {
         try await GitHubRequestOrigin.$current.withValue("proposal-confirm") {
             let detail = try await pullRequestsService.fetchDetail(presentation.identifier)
             guard validateSubmission(presentation: presentation, event: event, detail: detail) else {
-                return false
+                return nil
             }
-            try await submit(presentation: presentation, event: event, body: presentation.body ?? "", detail: detail)
-            return true
+            return try await submit(presentation: presentation, event: event, body: presentation.body ?? "", detail: detail)
         }
     }
 
@@ -467,15 +475,9 @@ private extension PullRequestReviewProposalCoordinator {
         presentations[presentation.id] = refreshed
     }
 
-    static func message(for error: Error) -> String {
-        guard let serviceError = error as? PullRequestsServiceError else {
-            return error.localizedDescription
-        }
-        return serviceError.errorDescription ?? serviceError.localizedDescription
-    }
-
     func observeChanges() {
         bodyChangeTask = makeBodyChangeObservationTask()
+        publishedChangeTask = makePublishedChangeObservationTask()
         let notifications = notificationCenter.notifications(named: .pullRequestReviewProposalsChanged)
         observationTask = Task { @MainActor [weak self] in
             for await _ in notifications {

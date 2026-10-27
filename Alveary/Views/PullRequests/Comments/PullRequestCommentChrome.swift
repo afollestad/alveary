@@ -107,6 +107,9 @@ struct PullRequestCommentActionsMenu: View {
     static let editSymbolName = "pencil"
     static let deleteTitle = "Delete"
     static let deleteSymbolName = "trash"
+    /// The confirmation a published comment's Delete asks for, in the pane and on the transcript card.
+    static let deleteConfirmationTitle = "Delete comment?"
+    static let deleteConfirmationMessage = "The comment is permanently deleted from the pull request on GitHub."
 
     let onEdit: (() -> Void)?
     let onDelete: (() -> Void)?

@@ -22,6 +22,9 @@ extension AppKitTranscriptRowFactory {
         view.onUpdateReviewProposalBody = configuration.onUpdateReviewProposalBody
         view.onJumpToReviewProposalComment = configuration.onJumpToReviewProposalComment
         view.avatarLoader = configuration.reviewProposalAvatarLoader
+        // Straight to the body, which the shell exposes: the shell has no use for these itself.
+        view.reviewProposalBody.onEditPublishedComment = configuration.publishedReviewCommentActions.edit
+        view.reviewProposalBody.onDeletePublishedComment = configuration.publishedReviewCommentActions.delete
         view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
         // A resolved widget must not adopt the conversation's *next* proposal, so the
         // conversation-scoped fallback only applies while this one is still unresolved.
@@ -70,7 +73,14 @@ extension AppKitTranscriptRowFactory {
 extension AppKitTranscriptRowFactory.Configuration {
     /// Resolved cards cannot adopt a newer proposal from the same conversation.
     func reviewState(for entry: HostToolWidgetEntry) -> ReviewProposalWidgetState? {
-        entry.reviewProposalID.flatMap(reviewProposalState)
+        (entry.reviewProposalID == nil ? nil : reviewProposalState(entry))
             ?? (entry.isUnresolvedReviewProposal ? conversationReviewProposal() : nil)
     }
+}
+
+/// A submitted review card's comment actions, by proposal id and then comment node id; Edit reports
+/// whether GitHub took the new text, so the card knows whether to close its editor.
+struct ReviewProposalPublishedCommentActions {
+    var edit: @MainActor (String, String, String) async -> Bool = { _, _, _ in false }
+    var delete: (String, String) -> Void = { _, _ in }
 }

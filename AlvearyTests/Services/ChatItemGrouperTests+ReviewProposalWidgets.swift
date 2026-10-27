@@ -143,6 +143,29 @@ extension ChatItemGrouperTests {
             resolved?.openableTarget,
             .pullRequest(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
         )
+        // A marker from before submitted cards kept their comments still collapses.
+        XCTAssertNil(resolved?.publishedReview)
+    }
+
+    /// A submitted card with comments has inner controls and its own Open PR, so it must not answer
+    /// as one big button.
+    func testASubmittedReviewCarriesItsPublishedCommentsAndStopsBeingOpenable() throws {
+        let marker = reviewOutcomeMarker()
+        marker.content = HostToolWidgetOutcomeMarker.content(for: .confirmed, title: "comment", body: "Summary", published: .fixture())
+        for events in [[reviewProposalCall(), reviewProposalResult(), marker], [marker, reviewProposalCall(), reviewProposalResult()]] {
+            let grouper = ChatItemGrouper()
+            grouper.update(events: events)
+            let entry = try XCTUnwrap(grouper.items.first?.hostToolWidgetEntry)
+            XCTAssertEqual(entry.publishedReview, .fixture())
+            XCTAssertNil(entry.openableTarget)
+        }
+
+        // A rewrite swaps only the snapshot.
+        let edited = PullRequestPublishedReview.fixture(comments: [.fixture(body: "Tighter.")])
+        let rewritten = try XCTUnwrap(HostToolWidgetOutcomeMarker.content(try XCTUnwrap(marker.content), replacingPublished: edited))
+        XCTAssertEqual(HostToolWidgetOutcomeMarker.published(fromContent: rewritten), edited)
+        XCTAssertEqual(HostToolWidgetOutcomeMarker.title(fromContent: rewritten), "comment")
+        XCTAssertEqual(HostToolWidgetOutcomeMarker.body(fromContent: rewritten), "Summary")
     }
 
     /// Cancelling decides nothing about the pull request, so that card has to stay openable too.
@@ -314,13 +337,16 @@ extension ChatItemGrouperTests {
             id: "review-outcome",
             conversationId: Self.reviewWidgetConversationID,
             type: ConversationEventRecord.hostToolOutcomeType,
-            content: HostToolWidgetOutcomeMarker.content(for: .rejected),
+            content: HostToolWidgetOutcomeMarker.content(for: .confirmed, published: .fixture()),
             toolId: "review-1",
             toolName: PullRequestHostToolCatalog.proposeReviewToolName
         )
         grouper.update(events: [call, plainTextResult, marker])
 
-        XCTAssertEqual(grouper.items.first?.hostToolWidgetEntry?.outcome, .rejected)
+        let entry = grouper.items.first?.hostToolWidgetEntry
+        XCTAssertEqual(entry?.outcome, .confirmed)
+        // With no proposal id the card cannot reach its published comments, so it must stay the way back.
+        XCTAssertEqual(entry?.openableTarget, .pullRequest(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)))
     }
 }
 

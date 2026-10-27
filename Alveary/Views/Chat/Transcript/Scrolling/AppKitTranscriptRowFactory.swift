@@ -53,7 +53,7 @@ final class AppKitTranscriptRowFactory {
         var onOpenScheduledTask: (String?) -> Void = { _ in }
         // A review proposal confirms inline too, so its card needs the coordinator's live state:
         // the loaded diff preview, the picked verdict, and whether a submission is in flight.
-        var reviewProposalState: (String) -> ReviewProposalWidgetState? = { _ in nil }
+        var reviewProposalState: (HostToolWidgetEntry) -> ReviewProposalWidgetState? = { _ in nil }
         /// The conversation's own live review proposal, for harnesses whose tool result carries
         /// no proposal id.
         var conversationReviewProposal: () -> ReviewProposalWidgetState? = { nil }
@@ -66,6 +66,8 @@ final class AppKitTranscriptRowFactory {
         /// Opens one staged comment in the pull request pane. A pure output callback, so it stays
         /// out of `ContentSignature` like `onRemoveReviewProposalComment` beside it.
         var onJumpToReviewProposalComment: (String, DiffCommentAnchor) -> Void = { _, _ in }
+        /// A submitted card's comment Edit and Delete; output-only, like the two above.
+        var publishedReviewCommentActions = ReviewProposalPublishedCommentActions()
         /// Fetches the avatars on a review proposal's comment cards. Deliberately absent from
         /// `ContentSignature`: it is an app-lifetime actor set before the first render, so it is
         /// row identity rather than render input, and it is not `Equatable`.

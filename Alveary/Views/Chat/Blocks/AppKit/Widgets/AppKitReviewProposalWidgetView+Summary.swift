@@ -40,6 +40,25 @@ extension AppKitReviewProposalWidgetView {
     /// Clearance between the diff preview and the action row, replacing the stack's ordinary spacing.
     static let actionRowSeparation: CGFloat = 12
 
+    static func button(
+        title: String,
+        icon: ActionIcon,
+        style: AppKitTranscriptApprovalButtonStyle,
+        target: AnyObject,
+        action: Selector
+    ) -> AppKitTranscriptApprovalButton {
+        let button = AppKitTranscriptApprovalButton()
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.isBordered = false
+        button.controlSize = .small
+        button.title = title
+        button.icon = icon
+        button.actionStyle = style
+        button.target = target
+        button.action = action
+        return button
+    }
+
     static func verdictLabel(_ event: PullRequestReviewEvent) -> String {
         switch event {
         case .approve:
@@ -79,7 +98,21 @@ extension AppKitReviewProposalWidgetView {
             || old.presentation?.reviewers != new.presentation?.reviewers
             || old.presentation?.collectiveCompletionWarning != new.presentation?.collectiveCompletionWarning
             || old.presentation?.pendingCommentCount != new.presentation?.pendingCommentCount
-            || old.summaryBody.isEmpty != new.summaryBody.isEmpty
+            || old.summaryBody.isEmpty != new.summaryBody.isEmpty || old.published != new.published
     }
+}
 
+extension PullRequestReviewProposalPreviewState {
+    var loadedPreview: PullRequestReviewProposalPreview? {
+        guard case .loaded(let preview) = self else {
+            return nil
+        }
+        return preview
+    }
+}
+
+extension Optional where Wrapped == PullRequestReviewProposalPreviewState {
+    var loadedPreview: PullRequestReviewProposalPreview? {
+        self?.loadedPreview
+    }
 }

@@ -41,13 +41,14 @@ extension PullRequestReviewProposalCoordinator {
     /// `submitPendingReview` is the one call that publishes anything. A failure before it leaves
     /// only a private draft, and the card stays confirmable for a retry.
     ///
-    /// `body` is the saved comment, including an intentional clear.
+    /// `body` is the saved comment, including an intentional clear. Returns what was published, which
+    /// the submitted card keeps.
     func submit(
         presentation: PullRequestReviewProposalPresentation,
         event: PullRequestReviewEvent,
         body: String,
         detail: PullRequestDetail
-    ) async throws {
+    ) async throws -> PullRequestPublishedReview {
         guard !presentation.comments.isEmpty else {
             if let reviewNodeID = detail.pendingReviewNodeID {
                 // Finish the existing draft rather than opening a second review beside it.
@@ -59,7 +60,7 @@ extension PullRequestReviewProposalCoordinator {
             } else {
                 try await service.submitReview(presentation.identifier, event: event, body: body)
             }
-            return
+            return publishedReview(for: presentation, detail: detail, written: [], fetchedFiles: nil)
         }
         // Anchors are validated at propose time and can go stale afterwards, so they are resolved
         // once more here — before anything is created. GitHub refuses an anchor that no longer
@@ -70,7 +71,7 @@ extension PullRequestReviewProposalCoordinator {
         // Best-effort on purpose. This is a safety net, and a net that cannot be fetched must not
         // block a submit that would otherwise have gone through: an unfetchable diff falls back to
         // publishing the stored lines, which is exactly what confirming did before it existed.
-        let lines = await resolvedCommentLines(for: presentation)
+        let (lines, files) = await resolvedCommentLines(for: presentation, detail: detail)
         let stale = zip(presentation.comments, lines).filter { $0.1 == nil }.map(\.0)
         guard stale.isEmpty else {
             throw PullRequestReviewProposalSubmissionError.staleAnchors(paths: stale.map(\.path))
@@ -83,9 +84,10 @@ extension PullRequestReviewProposalCoordinator {
         } else {
             throw PullRequestReviewProposalSubmissionError.missingNodeID
         }
+        var written: [PullRequestPublishedReview.Comment] = []
         for (comment, line) in zip(presentation.comments, lines)
         where !Self.alreadyWritten(comment, at: line ?? comment.line, in: detail) {
-            _ = try await service.addPendingReviewComment(
+            let thread = try await service.addPendingReviewComment(
                 reviewNodeID: reviewNodeID,
                 path: comment.path,
                 // The resolved line, not the stored one: a relocated comment must publish where its
@@ -94,23 +96,27 @@ extension PullRequestReviewProposalCoordinator {
                 side: comment.side == PullRequestDiffSide.left.rawValue ? .left : .right,
                 body: comment.body
             )
+            written += PullRequestPublishedReview.Comment.comments(in: thread, evidence: { _ in comment.evidence })
         }
         try await service.submitPendingReview(reviewNodeID: reviewNodeID, event: event, body: body)
+        return publishedReview(for: presentation, detail: detail, written: written, fetchedFiles: files)
     }
 
-    /// Where each staged comment should publish, or nil for one the diff cannot place.
+    /// Where each staged comment should publish, or nil for one the diff cannot place, plus the diff
+    /// that placed them. The diff also covers an adopted draft's files, whose comments publish with the
+    /// review and which the submitted card draws from it.
     ///
     /// A failed diff fetch yields the stored lines rather than propagating: see `submit`.
     private func resolvedCommentLines(
-        for presentation: PullRequestReviewProposalPresentation
-    ) async -> [Int?] {
-        guard let files = try? await service.fetchDiffFiles(presentation.identifier, paths: Set(presentation.comments.map(\.path))) else {
-            return presentation.comments.map { $0.line }
+        for presentation: PullRequestReviewProposalPresentation,
+        detail: PullRequestDetail
+    ) async -> (lines: [Int?], files: [DiffFile]?) {
+        let draftPaths = detail.pendingReviewNodeID == nil ? [] : detail.reviewThreads.filter(\.isPending).map(\.path)
+        let paths = Set(presentation.comments.map(\.path) + draftPaths)
+        guard let files = try? await service.fetchDiffFiles(presentation.identifier, paths: paths) else {
+            return (presentation.comments.map { $0.line }, nil)
         }
-        return ReviewProposalAnchorResolution.resolvedLines(
-            presentation.comments,
-            against: files
-        )
+        return (ReviewProposalAnchorResolution.resolvedLines(presentation.comments, against: files), files)
     }
 
     /// A retry after a mid-flow failure must not write a comment the first attempt already

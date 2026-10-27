@@ -180,7 +180,7 @@ extension GitHubPullRequestsService {
             }
           }
           pendingReview: reviews(first: 1, states: [PENDING]) { nodes { id } }
-          reviewThreads(first: 100) { nodes { \(reviewThreadSelection) } }
+          reviewThreads(first: \(PullRequestDetail.reviewThreadPageSize)) { nodes { \(reviewThreadSelection) } }
           reviewRequests(first: 20) {
             nodes {
               requestedReviewer {

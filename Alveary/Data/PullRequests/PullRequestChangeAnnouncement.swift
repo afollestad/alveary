@@ -14,10 +14,26 @@ struct PullRequestChangeAnnouncement: Equatable {
     let affectsListRow: Bool
 }
 
+/// An edit or deletion Alveary made to a published review comment, from a submitted card or the pane, so every
+/// submitted card showing that comment follows without a fetch. Node ids are global, so no pull request rides along.
+struct PullRequestReviewCommentChange: Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
+        case edited(String)
+        case deleted
+        /// A fresh read found the viewer may no longer edit or delete it.
+        case permissionsChanged(canUpdate: Bool, canDelete: Bool)
+    }
+
+    let commentNodeID: String
+    let kind: Kind
+}
+
 enum PullRequestChangeNotificationKey {
     static let announcement = "announcement"
+    static let commentChange = "commentChange"
 }
 
 extension Notification.Name {
     static let pullRequestChangedOnGitHub = Notification.Name("pullRequestChangedOnGitHub")
+    static let pullRequestReviewCommentChanged = Notification.Name("pullRequestReviewCommentChanged")
 }

@@ -46,6 +46,8 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
     let outcomeTitle: String?
     /// Missing on legacy markers; empty records a cleared review comment.
     let outcomeBody: String?
+    /// The comments a confirmed review proposal published; nil on legacy markers, whose cards collapse.
+    let publishedReview: PullRequestPublishedReview?
 
     init(
         id: String,
@@ -58,7 +60,8 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
         outcome: HostToolWidgetOutcome? = nil,
         outcomeDefinitionID: String? = nil,
         outcomeTitle: String? = nil,
-        outcomeBody: String? = nil
+        outcomeBody: String? = nil,
+        publishedReview: PullRequestPublishedReview? = nil
     ) {
         self.id = id
         self.toolName = toolName
@@ -71,13 +74,15 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
         self.outcomeDefinitionID = outcomeDefinitionID
         self.outcomeTitle = outcomeTitle
         self.outcomeBody = outcomeBody
+        self.publishedReview = publishedReview
     }
 
     func withOutcome(
         _ outcome: HostToolWidgetOutcome?,
         definitionID: String? = nil,
         title: String? = nil,
-        body: String? = nil
+        body: String? = nil,
+        publishedReview: PullRequestPublishedReview? = nil
     ) -> HostToolWidgetEntry {
         HostToolWidgetEntry(
             id: id,
@@ -90,7 +95,8 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             outcome: outcome ?? self.outcome,
             outcomeDefinitionID: definitionID ?? outcomeDefinitionID,
             outcomeTitle: title ?? outcomeTitle,
-            outcomeBody: body ?? outcomeBody
+            outcomeBody: body ?? outcomeBody,
+            publishedReview: publishedReview ?? self.publishedReview
         )
     }
 
@@ -154,8 +160,11 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
         case .pullRequestReviewProposal(let content):
             // While the decision is open the card carries its own Open PR action, so the bubble is
             // not a button. Resolving drops that whole row — including a rejection, which decides
-            // nothing about the pull request — so from then on the card is the only way back to it.
-            outcome == nil ? nil : content.identifier.map(HostToolWidgetTarget.pullRequest)
+            // nothing about the pull request — so from then on the card is the only way back to it,
+            // unless it kept its published comments, whose controls and Open PR make it no button. A
+            // keyless card cannot look those up, so it keeps the collapsed look and stays openable.
+            outcome == nil || (publishedReview != nil && content.proposalID != nil)
+                ? nil : content.identifier.map(HostToolWidgetTarget.pullRequest)
         case .pullRequestReviewInstructions:
             // The disclosure inside the card is its only control; clicking the card itself must
             // toggle that, not navigate away from the review it is starting.
@@ -227,7 +236,8 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             outcome: outcome,
             outcomeDefinitionID: outcomeDefinitionID,
             outcomeTitle: outcomeTitle,
-            outcomeBody: outcomeBody
+            outcomeBody: outcomeBody,
+            publishedReview: publishedReview
         )
     }
 }

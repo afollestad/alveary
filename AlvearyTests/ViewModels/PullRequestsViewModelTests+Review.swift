@@ -372,6 +372,36 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(service.deletedCommentIDs, [])
     }
 
+    /// A submitted card can show the comment the pane just changed, so the pane must tell it.
+    func testRemoteCommentChangesReachTheSubmittedCardShowingThem() async throws {
+        let fixture = try ReviewProposalFixture()
+        _ = fixture.coordinator.publishedReview(
+            forProposalID: "submitted", registering: .fixture(comments: [.fixture(nodeID: "PRRC_root")])
+        )
+        let service = StubPullRequestsService()
+        let summary = makePullRequestSummary(number: 9)
+        service.detailResult = .success(Self.detailWithRemoteComment(id: summary.id, databaseId: 987, body: "Original body"))
+        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
+        service.updateCommentResult = .success(())
+        service.deleteCommentResult = .success(())
+        let viewModel = makePullRequestsViewModel(service: service, reviewProposalCoordinator: fixture.coordinator)
+        viewModel.requestDetails(summary)
+        await waitForPaneContent(viewModel, target: .details(summary.id))
+        let remote = DiffLineComment(
+            author: "afollestad", bodyMarkdown: "Original body", isPending: false, remoteID: 987, canEdit: true, canDelete: true
+        )
+        let card = { fixture.coordinator.publishedReview(forProposalID: "submitted")?.comments.first }
+
+        viewModel.openRemoteCommentEditor(at: pullRequestReviewAnchor, comment: remote)
+        viewModel.updateComposerText("Updated body")
+        viewModel.saveComposerComment()
+        await waitFor { card()?.bodyMarkdown == "Updated body" }
+
+        viewModel.requestDeleteRemoteComment(comment: remote)
+        viewModel.confirmRemoteCommentDeletion()
+        await waitFor { card()?.isDeleted == true }
+    }
+
     func testRemoteEditorRejectsNonEditableComments() {
         let service = StubPullRequestsService()
         let viewModel = makePullRequestsViewModel(service: service)

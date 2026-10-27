@@ -18,6 +18,7 @@ enum PullRequestReviewProposalOutcomeRecorder {
         outcome: HostToolWidgetOutcome,
         submittedEvent: String? = nil,
         body: String?,
+        published: PullRequestPublishedReview? = nil,
         in modelContext: ModelContext,
         at timestamp: Date = .now
     ) {
@@ -29,13 +30,36 @@ enum PullRequestReviewProposalOutcomeRecorder {
             type: ConversationEventRecord.hostToolOutcomeType,
             // The verdict rides in `title`: the user may confirm a different one than the model
             // proposed, and the resolved card has to name what was actually submitted.
-            content: HostToolWidgetOutcomeMarker.content(for: outcome, title: submittedEvent, body: body),
+            content: HostToolWidgetOutcomeMarker.content(for: outcome, title: submittedEvent, body: body, published: published),
             toolId: proposalID,
             toolName: HostToolTranscriptCatalog.toolName(PullRequestHostToolCatalog.proposeReviewToolName),
             timestamp: timestamp,
             conversation: conversation
         )
         modelContext.insert(record)
+        save(modelContext)
+    }
+
+    /// Rewrites every marker holding the changed comment, forks' copies included, so a card that was not on
+    /// screen when the change landed still shows it after the next transcript rebuild. Saves only on a change.
+    static func apply(_ change: PullRequestReviewCommentChange, in modelContext: ModelContext) {
+        let type = ConversationEventRecord.hostToolOutcomeType
+        guard let markers = try? modelContext.fetch(FetchDescriptor<ConversationEventRecord>(
+            predicate: #Predicate { $0.type == type }
+        )) else { return }
+        var didChange = false
+        for marker in markers {
+            // Keyed rather than by node id, which JSON may escape (a legacy id's `/`); skips markers without a snapshot.
+            guard let content = marker.content, content.contains("\"published\""),
+                  let updated = HostToolWidgetOutcomeMarker.published(fromContent: content)?.applying(change),
+                  let rewritten = HostToolWidgetOutcomeMarker.content(content, replacingPublished: updated) else { continue }
+            marker.content = rewritten
+            didChange = true
+        }
+        if didChange { save(modelContext) }
+    }
+
+    private static func save(_ modelContext: ModelContext) {
         do {
             try modelContext.save()
         } catch {

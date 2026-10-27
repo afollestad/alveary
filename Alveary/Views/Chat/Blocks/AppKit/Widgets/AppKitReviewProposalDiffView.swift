@@ -26,6 +26,7 @@ final class AppKitReviewProposalDiffView: AppKitDynamicColorView {
         let allowsJumping: Bool
         let evidenceByProposedIndex: [Int: PullRequestReviewProposalRecord.CommentEvidence]
         let reviewers: [PullRequestReviewProposalRecord.Reviewer]
+        var published: AppKitReviewProposalPublishedComments?
     }
 
     /// A comment card's markdown body can grow after an inline image loads, so the card's height
@@ -39,6 +40,17 @@ final class AppKitReviewProposalDiffView: AppKitDynamicColorView {
     var onRemoveProposedComment: ((Int) -> Void)?
     /// Opens a staged comment in the pull request pane, by the anchor it was written against.
     var onJumpToProposedComment: ((DiffCommentAnchor) -> Void)?
+    var onEditPublishedComment: (@MainActor (String, String) async -> Bool)?
+    var onDeletePublishedComment: ((String) -> Void)?
+    var onImmediateHeightInvalidated: (() -> Void)?
+    /// Kept off `Configuration`, so a Save's in-flight state reaches the cards without a rebuild around
+    /// the open editor.
+    var busyCommentIDs: Set<String> = [] {
+        didSet {
+            guard busyCommentIDs != oldValue else { return }
+            cardViewPool.forEach { $0.updateBusy(busyCommentIDs) }
+        }
+    }
 
     private let stack = NSStackView()
     private var renderedConfiguration: Configuration?
@@ -129,7 +141,8 @@ private extension AppKitReviewProposalDiffView {
             allowsRemoval: configuration.allowsRemoval,
             allowsJumping: configuration.allowsJumping,
             evidenceByProposedIndex: configuration.evidenceByProposedIndex,
-            reviewers: configuration.reviewers
+            reviewers: configuration.reviewers,
+            published: configuration.published
         )
         mount(items, metrics: metrics, font: font, context: context)
     }
@@ -145,7 +158,9 @@ private extension AppKitReviewProposalDiffView {
         // configure and measure passes pay for, so the stack holds segments, not lines
         // (`AppKitReviewProposalDiffRunView` owns the numbers).
         var runCount = 0
-        var cardCount = 0
+        var availableCards = cardViewPool
+        cardViewPool = []
+        let publishedIDs = Set(items.compactMap(\.comment?.nodeID))
         var pendingRows: [DiffCodeHighlighting.Row] = []
         widestRow = 0
         func flushPendingRows() {
@@ -165,8 +180,8 @@ private extension AppKitReviewProposalDiffView {
                 pendingRows.append(row)
             case .comment(let comment, let anchor, let anchoredKind):
                 flushPendingRows()
-                let view = cardView(at: cardCount)
-                cardCount += 1
+                let view = claimCardView(for: comment, from: &availableCards, keeping: publishedIDs)
+                cardViewPool.append(view)
                 view.configure(
                     comment: comment,
                     anchor: anchor,
@@ -178,12 +193,12 @@ private extension AppKitReviewProposalDiffView {
                     metrics: metrics,
                     context: context
                 )
+                view.updateBusy(busyCommentIDs)
                 stack.addFullWidthArrangedSubview(view)
             }
         }
         flushPendingRows()
         runViewPool.removeSubrange(runCount...)
-        cardViewPool.removeSubrange(cardCount...)
     }
 
     func runView(at index: Int) -> AppKitReviewProposalDiffRunView {
@@ -195,9 +210,18 @@ private extension AppKitReviewProposalDiffView {
         return view
     }
 
-    func cardView(at index: Int) -> AppKitReviewProposalCommentCardView {
-        if index < cardViewPool.count {
-            return cardViewPool[index]
+    /// A published comment reclaims the card already showing it, so a rebuild that shifts its position
+    /// (a comment above it deleted) keeps its open editor. Any other comment takes a card no comment in
+    /// this rebuild is waiting for, which for a pending proposal is plain positional reuse.
+    func claimCardView(
+        for comment: DiffLineComment,
+        from available: inout [AppKitReviewProposalCommentCardView],
+        keeping publishedIDs: Set<String>
+    ) -> AppKitReviewProposalCommentCardView {
+        let index = available.firstIndex { comment.nodeID != nil && $0.publishedNodeID == comment.nodeID }
+            ?? available.firstIndex { $0.publishedNodeID.map { !publishedIDs.contains($0) } ?? true }
+        if let index {
+            return available.remove(at: index)
         }
         let view = AppKitReviewProposalCommentCardView()
         view.onHeightInvalidated = { [weak self] in
@@ -212,7 +236,15 @@ private extension AppKitReviewProposalDiffView {
         view.onRemove = { [weak self] index in
             self?.onRemoveProposedComment?(index)
         }
-        cardViewPool.append(view)
+        view.onEditPublished = { [weak self] nodeID, body in
+            await self?.onEditPublishedComment?(nodeID, body) ?? false
+        }
+        view.onDeletePublished = { [weak self] nodeID in
+            self?.onDeletePublishedComment?(nodeID)
+        }
+        view.onImmediateHeightInvalidated = { [weak self] in
+            self?.onImmediateHeightInvalidated?()
+        }
         return view
     }
 
@@ -300,5 +332,12 @@ private extension AppKitReviewProposalDiffView.Item {
             return nil
         }
         return row
+    }
+
+    var comment: DiffLineComment? {
+        guard case .comment(let comment, _, _) = self else {
+            return nil
+        }
+        return comment
     }
 }

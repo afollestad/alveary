@@ -296,6 +296,9 @@ struct PullRequestTimelineEvent: Equatable, Sendable {
 }
 
 struct PullRequestDetail: Equatable, Sendable {
+    /// One page of `reviewThreads`, with no cursor past it, so a full page cannot prove a thread absent.
+    static let reviewThreadPageSize = 100
+
     let id: PullRequestIdentifier
     let title: String
     let url: URL?

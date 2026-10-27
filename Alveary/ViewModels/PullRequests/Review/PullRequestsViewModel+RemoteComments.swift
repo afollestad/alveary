@@ -17,6 +17,7 @@ extension PullRequestsViewModel {
         body: String
     ) {
         let anchor = session.composerAnchor
+        let nodeID = session.detail?.reviewThreads.lazy.flatMap(\.comments).first { $0.databaseId == commentID }?.nodeID
         var previousBody: String?
         guard updateSession(target, generation: session.generation, { session in
             previousBody = session.detail?.updateThreadCommentBody(commentID: commentID, body: body)
@@ -32,7 +33,8 @@ extension PullRequestsViewModel {
             commentID: commentID,
             body: body,
             previousBody: previousBody,
-            anchor: anchor
+            anchor: anchor,
+            nodeID: nodeID
         )
         Task {
             await updateRemoteComment(target: target, generation: session.generation, attempt: attempt)
@@ -52,6 +54,9 @@ extension PullRequestsViewModel {
                 commentID: attempt.commentID,
                 body: attempt.body
             )
+            if let nodeID = attempt.nodeID {
+                reviewProposalCoordinator?.recordPublishedCommentChange(.init(commentNodeID: nodeID, kind: .edited(attempt.body)))
+            }
         } catch {
             updateSession(target, generation: generation) { session in
                 if let previousBody = attempt.previousBody {
@@ -412,6 +417,9 @@ extension PullRequestsViewModel {
         }
         do {
             try await service.deleteReviewComment(target.identifier, commentID: commentID)
+            if let nodeID = removed?.comment.nodeID {
+                reviewProposalCoordinator?.recordPublishedCommentChange(.init(commentNodeID: nodeID, kind: .deleted))
+            }
         } catch {
             updateSession(target, generation: generation) { session in
                 if let removed {
@@ -462,4 +470,6 @@ struct RemoteCommentEditAttempt: Sendable {
     let body: String
     let previousBody: String?
     let anchor: DiffCommentAnchor?
+    /// Lets a submitted transcript card holding the comment follow the edit.
+    let nodeID: String?
 }

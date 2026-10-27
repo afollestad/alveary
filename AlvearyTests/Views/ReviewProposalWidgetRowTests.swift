@@ -90,8 +90,8 @@ final class ReviewProposalWidgetRowTests: XCTestCase {
         XCTAssertLessThan(view.intrinsicContentSize.height, fullHeight)
     }
 
-    private func host(for entry: HostToolWidgetEntry) -> NSView {
-        var configuration = AppKitTranscriptRowFactory.Configuration()
+    func host(for entry: HostToolWidgetEntry, configuration: AppKitTranscriptRowFactory.Configuration = .init()) -> NSView {
+        var configuration = configuration
         configuration.bubbleMaxWidth = 640
 
         let factory = AppKitTranscriptRowFactory()

@@ -18,12 +18,15 @@ extension ChatTranscriptView {
         // `ChatTranscriptView.body`, whose revision bumps can re-enter after a delete.
         let conversationID = viewModel.conversationID
         configuration.reviewProposalAvatarLoader = coordinator.avatarLoader
-        configuration.reviewProposalState = { proposalID in
-            Self.reviewProposalState(
-                proposalID: proposalID,
-                conversationID: conversationID,
-                coordinator: coordinator
-            )
+        configuration.reviewProposalState = { entry in
+            entry.reviewProposalID.flatMap { proposalID in
+                Self.reviewProposalState(
+                    proposalID: proposalID,
+                    published: entry.publishedReview,
+                    conversationID: conversationID,
+                    coordinator: coordinator
+                )
+            }
         }
         configuration.conversationReviewProposal = {
             // A harness that emits only the text fallback gives the card no proposal id, and a
@@ -34,6 +37,7 @@ extension ChatTranscriptView {
             }
             return Self.reviewProposalState(
                 proposalID: proposalID,
+                published: nil,
                 conversationID: conversationID,
                 coordinator: coordinator
             )
@@ -53,6 +57,22 @@ extension ChatTranscriptView {
         configuration.onRemoveReviewProposalComment = { proposalID, index in
             coordinator.removeStagedComment(proposalID: proposalID, at: index)
         }
+        configureCommentNavigation(&configuration, coordinator: coordinator)
+    }
+
+    /// The comment-level actions shared by pending and submitted cards.
+    private func configureCommentNavigation(
+        _ configuration: inout AppKitTranscriptRowFactory.Configuration,
+        coordinator: PullRequestReviewProposalCoordinator
+    ) {
+        configuration.publishedReviewCommentActions = ReviewProposalPublishedCommentActions(
+            edit: { proposalID, nodeID, body in
+                await coordinator.editPublishedComment(proposalID: proposalID, nodeID: nodeID, body: body)
+            },
+            delete: { proposalID, nodeID in
+                Task { await coordinator.deletePublishedComment(proposalID: proposalID, nodeID: nodeID) }
+            }
+        )
         let threadID = viewModel.threadModelID
         configuration.onJumpToReviewProposalComment = { proposalID, anchor in
             Self.postJumpRequest(
@@ -75,7 +95,8 @@ extension ChatTranscriptView {
         coordinator: PullRequestReviewProposalCoordinator
     ) {
         guard let threadID,
-              let identifier = coordinator.presentation(forProposalID: proposalID)?.identifier else {
+              let identifier = coordinator.presentation(forProposalID: proposalID)?.identifier
+                ?? coordinator.publishedReview(forProposalID: proposalID)?.identifier else {
             return
         }
         NotificationCenter.default.post(
@@ -91,13 +112,23 @@ extension ChatTranscriptView {
         )
     }
 
-    private static func reviewProposalState(
+    /// A submitted card resolves its snapshot only once the proposal is gone, so a stale marker
+    /// can never shadow a pending proposal.
+    static func reviewProposalState(
         proposalID: String,
+        published: PullRequestPublishedReview?,
         conversationID: String,
         coordinator: PullRequestReviewProposalCoordinator
     ) -> ReviewProposalWidgetState? {
         guard let presentation = coordinator.presentation(forProposalID: proposalID) else {
-            return nil
+            return coordinator.publishedReview(forProposalID: proposalID, registering: published).map { review in
+                ReviewProposalWidgetState(published: .init(
+                    review: review,
+                    allowsActions: review.sourceConversationID == conversationID,
+                    busyCommentIDs: coordinator.busyPublishedCommentIDs,
+                    errorMessage: coordinator.publishedErrorMessage(forProposalID: proposalID)
+                ))
+            }
         }
         // A forked or unrelated conversation renders the same widget read-only.
         guard presentation.sourceConversationID == conversationID else {

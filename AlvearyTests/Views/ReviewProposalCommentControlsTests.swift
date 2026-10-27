@@ -31,6 +31,20 @@ final class ReviewProposalCommentControlsTests: XCTestCase {
         XCTAssertEqual(titles, [PullRequestCommentActionsMenu.deleteTitle])
     }
 
+    /// A published comment offers only what GitHub lets the viewer do to it.
+    func testAPublishedCommentsMenuFollowsItsPermissions() {
+        let button = AppKitReviewProposalCommentMenuButton()
+        let titles = { (allowsEdit: Bool, allowsDelete: Bool) -> [String] in
+            button.allowsEdit = allowsEdit
+            button.allowsDelete = allowsDelete
+            return button.makeMenu().items.map(\.title)
+        }
+
+        XCTAssertEqual(titles(true, true), [PullRequestCommentActionsMenu.editTitle, PullRequestCommentActionsMenu.deleteTitle])
+        XCTAssertEqual(titles(true, false), [PullRequestCommentActionsMenu.editTitle])
+        XCTAssertEqual(titles(false, true), [PullRequestCommentActionsMenu.deleteTitle])
+    }
+
     func testTheMenuTakesThePanesHitTargetAndName() {
         let button = AppKitReviewProposalCommentMenuButton()
 

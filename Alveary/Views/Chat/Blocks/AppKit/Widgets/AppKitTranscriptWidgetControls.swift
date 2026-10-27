@@ -77,4 +77,10 @@ extension NSStackView {
         addArrangedSubview(view)
         view.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
     }
+
+    /// The inserting form, for a row that must lead views a rebuild keeps mounted.
+    func insertFullWidthArrangedSubview(_ view: NSView, at index: Int) {
+        insertArrangedSubview(view, at: index)
+        view.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
+    }
 }

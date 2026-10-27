@@ -106,7 +106,7 @@ struct PullRequestPane: View, Equatable {
     /// to keep the presentation modifier off the type-check budget.
     private func deleteCommentDialog<Content: View>(_ content: Content) -> some View {
         content.confirmationDialog(
-            "Delete comment?",
+            PullRequestCommentActionsMenu.deleteConfirmationTitle,
             isPresented: Binding(
                 get: { viewModel.paneSessions[target]?.pendingRemoteCommentDeletion != nil },
                 set: { isPresented in
@@ -117,14 +117,14 @@ struct PullRequestPane: View, Equatable {
             ),
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
+            Button(PullRequestCommentActionsMenu.deleteTitle, role: .destructive) {
                 viewModel.confirmRemoteCommentDeletion()
             }
             Button("Cancel", role: .cancel) {
                 viewModel.cancelRemoteCommentDeletion()
             }
         } message: {
-            Text("The comment is permanently deleted from the pull request on GitHub.")
+            Text(PullRequestCommentActionsMenu.deleteConfirmationMessage)
         }
     }
 

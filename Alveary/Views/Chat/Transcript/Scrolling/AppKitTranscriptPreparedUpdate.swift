@@ -48,8 +48,8 @@ struct AppKitTranscriptPreparedUpdate {
     private var reviewProposalStates: [String: ReviewProposalWidgetState] {
         Dictionary(
             items.compactMap { item -> (String, ReviewProposalWidgetState)? in
-                guard let proposalID = item.hostToolWidgetEntry?.reviewProposalID,
-                      let state = rowConfiguration.reviewProposalState(proposalID) else {
+                guard let entry = item.hostToolWidgetEntry, let proposalID = entry.reviewProposalID,
+                      let state = rowConfiguration.reviewProposalState(entry) else {
                     return nil
                 }
                 return (proposalID, state)

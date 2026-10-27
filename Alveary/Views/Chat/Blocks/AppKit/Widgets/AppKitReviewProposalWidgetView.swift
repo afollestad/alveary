@@ -16,6 +16,7 @@ final class AppKitReviewProposalWidgetView: NSView {
         let typography: TranscriptTypography
         var summaryBody: String = ""
         var summaryDocument: AppMarkdownDocument?
+        var published: ReviewProposalWidgetState.Published?
     }
 
     var onConfirm: ((String, PullRequestReviewEvent) -> Void)?
@@ -34,6 +35,9 @@ final class AppKitReviewProposalWidgetView: NSView {
     var avatarLoader: GitHubAvatarLoader?
     /// Opens a link inside a pending comment's markdown body.
     var onOpenMarkdownLink: ((URL) -> Void)?
+    /// A submitted card's comment Edit and Delete, by proposal id and then comment node id.
+    var onEditPublishedComment: (@MainActor (String, String, String) async -> Bool)?
+    var onDeletePublishedComment: ((String, String) -> Void)?
 
     private let stack = NSStackView()
     private let verdictControl = AppKitTranscriptApprovalSplitControl()
@@ -41,6 +45,7 @@ final class AppKitReviewProposalWidgetView: NSView {
     private let staleCommentsView = AppKitReviewProposalStaleCommentsView()
     private var configuration: Configuration?
     private var summaryView: AppKitReviewProposalSummaryView?
+    private var publishedView: AppKitReviewProposalPublishedView?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -105,6 +110,9 @@ final class AppKitReviewProposalWidgetView: NSView {
         stack.arrangedSubviews.reduce(CGFloat.zero) { widest, row in
             if let summary = row as? AppKitReviewProposalSummaryView {
                 return max(widest, summary.naturalWidth)
+            }
+            if let published = row as? AppKitReviewProposalPublishedView {
+                return max(widest, published.naturalWidth)
             }
             if let staleRow = row as? AppKitReviewProposalStaleCommentsView {
                 return max(widest, min(staleRow.naturalWidth, Self.maximumDiffWidth))
@@ -215,7 +223,7 @@ private extension AppKitReviewProposalWidgetView {
                 updateVerdictControl(configuration)
             }
             summaryView = summary
-            stack.addFullWidthArrangedSubview(summary)
+            stack.insertFullWidthArrangedSubview(summary, at: 0)
         }
         summaryView?.isHidden = false
         summaryView?.configure(.init(
@@ -228,12 +236,16 @@ private extension AppKitReviewProposalWidgetView {
     }
 
     func rebuild(_ configuration: Configuration) {
-        stack.arrangedSubviews.filter { $0 !== summaryView }.forEach { view in
+        // A mounted published body stays put, so an open comment editor inside it keeps its focus.
+        stack.arrangedSubviews.filter { $0 !== summaryView && ($0 !== publishedView || configuration.published == nil) }.forEach { view in
             stack.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
         diffView.removeFromSuperview()
         staleCommentsView.removeFromSuperview()
+        if let published = configuration.published, let proposalID = configuration.content.proposalID {
+            return mountPublished(.init(proposalID: proposalID, published: published, typography: configuration.typography))
+        }
 
         // Resolved cards keep only what happened; the controls and the diff belong to a decision
         // that is no longer open.
@@ -248,6 +260,26 @@ private extension AppKitReviewProposalWidgetView {
         addStaleComments(configuration)
         addBanners(configuration)
         addActionRow(configuration)
+    }
+
+    func mountPublished(_ configuration: AppKitReviewProposalPublishedView.Configuration) {
+        let view = publishedView ?? makePublishedView()
+        view.avatarLoader = avatarLoader
+        view.configure(configuration)
+        if view.superview == nil { stack.addFullWidthArrangedSubview(view) }
+    }
+
+    func makePublishedView() -> AppKitReviewProposalPublishedView {
+        let view = AppKitReviewProposalPublishedView()
+        view.onEditComment = { [weak self] id, nodeID, body in await self?.onEditPublishedComment?(id, nodeID, body) ?? false }
+        view.onDeleteComment = { [weak self] id, nodeID in self?.onDeletePublishedComment?(id, nodeID) }
+        view.onJumpToComment = { [weak self] id, anchor in self?.onJumpToComment?(id, anchor) }
+        view.onOpenPullRequest = { [weak self] identifier in self?.onOpenPullRequest?(identifier) }
+        view.onOpenLink = { [weak self] url in self?.onOpenMarkdownLink?(url) }
+        view.onHeightInvalidated = { [weak self] in self?.onHeightInvalidated?() }
+        view.onImmediateHeightInvalidated = { [weak self] in self?.onImmediateHeightInvalidated?() }
+        publishedView = view
+        return view
     }
 
     func addCollectiveCompletionWarning(_ configuration: Configuration) {
@@ -438,18 +470,20 @@ private extension AppKitReviewProposalWidgetView {
     }
 
     func actionRow(_ configuration: Configuration) -> NSView {
-        let reject = button(
+        let reject = Self.button(
             title: "Cancel",
             icon: .system("xmark"),
             style: .secondary,
+            target: self,
             action: #selector(handleReject)
         )
         reject.isEnabled = !configuration.isSubmitting
 
-        let open = button(
+        let open = Self.button(
             title: "Open PR",
             icon: .octicon(.pullRequest16),
             style: .secondary,
+            target: self,
             action: #selector(handleOpenPullRequest)
         )
         open.isEnabled = (configuration.presentation?.identifier ?? configuration.content.identifier) != nil
@@ -462,38 +496,5 @@ private extension AppKitReviewProposalWidgetView {
         row.alignment = .centerY
         row.spacing = 8
         return row
-    }
-
-    func button(
-        title: String,
-        icon: ActionIcon,
-        style: AppKitTranscriptApprovalButtonStyle,
-        action: Selector
-    ) -> AppKitTranscriptApprovalButton {
-        let button = AppKitTranscriptApprovalButton()
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.isBordered = false
-        button.controlSize = .small
-        button.title = title
-        button.icon = icon
-        button.actionStyle = style
-        button.target = self
-        button.action = action
-        return button
-    }
-}
-
-private extension PullRequestReviewProposalPreviewState {
-    var loadedPreview: PullRequestReviewProposalPreview? {
-        guard case .loaded(let preview) = self else {
-            return nil
-        }
-        return preview
-    }
-}
-
-private extension Optional where Wrapped == PullRequestReviewProposalPreviewState {
-    var loadedPreview: PullRequestReviewProposalPreview? {
-        self?.loadedPreview
     }
 }

@@ -69,7 +69,8 @@ extension ChatItemGrouper {
                 existing.outcome,
                 definitionID: existing.outcomeDefinitionID,
                 title: existing.outcomeTitle,
-                body: existing.outcomeBody
+                body: existing.outcomeBody,
+                publishedReview: existing.publishedReview
             )
         )
     }
@@ -88,7 +89,8 @@ extension ChatItemGrouper {
             outcome: outcome,
             definitionID: HostToolWidgetOutcomeMarker.definitionID(fromContent: content),
             title: HostToolWidgetOutcomeMarker.title(fromContent: content),
-            body: HostToolWidgetOutcomeMarker.body(fromContent: content)
+            body: HostToolWidgetOutcomeMarker.body(fromContent: content),
+            publishedReview: HostToolWidgetOutcomeMarker.published(fromContent: content)
         )
         // Cache regardless: a later replay of the same call must resolve too.
         pendingHostToolOutcomesByKey[key] = pending
@@ -157,7 +159,8 @@ private extension ChatItemGrouper {
                 pending.outcome,
                 definitionID: pending.definitionID,
                 title: pending.title,
-                body: pending.body
+                body: pending.body,
+                publishedReview: pending.publishedReview
             )
         )
     }
@@ -187,7 +190,8 @@ private extension ChatItemGrouper {
             outcome: pending?.outcome,
             outcomeDefinitionID: pending?.definitionID,
             outcomeTitle: pending?.title,
-            outcomeBody: pending?.body
+            outcomeBody: pending?.body,
+            publishedReview: pending?.publishedReview
         )
     }
 }
@@ -198,6 +202,7 @@ struct PendingHostToolOutcome: Equatable {
     let definitionID: String?
     let title: String?
     let body: String?
+    let publishedReview: PullRequestPublishedReview?
 }
 
 /// Encoding for the feature-neutral `host_tool_outcome` marker payload.
@@ -207,9 +212,11 @@ enum HostToolWidgetOutcomeMarker {
         definitionID: String? = nil,
         title: String? = nil,
         body: String? = nil,
+        published: PullRequestPublishedReview? = nil,
         requiresKeyMatch: Bool = false
     ) -> String {
         var payload: [String: String] = ["status": outcome.rawValue]
+        payload["published"] = published.flatMap(encoded)
         if let definitionID {
             payload["definition_id"] = definitionID
         }
@@ -218,11 +225,14 @@ enum HostToolWidgetOutcomeMarker {
         }
         if let body { payload["body"] = body }
         if requiresKeyMatch { payload["requires_key_match"] = "true" }
-        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
-              let encoded = String(data: data, encoding: .utf8) else {
-            return "{\"status\":\"\(outcome.rawValue)\"}"
-        }
-        return encoded
+        return serialized(payload) ?? "{\"status\":\"\(outcome.rawValue)\"}"
+    }
+
+    /// The same marker with its snapshot swapped, every other key kept; nil for content that is not a marker.
+    static func content(_ content: String, replacingPublished published: PullRequestPublishedReview) -> String? {
+        guard var payload = decoded(content), let snapshot = encoded(published) else { return nil }
+        payload["published"] = snapshot
+        return serialized(payload)
     }
 
     static func outcome(fromContent content: String) -> HostToolWidgetOutcome? {
@@ -249,6 +259,20 @@ enum HostToolWidgetOutcomeMarker {
     /// Optional for older outcomes; an empty value must survive decoding.
     static func body(fromContent content: String) -> String? {
         decoded(content)?["body"]
+    }
+
+    /// A submitted review's comments, nested as a JSON string so the payload stays flat. Absent on
+    /// rejections and on markers written before submitted cards kept their comments.
+    static func published(fromContent content: String) -> PullRequestPublishedReview? {
+        decoded(content)?["published"].flatMap { try? JSONDecoder().decode(PullRequestPublishedReview.self, from: Data($0.utf8)) }
+    }
+
+    private static func encoded(_ published: PullRequestPublishedReview) -> String? {
+        (try? JSONEncoder().encode(published)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    private static func serialized(_ payload: [String: String]) -> String? {
+        (try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])).flatMap { String(data: $0, encoding: .utf8) }
     }
 
     private static func decoded(_ content: String) -> [String: String]? {

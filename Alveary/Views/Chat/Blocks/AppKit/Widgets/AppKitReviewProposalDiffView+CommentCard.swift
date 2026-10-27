@@ -27,7 +27,8 @@ struct AppKitReviewProposalCommentWash: Equatable {
 /// markdown-rendered body. No reactions, no reply footer, no composer — every one of those posts to
 /// GitHub, and nothing on this card may reach GitHub before the user confirms the review. The
 /// trailing actions menu is the one exception that proves the rule: its Delete drops a staged
-/// comment from the stored envelope, which is local by construction.
+/// comment from the stored envelope, which is local by construction. Once the review is submitted,
+/// its comments are GitHub's, and the same menu edits or deletes them there as GitHub permits.
 @MainActor
 final class AppKitReviewProposalCommentCardView: NSView {
     /// Matches `DiffCommentCardChrome`: the card is inset from the row so the code surface shows
@@ -59,6 +60,12 @@ final class AppKitReviewProposalCommentCardView: NSView {
     /// when the pool creates the card; the anchor travels with each `configure`, for the same
     /// reason the index does.
     var onJump: ((DiffCommentAnchor) -> Void)?
+    /// Edits a published comment on GitHub, by node id, reporting whether GitHub took the new text.
+    var onEditPublished: (@MainActor (String, String) async -> Bool)?
+    /// Deletes a published comment on GitHub, by node id, once the user confirms.
+    var onDeletePublished: ((String) -> Void)?
+    /// The editor opening, closing, or growing as it is typed into; unanimated, like the summary's.
+    var onImmediateHeightInvalidated: (() -> Void)?
 
     /// A transparent container: the card's fill, border, and shadow are drawn in `draw(_:)`, not
     /// backed by a `CALayer`. Two reasons — `AppKitDynamicColorView` rewrites `layer.borderColor`
@@ -86,6 +93,14 @@ final class AppKitReviewProposalCommentCardView: NSView {
     private var jumpAnchor: DiffCommentAnchor?
     /// Held because the outset widens for the preview's last card, and these views are pooled.
     private var cardBottomConstraint: NSLayoutConstraint?
+    /// The configured comment's node id when it is published, with its unsanitized body for Edit.
+    private(set) var publishedNodeID: String?
+    private var publishedBody = ""
+    private var typography = TranscriptTypography()
+    /// The coordinator's in-flight state, and this card's own Save before that state arrives.
+    private var isBusy = false
+    private var isSaving = false
+    private var editorView: AppKitReviewProposalCommentEditorView?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -99,10 +114,17 @@ final class AppKitReviewProposalCommentCardView: NSView {
             self?.onHeightInvalidated?()
         }
         actionsMenu.onDelete = { [weak self] in
-            guard let self, let proposedIndex else {
+            guard let self else {
                 return
             }
-            onRemove?(proposedIndex)
+            if let proposedIndex {
+                onRemove?(proposedIndex)
+            } else if let publishedNodeID {
+                confirmDeletion(of: publishedNodeID)
+            }
+        }
+        actionsMenu.onEdit = { [weak self] in
+            self?.beginEditing()
         }
         jumpButton.onJump = { [weak self] in
             guard let self, let jumpAnchor else {
@@ -132,6 +154,15 @@ final class AppKitReviewProposalCommentCardView: NSView {
         self.wash = wash
         proposedIndex = comment.proposedIndex
         jumpAnchor = anchor
+        let published = comment.nodeID.flatMap { context.published?.comments[$0] }
+        let mayChange = published != nil && context.published?.allowsActions == true
+        // A pooled card keeps an open editor only for the same comment, and only while it may still edit it.
+        if published?.nodeID != publishedNodeID || !(mayChange && comment.canEdit) {
+            endEditing()
+        }
+        publishedNodeID = published?.nodeID
+        publishedBody = published?.bodyMarkdown ?? ""
+        typography = context.typography
         cardBottomConstraint?.constant = -(wash.isTrailing ? Self.trailingVerticalOutset : Self.verticalOutset)
         let captionSize = context.typography.size(for: .caption)
         avatarView.configure(login: comment.author, url: comment.avatarURL, loader: context.avatarLoader)
@@ -149,17 +180,20 @@ final class AppKitReviewProposalCommentCardView: NSView {
             style: .tinted(AppKitPullRequestCommentBadgeView.pendingTint),
             fontSize: captionSize
         )
-        // Only a staged comment can be removed, and only while the card can still act on it — a
-        // submission in flight is already publishing what it was handed.
-        actionsMenu.isHidden = !(context.allowsRemoval && comment.isProposed)
+        // A staged comment is removable while the card can still act on it — a submission in flight
+        // is already publishing what it was handed. A published one follows GitHub's permissions.
+        actionsMenu.allowsEdit = mayChange && comment.canEdit
+        actionsMenu.allowsDelete = comment.isProposed ? context.allowsRemoval : mayChange && comment.canDelete
         actionsMenu.configure(fontSize: captionSize)
-        // Only a staged comment jumps: a `Pending` one already lives on GitHub and the pane
-        // renders it from the detail, with no proposal to attach to.
-        jumpButton.isHidden = !(context.allowsJumping && comment.isProposed)
+        updateActionsVisibility()
+        // A `Pending` comment does not jump: it lives in the viewer's draft, and the pane renders it
+        // from the detail with no proposal to attach to.
+        jumpButton.isHidden = !(context.allowsJumping && (comment.isProposed || published != nil))
         jumpButton.configure(fontSize: captionSize)
         configureBody(markdown: comment.bodyMarkdown, typography: context.typography)
+        bodyView.isHidden = editorView != nil
         evidenceView.configure(
-            evidence: comment.proposedIndex.flatMap { context.evidenceByProposedIndex[$0] },
+            evidence: comment.proposedIndex.flatMap { context.evidenceByProposedIndex[$0] } ?? published?.evidence,
             reviewers: context.reviewers,
             typography: context.typography
         )
@@ -167,6 +201,14 @@ final class AppKitReviewProposalCommentCardView: NSView {
         setAccessibilityRole(.group)
         setAccessibilityLabel("Comments on line \(anchor.line) of \(anchor.path)")
         needsDisplay = true
+    }
+
+    /// Separate from `configure`, so an edit's in-flight state reaches the card without rebuilding the
+    /// whole diff around its open editor.
+    func updateBusy(_ busyCommentIDs: Set<String>) {
+        isBusy = publishedNodeID.map(busyCommentIDs.contains) ?? false
+        editorView?.setBusy(isBusy || isSaving)
+        updateActionsVisibility()
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -211,6 +253,8 @@ struct AppKitReviewProposalCommentContext {
     let allowsJumping: Bool
     let evidenceByProposedIndex: [Int: PullRequestReviewProposalRecord.CommentEvidence]
     let reviewers: [PullRequestReviewProposalRecord.Reviewer]
+    /// A submitted review's comments, which this card can change on GitHub; nil before submission.
+    let published: AppKitReviewProposalPublishedComments?
 
     init(
         typography: TranscriptTypography,
@@ -218,7 +262,8 @@ struct AppKitReviewProposalCommentContext {
         allowsRemoval: Bool = false,
         allowsJumping: Bool = false,
         evidenceByProposedIndex: [Int: PullRequestReviewProposalRecord.CommentEvidence] = [:],
-        reviewers: [PullRequestReviewProposalRecord.Reviewer] = []
+        reviewers: [PullRequestReviewProposalRecord.Reviewer] = [],
+        published: AppKitReviewProposalPublishedComments? = nil
     ) {
         self.typography = typography
         self.avatarLoader = avatarLoader
@@ -226,6 +271,7 @@ struct AppKitReviewProposalCommentContext {
         self.allowsJumping = allowsJumping
         self.evidenceByProposedIndex = evidenceByProposedIndex
         self.reviewers = reviewers
+        self.published = published
     }
 }
 
@@ -348,6 +394,99 @@ private extension AppKitReviewProposalCommentCardView {
         NSColor.labelColor.appKitResolvedColor(in: self, alpha: 0.1).setStroke()
         path.lineWidth = 1
         path.stroke()
+    }
+
+    func updateActionsVisibility() {
+        actionsMenu.isHidden = !(actionsMenu.allowsEdit || actionsMenu.allowsDelete) || isBusy || editorView != nil
+    }
+
+    func beginEditing() {
+        guard editorView == nil, publishedNodeID != nil, actionsMenu.allowsEdit, !isBusy else {
+            return
+        }
+        let editor = AppKitReviewProposalCommentEditorView(markdown: publishedBody, width: max(bodyView.bounds.width, 240))
+        editor.onSave = { [weak self] in self?.saveEdit() }
+        editor.onCancel = { [weak self] in self?.cancelEdit() }
+        editor.onHeightInvalidated = { [weak self] in self?.onImmediateHeightInvalidated?() }
+        editorView = editor
+        contentStack.insertArrangedSubview(editor, at: 1)
+        editor.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+        bodyView.isHidden = true
+        updateActionsVisibility()
+        onImmediateHeightInvalidated?()
+        editor.focus()
+    }
+
+    /// A failure keeps the editor and its text; success shows the saved body before the coordinator's
+    /// re-render reaches this card.
+    func saveEdit() {
+        guard let editorView, let nodeID = publishedNodeID, !isBusy, !isSaving else {
+            return
+        }
+        guard editorView.hasChanges else {
+            return cancelEdit()
+        }
+        let body = editorView.markdown
+        let onEdit = onEditPublished
+        isSaving = true
+        editorView.setBusy(true)
+        Task { [weak self] in
+            let saved = await onEdit?(nodeID, body) ?? false
+            guard let self else {
+                return
+            }
+            isSaving = false
+            guard publishedNodeID == nodeID, self.editorView === editorView else {
+                return
+            }
+            guard saved else {
+                return editorView.setBusy(isBusy)
+            }
+            publishedBody = body
+            configureBody(markdown: PullRequestMarkdown.sanitized(body), typography: typography)
+            cancelEdit()
+        }
+    }
+
+    func cancelEdit() {
+        guard !isSaving else {
+            return
+        }
+        endEditing()
+        onImmediateHeightInvalidated?()
+    }
+
+    func endEditing() {
+        guard let editorView else {
+            return
+        }
+        contentStack.removeArrangedSubview(editorView)
+        editorView.removeFromSuperview()
+        self.editorView = nil
+        bodyView.isHidden = false
+        updateActionsVisibility()
+    }
+
+    /// The pane's confirmation, as a sheet. The callback is captured rather than read back through
+    /// this card, which the pool may hand another comment while the sheet is up.
+    func confirmDeletion(of nodeID: String) {
+        guard let window else {
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = PullRequestCommentActionsMenu.deleteConfirmationTitle
+        alert.informativeText = PullRequestCommentActionsMenu.deleteConfirmationMessage
+        let delete = alert.addButton(withTitle: PullRequestCommentActionsMenu.deleteTitle)
+        delete.hasDestructiveAction = true
+        delete.keyEquivalent = "" // A permanent delete on GitHub takes a click, never a stray Return.
+        alert.addButton(withTitle: "Cancel")
+        let onDelete = onDeletePublished
+        alert.beginSheetModal(for: window) { response in
+            guard response == .alertFirstButtonReturn else {
+                return
+            }
+            onDelete?(nodeID)
+        }
     }
 
     func drawBand(kind: DiffCodeHighlighting.LineKind, in rect: NSRect) {

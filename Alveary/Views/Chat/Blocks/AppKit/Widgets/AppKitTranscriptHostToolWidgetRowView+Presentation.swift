@@ -105,7 +105,8 @@ extension AppKitTranscriptHostToolWidgetRowView {
                 errorMessage: state.errorMessage ?? configuration.errorMessage,
                 typography: configuration.typography,
                 summaryBody: ReviewProposalWidgetState.summaryBody(for: configuration.entry, state: state) ?? "",
-                summaryDocument: reviewSummaryDocument(configuration)
+                summaryDocument: reviewSummaryDocument(configuration),
+                published: state.published
             )
         )
         reviewProposalBody.isHidden = !reviewProposalBody.hasContent

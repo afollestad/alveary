@@ -153,17 +153,21 @@ final class AppKitPullRequestCommentBadgeView: NSView {
     }
 }
 
-/// The comment card's three-dot menu, holding the one action a staged comment has.
+/// The comment card's three-dot menu: Delete for a staged comment, and Edit and Delete for a
+/// published one, each as GitHub permits.
 ///
 /// Mirrors the pane's `PullRequestCommentActionsMenu`: the same `ellipsis` glyph, the same hit
 /// target — which is also the hover circle, so the glyph centers in it — the same "Comment actions"
-/// name, and one destructive row. Deleting asks for no confirmation, exactly as it does not in the
-/// pane — a staged comment exists only in the stored envelope, so dropping it publishes nothing.
+/// name, and the same rows. A staged comment's Delete asks for no confirmation, exactly as it does
+/// not in the pane — it exists only in the stored envelope, so dropping it publishes nothing.
 ///
 /// Built on `AppKitHostToolWidgetBubbleView` for the transcript's press, cursor, and button role.
 @MainActor
 final class AppKitReviewProposalCommentMenuButton: AppKitHostToolWidgetBubbleView {
+    var onEdit: (() -> Void)?
     var onDelete: (() -> Void)?
+    var allowsEdit = false
+    var allowsDelete = true
 
     private let glyphView = AppKitDynamicTintImageView()
 
@@ -212,17 +216,18 @@ final class AppKitReviewProposalCommentMenuButton: AppKitHostToolWidgetBubbleVie
     /// modal tracking loop, which a test cannot drive.
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
-        let delete = NSMenuItem(
-            title: PullRequestCommentActionsMenu.deleteTitle,
-            action: #selector(handleDelete),
-            keyEquivalent: ""
-        )
-        delete.target = self
-        delete.image = NSImage(
-            systemSymbolName: PullRequestCommentActionsMenu.deleteSymbolName,
-            accessibilityDescription: nil
-        )
-        menu.addItem(delete)
+        if allowsEdit {
+            menu.addItem(item(
+                PullRequestCommentActionsMenu.editTitle, symbol: PullRequestCommentActionsMenu.editSymbolName,
+                action: #selector(handleEdit)
+            ))
+        }
+        if allowsDelete {
+            menu.addItem(item(
+                PullRequestCommentActionsMenu.deleteTitle, symbol: PullRequestCommentActionsMenu.deleteSymbolName,
+                action: #selector(handleDelete)
+            ))
+        }
         return menu
     }
 }
@@ -258,6 +263,17 @@ private extension AppKitReviewProposalCommentMenuButton {
         // The view is flipped, so its maximum Y edge is the bottom — the menu drops below the
         // glyph the way the pane's does.
         makeMenu().popUp(positioning: nil, at: NSPoint(x: 0, y: bounds.maxY + 2), in: self)
+    }
+
+    func item(_ title: String, symbol: String, action: Selector) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        return item
+    }
+
+    @objc func handleEdit() {
+        onEdit?()
     }
 
     @objc func handleDelete() {
