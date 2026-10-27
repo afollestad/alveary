@@ -191,6 +191,18 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         XCTAssertEqual(invocation.standardInput, .nullDevice)
     }
 
+    func testRawDiffReplacesInvalidUTF8() async throws {
+        let shell = MockShellRunner()
+        let bytes = Data("diff --git a/tile.mvt b/tile.mvt\n+".utf8) + Data([0x80]) + Data("\n".utf8)
+        await shell.enqueue(.success(ShellResult(stdout: "", stdoutData: bytes, stderr: "", exitCode: 0,
+                                                 stdoutWasTruncated: false, stderrWasTruncated: false)))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        let output = try await service.fetchRawDiff(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
+
+        XCTAssertEqual(output, "diff --git a/tile.mvt b/tile.mvt\n+\u{FFFD}\n")
+    }
+
     func testRawDiffTruncatedThrowsTooLarge() async {
         let shell = MockShellRunner()
         await shell.enqueue(.success(pullRequestsShellResult(stdout: "diff", stdoutWasTruncated: true)))

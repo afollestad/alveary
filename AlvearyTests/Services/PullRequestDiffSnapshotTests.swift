@@ -36,6 +36,22 @@ struct PullRequestDiffSnapshotTests {
         #expect(files.first?.hunks.first?.lines.last?.newLineNumber == 25_001)
     }
 
+    @Test func `invalid UTF8 is replaced without moving lines or splitting characters across reads`() throws {
+        let header = "diff --git a/tile.mvt b/tile.mvt\nnew file mode 100644\n--- /dev/null\n+++ b/tile.mvt\n@@ -0,0 +1,3 @@\n"
+        // The first 64 KB read ends inside this character.
+        let straddling = "+" + String(repeating: "x", count: 64 * 1024 - 2 - header.utf8.count - 1) + "🐝\n"
+        let bytes = Data((header + straddling + "+\u{1A}(").utf8) + Data([0x80]) + Data(" x\n+after\n".utf8)
+        let directory = try PullRequestDiffSnapshot.makeDirectory()
+        let url = directory.appendingPathComponent("changes.diff")
+        try bytes.write(to: url)
+        let snapshot = try PullRequestDiffSnapshot(url: url, directory: directory)
+        let text = try snapshot.text(maxBytes: .max)
+        #expect(text == header + straddling + "+\u{1A}(\u{FFFD} x\n+after\n")
+        #expect(snapshot.files.first?.additions == 3)
+        let lines = try #require(try snapshot.parsedFiles(paths: ["tile.mvt"]).first?.hunks.first?.lines)
+        #expect(lines.map(\.newLineNumber) == [1, 2, 3])
+    }
+
     @Test func `index preserves quoted paths renames deletions and binary files`() throws {
         let text = #"""
         diff --git "a/old\tname.txt" "b/new\n\303\251.txt"

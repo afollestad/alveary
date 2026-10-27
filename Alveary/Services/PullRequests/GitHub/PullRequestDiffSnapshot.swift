@@ -43,6 +43,7 @@ final class PullRequestDiffSnapshot: Sendable {
         self.directory = directory
         self.baseOID = baseOID
         self.headOID = headOID
+        try Self.repairUTF8(at: url)
         let index = try Self.index(url: url)
         guard index.byteCount == 0 || !index.files.isEmpty,
               index.files.allSatisfy({ $0.metadata.oldPath != nil || $0.metadata.newPath != nil }) else {

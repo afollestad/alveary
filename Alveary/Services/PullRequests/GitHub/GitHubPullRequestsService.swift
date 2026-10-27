@@ -78,7 +78,10 @@ actor GitHubPullRequestsService: PullRequestsService {
 
     func fetchDiff(_ id: PullRequestIdentifier) async throws -> String {
         do {
-            return try await fetchRawDiff(id)
+            let text = try await fetchRawDiff(id)
+            // Repair turns any capture into text, so one without a file header must not render as an empty diff.
+            guard text.isEmpty || text.hasPrefix("diff --git ") else { throw PullRequestDiffError.invalidEncoding }
+            return text
         } catch where Self.needsGitDiff(error) {
             return try await fetchDiffSnapshot(id).text(maxBytes: 5 * 1024 * 1024)
         }
@@ -99,10 +102,7 @@ actor GitHubPullRequestsService: PullRequestsService {
         guard !result.stdoutWasTruncated else {
             throw PullRequestsServiceError.responseTooLarge
         }
-        guard let text = String(data: result.stdoutData, encoding: .utf8) else {
-            throw PullRequestDiffError.invalidEncoding
-        }
-        return text
+        return PullRequestDiffSnapshot.repairedText(result.stdoutData)
     }
 
     /// One `gh` invocation per bucket, in parallel. GitHub runs a batched request's aliased
