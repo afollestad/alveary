@@ -1,6 +1,6 @@
 # alveary.af.codes
 
-This branch *is* the published site. GitHub Pages serves it from the repo root, so anything committed here goes live. There is no build step: `index.html`, the sheets in `styles/`, the scripts in `scripts/` and the assets in `images/` ship verbatim. Preview with a local static server (`python3 -m http.server`) rather than opening the file directly, so relative paths resolve the way they will in production.
+This branch *is* the published site. GitHub Pages serves it from the repo root, so anything committed here goes live. There is no build step of our own: Pages runs Jekyll, which copies `index.html`, the sheets in `styles/`, the scripts in `scripts/` and the assets in `images/` verbatim because none of them has front matter, so don't add any. It also drops names starting with `_` or `.`, and `_config.yml` keeps `AGENTS.md` and `CLAUDE.md` off the site, so add anything else at the root that isn't part of the site to its `exclude`. Preview with a local static server (`python3 -m http.server`) rather than opening the file directly, so relative paths resolve the way they will in production.
 
 ## Look
 
