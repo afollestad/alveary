@@ -15,6 +15,9 @@
     /* Light enough for text as-is, 12:1 on --bg. */
     --accent-text: #f6c755;
     --cta-shadow: rgba(242, 172, 0, .35);
+    /* Behind the logo, at least 3:1 with its main blues, #0057d5 and #0186fb.
+       Matches af.codes. */
+    --logo-circle: #05070d;
     --glass: rgba(255, 255, 255, .06);
     --glass-border: rgba(255, 255, 255, .14);
     --glass-shadow: rgba(0, 0, 0, .4);

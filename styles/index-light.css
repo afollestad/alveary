@@ -15,6 +15,9 @@
     /* The accent deepened for text, focus rings and hover, 5.7:1 on --bg. */
     --accent-text: #8a5a00;
     --cta-shadow: rgba(138, 90, 0, .45);
+    /* Behind the logo, at least 3:1 with its main blues, #0057d5 and #0186fb.
+       Matches af.codes. */
+    --logo-circle: #ffffff;
     --glass: rgba(255, 255, 255, .55);
     --glass-border: rgba(31, 26, 16, .1);
     --glass-shadow: rgba(122, 74, 0, .18);
