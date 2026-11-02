@@ -46,7 +46,7 @@ final class AppKitReviewProposalSummaryView: NSView {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
         actions.orientation = .horizontal
-        actions.spacing = 8
+        actions.spacing = Self.actionSpacing
         stack.addArrangedSubview(actions)
     }
 
@@ -169,27 +169,26 @@ final class AppKitReviewProposalSummaryView: NSView {
         actions.isHidden = configuration.proposalID == nil
         guard !actions.isHidden else { return }
         if isEditing {
-            addButton("Cancel edit", icon: .system("xmark"), action: #selector(cancel))
-            addButton("Save comment", icon: .system("checkmark"), action: #selector(save))
+            addButton("Cancel edit", action: #selector(cancel))
+            addButton("Save comment", action: #selector(save))
         } else {
-            addButton(
-                configuration.markdown.isEmpty ? "Add comment" : "Edit", icon: .system("pencil"),
-                action: #selector(beginEditing), isInline: configuration.markdown.isEmpty
-            )
-            if !configuration.markdown.isEmpty { addButton("Clear", icon: .system("xmark"), action: #selector(clear)) }
+            addButton(configuration.markdown.isEmpty ? "Add comment" : "Edit", action: #selector(beginEditing))
+            if !configuration.markdown.isEmpty { addButton("Clear", action: #selector(clear)) }
         }
     }
 
-    private func addButton(_ title: String, icon: ActionIcon, action: Selector, isInline: Bool = false) {
+    /// Wider than capsule buttons' gap, because inline actions draw no shape to keep their labels apart.
+    private static let actionSpacing: CGFloat = 14
+
+    /// Inline text rather than capsules, in every state: the card's action row sits just below, and two
+    /// rows of capsules read as one set of controls for the whole review.
+    private func addButton(_ title: String, action: Selector) {
         let button = AppKitTranscriptApprovalButton()
         button.title = title
-        button.icon = isInline ? nil : icon
         button.actionStyle = .secondary
-        if isInline {
-            button.font = configuration?.typography.nsFont(.caption)
-            button.inlineForegroundColor = AppAccentIcon.foregroundNSColor
-            button.focusRingType = .exterior
-        }
+        button.font = configuration?.typography.nsFont(.caption)
+        button.inlineForegroundColor = AppAccentIcon.foregroundNSColor
+        button.focusRingType = .exterior
         button.controlSize = .small
         button.isBordered = false
         button.target = self

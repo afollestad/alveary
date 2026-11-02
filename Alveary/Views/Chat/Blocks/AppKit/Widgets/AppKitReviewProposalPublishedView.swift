@@ -8,7 +8,8 @@ struct AppKitReviewProposalPublishedComments: Equatable {
 }
 
 /// A submitted review's body: its published comments on the lines they annotate, editable and
-/// deletable on GitHub as GitHub permits, and the way to the pull request.
+/// deletable on GitHub as GitHub permits. Open PR belongs to the card's footer rather than to this
+/// view, so the review's top-level comment can sit between the two.
 ///
 /// Its subviews stay mounted across configurations, because a diff built from new views would discard
 /// a comment card's open editor.
@@ -24,7 +25,6 @@ final class AppKitReviewProposalPublishedView: NSView {
     var onEditComment: (@MainActor (String, String, String) async -> Bool)?
     var onDeleteComment: ((String, String) -> Void)?
     var onJumpToComment: ((String, DiffCommentAnchor) -> Void)?
-    var onOpenPullRequest: ((PullRequestIdentifier) -> Void)?
     var onOpenLink: ((URL) -> Void)?
     var onHeightInvalidated: (() -> Void)?
     var onImmediateHeightInvalidated: (() -> Void)?
@@ -37,9 +37,6 @@ final class AppKitReviewProposalPublishedView: NSView {
     private let diffView = AppKitReviewProposalDiffView()
     private let errorLabel = AppKitTranscriptWidgetLabelFactory.label(
         "", level: .caption, color: .systemRed, typography: TranscriptTypography(), wraps: true
-    )
-    private lazy var openButton = AppKitReviewProposalWidgetView.button(
-        title: "Open PR", icon: .octicon(.pullRequest16), style: .secondary, target: self, action: #selector(openPullRequest)
     )
     private var configuration: Configuration?
 
@@ -60,7 +57,6 @@ final class AppKitReviewProposalPublishedView: NSView {
         stack.addFullWidthArrangedSubview(caption)
         stack.addFullWidthArrangedSubview(diffView)
         stack.addFullWidthArrangedSubview(errorLabel)
-        stack.addArrangedSubview(openButton)
         wireDiffView()
     }
 
@@ -71,8 +67,7 @@ final class AppKitReviewProposalPublishedView: NSView {
         [
             diffView.isHidden ? 0 : min(diffView.naturalWidth, AppKitReviewProposalWidgetView.maximumDiffWidth),
             ceil(caption.fittingSize.width),
-            errorLabel.isHidden ? 0 : ceil(errorLabel.fittingSize.width),
-            ceil(openButton.fittingSize.width)
+            errorLabel.isHidden ? 0 : ceil(errorLabel.fittingSize.width)
         ].max() ?? 0
     }
 
@@ -103,12 +98,6 @@ final class AppKitReviewProposalPublishedView: NSView {
                 comments: Dictionary(published.review.liveComments.map { ($0.nodeID, $0) }) { first, _ in first }
             )
         ))
-        // The action row's clearance follows whichever row ends up above it, as on the pending card.
-        let rows = [caption, diffView, errorLabel]
-        let last = rows.last { !$0.isHidden }
-        for row in rows {
-            stack.setCustomSpacing(row === last ? AppKitReviewProposalWidgetView.actionRowSeparation : stack.spacing, after: row)
-        }
     }
 
     /// The live comments only; one GitHub deleted reads as gone rather than as a dead card. A comment the
@@ -120,11 +109,6 @@ final class AppKitReviewProposalPublishedView: NSView {
         let hidden = review.liveComments.filter { !review.draws($0) }.count
         guard hidden > 0 else { return summary }
         return summary + " \(hidden) \(hidden == 1 ? "is" : "are") not shown; open the pull request to read \(hidden == 1 ? "it" : "them")."
-    }
-
-    @objc private func openPullRequest() {
-        guard let identifier = configuration?.published.review.identifier else { return }
-        onOpenPullRequest?(identifier)
     }
 
     private func wireDiffView() {

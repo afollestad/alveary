@@ -108,6 +108,10 @@ final class AppKitReviewProposalWidgetView: NSView {
     /// carries a flexible spacer, so measure its buttons instead.
     var naturalWidth: CGFloat {
         stack.arrangedSubviews.reduce(CGFloat.zero) { widest, row in
+            // A rule spans whatever width the card has; it never asks for any.
+            if row is AppKitHostToolWidgetDividerView {
+                return widest
+            }
             if let summary = row as? AppKitReviewProposalSummaryView {
                 return max(widest, summary.naturalWidth)
             }
@@ -145,8 +149,11 @@ final class AppKitReviewProposalWidgetView: NSView {
         }
         let previous = self.configuration
         self.configuration = configuration
+        let hadSummary = summaryView != nil
         updateSummary(configuration)
-        if Self.needsBodyRebuild(previous, configuration) {
+        // Only a rebuild places the other rows around the summary and rules it off, so mounting or
+        // unmounting it takes one even if no other render input changed.
+        if Self.needsBodyRebuild(previous, configuration) || hadSummary != (summaryView != nil) {
             rebuild(configuration)
         } else {
             updateVerdictControl(configuration)
@@ -194,8 +201,7 @@ final class AppKitReviewProposalWidgetView: NSView {
 
     @objc
     private func handleOpenPullRequest() {
-        guard let identifier = configuration?.presentation?.identifier
-            ?? configuration?.content.identifier else {
+        guard let configuration, let identifier = Self.pullRequestIdentifier(configuration) else {
             return
         }
         onOpenPullRequest?(identifier)
@@ -223,7 +229,8 @@ private extension AppKitReviewProposalWidgetView {
                 updateVerdictControl(configuration)
             }
             summaryView = summary
-            stack.insertFullWidthArrangedSubview(summary, at: 0)
+            // Appended; `configure` follows a mount with `rebuild`, which places every other row around it.
+            stack.addFullWidthArrangedSubview(summary)
         }
         summaryView?.isHidden = false
         summaryView?.configure(.init(
@@ -235,8 +242,10 @@ private extension AppKitReviewProposalWidgetView {
         ))
     }
 
+    /// The card reads top to bottom as its body (the comments it would publish, or published), then
+    /// the top-level comment, then the controls that act on the whole review.
     func rebuild(_ configuration: Configuration) {
-        // A mounted published body stays put, so an open comment editor inside it keeps its focus.
+        // A mounted summary and published body stay put, so an open editor inside either keeps its focus.
         stack.arrangedSubviews.filter { $0 !== summaryView && ($0 !== publishedView || configuration.published == nil) }.forEach { view in
             stack.removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -244,13 +253,16 @@ private extension AppKitReviewProposalWidgetView {
         diffView.removeFromSuperview()
         staleCommentsView.removeFromSuperview()
         if let published = configuration.published, let proposalID = configuration.content.proposalID {
-            return mountPublished(.init(proposalID: proposalID, published: published, typography: configuration.typography))
+            mountPublished(.init(proposalID: proposalID, published: published, typography: configuration.typography))
+            addFooter([Self.buttonRow([openPullRequestButton(configuration)])])
+            return
         }
 
         // Resolved cards keep only what happened; the controls and the diff belong to a decision
         // that is no longer open.
         guard configuration.isInteractive, configuration.presentation != nil else {
-            addBanners(configuration)
+            Self.bannerLabels(configuration).forEach { stack.addFullWidthArrangedSubview($0) }
+            applyRowSpacing(bodyEnd: nil)
             return
         }
 
@@ -258,15 +270,57 @@ private extension AppKitReviewProposalWidgetView {
         addCollectiveCompletionWarning(configuration)
         addDiffPreview(configuration)
         addStaleComments(configuration)
-        addBanners(configuration)
-        addActionRow(configuration)
+        addFooter(Self.bannerLabels(configuration) + [actionRow(configuration)])
+    }
+
+    /// Body rows go in ahead of the top-level comment rather than after it, because `rebuild` keeps
+    /// the summary mounted: re-adding it would end an open editing session, and changing the verdict
+    /// mid-edit rebuilds the card.
+    func addAboveSummary(_ view: NSView) {
+        guard let summaryView, let index = stack.arrangedSubviews.firstIndex(of: summaryView) else {
+            return stack.addFullWidthArrangedSubview(view)
+        }
+        stack.insertFullWidthArrangedSubview(view, at: index)
+    }
+
+    /// Ends the card with `rows` under the top-level comment, ruled off from it when there is one.
+    func addFooter(_ rows: [NSView]) {
+        let bodyEnd = stack.arrangedSubviews.last { $0 !== summaryView }
+        if summaryView != nil {
+            stack.addFullWidthArrangedSubview(AppKitHostToolWidgetDividerView())
+        }
+        rows.forEach { stack.addFullWidthArrangedSubview($0) }
+        applyRowSpacing(bodyEnd: bodyEnd)
+    }
+
+    /// Every row's spacing, set explicitly because the diff, stale list, summary, and published body
+    /// are reused across rebuilds and would otherwise keep a clearance from a layout they no longer end.
+    ///
+    /// `bodyEnd` gets `footerSeparation`: the diff preview is a slab of tinted rows, and at the
+    /// ordinary spacing the comment under it reads as a reply to its last inline comment rather than
+    /// as the review's own.
+    func applyRowSpacing(bodyEnd: NSView?) {
+        let rows = stack.arrangedSubviews
+        for (index, row) in rows.enumerated() {
+            let next = rows.indices.contains(index + 1) ? rows[index + 1] : nil
+            let spacing = if row === bodyEnd {
+                Self.footerSeparation
+            } else if next is AppKitHostToolWidgetDividerView {
+                Self.footerDividerSpacingAbove
+            } else if row is AppKitHostToolWidgetDividerView {
+                Self.footerDividerSpacingBelow
+            } else {
+                NSStackView.useDefaultSpacing
+            }
+            stack.setCustomSpacing(spacing, after: row)
+        }
     }
 
     func mountPublished(_ configuration: AppKitReviewProposalPublishedView.Configuration) {
         let view = publishedView ?? makePublishedView()
         view.avatarLoader = avatarLoader
         view.configure(configuration)
-        if view.superview == nil { stack.addFullWidthArrangedSubview(view) }
+        if view.superview == nil { addAboveSummary(view) }
     }
 
     func makePublishedView() -> AppKitReviewProposalPublishedView {
@@ -274,7 +328,6 @@ private extension AppKitReviewProposalWidgetView {
         view.onEditComment = { [weak self] id, nodeID, body in await self?.onEditPublishedComment?(id, nodeID, body) ?? false }
         view.onDeleteComment = { [weak self] id, nodeID in self?.onDeletePublishedComment?(id, nodeID) }
         view.onJumpToComment = { [weak self] id, anchor in self?.onJumpToComment?(id, anchor) }
-        view.onOpenPullRequest = { [weak self] identifier in self?.onOpenPullRequest?(identifier) }
         view.onOpenLink = { [weak self] url in self?.onOpenMarkdownLink?(url) }
         view.onHeightInvalidated = { [weak self] in self?.onHeightInvalidated?() }
         view.onImmediateHeightInvalidated = { [weak self] in self?.onImmediateHeightInvalidated?() }
@@ -288,7 +341,7 @@ private extension AppKitReviewProposalWidgetView {
             warning, level: .caption, color: .labelColor, typography: configuration.typography, wraps: true
         )
         label.setAccessibilityLabel(warning)
-        stack.addFullWidthArrangedSubview(label)
+        addAboveSummary(label)
     }
 
     /// Under the diff, because these are the comments it could not draw. Confirm refuses while any
@@ -305,17 +358,7 @@ private extension AppKitReviewProposalWidgetView {
                 typography: configuration.typography
             )
         )
-        stack.addFullWidthArrangedSubview(staleCommentsView)
-    }
-
-    /// Extra clearance under everything above it. The diff preview is a slab of tinted rows, so at
-    /// the stack's ordinary spacing the buttons read as belonging to the last comment rather than
-    /// to the card; the slab's own border is what ends it, not a rule across the card.
-    func addActionRow(_ configuration: Configuration) {
-        if let previous = stack.arrangedSubviews.last {
-            stack.setCustomSpacing(Self.actionRowSeparation, after: previous)
-        }
-        stack.addFullWidthArrangedSubview(actionRow(configuration))
+        addAboveSummary(staleCommentsView)
     }
 
     func addPendingCommentSummary(_ configuration: Configuration) {
@@ -331,7 +374,7 @@ private extension AppKitReviewProposalWidgetView {
         case .loaded(let preview):
             text = Self.loadedCommentSummary(preview)
         }
-        stack.addFullWidthArrangedSubview(
+        addAboveSummary(
             AppKitTranscriptWidgetLabelFactory.label(
                 text,
                 level: .caption,
@@ -369,54 +412,7 @@ private extension AppKitReviewProposalWidgetView {
             ),
             reviewers: configuration.presentation?.reviewers ?? []
         ))
-        stack.addFullWidthArrangedSubview(diffView)
-    }
-
-    func addBanners(_ configuration: Configuration) {
-        for message in bannerMessages(configuration) {
-            stack.addFullWidthArrangedSubview(
-                AppKitTranscriptWidgetLabelFactory.label(
-                    message,
-                    level: .caption,
-                    color: .systemRed,
-                    typography: configuration.typography,
-                    wraps: true
-                )
-            )
-        }
-    }
-
-    /// Only failures the card itself produced. A refused call's reason is *not* here: the shell
-    /// already gives it the detail line, which `HostToolWidgetSummary.detail(for:)` hands the
-    /// message on `.failed`, and repeating it as a banner printed the same sentence twice.
-    ///
-    /// `AppKitScheduledTaskProposalWidgetView.bannerMessages` still appends its own, and must:
-    /// its detail line carries the schedule summary rather than the message, so the banner is the
-    /// only place a refusal reaches that card. Do not unify the two.
-    func bannerMessages(_ configuration: Configuration) -> [String] {
-        var messages: [String] = []
-        if configuration.isInteractive, configuration.summaryBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let event = configuration.selectedEvent ?? configuration.content.event
-            if event == .requestChanges {
-                messages.append("Request changes requires a top-level comment.")
-            } else if event == .comment, Self.fallbackCommentTotal(configuration) == 0 {
-                messages.append("Add a top-level comment or a review thread to submit a comment review.")
-            }
-        }
-        if configuration.isInteractive, let errorMessage = configuration.errorMessage {
-            messages.append(errorMessage)
-        }
-        if case .failed(let message) = configuration.preview, configuration.isInteractive {
-            messages.append("Could not load the review's comments: \(message)")
-        }
-        return messages
-    }
-
-    /// GitHub rejects approving or requesting changes on your own pull request, so the card refuses
-    /// them rather than letting a confirmation fail at submission.
-    func isSelfReviewVerdict(_ event: PullRequestReviewEvent, _ configuration: Configuration) -> Bool {
-        let viewerIsAuthor = configuration.preview?.loadedPreview?.viewerIsAuthor ?? false
-        return viewerIsAuthor && (event == .approve || event == .requestChanges)
+        addAboveSummary(diffView)
     }
 
     /// One split button carries both halves of the decision: the primary submits the selected
@@ -432,7 +428,7 @@ private extension AppKitReviewProposalWidgetView {
         // reviewing their own pull request can still switch to the verdict GitHub does allow.
         verdictControl.isEnabled = !configuration.isSubmitting
         verdictControl.setEnabled(
-            configuration.canSubmit && summaryView?.isEditing != true && !isSelfReviewVerdict(selected, configuration),
+            configuration.canSubmit && summaryView?.isEditing != true && !Self.isSelfReviewVerdict(selected, configuration),
             forSegment: 0
         )
         verdictControl.setEnabled(true, forSegment: 1)
@@ -457,7 +453,7 @@ private extension AppKitReviewProposalWidgetView {
             item.target = self
             item.tag = index
             item.state = event == selected ? .on : .off
-            item.isEnabled = !isSelfReviewVerdict(event, configuration)
+            item.isEnabled = !Self.isSelfReviewVerdict(event, configuration)
             menu.addItem(item)
         }
         // Anchored in the control's own space; this view is Auto Layout, so a parent-frame origin
@@ -479,6 +475,13 @@ private extension AppKitReviewProposalWidgetView {
         )
         reject.isEnabled = !configuration.isSubmitting
 
+        updateVerdictControl(configuration)
+
+        return Self.buttonRow([reject, openPullRequestButton(configuration), verdictControl])
+    }
+
+    /// Shared by the pending card's action row and the submitted card's footer.
+    func openPullRequestButton(_ configuration: Configuration) -> NSView {
         let open = Self.button(
             title: "Open PR",
             icon: .octicon(.pullRequest16),
@@ -486,15 +489,7 @@ private extension AppKitReviewProposalWidgetView {
             target: self,
             action: #selector(handleOpenPullRequest)
         )
-        open.isEnabled = (configuration.presentation?.identifier ?? configuration.content.identifier) != nil
-
-        updateVerdictControl(configuration)
-
-        let row = NSStackView(views: [reject, open, verdictControl])
-        row.translatesAutoresizingMaskIntoConstraints = false
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 8
-        return row
+        open.isEnabled = Self.pullRequestIdentifier(configuration) != nil
+        return open
     }
 }

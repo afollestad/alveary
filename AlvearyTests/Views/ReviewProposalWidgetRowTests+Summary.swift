@@ -142,6 +142,79 @@ extension ReviewProposalWidgetRowTests {
         summary.editor?.inputView.keyDown(with: escape)
         XCTAssertNil(summary.editor)
     }
+
+    /// The review's own comment closes the card under the inline comments, ruled off from the
+    /// controls, and a verdict change — which rebuilds every other row — keeps it there unremounted.
+    func testTheTopLevelCommentSitsBetweenTheInlineCommentsAndTheDividedActions() throws {
+        let body = "Only the retry loop still worries me."
+        let card = AppKitReviewProposalWidgetView()
+        func configure(_ event: PullRequestReviewEvent) {
+            card.configure(.init(
+                content: ReviewProposalSnapshotFixture.widgetContent(commentIsProposed: false, body: body),
+                presentation: ReviewProposalSnapshotFixture.presentation(body: body),
+                preview: .loaded(ReviewProposalSnapshotFixture.loadedPreview()),
+                selectedEvent: event, canSubmit: true, isInteractive: true, isSubmitting: false,
+                outcome: nil, errorMessage: nil, typography: TranscriptTypography(),
+                summaryBody: body, summaryDocument: AppMarkdownParser().documentPreservingSource(for: body)
+            ))
+        }
+        let host = NSView(frame: NSRect(x: 0, y: 0, width: 640, height: 1_200))
+        host.addSubview(card)
+        NSLayoutConstraint.activate([
+            card.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+            card.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+            card.topAnchor.constraint(equalTo: host.topAnchor)
+        ])
+        configure(.approve)
+        let summary = try view(ofExactType: AppKitReviewProposalSummaryView.self, in: card)
+        try assertTopToBottom(
+            [AppKitReviewProposalDiffView.self, AppKitReviewProposalSummaryView.self,
+             AppKitHostToolWidgetDividerView.self, AppKitTranscriptApprovalSplitControl.self],
+            in: host
+        )
+
+        configure(.comment)
+        XCTAssertTrue(try view(ofExactType: AppKitReviewProposalSummaryView.self, in: card) === summary)
+        try assertTopToBottom(
+            [AppKitReviewProposalDiffView.self, AppKitReviewProposalSummaryView.self,
+             AppKitHostToolWidgetDividerView.self, AppKitTranscriptApprovalSplitControl.self],
+            in: host
+        )
+    }
+
+    /// Submitting keeps the comment where it was written, minus the controls that edited it.
+    func testASubmittedCardKeepsItsCommentAboveOpenPRWithoutEditControls() throws {
+        let row = ReviewProposalSnapshotFixture.publishedRow()
+        let host = NSView(frame: NSRect(x: 0, y: 0, width: 640, height: 1_200))
+        row.frame = host.bounds
+        host.addSubview(row)
+        host.layoutSubtreeIfNeeded()
+        let open = try XCTUnwrap(ReviewSummaryTestFixture.descendant(in: row) { ($0 as? NSButton)?.title == "Open PR" })
+
+        let order = try [AppKitReviewProposalDiffView.self, AppKitReviewProposalSummaryView.self, AppKitHostToolWidgetDividerView.self]
+            .map { try view(ofExactType: $0, in: row) } + [open]
+        assertTopToBottom(order, in: host)
+        XCTAssertTrue(ReviewSummaryTestFixture.text(in: row).contains("Only the retry loop still worries me."))
+        XCTAssertNil(ReviewSummaryTestFixture.descendant(in: row) { ["Edit", "Clear", "Add comment"].contains(($0 as? NSButton)?.title) })
+    }
+
+    /// Exact, so a lookup by `NSView.Type` cannot settle on the root or a subclass.
+    private func view(ofExactType type: NSView.Type, in root: NSView, line: UInt = #line) throws -> NSView {
+        try XCTUnwrap(ReviewSummaryTestFixture.descendant(in: root) { Swift.type(of: $0) == type }, "No \(type)", line: line)
+    }
+
+    private func assertTopToBottom(_ types: [NSView.Type], in host: NSView, line: UInt = #line) throws {
+        host.layoutSubtreeIfNeeded()
+        assertTopToBottom(try types.map { try view(ofExactType: $0, in: host, line: line) }, in: host, line: line)
+    }
+
+    private func assertTopToBottom(_ views: [NSView], in host: NSView, line: UInt = #line) {
+        // `host` is unflipped, so a row higher on screen has the larger y.
+        let frames = views.map { $0.convert($0.bounds, to: host) }
+        for (upper, lower) in zip(frames, frames.dropFirst()) {
+            XCTAssertGreaterThanOrEqual(upper.minY, lower.maxY, "\(upper) should sit above \(lower)", line: line)
+        }
+    }
 }
 
 /// Native summary fixtures shared with list integration tests; no coordinator or network is involved.
