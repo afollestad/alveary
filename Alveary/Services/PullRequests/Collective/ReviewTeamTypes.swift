@@ -72,16 +72,27 @@ enum ReviewTeamError: LocalizedError, Equatable {
     case invalidOutput(String)
     case quorumRequired(Int)
     case revisionChanged
+    case pullRequestNotOpen(PullRequestStatus)
     case retryInputChanged
     case conflict
     case cancelled
     case missingConversation
+
+    /// Merged and closed must not surface as `revisionChanged`, whose restart cannot review either.
+    static func requireOpen(_ status: PullRequestStatus) throws {
+        switch status {
+        case .open, .draft: return
+        case .merged, .closed: throw ReviewTeamError.pullRequestNotOpen(status)
+        }
+    }
 
     var errorDescription: String? {
         switch self {
         case .invalidOutput(let reason): reason
         case .quorumRequired(let count): "At least \(count) reviewers must complete this phase. Retry the failed review."
         case .revisionChanged: "The pull request changed. Restart the review for the current revision."
+        case .pullRequestNotOpen(.merged): "The pull request has been merged, so it can no longer be reviewed."
+        case .pullRequestNotOpen: "The pull request has been closed, so it can no longer be reviewed. Reopen it, then retry the review."
         case .retryInputChanged: "The review inputs changed. Start a new review instead of retrying failed reviewers."
         case .conflict: "The staged review changed during this run. Start a new review to include those changes."
         case .cancelled: "The review was cancelled."

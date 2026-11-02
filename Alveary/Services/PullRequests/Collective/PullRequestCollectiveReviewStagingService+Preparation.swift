@@ -61,9 +61,7 @@ extension PullRequestCollectiveReviewStagingService {
     }
 
     func validateRevision(_ request: Request, revision: PullRequestRevision) throws {
-        guard revision.status == .open || revision.status == .draft else {
-            throw PullRequestHostToolServiceError.pullRequestNotReviewable(status: revision.status.rawValue)
-        }
+        try ReviewTeamError.requireOpen(revision.status)
         guard revision.baseRefOid == request.reviewedBaseOID,
               revision.headRefOid == request.reviewedHeadOID else {
             throw ReviewTeamError.revisionChanged

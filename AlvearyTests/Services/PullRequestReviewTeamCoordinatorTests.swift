@@ -339,4 +339,31 @@ struct PullRequestReviewTeamCoordinatorTests {
         }
         #expect(await fixture.worker.calls.isEmpty)
     }
+
+    @Test(arguments: [PullRequestStatus.merged, .closed])
+    func `a merged or closed pull request fails by its state before reviewers launch`(status: PullRequestStatus) async throws {
+        let fixture = try ReviewCoordinatorFixture()
+        var detail = makePullRequestDetail(id: fixture.identifier, status: status)
+        detail.viewerLogin = "reviewer"
+        detail.baseRefOid = "base"
+        detail.headRefOid = "head"
+        fixture.service.detailResult = .success(detail)
+        let run = try fixture.makeRun()
+        try fixture.coordinator.persist(run)
+        await #expect(throws: ReviewTeamError.pullRequestNotOpen(status)) {
+            try await fixture.coordinator.perform(conversationID: run.conversationID, generation: run.generation)
+        }
+        #expect(await fixture.worker.calls.isEmpty)
+    }
+
+    @Test
+    func `a pull request merged mid-run fails by its state instead of offering a restart`() async throws {
+        let fixture = try ReviewCoordinatorFixture()
+        fixture.service.revisionResults = [.success(PullRequestRevision(status: .merged, baseRefOid: "base", headRefOid: "head"))]
+        try fixture.start()
+        let failed = try await fixture.terminalRun()
+        #expect(failed.phase == .failed)
+        #expect(failed.error == ReviewTeamError.pullRequestNotOpen(.merged).localizedDescription)
+        #expect(!failed.canRestart)
+    }
 }

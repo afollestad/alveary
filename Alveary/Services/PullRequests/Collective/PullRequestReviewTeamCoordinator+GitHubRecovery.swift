@@ -72,8 +72,9 @@ extension PullRequestReviewTeamCoordinator {
             throw ReviewTeamHistoryStoreError.missingArtifact
         }
         let detail = try await withGitHubRecovery(run) { try await self.service.fetchReviewContext(run.identifier) }
-        guard detail.status == .open || detail.status == .draft, detail.viewerLogin != nil,
-              detail.baseRefOid == run.baseOID, detail.headRefOid == run.headOID else { throw ReviewTeamError.revisionChanged }
+        try ReviewTeamError.requireOpen(detail.status)
+        guard detail.viewerLogin != nil, detail.baseRefOid == run.baseOID,
+              detail.headRefOid == run.headOID else { throw ReviewTeamError.revisionChanged }
         var files: [String: Data] = [:]
         for name in ["context.json", "changes.diff", "published-feedback.json", "prior-proposal.json"] {
             guard let artifact = attempt.inputs.first(where: { $0.name == name }) else {

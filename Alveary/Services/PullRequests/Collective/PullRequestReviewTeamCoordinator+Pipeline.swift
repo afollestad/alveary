@@ -46,8 +46,8 @@ extension PullRequestReviewTeamCoordinator {
 
     func prepareInput(_ run: ReviewTeamRun) async throws -> PreparedInput {
         let detail = try await withGitHubRecovery(run) { try await self.service.fetchReviewContext(run.identifier) }
-        guard detail.status == .open || detail.status == .draft, detail.viewerLogin != nil,
-              let base = detail.baseRefOid, let head = detail.headRefOid, !base.isEmpty, !head.isEmpty else {
+        try ReviewTeamError.requireOpen(detail.status)
+        guard detail.viewerLogin != nil, let base = detail.baseRefOid, let head = detail.headRefOid, !base.isEmpty, !head.isEmpty else {
             throw ReviewTeamError.invalidOutput("The pull request is not reviewable or its revision is unavailable.")
         }
         if let previous = run.headOID, previous != head || run.baseOID != base { throw ReviewTeamError.revisionChanged }
@@ -106,8 +106,8 @@ extension PullRequestReviewTeamCoordinator {
     }
 
     private func validateRevision(_ revision: PullRequestRevision, baseOID: String?, headOID: String?) throws {
-        guard revision.status == .open || revision.status == .draft,
-              revision.headRefOid == headOID, revision.baseRefOid == baseOID else { throw ReviewTeamError.revisionChanged }
+        try ReviewTeamError.requireOpen(revision.status)
+        guard revision.headRefOid == headOID, revision.baseRefOid == baseOID else { throw ReviewTeamError.revisionChanged }
     }
 
     private func applyPreparedInput(_ input: PreparedInput, to original: ReviewTeamRun) throws -> ReviewTeamRun {
