@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftData
 
 @MainActor
 extension AppComponent {
@@ -24,6 +25,18 @@ extension AppComponent {
             MenuBarReviewRequestsMonitor(
                 service: pullRequestsService,
                 ignoreService: pullRequestIgnoreService,
+                agentReviews: MenuBarAgentReviewHandoffs(
+                    activity: pullRequestAgenticThreadActivity,
+                    // A fresh context per read, as `PullRequestReviewProposalCoordinator.reload()`
+                    // does: proposals are written from several contexts, and a reused one could
+                    // answer with an envelope it cached before another context cleared it.
+                    pendingProposalIdentifiers: { [modelContainer] in
+                        let conversations = (try? ModelContext(modelContainer).fetch(
+                            PullRequestReviewProposalLookup.proposalHoldingConversations
+                        )) ?? []
+                        return Set(PullRequestReviewProposalLookup.proposals(in: conversations).compactMap(\.record.identifier))
+                    }
+                ),
                 listCache: pullRequestsListCache,
                 pollsGitHub: !AppRuntimeProfile.current.isHostedUnitTest
             )

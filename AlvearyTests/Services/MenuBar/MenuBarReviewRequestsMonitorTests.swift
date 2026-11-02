@@ -5,14 +5,14 @@ import XCTest
 
 @MainActor
 final class MenuBarReviewRequestsMonitorTests: XCTestCase {
-    private let interval: Duration = .seconds(300)
-    private let alpha = makePullRequestSummary(
+    let interval: Duration = .seconds(300)
+    let alpha = makePullRequestSummary(
         number: 1, title: "Alpha", updatedAt: Date(timeIntervalSince1970: 2_000), isReviewRequested: true
     )
-    private let beta = makePullRequestSummary(
+    let beta = makePullRequestSummary(
         number: 2, title: "Beta", updatedAt: Date(timeIntervalSince1970: 1_000), isReviewRequested: true
     )
-    private let betaElsewhere = makePullRequestSummary(
+    let betaElsewhere = makePullRequestSummary(
         number: 3, repo: "octo/beta", title: "Beta", updatedAt: Date(timeIntervalSince1970: 1_000), isReviewRequested: true
     )
 
@@ -293,13 +293,13 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
     }
 
     /// Gives any spawned task a chance to run, for asserting that nothing happened.
-    private func settle() async {
+    func settle() async {
         for _ in 0..<20 {
             await Task.yield()
         }
     }
 
-    private func waitUntil(
+    func waitUntil(
         _ description: String,
         condition: @escaping @MainActor () async -> Bool
     ) async throws {
@@ -308,28 +308,37 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
 }
 
 @MainActor
-private struct MenuBarReviewRequestsMonitorFixture {
+struct MenuBarReviewRequestsMonitorFixture {
     let service = StubPullRequestsService()
     let sleeper = ScheduledLifecycleTestSleeper()
     let notificationCenter = NotificationCenter()
-    let now = Date(timeIntervalSince1970: 10_000)
+    let clock = MenuBarTestClock()
+    let activity: PullRequestAgenticThreadActivity
+    var now: Date { clock.now }
     let remoteChangeDelay: Duration = .seconds(2)
     let ignoreService: PullRequestIgnoreService
     let monitor: MenuBarReviewRequestsMonitor
 
     init(rows: [PullRequestSummary], pollsGitHub: Bool = true, listCache: PullRequestsListCache? = nil) {
+        activity = PullRequestAgenticThreadActivity(notificationCenter: notificationCenter)
         service.listResult = .success(PullRequestListResult(summaries: rows, warnings: []))
         ignoreService = PullRequestIgnoreService(service: service, store: nil)
         let sleeper = sleeper
-        let now = now
+        let clock = clock
         monitor = MenuBarReviewRequestsMonitor(
             service: service,
             ignoreService: ignoreService,
+            agentReviews: MenuBarAgentReviewHandoffs(
+                activity: activity,
+                pendingProposalIdentifiers: { [] },
+                notificationCenter: notificationCenter,
+                now: { clock.now }
+            ),
             listCache: listCache,
             notificationCenter: notificationCenter,
             pollsGitHub: pollsGitHub,
             remoteChangeDelay: remoteChangeDelay,
-            now: { now },
+            now: { clock.now },
             sleep: { try await sleeper.sleep($0) }
         )
     }

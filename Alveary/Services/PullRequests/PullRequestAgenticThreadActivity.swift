@@ -80,6 +80,12 @@ final class PullRequestAgenticThreadActivity {
         entries[Key(identifier: identifier, kind: kind)] != nil
     }
 
+    /// Every pull request with a review route pending or running, case-folded the way `Key` folds
+    /// it — so compare through `Key` rather than against a GitHub-cased identifier directly.
+    var reviewIdentifiers: Set<PullRequestIdentifier> {
+        Set(entries.keys.lazy.filter { $0.kind == .review }.map(\.identifier))
+    }
+
     func workingKinds(for identifier: PullRequestIdentifier) -> Set<PullRequestAgenticThreadService.Kind> {
         let normalized = Key(identifier: identifier, kind: .review).identifier
         return Set(entries.keys.lazy.filter { $0.identifier == normalized }.map(\.kind))

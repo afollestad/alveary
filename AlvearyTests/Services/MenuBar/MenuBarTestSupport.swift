@@ -101,3 +101,9 @@ struct MenuBarControllerTestFixture {
         }
     }
 }
+
+/// A settable clock for the review monitor and its hand-off tracker.
+@MainActor
+final class MenuBarTestClock {
+    var now = Date(timeIntervalSince1970: 10_000)
+}

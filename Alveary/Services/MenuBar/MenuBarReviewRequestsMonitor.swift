@@ -2,7 +2,8 @@ import Foundation
 import Observation
 
 /// Keeps the status menu's "Needs review" list: the pull requests GitHub says are waiting on the
-/// viewer's review, narrowed by the Pull requests screen's own filter (`PullRequestListFilter`).
+/// viewer's review, narrowed by the Pull requests screen's own filter (`PullRequestListFilter`),
+/// minus those handed to an agent review (`MenuBarAgentReviewHandoffs`).
 ///
 /// App-scoped because the status item outlives the window, and `PullRequestsViewModel` — the
 /// window's list — does not; it reads the app-scoped service directly, as the host tool does.
@@ -46,7 +47,7 @@ final class MenuBarReviewRequestsMonitor {
 
     var visibleSummaries: [PullRequestSummary] {
         let ignoredIDs = ignoreService.effectiveIgnoredIDs
-        return summaries.filter { filter.admits($0, ignoredIDs: ignoredIDs) }
+        return summaries.filter { filter.admits($0, ignoredIDs: ignoredIDs) && !agentReviews.hides($0.id) }
     }
 
     private var summaries: [PullRequestSummary] = []
@@ -59,6 +60,7 @@ final class MenuBarReviewRequestsMonitor {
     private var interval: Duration?
     private var pollTask: Task<Void, Never>?
     private var remoteChangeTask: Task<Void, Never>?
+    private var releaseRefreshTask: Task<Void, Never>?
     private var remoteChangeObserver: NSObjectProtocol?
     private var bucketRefreshObserver: NSObjectProtocol?
     /// Bumped on every activation and deactivation, so an ignore-list observation armed by an
@@ -67,6 +69,7 @@ final class MenuBarReviewRequestsMonitor {
 
     private let service: any PullRequestsService
     private let ignoreService: PullRequestIgnoreService
+    private let agentReviews: MenuBarAgentReviewHandoffs
     private let listCache: PullRequestsListCache?
     private let notificationCenter: NotificationCenter
     private let pollsGitHub: Bool
@@ -80,6 +83,7 @@ final class MenuBarReviewRequestsMonitor {
     init(
         service: any PullRequestsService,
         ignoreService: PullRequestIgnoreService,
+        agentReviews: MenuBarAgentReviewHandoffs? = nil,
         listCache: PullRequestsListCache? = nil,
         notificationCenter: NotificationCenter = .default,
         pollsGitHub: Bool = true,
@@ -89,6 +93,12 @@ final class MenuBarReviewRequestsMonitor {
     ) {
         self.service = service
         self.ignoreService = ignoreService
+        // Absent means nothing is ever handed off, which is the shape of a test that is not about it.
+        self.agentReviews = agentReviews ?? MenuBarAgentReviewHandoffs(
+            activity: nil,
+            pendingProposalIdentifiers: { [] },
+            notificationCenter: notificationCenter
+        )
         self.listCache = listCache
         self.notificationCenter = notificationCenter
         self.pollsGitHub = pollsGitHub
@@ -148,6 +158,7 @@ final class MenuBarReviewRequestsMonitor {
         observeIgnoredPullRequests(generation: ignoreObservationGeneration)
         observeRemoteChanges()
         observeScreenRefreshes()
+        observeAgentReviews()
         onChange?()
     }
 
@@ -156,6 +167,8 @@ final class MenuBarReviewRequestsMonitor {
         pollTask = nil
         remoteChangeTask?.cancel()
         remoteChangeTask = nil
+        releaseRefreshTask?.cancel()
+        releaseRefreshTask = nil
         if let remoteChangeObserver {
             notificationCenter.removeObserver(remoteChangeObserver)
         }
@@ -164,6 +177,8 @@ final class MenuBarReviewRequestsMonitor {
             notificationCenter.removeObserver(bucketRefreshObserver)
         }
         bucketRefreshObserver = nil
+        agentReviews.onChange = nil
+        agentReviews.stop()
         ignoreObservationGeneration += 1
         let wasVisible = phase != .inactive
         phase = .inactive
@@ -208,6 +223,7 @@ final class MenuBarReviewRequestsMonitor {
         }
         await ignoreService.loadIfNeeded()
         let status = filter.status
+        let startedAt = now()
         let outcome: Result<PullRequestListResult, PullRequestsServiceError>
         do {
             let result = try await GitHubRequestOrigin.$current.withValue(Self.requestOrigin) {
@@ -226,6 +242,7 @@ final class MenuBarReviewRequestsMonitor {
         guard !Task.isCancelled, let interval = self.interval else {
             return nil
         }
+        agentReviews.readFinished(startedAt: startedAt)
         var next = interval
         switch outcome {
         case .success(let result):
@@ -308,6 +325,42 @@ final class MenuBarReviewRequestsMonitor {
         summariesFetchedAt = refresh.fetchedAt
         phase = .loaded
         onChange?()
+    }
+
+    /// A hand-off changes what is visible on its own; a release also schedules the settling read
+    /// that may lift its hide, so a pull request GitHub still lists comes back without waiting for
+    /// the next poll.
+    private func observeAgentReviews() {
+        agentReviews.onChange = { [weak self] released in
+            guard let self else {
+                return
+            }
+            if released {
+                self.scheduleReleaseRefresh()
+            }
+            self.onChange?()
+        }
+        agentReviews.start()
+    }
+
+    /// Rescheduled by each release, so a burst — a team review's several workers ending — costs one
+    /// read, timed from the latest.
+    private func scheduleReleaseRefresh() {
+        releaseRefreshTask?.cancel()
+        let sleep = self.sleep
+        let delay = Duration.seconds(agentReviews.releaseSettle)
+        releaseRefreshTask = Task { [weak self] in
+            do {
+                try await sleep(delay)
+            } catch {
+                return
+            }
+            guard let self, !Task.isCancelled else {
+                return
+            }
+            self.releaseRefreshTask = nil
+            self.refreshNow()
+        }
     }
 
     private func observeIgnoredPullRequests(generation: Int) {
