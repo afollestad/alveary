@@ -80,6 +80,27 @@ extension MenuBarControllerTests {
         }
     }
 
+    func testMenuFollowsThePullRequestsScreensFilter() async throws {
+        let fixture = try MenuBarControllerTestFixture()
+        let alpha = makeReviewRequest(number: 1, title: "Alpha")
+        let beta = makeReviewRequest(number: 2, title: "Beta", repo: "octo/beta")
+        fixture.pullRequestsService.listResult = .success(PullRequestListResult(summaries: [alpha, beta], warnings: []))
+        let controller = fixture.makeController()
+        controller.start()
+        try await waitForReviewRequests(fixture, phase: .loaded)
+
+        // What the screen's filter popover writes when one repository is checked.
+        fixture.settingsService.update { $0.pullRequestsRepositoryFilters = ["octo/beta"] }
+        controller.applySettings()
+        let menu = NSMenu()
+        controller.rebuild(menu)
+
+        XCTAssertEqual(menu.items.filter { $0.representedObject is PullRequestSummary }.map(\.title), ["Beta"])
+        XCTAssertEqual(controller.statusButtonPresentation.label, "Alveary — 1 pull request needs review")
+        XCTAssertEqual(fixture.pullRequestsService.listCallCount, 1)
+        controller.stop()
+    }
+
     func testLongReviewQueuesCollapseIntoAMoreItem() async throws {
         let fixture = try MenuBarControllerTestFixture()
         let rows = (1...12).map { makeReviewRequest(number: $0, title: "PR \($0)") }

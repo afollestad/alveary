@@ -7,7 +7,9 @@ import Observation
 final class PullRequestsViewModel {
     static let refreshInterval: TimeInterval = 60
     /// Rows fetched per involvement bucket, for the first page and every "Load more" after it.
-    static let listPageSize = 50
+    /// Tied to `firstPage`'s size because the status menu's poll reads with `.firstPage`, and a
+    /// page-one read of the same size is what lets this list take the rows it lands.
+    static let listPageSize = PullRequestListOptions.defaultPageSize
 
     // Internal (not private) so the review-batch companion can reach the service.
     let service: any PullRequestsService
@@ -64,6 +66,7 @@ final class PullRequestsViewModel {
     /// set `searchQuery` and read the narrowed list in the same turn.
     @ObservationIgnored let searchDebounce: Duration
     @ObservationIgnored var remoteChangeObserver: (any NSObjectProtocol)?
+    @ObservationIgnored var backgroundRefreshObserver: (any NSObjectProtocol)?
     @ObservationIgnored var agenticThreadActivityObserver: (any NSObjectProtocol)?
     @ObservationIgnored var pullRequestReviewSettingsObserver: (any NSObjectProtocol)?
     @ObservationIgnored var reviewTeamValidationTask: Task<Void, Never>?
@@ -258,6 +261,7 @@ final class PullRequestsViewModel {
             knownRepositories = selectedRepositories
         }
         observeRemoteChanges()
+        observeBackgroundRefreshes()
         observeAgenticThreadActivity()
         observePullRequestReviewSettings()
         refreshPullRequestReviewConfiguration(force: true)
@@ -268,6 +272,7 @@ final class PullRequestsViewModel {
             searchCommitTask?.cancel()
             cancelReviewTeamValidation()
             endRemoteChangeObservation()
+            endBackgroundRefreshObservation()
             endAgenticThreadActivityObservation()
             endPullRequestReviewSettingsObservation()
         }

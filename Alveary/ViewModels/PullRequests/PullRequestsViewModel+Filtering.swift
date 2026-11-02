@@ -133,14 +133,15 @@ extension PullRequestsViewModel {
         key: VisibleRowsCacheKey
     ) -> (rows: [PullRequestSummary], hiddenIgnoredCount: Int) {
         var hiddenIgnoredCount = 0
+        // The status menu narrows its review list through the same filter value.
+        let listFilter = PullRequestListFilter(
+            status: key.status,
+            repositories: key.repositories,
+            showsIgnored: key.showsIgnored
+        )
         let rows = items.filter { summary in
             let matches = matchesTab(summary, tab: tab)
-                // Kept alongside the search qualifier so the rows can never contradict the
-                // selected filter: between a status change and its reload `items` still holds
-                // the previous search, and `applyStatus` writes a close or reopen with no
-                // reload behind it at all.
-                && selectedStatusFilter.matches(summary.status)
-                && matchesRepositoryFilter(summary)
+                && listFilter.matches(summary)
                 && matchesSearch(summary)
             guard matches, !key.showsIgnored, key.ignoredIDs.contains(summary.id) else {
                 return matches
@@ -299,10 +300,6 @@ extension PullRequestsViewModel {
         let summary = rows[nextIndex]
         requestDetails(summary)
         return summary.id
-    }
-
-    private func matchesRepositoryFilter(_ summary: PullRequestSummary) -> Bool {
-        selectedRepositories.isEmpty || selectedRepositories.contains(summary.repositoryNameWithOwner)
     }
 
     private func matchesSearch(_ summary: PullRequestSummary) -> Bool {

@@ -12,11 +12,14 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
     private let beta = makePullRequestSummary(
         number: 2, title: "Beta", updatedAt: Date(timeIntervalSince1970: 1_000), isReviewRequested: true
     )
+    private let betaElsewhere = makePullRequestSummary(
+        number: 3, repo: "octo/beta", title: "Beta", updatedAt: Date(timeIntervalSince1970: 1_000), isReviewRequested: true
+    )
 
     func testInactiveMonitorNeverReads() async {
         let fixture = MenuBarReviewRequestsMonitorFixture(rows: [alpha])
 
-        fixture.monitor.configure(isActive: false, interval: interval)
+        fixture.monitor.configure(isActive: false, interval: interval, filter: .packagedDefault)
         await settle()
 
         XCTAssertEqual(fixture.monitor.phase, .inactive)
@@ -27,7 +30,7 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
     func testActivationReadsOpenReviewRequestsAtOnceThenEveryInterval() async throws {
         let fixture = MenuBarReviewRequestsMonitorFixture(rows: [alpha, beta])
 
-        fixture.monitor.configure(isActive: true, interval: interval)
+        fixture.monitor.configure(isActive: true, interval: interval, filter: .packagedDefault)
         XCTAssertEqual(fixture.monitor.phase, .loading)
         try await waitUntil("the first read lands") { fixture.monitor.phase == .loaded }
 
@@ -46,7 +49,7 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
     func testUnchangedConfigurationDoesNotReadAgain() async throws {
         let fixture = try await MenuBarReviewRequestsMonitorFixture.loaded(rows: [alpha], interval: interval)
 
-        fixture.monitor.configure(isActive: true, interval: interval)
+        fixture.monitor.configure(isActive: true, interval: interval, filter: .packagedDefault)
         await settle()
 
         XCTAssertEqual(fixture.service.listCallCount, 1)
@@ -56,7 +59,7 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
     func testIntervalChangeReadsAtOnceAndReschedules() async throws {
         let fixture = try await MenuBarReviewRequestsMonitorFixture.loaded(rows: [alpha], interval: interval)
 
-        fixture.monitor.configure(isActive: true, interval: .seconds(60))
+        fixture.monitor.configure(isActive: true, interval: .seconds(60), filter: .packagedDefault)
 
         try await waitUntil("the restart reads") { fixture.service.listCallCount == 2 }
         try await waitUntil("only the new interval is pending") {
@@ -68,7 +71,7 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
         let fixture = try await MenuBarReviewRequestsMonitorFixture.loaded(rows: [alpha], interval: interval)
         let changes = fixture.recordChanges()
 
-        fixture.monitor.configure(isActive: false, interval: interval)
+        fixture.monitor.configure(isActive: false, interval: interval, filter: .packagedDefault)
 
         XCTAssertEqual(fixture.monitor.phase, .inactive)
         XCTAssertTrue(fixture.monitor.visibleSummaries.isEmpty)
@@ -79,16 +82,8 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
     func testIgnoredPullRequestsAreHiddenAndIgnoringOneNotifiesWithoutARead() async throws {
         let fixture = try await MenuBarReviewRequestsMonitorFixture.loaded(rows: [alpha, beta], interval: interval)
         let changes = fixture.recordChanges()
-        fixture.service.subscriptionStatesResult = .success([
-            alpha.id: PullRequestSubscriptionSnapshot(
-                nodeID: "PR_alpha",
-                summary: alpha,
-                subscription: .subscribed,
-                viewerCanSubscribe: true
-            )
-        ])
 
-        try await fixture.ignoreService.setIgnored(true, for: alpha.id)
+        try await fixture.ignore(alpha)
 
         XCTAssertEqual(fixture.monitor.visibleSummaries.map(\.id), [beta.id])
         try await waitUntil("the ignore list change is announced") { changes.count > 0 }
@@ -111,7 +106,7 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
         let fixture = MenuBarReviewRequestsMonitorFixture(rows: [alpha])
         fixture.service.listResult = .failure(.notAuthenticated)
 
-        fixture.monitor.configure(isActive: true, interval: interval)
+        fixture.monitor.configure(isActive: true, interval: interval, filter: .packagedDefault)
         try await waitUntil("the first read fails") { fixture.monitor.phase == .failed }
 
         fixture.service.listResult = .success(PullRequestListResult(summaries: [alpha], warnings: []))
@@ -129,7 +124,7 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
             retryAt: fixture.now.addingTimeInterval(900)
         )))
 
-        fixture.monitor.configure(isActive: true, interval: interval)
+        fixture.monitor.configure(isActive: true, interval: interval, filter: .packagedDefault)
 
         try await waitUntil("the wait runs to retryAt") { fixture.sleeper.pendingDurations() == [.seconds(900)] }
     }
@@ -153,7 +148,7 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
     func testDisabledPollingRunsTheLifecycleWithoutReachingGitHub() async throws {
         let fixture = MenuBarReviewRequestsMonitorFixture(rows: [alpha], pollsGitHub: false)
 
-        fixture.monitor.configure(isActive: true, interval: interval)
+        fixture.monitor.configure(isActive: true, interval: interval, filter: .packagedDefault)
 
         try await waitUntil("the loop still schedules") { fixture.sleeper.pendingDurations() == [self.interval] }
         XCTAssertEqual(fixture.service.listCallCount, 0)
@@ -170,6 +165,87 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
         fixture.announce(affectsListRow: true)
         await settle()
         XCTAssertTrue(fixture.sleeper.pendingDurations().isEmpty)
+    }
+
+    func testReadsUnderTheScreensStatusAndNarrowsByItsRepositories() async throws {
+        let fixture = MenuBarReviewRequestsMonitorFixture(rows: [alpha, betaElsewhere])
+        let filter = PullRequestListFilter(status: .all, repositories: ["octo/beta"], showsIgnored: false)
+
+        fixture.monitor.configure(isActive: true, interval: interval, filter: filter)
+        try await waitUntil("the read lands") { fixture.monitor.phase == .loaded }
+
+        XCTAssertEqual(fixture.service.listRequests.map(\.status), [nil])
+        XCTAssertEqual(fixture.monitor.visibleSummaries.map(\.id), [betaElsewhere.id])
+    }
+
+    func testRepositoryChangeRefiltersWithoutAReadButAStatusChangeReadsAgain() async throws {
+        let fixture = try await MenuBarReviewRequestsMonitorFixture.loaded(rows: [alpha, betaElsewhere], interval: interval)
+        let changes = fixture.recordChanges()
+        var filter = PullRequestListFilter.packagedDefault
+
+        filter.repositories = ["octo/alpha"]
+        fixture.monitor.configure(isActive: true, interval: interval, filter: filter)
+        await settle()
+
+        XCTAssertEqual(changes.count, 1)
+        XCTAssertEqual(fixture.service.listCallCount, 1)
+        XCTAssertEqual(fixture.monitor.visibleSummaries.map(\.id), [alpha.id])
+
+        filter.status = .draft
+        fixture.monitor.configure(isActive: true, interval: interval, filter: filter)
+
+        try await waitUntil("the new status reads") { fixture.service.listCallCount == 2 }
+        XCTAssertEqual(fixture.service.listRequests.last?.status, .draft)
+        // Whichever rows are held — the open ones, or the stub's open answer to the draft search —
+        // the client-side status comparison keeps them out.
+        XCTAssertTrue(fixture.monitor.visibleSummaries.isEmpty)
+    }
+
+    func testShowingIgnoredKeepsIgnoredRowsListed() async throws {
+        let fixture = try await MenuBarReviewRequestsMonitorFixture.loaded(rows: [alpha, beta], interval: interval)
+        try await fixture.ignore(alpha)
+        XCTAssertEqual(fixture.monitor.visibleSummaries.map(\.id), [beta.id])
+
+        var filter = PullRequestListFilter.packagedDefault
+        filter.showsIgnored = true
+        fixture.monitor.configure(isActive: true, interval: interval, filter: filter)
+
+        XCTAssertEqual(fixture.monitor.visibleSummaries.map(\.id), [alpha.id, beta.id])
+    }
+
+    func testLandedReadsReplaceTheirBucketInTheListCacheAndAnnounceIt() async throws {
+        let cacheURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("menu-bar-cache-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: cacheURL) }
+        let cache = PullRequestsListCache(fileURL: cacheURL)
+        let authored = makePullRequestSummary(number: 9, isAuthored: true)
+        let stale = makePullRequestSummary(number: 8, isReviewRequested: true)
+        await cache.save([.authored: [authored], .reviewRequested: [stale]], filter: .open)
+        let fixture = MenuBarReviewRequestsMonitorFixture(rows: [alpha], listCache: cache)
+        let announced = fixture.recordAnnouncements()
+
+        fixture.monitor.configure(isActive: true, interval: interval, filter: .packagedDefault)
+
+        try await waitUntil("the cache holds the fresh bucket") {
+            await cache.load(filter: .open)?[.reviewRequested]?.map(\.id) == [self.alpha.id]
+        }
+        let cached = await cache.load(filter: .open)
+        XCTAssertEqual(cached?[.authored]?.map(\.id), [authored.id])
+        XCTAssertEqual(announced.refreshes.map(\.bucket), [.reviewRequested])
+        XCTAssertEqual(announced.refreshes.first?.status, .open)
+        XCTAssertEqual(announced.refreshes.first?.summaries.map(\.id), [alpha.id])
+        XCTAssertEqual(announced.refreshes.first?.fetchedAt, fixture.now)
+    }
+
+    func testFailedReadsLeaveTheCachesAlone() async throws {
+        let fixture = MenuBarReviewRequestsMonitorFixture(rows: [alpha])
+        fixture.service.listResult = .failure(.transport("offline"))
+        let announced = fixture.recordAnnouncements()
+
+        fixture.monitor.configure(isActive: true, interval: interval, filter: .packagedDefault)
+        try await waitUntil("the read fails") { fixture.monitor.phase == .failed }
+
+        XCTAssertTrue(announced.refreshes.isEmpty)
     }
 
     /// Gives any spawned task a chance to run, for asserting that nothing happened.
@@ -197,7 +273,7 @@ private struct MenuBarReviewRequestsMonitorFixture {
     let ignoreService: PullRequestIgnoreService
     let monitor: MenuBarReviewRequestsMonitor
 
-    init(rows: [PullRequestSummary], pollsGitHub: Bool = true) {
+    init(rows: [PullRequestSummary], pollsGitHub: Bool = true, listCache: PullRequestsListCache? = nil) {
         service.listResult = .success(PullRequestListResult(summaries: rows, warnings: []))
         ignoreService = PullRequestIgnoreService(service: service, store: nil)
         let sleeper = sleeper
@@ -205,6 +281,7 @@ private struct MenuBarReviewRequestsMonitorFixture {
         monitor = MenuBarReviewRequestsMonitor(
             service: service,
             ignoreService: ignoreService,
+            listCache: listCache,
             notificationCenter: notificationCenter,
             pollsGitHub: pollsGitHub,
             remoteChangeDelay: remoteChangeDelay,
@@ -216,7 +293,7 @@ private struct MenuBarReviewRequestsMonitorFixture {
     /// Active, with its first read landed and the next interval pending.
     static func loaded(rows: [PullRequestSummary], interval: Duration) async throws -> Self {
         let fixture = Self(rows: rows)
-        fixture.monitor.configure(isActive: true, interval: interval)
+        fixture.monitor.configure(isActive: true, interval: interval, filter: .packagedDefault)
         try await scheduledTaskLifecycleWaitUntil("the first read lands and the next is scheduled") {
             fixture.monitor.phase == .loaded && fixture.sleeper.pendingDurations() == [interval]
         }
@@ -227,6 +304,35 @@ private struct MenuBarReviewRequestsMonitorFixture {
         let counter = ChangeCounter()
         monitor.onChange = { counter.count += 1 }
         return counter
+    }
+
+    func recordAnnouncements() -> AnnouncementRecorder {
+        let recorder = AnnouncementRecorder()
+        recorder.observer = notificationCenter.addObserver(
+            forName: .pullRequestBucketRefreshed,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard let refresh = notification.userInfo?[PullRequestBucketRefresh.userInfoKey] as? PullRequestBucketRefresh else {
+                return
+            }
+            MainActor.assumeIsolated {
+                recorder.refreshes.append(refresh)
+            }
+        }
+        return recorder
+    }
+
+    func ignore(_ summary: PullRequestSummary) async throws {
+        service.subscriptionStatesResult = .success([
+            summary.id: PullRequestSubscriptionSnapshot(
+                nodeID: "PR_\(summary.id.number)",
+                summary: summary,
+                subscription: .subscribed,
+                viewerCanSubscribe: true
+            )
+        ])
+        try await ignoreService.setIgnored(true, for: summary.id)
     }
 
     func announce(affectsListRow: Bool) {
@@ -246,4 +352,15 @@ private struct MenuBarReviewRequestsMonitorFixture {
     final class ChangeCounter {
         var count = 0
     }
+
+    @MainActor
+    final class AnnouncementRecorder {
+        var refreshes: [PullRequestBucketRefresh] = []
+        var observer: (any NSObjectProtocol)?
+    }
+}
+
+extension PullRequestListFilter {
+    /// The screen's filter on a fresh install: open pull requests, every repository, ignored hidden.
+    static let packagedDefault = AppSettings().pullRequestListFilter
 }

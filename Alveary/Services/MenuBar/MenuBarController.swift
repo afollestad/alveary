@@ -99,7 +99,8 @@ final class MenuBarController: NSObject {
         }
         reviewRequestsMonitor.configure(
             isActive: Self.listsPullRequestsNeedingReview(settings),
-            interval: settings.menuBarPullRequestRefreshInterval.duration
+            interval: settings.menuBarPullRequestRefreshInterval.duration,
+            filter: settings.pullRequestListFilter
         )
     }
 

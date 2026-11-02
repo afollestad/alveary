@@ -17,7 +17,8 @@ These instructions cover Alveary's status-bar item under `Alveary/Services/MenuB
 
 ## Pull Requests Needing Review
 
-- **"Needs review" is the `.reviewRequested` bucket at `.open` status, minus `PullRequestIgnoreService`.** Do not re-derive it from the window's `PullRequestsViewModel`, which is window-lived and filtered by the user's tab; the monitor reads the app-scoped service, as the host tool does.
+- **"Needs review" is the `.reviewRequested` bucket narrowed by the screen's own filter.** The monitor searches `AppSettings.pullRequestListFilter`'s status and narrows through `PullRequestListFilter.admits`, which `PullRequestsViewModel` also uses; never add a menu-only predicate or a second filter store. It reads the app-scoped service, as the host tool does — the window's view model is window-lived.
+- **Every read the monitor lands feeds the screen's caches.** It replaces its bucket in `PullRequestsListCache` and posts `.pullRequestBucketRefreshed`; `PullRequestsViewModel.applyBackgroundRefresh(_:)` owns when an open list takes it. Keep its reads at `.firstPage`, whose size `PullRequestsViewModel.listPageSize` shares, or the list cannot take them.
 - **Activation needs all three settings:** `showsMenuBarIcon`, `menuBarShowsPullRequestsNeedingReview`, and `pullRequestsEnabled` (`MenuBarController.listsPullRequestsNeedingReview`). The Menu bar settings tab disables its rows on the same three.
 - **A pick opens the pull request in Alveary, never the browser.** `Alveary/App/Routing/ContentView+MenuBarCommands.swift` selects the Pull requests screen and opens a `.screen` pane, the same as a row tap there.
 

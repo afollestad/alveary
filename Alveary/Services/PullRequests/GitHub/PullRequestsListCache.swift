@@ -46,6 +46,22 @@ actor PullRequestsListCache {
         return buckets.values.contains(where: { !$0.isEmpty }) ? buckets : nil
     }
 
+    /// Writes one bucket's fresh rows and keeps the others, for a reader holding only that bucket —
+    /// the status menu's background poll. Read and write happen in one actor turn, so a screen
+    /// save cannot land between them.
+    ///
+    /// Under a different stored filter the other buckets answered another search, so they are
+    /// dropped rather than kept beside rows they would contradict.
+    func replaceBucket(
+        _ bucket: PullRequestInvolvementBucket,
+        with summaries: [PullRequestSummary],
+        filter: PullRequestStatusFilter
+    ) {
+        var buckets = load(filter: filter) ?? [:]
+        buckets[bucket] = summaries
+        save(buckets, filter: filter)
+    }
+
     /// Callers pass every bucket they hold, not just the ones a fetch refreshed, so a lazy
     /// per-tab load cannot drop another tab's cached rows.
     func save(_ buckets: [PullRequestInvolvementBucket: [PullRequestSummary]], filter: PullRequestStatusFilter) {

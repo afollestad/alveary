@@ -1,21 +1,26 @@
 import Foundation
 import Observation
 
-/// Keeps the status menu's "Needs review" list: the open pull requests GitHub says are waiting on
-/// the viewer's review, minus the ones the user ignored.
+/// Keeps the status menu's "Needs review" list: the pull requests GitHub says are waiting on the
+/// viewer's review, narrowed by the Pull requests screen's own filter (`PullRequestListFilter`).
 ///
 /// App-scoped because the status item outlives the window, and `PullRequestsViewModel` — the
 /// window's list — does not; it reads the app-scoped service directly, as the host tool does.
-/// Its reads share one `gh` process with an identical in-flight window read through
-/// `GitHubSharedReads`, which is why the arguments mirror the screen's first page.
+/// Its reads are the screen's page one of `.reviewRequested` under the same status, which is what
+/// lets one share a `gh` process with an identical in-flight window read through
+/// `GitHubSharedReads`, and what lets every read it lands refresh the screen's caches too.
 ///
 /// - **One loop while active:** read at once, then every `interval`. A read GitHub rate-limits
 ///   waits until its `retryAt` instead.
 /// - **A failure keeps the last good rows.** Only a failure before any success reads `.failed`,
 ///   so a transient blip never empties the menu or drops the badge.
-/// - **Ignoring re-filters without a read.** `visibleSummaries` filters at read time and an
-///   observation on `PullRequestIgnoreService` fires `onChange`, so ignoring the last waiting pull
-///   request in the window clears the badge at once.
+/// - **Only the status is searched.** A status change reads again; repositories and the ignore
+///   list narrow at read time in `visibleSummaries`, and an observation on
+///   `PullRequestIgnoreService` fires `onChange`, so ignoring the last waiting pull request in the
+///   window clears the badge without a read.
+/// - **Every landed read is shared:** written into `PullRequestsListCache` and posted as a
+///   `PullRequestBucketRefresh`, so the screen paints it on its next launch and an open window
+///   shows it now.
 @MainActor
 final class MenuBarReviewRequestsMonitor {
     typealias Sleeper = @Sendable (Duration) async throws -> Void
@@ -39,10 +44,12 @@ final class MenuBarReviewRequestsMonitor {
     var onChange: (@MainActor () -> Void)?
 
     var visibleSummaries: [PullRequestSummary] {
-        summaries.filter { !ignoreService.isIgnored($0.id) }
+        let ignoredIDs = ignoreService.effectiveIgnoredIDs
+        return summaries.filter { filter.admits($0, ignoredIDs: ignoredIDs) }
     }
 
     private var summaries: [PullRequestSummary] = []
+    private var filter = AppSettings().pullRequestListFilter
     /// `nil` while inactive. Compared on every `configure`, because `.appSettingsChanged` posts on
     /// every settings write — switching settings tabs included — and each must not cost a read.
     private var interval: Duration?
@@ -55,6 +62,7 @@ final class MenuBarReviewRequestsMonitor {
 
     private let service: any PullRequestsService
     private let ignoreService: PullRequestIgnoreService
+    private let listCache: PullRequestsListCache?
     private let notificationCenter: NotificationCenter
     private let pollsGitHub: Bool
     private let remoteChangeDelay: Duration
@@ -67,6 +75,7 @@ final class MenuBarReviewRequestsMonitor {
     init(
         service: any PullRequestsService,
         ignoreService: PullRequestIgnoreService,
+        listCache: PullRequestsListCache? = nil,
         notificationCenter: NotificationCenter = .default,
         pollsGitHub: Bool = true,
         remoteChangeDelay: Duration = .seconds(2),
@@ -75,6 +84,7 @@ final class MenuBarReviewRequestsMonitor {
     ) {
         self.service = service
         self.ignoreService = ignoreService
+        self.listCache = listCache
         self.notificationCenter = notificationCenter
         self.pollsGitHub = pollsGitHub
         self.remoteChangeDelay = remoteChangeDelay
@@ -82,13 +92,23 @@ final class MenuBarReviewRequestsMonitor {
         self.sleep = sleep
     }
 
-    /// Starts, stops, or reschedules the loop. Does nothing when neither value changed.
+    /// Starts, stops, or reschedules the loop. Does nothing when nothing changed.
     ///
-    /// An interval change restarts with an immediate read rather than waiting out the new
-    /// interval, so a read already in flight is replaced instead of silently dropped.
-    func configure(isActive: Bool, interval: Duration) {
+    /// An interval or status change restarts with an immediate read rather than waiting out the
+    /// interval, so a read already in flight is replaced instead of silently dropped; a narrowing
+    /// that GitHub does not search only re-filters.
+    func configure(isActive: Bool, interval: Duration, filter: PullRequestListFilter) {
         let requested = isActive ? interval : nil
+        let previousFilter = self.filter
+        self.filter = filter
         guard requested != self.interval else {
+            guard requested != nil, filter != previousFilter else {
+                return
+            }
+            if filter.status != previousFilter.status {
+                restartPolling()
+            }
+            onChange?()
             return
         }
         let wasActive = self.interval != nil
@@ -176,16 +196,17 @@ final class MenuBarReviewRequestsMonitor {
             return interval
         }
         await ignoreService.loadIfNeeded()
-        let outcome: Result<[PullRequestSummary], PullRequestsServiceError>
+        let status = filter.status
+        let outcome: Result<PullRequestListResult, PullRequestsServiceError>
         do {
             let result = try await GitHubRequestOrigin.$current.withValue(Self.requestOrigin) {
                 try await service.listInvolvedPullRequests(
                     buckets: [.reviewRequested],
-                    status: .open,
+                    status: status.status,
                     options: .firstPage
                 )
             }
-            outcome = .success(result.summaries)
+            outcome = .success(result)
         } catch let error as PullRequestsServiceError {
             outcome = .failure(error)
         } catch {
@@ -196,9 +217,10 @@ final class MenuBarReviewRequestsMonitor {
         }
         var next = interval
         switch outcome {
-        case .success(let rows):
-            summaries = rows
+        case .success(let result):
+            summaries = result.summariesByBucket[.reviewRequested] ?? []
             phase = .loaded
+            share(result, status: status)
         case .failure(let error):
             if phase != .loaded {
                 phase = .failed
@@ -209,6 +231,29 @@ final class MenuBarReviewRequestsMonitor {
         }
         onChange?()
         return next
+    }
+
+    /// Hands a landed read to the screen's caches: the file it paints from on launch, and — through
+    /// the notification — the list an open window holds.
+    private func share(_ result: PullRequestListResult, status: PullRequestStatusFilter) {
+        let refresh = PullRequestBucketRefresh(
+            bucket: .reviewRequested,
+            status: status,
+            summaries: summaries,
+            pageInfo: result.pageInfoByBucket[.reviewRequested],
+            fetchedAt: now()
+        )
+        if let listCache {
+            let summaries = refresh.summaries
+            Task {
+                await listCache.replaceBucket(.reviewRequested, with: summaries, filter: status)
+            }
+        }
+        notificationCenter.post(
+            name: .pullRequestBucketRefreshed,
+            object: self,
+            userInfo: [PullRequestBucketRefresh.userInfoKey: refresh]
+        )
     }
 
     private func observeIgnoredPullRequests(generation: Int) {

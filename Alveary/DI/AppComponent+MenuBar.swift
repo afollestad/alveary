@@ -24,6 +24,7 @@ extension AppComponent {
             MenuBarReviewRequestsMonitor(
                 service: pullRequestsService,
                 ignoreService: pullRequestIgnoreService,
+                listCache: pullRequestsListCache,
                 pollsGitHub: !AppRuntimeProfile.current.isHostedUnitTest
             )
         }

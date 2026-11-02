@@ -85,7 +85,8 @@ struct MenuBarSettingsTabView: View {
         guard viewModel.pullRequestsEnabled else {
             return "Turn on pull requests in Git settings to list the ones waiting on your review here."
         }
-        return "Lists open pull requests waiting on your review, except ignored ones, and adds a dot to the menu bar icon while any are waiting."
+        return "Lists pull requests waiting on your review, using the same filters as the Pull requests screen, "
+            + "and adds a dot to the menu bar icon while any are waiting."
     }
 
     private var launchAtStartupBinding: Binding<Bool> {
