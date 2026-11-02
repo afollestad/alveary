@@ -61,9 +61,15 @@ extension PullRequestsViewModel {
 
     /// Screen-appearance load: paints the persisted buckets once, then fetches whatever the
     /// visible tab still needs.
+    ///
+    /// The ignore list loads first so the cached paint never shows an ignored row for a frame;
+    /// its sync then runs beside the bucket fetch on its own throttle.
     func refreshForScreen() async {
+        await ignoring.ignoreService.loadIfNeeded()
         await loadCachedListIfNeeded()
+        async let synced: Void = syncIgnoredPullRequests(force: false)
         await loadIfNeeded(for: selectedFilter)
+        await synced
     }
 
     /// Fetches the buckets `tab` renders that are neither already in flight nor recently fetched.
@@ -74,16 +80,29 @@ extension PullRequestsViewModel {
     }
 
     /// Spawns an unthrottled reload of the visible tab; for the header's explicit refresh action
-    /// and for the epilogues that follow a mutation.
-    func requestRefresh() {
+    /// and for the epilogues that follow a mutation. Only the header passes `syncingIgnored`, so
+    /// a mutation epilogue does not spend a lookup the sync's own throttle would have saved.
+    func requestRefresh(syncingIgnored: Bool = false) {
         Task {
-            await refresh()
+            await refresh(syncingIgnored: syncingIgnored)
         }
     }
 
     /// Reloads the visible tab's buckets, ignoring the freshness throttle.
-    func refresh() async {
+    func refresh(syncingIgnored: Bool = false) async {
+        async let synced: Void = syncIgnoredPullRequests(force: syncingIgnored)
         await load(buckets: selectedFilter.requiredBuckets.subtracting(inFlightBuckets))
+        await synced
+    }
+
+    /// Runs the ignore sync and writes the rows it read into the cached list. Never part of the
+    /// `apply(_:)` barrier: the rows are as fresh as the bucket fetch's, so either order is right.
+    private func syncIgnoredPullRequests(force: Bool) async {
+        let summaries = await ignoring.ignoreService.reconcileIfNeeded(force: force)
+        guard !Task.isCancelled else {
+            return
+        }
+        applyRefreshedSummaries(summaries)
     }
 
     /// Clears the banner as well as the typed failures: the error banner offers this as its own
@@ -416,7 +435,7 @@ extension PullRequestsViewModel {
     /// Only the first page is persisted: the cache stores no cursors, and painting it is followed
     /// by a page-one fetch that replaces the bucket anyway, so appended pages would be rows the
     /// next load discards.
-    private func saveListCache() {
+    func saveListCache() {
         guard let listCache else {
             return
         }

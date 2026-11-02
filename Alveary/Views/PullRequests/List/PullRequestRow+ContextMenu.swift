@@ -8,11 +8,13 @@ import SwiftUI
 /// deleted snapshot into its menu.
 ///
 /// There are no state changes (Close, Reopen, Draft): each needs the detail's `viewerCanUpdate`
-/// and node id, which a list row does not have.
+/// and node id, which a list row does not have. Ignoring is the exception because it needs
+/// neither — `PullRequestIgnoreService` resolves the node id itself.
 struct PullRequestRowContextMenu: View {
     let model: PullRequestRowModel
     let reviewMode: PullRequestReviewMode
     let onStartAgenticThread: (PullRequestAgenticThreadService.Kind) -> Void
+    let onToggleIgnored: () -> Void
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.pullRequestLinkedOwnerOpenAction) private var openOwner
@@ -51,6 +53,24 @@ struct PullRequestRowContextMenu: View {
             copyToPasteboard(summary.headRefName)
         } label: {
             menuLabel("Copy branch name", icon: .octicon(.gitBranch16))
+        }
+
+        ignoreItem
+    }
+
+    /// Offered for open work only, since the ignore sync drops merged and closed entries; an
+    /// ignored row can always be brought back.
+    @ViewBuilder
+    private var ignoreItem: some View {
+        if model.isIgnored || summary.status == .open || summary.status == .draft {
+            Divider()
+
+            Button(action: onToggleIgnored) {
+                menuLabel(
+                    model.isIgnored ? "Stop ignoring" : "Ignore",
+                    icon: .system(model.isIgnored ? "bell" : "bell.slash")
+                )
+            }
         }
     }
 

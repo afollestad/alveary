@@ -389,13 +389,22 @@ enum PullRequestPaneSnapshots {
         }
     }
 
-    static func makeLoadedFixture() async -> Fixture {
+    /// `ignored` puts the pull request on the ignore list first, through the stub, with no store.
+    static func makeLoadedFixture(ignored: Bool = false) async -> Fixture {
         let service = StubPullRequestsService()
         service.detailResult = .success(detail)
         service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 2, addedLinesPerFile: 3))
+        let ignoreService = PullRequestIgnoreService(service: service, store: nil)
+        if ignored {
+            service.subscriptionStatesResult = .success([identifier: PullRequestSubscriptionSnapshot(
+                nodeID: "PR_41", summary: summary, subscription: .subscribed, viewerCanSubscribe: true
+            )])
+            try? await ignoreService.setIgnored(true, for: identifier)
+        }
         // Fixed clock just after the fixture dates so relative ages stay stable.
         let viewModel = makePullRequestsViewModel(
             service: service,
+            ignoring: PullRequestIgnoreCoordinator(ignoreService: ignoreService),
             now: { Date(timeIntervalSince1970: 1_800_000_000) }
         )
         viewModel.requestDetails(summary)

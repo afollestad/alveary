@@ -8,6 +8,10 @@ App-scoped pull-request services live here; collective runs are owned by `Collec
 
 - `PullRequestLinkService` is the app-scoped link store; `Alveary/ViewModels/PullRequests/Links/AGENTS.md` owns its split with `PullRequestLinksViewModel` and the `detail:`/`summary:` handovers a caller with a fresh copy may use, and `Alveary/Services/Threads/AGENTS.md` owns the `link_pr`/`unlink_pr` tools that write through it.
 
+### Ignoring
+
+- **Keep the ignore list local, and never make `viewerSubscription` the hide signal.** GitHub cannot enumerate unsubscribed pull requests, and involved ones read `UNSUBSCRIBED` without anyone ignoring them. `PullRequestIgnoreService` owns the sync rules; `Alveary/ViewModels/PullRequests/PullRequestIgnoreCoordinator.swift` is each window's half.
+
 ### Agentic Threads
 
 `PullRequestAgenticThreadService` spawns both footer routes; add a caller by using the service, never by copying it.

@@ -144,7 +144,8 @@ final class PullRequestLinksViewModel {
         switch serviceError {
         case .ghNotInstalled, .notAuthenticated:
             linkFailureNeedsGitSettings = true
-        case .rateLimited, .rateLimit, .requestFailed, .responseTooLarge, .decodingFailed, .queryTooExpensive, .transport:
+        case .rateLimited, .rateLimit, .requestFailed, .responseTooLarge, .decodingFailed, .queryTooExpensive,
+             .insufficientScopes, .transport:
             linkFailureNeedsGitSettings = false
         }
     }

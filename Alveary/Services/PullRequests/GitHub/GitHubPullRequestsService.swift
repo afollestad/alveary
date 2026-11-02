@@ -16,8 +16,8 @@ actor GitHubPullRequestsService: PullRequestsService {
     /// tool call, so a wedged `gh` fails as its own named timeout with room left to decode and
     /// merge — at 30 seconds per attempt the bridge always won the race and replaced every
     /// cause with a generic "Host tool call timed out."
-    private static let readAttemptTimeout = Duration.seconds(20)
-    private static let readRetryBudget = Duration.seconds(25)
+    static let readAttemptTimeout = Duration.seconds(20)
+    static let readRetryBudget = Duration.seconds(25)
 
     private let executableResolver: any ExecutablePathResolving
     private let decoder: JSONDecoder
@@ -332,6 +332,9 @@ extension GitHubPullRequestsService {
         guard let data = response.data else {
             // The body is checked before the exit code: GitHub states an over-expensive query in
             // the GraphQL `errors` array, which `makeError` cannot see because it reads stderr.
+            if response.errors?.contains(where: { $0.type == Self.insufficientScopesErrorType }) == true {
+                throw PullRequestsServiceError.insufficientScopes
+            }
             if let classified = warnings.lazy.compactMap(Self.classify(graphQLMessage:)).first {
                 throw classified
             }
@@ -343,15 +346,23 @@ extension GitHubPullRequestsService {
         return (data, warnings)
     }
 
-    /// Recognizes GitHub's refusal to *run* a query, as opposed to a query that ran and failed.
-    /// It carries no HTTP status, so without this it falls through to `.transport` and surfaces
-    /// GitHub's raw sentence to the user. Both null-data paths run through it — `makeError` for a
-    /// message on stderr, `decodeGraphQL` for one that arrives only in the response body.
+    /// The GraphQL error `type` GitHub uses when the token lacks a scope a field requires.
+    static let insufficientScopesErrorType = "INSUFFICIENT_SCOPES"
+
+    /// Recognizes GitHub's refusal to *run* a query, as opposed to a query that ran and failed:
+    /// one too expensive to run, or one the token lacks a scope for. Neither carries an HTTP
+    /// status, so without this they fall through to `.transport` and surface GitHub's raw
+    /// sentence to the user. Both null-data paths run through it — `makeError` for a message on
+    /// stderr, `decodeGraphQL` for one that arrives only in the response body, which also checks
+    /// the error's `type` first since that is the stable signal.
     static func classify(graphQLMessage message: String) -> PullRequestsServiceError? {
-        guard message.range(of: "resource limit", options: .caseInsensitive) != nil else {
-            return nil
+        if message.range(of: "resource limit", options: .caseInsensitive) != nil {
+            return .queryTooExpensive
         }
-        return .queryTooExpensive
+        if message.range(of: "has not been granted the required scopes", options: .caseInsensitive) != nil {
+            return .insufficientScopes
+        }
+        return nil
     }
 
     static func makeError(from result: ShellResult) -> PullRequestsServiceError {

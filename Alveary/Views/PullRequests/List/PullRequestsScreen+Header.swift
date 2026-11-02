@@ -37,7 +37,7 @@ struct PullRequestsScreenHeader: View {
             isRefreshing: viewModel.isRefreshing,
             accessibilityLabel: "Refresh pull requests"
         ) {
-            viewModel.requestRefresh()
+            viewModel.requestRefresh(syncingIgnored: true)
         }
     }
 

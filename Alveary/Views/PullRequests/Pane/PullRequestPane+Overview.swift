@@ -4,14 +4,17 @@ import SwiftUI
 struct PullRequestPaneOverview: View, Equatable {
     let session: PullRequestPaneSession
     let viewModel: PullRequestsViewModel
+    /// Passed in rather than read here: the ignore list lives outside `session`, and this view
+    /// redraws only when `==` says an input changed.
+    var isIgnored = false
     /// Switches the pane to the Changes tab; activity review threads link there.
     let onOpenFiles: () -> Void
 
-    /// Everything rendered here comes from `session`, so a pane pass that carries the
-    /// same one has nothing to redraw. `onOpenFiles` is excluded: it writes the pane's
-    /// `@State` tab, whose storage outlives the struct copy the closure captured.
+    /// Everything rendered here comes from `session` and `isIgnored`, so a pane pass that
+    /// carries the same ones has nothing to redraw. `onOpenFiles` is excluded: it writes the
+    /// pane's `@State` tab, whose storage outlives the struct copy the closure captured.
     nonisolated static func == (lhs: PullRequestPaneOverview, rhs: PullRequestPaneOverview) -> Bool {
-        lhs.session == rhs.session && lhs.viewModel === rhs.viewModel
+        lhs.session == rhs.session && lhs.isIgnored == rhs.isIgnored && lhs.viewModel === rhs.viewModel
     }
 
     @State private var scrollPosition = ScrollPosition()
@@ -46,6 +49,23 @@ struct PullRequestPaneOverview: View, Equatable {
                 // beside it, so this gate never hides a populated header.
                 if let summary = session.summary {
                     headerSection(summary: summary)
+                }
+
+                if isIgnored {
+                    // Says why the list does not show this pull request, which matters most for a
+                    // pane opened from a thread's link, where no list is in view.
+                    InlineBanner(
+                        message: "Ignored. Hidden from Pull requests, and its GitHub notifications are off.",
+                        severity: .info,
+                        autoDismissAfter: nil,
+                        actionTitle: "Stop ignoring",
+                        onAction: { [viewModel, session] in
+                            if let identifier = session.summary?.id ?? session.detail?.id {
+                                viewModel.ignoring.unignore(identifier)
+                            }
+                        },
+                        onDismiss: nil
+                    )
                 }
 
                 if let error = session.detailError {

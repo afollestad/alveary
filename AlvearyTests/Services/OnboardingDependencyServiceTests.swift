@@ -319,6 +319,10 @@ private final class OnboardingGitHubCLIFake: GitHubCLIService, @unchecked Sendab
         throw GitHubError.authLaunchFailed("Not implemented")
     }
 
+    func refreshAuthentication(addingScopes scopes: [String]) async throws -> GitHubDeviceCode {
+        throw GitHubError.authLaunchFailed("Not implemented")
+    }
+
     func awaitAuthentication() async throws -> Bool {
         false
     }

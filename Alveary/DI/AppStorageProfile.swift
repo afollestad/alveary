@@ -227,6 +227,10 @@ struct AppStorageProfile: @unchecked Sendable {
         appSupportDirectory.appendingPathComponent("ReviewProposalPreviewCache.json")
     }
 
+    var ignoredPullRequestsFileURL: URL {
+        appSupportDirectory.appendingPathComponent("IgnoredPullRequests.json")
+    }
+
     var contextWindowCacheFileURL: URL {
         applicationSupportBaseURL
             .appendingPathComponent("Alveary", isDirectory: true)

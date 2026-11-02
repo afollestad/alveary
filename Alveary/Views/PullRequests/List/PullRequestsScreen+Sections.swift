@@ -16,12 +16,14 @@ struct PullRequestsSectionedList: View, Equatable {
     let reviewMode: PullRequestReviewMode
     let onSelect: (PullRequestSummary) -> Void
     let onStartAgenticThread: (PullRequestSummary, PullRequestAgenticThreadService.Kind) -> Void
+    /// Ignores a row, or stops ignoring one; whether it is ignored rides `items`.
+    let onToggleIgnored: (PullRequestRowModel) -> Void
 
     /// Skips rebuilding every row value during the right pane's slide-in, whose geometry
     /// changes re-run the enclosing `GeometryReader` closure per frame. `onSelect` is
     /// excluded like the row's own action: it captures the view model reference and the
     /// screen's `@FocusState` storage, neither of which a render pass can change.
-    /// `onStartAgenticThread` is excluded too; it captures only the view model.
+    /// `onStartAgenticThread` and `onToggleIgnored` are excluded too; each captures only the view model.
     ///
     /// `items` carries each row's rendered strings, so the display inputs behind them —
     /// `showsRepository` and `referenceDate` — need no separate comparison here.
@@ -83,7 +85,8 @@ struct PullRequestsSectionedList: View, Equatable {
                 PullRequestRowContextMenu(
                     model: model,
                     reviewMode: reviewMode,
-                    onStartAgenticThread: { kind in onStartAgenticThread(model.summary, kind) }
+                    onStartAgenticThread: { kind in onStartAgenticThread(model.summary, kind) },
+                    onToggleIgnored: { onToggleIgnored(model) }
                 )
             }
             // The `ScrollViewReader` target for arrow-key selection, which scrolls by

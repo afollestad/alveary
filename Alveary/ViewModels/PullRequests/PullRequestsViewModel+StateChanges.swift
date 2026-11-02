@@ -23,6 +23,38 @@ extension PullRequestsViewModel {
         rebuildItems()
     }
 
+    /// Writes rows the ignore sync just read into every bucket that already holds them, then
+    /// persists the list cache. Never inserts — which buckets hold a row is the searches' call —
+    /// and keeps each bucket's own involvement flags, which a lookup by identifier cannot know.
+    /// `fetchedAt` is left alone, so this never satisfies the freshness throttle.
+    func applyRefreshedSummaries(_ summaries: [PullRequestSummary]) {
+        let refreshed = Dictionary(summaries.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+        guard !refreshed.isEmpty else {
+            return
+        }
+        var didChange = false
+        for (bucket, state) in bucketStates {
+            for (index, current) in state.summaries.enumerated() {
+                guard var fresh = refreshed[current.id] else {
+                    continue
+                }
+                fresh.isAuthored = current.isAuthored
+                fresh.isReviewRequested = current.isReviewRequested
+                fresh.hasReviewed = current.hasReviewed
+                guard fresh != current else {
+                    continue
+                }
+                bucketStates[bucket]?.summaries[index] = fresh
+                didChange = true
+            }
+        }
+        guard didChange else {
+            return
+        }
+        rebuildItems()
+        saveListCache()
+    }
+
     /// Closes or reopens the active pane's pull request.
     func setPullRequestClosed(_ closed: Bool) {
         performStateChange(optimisticStatus: closed ? .closed : .open) { service, target in

@@ -29,6 +29,10 @@ final class SidebarMockGitHubCLIService: GitHubCLIService, @unchecked Sendable {
         throw GitHubError.authParseFailed
     }
 
+    func refreshAuthentication(addingScopes scopes: [String]) async throws -> GitHubDeviceCode {
+        throw GitHubError.authParseFailed
+    }
+
     func awaitAuthentication() async throws -> Bool {
         false
     }

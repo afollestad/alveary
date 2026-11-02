@@ -118,6 +118,16 @@ extension AppComponent {
         return shared { PullRequestsListCache(fileURL: storageProfile.pullRequestsListCacheFileURL) }
     }
 
+    /// App-scoped so every window hides the same ignored pull requests and one sync serves them all.
+    var pullRequestIgnoreService: PullRequestIgnoreService {
+        return shared {
+            PullRequestIgnoreService(
+                service: pullRequestsService,
+                store: IgnoredPullRequestsStore(fileURL: storageProfile.ignoredPullRequestsFileURL)
+            )
+        }
+    }
+
     /// App-scoped because propose time writes it and the transcript's proposal coordinator reads it;
     /// two instances would leave the card loading from a cache nothing ever filled.
     var pullRequestReviewProposalPreviewCache: PullRequestReviewProposalPreviewCache {

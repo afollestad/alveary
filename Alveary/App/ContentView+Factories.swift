@@ -230,8 +230,25 @@ extension ContentView {
             openGitSettings: { appState.openSettings(targetPage: .git) },
             agenticThreadActivity: dependencies.pullRequestAgenticThreadActivity,
             reviewProposalCoordinator: reviewProposalCoordinator,
+            ignoring: makePullRequestIgnoreCoordinator(dependencies: dependencies, appState: appState),
             imageBlobFetcher: dependencies.gitHubDiffImageBlobFetcher,
             imagePreviewOpener: DiffImagePreviewPresentation.opener(appState: appState)
+        )
+    }
+
+    /// Per window, over the app-scoped ignore list: "Show ignored" and the access sheet are this
+    /// window's, while which pull requests are ignored is every window's.
+    static func makePullRequestIgnoreCoordinator(
+        dependencies: ContentViewDependencies,
+        appState: AppState
+    ) -> PullRequestIgnoreCoordinator {
+        PullRequestIgnoreCoordinator(
+            ignoreService: dependencies.pullRequestIgnoreService,
+            gitHubCLI: dependencies.gitHubCLI,
+            settingsService: dependencies.settingsService,
+            presentToast: { message in
+                appState.presentUnexpectedError(message: message)
+            }
         )
     }
 

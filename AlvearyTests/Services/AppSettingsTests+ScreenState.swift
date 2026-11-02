@@ -13,6 +13,7 @@ extension AppSettingsTests {
         // Open-only by default, so "needs my review" cannot fill with merged and closed work.
         XCTAssertEqual(settings.pullRequestsStatusFilter, .open)
         XCTAssertEqual(settings.pullRequestsRepositoryFilters, [])
+        XCTAssertFalse(settings.pullRequestsShowIgnored)
         XCTAssertEqual(settings.scheduledTasksSelectedTab, "All")
     }
 
@@ -21,7 +22,8 @@ extension AppSettingsTests {
         {
           "pullRequestsSelectedTab": "Reviewing",
           "pullRequestsStatusFilter": "merged",
-          "pullRequestsRepositoryFilters": ["octo/alpha", "octo/beta"]
+          "pullRequestsRepositoryFilters": ["octo/alpha", "octo/beta"],
+          "pullRequestsShowIgnored": true
         }
         """#.utf8)
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)
@@ -29,6 +31,7 @@ extension AppSettingsTests {
         XCTAssertEqual(settings.pullRequestsSelectedTab, "Reviewing")
         XCTAssertEqual(settings.pullRequestsStatusFilter, .merged)
         XCTAssertEqual(settings.pullRequestsRepositoryFilters, ["octo/alpha", "octo/beta"])
+        XCTAssertTrue(settings.pullRequestsShowIgnored)
     }
 
     func testDecodeMigratesTheMultiSelectStatusFilter() throws {
@@ -64,6 +67,7 @@ extension AppSettingsTests {
         // `all` has to survive the round trip: it is a real choice, not an unset value.
         settings.pullRequestsStatusFilter = .all
         settings.pullRequestsRepositoryFilters = ["octo/alpha"]
+        settings.pullRequestsShowIgnored = true
 
         // The synthesized encoder and the tolerant custom decoder must agree on shape.
         let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
@@ -71,6 +75,7 @@ extension AppSettingsTests {
         XCTAssertEqual(decoded.pullRequestsSelectedTab, "Authored")
         XCTAssertEqual(decoded.pullRequestsStatusFilter, .all)
         XCTAssertEqual(decoded.pullRequestsRepositoryFilters, ["octo/alpha"])
+        XCTAssertTrue(decoded.pullRequestsShowIgnored)
     }
 
     func testDecodeToleratesMalformedPullRequestsScreenState() throws {

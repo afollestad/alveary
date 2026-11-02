@@ -198,6 +198,26 @@ struct PendingReviewDraft: Equatable, Sendable {
 /// stay in that file, while a pure read does not.
 @MainActor
 extension PullRequestsViewModel {
+    /// Opens a listed pull request's pane. The write itself is `openPane`, which stays beside
+    /// `paneSessions` in `PullRequestsViewModel.swift`.
+    func requestDetails(_ summary: PullRequestSummary, origin: PullRequestPaneOrigin = .screen) {
+        openPane(target: .details(summary.id), summary: summary, origin: origin)
+    }
+
+    /// Opens a pull request the caller has no summary for — a transcript's unlink card names
+    /// one that is deliberately not linked, so no stored snapshot exists to open it with.
+    ///
+    /// A listed row already carries a usable summary; otherwise the pane opens without one and
+    /// its own `loadDetail` backfills it, so the wait and any failure render in the pane rather
+    /// than blocking the open behind a `fetchDetail`.
+    func requestDetails(_ identifier: PullRequestIdentifier, origin: PullRequestPaneOrigin) {
+        guard let summary = items.first(where: { $0.id == identifier }) else {
+            openPane(target: .details(identifier), summary: nil, origin: origin)
+            return
+        }
+        requestDetails(summary, origin: origin)
+    }
+
     /// The active target, but only when its origin matches the surface asking.
     /// The root builds `RightPaneContextualTargets` through this so a shared
     /// pane lane cannot show one context's pull request inside another.

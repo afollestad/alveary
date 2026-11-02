@@ -129,7 +129,8 @@ extension PullRequestsViewModelTests {
             activeDetailID: PullRequestIdentifier? = nil,
             reviewMode: PullRequestReviewMode = .singleAgent,
             onSelect: @escaping (PullRequestSummary) -> Void = { _ in },
-            onStartAgenticThread: @escaping (PullRequestSummary, PullRequestAgenticThreadService.Kind) -> Void = { _, _ in }
+            onStartAgenticThread: @escaping (PullRequestSummary, PullRequestAgenticThreadService.Kind) -> Void = { _, _ in },
+            onToggleIgnored: @escaping (PullRequestRowModel) -> Void = { _ in }
         ) -> PullRequestsSectionedList {
             PullRequestsSectionedList(
                 items: items,
@@ -137,11 +138,12 @@ extension PullRequestsViewModelTests {
                 activeDetailID: activeDetailID,
                 reviewMode: reviewMode,
                 onSelect: onSelect,
-                onStartAgenticThread: onStartAgenticThread
+                onStartAgenticThread: onStartAgenticThread,
+                onToggleIgnored: onToggleIgnored
             )
         }
 
-        XCTAssertEqual(makeList(), makeList(onSelect: { _ = $0 }, onStartAgenticThread: { _, _ in }))
+        XCTAssertEqual(makeList(), makeList(onSelect: { _ = $0 }, onStartAgenticThread: { _, _ in }, onToggleIgnored: { _ = $0 }))
         XCTAssertNotEqual(makeList(), makeList(reviewMode: .reviewTeam))
         XCTAssertNotEqual(makeList(), makeList(activeDetailID: sections[0].rows[0].id))
         XCTAssertNotEqual(makeList(), makeList(items: []))

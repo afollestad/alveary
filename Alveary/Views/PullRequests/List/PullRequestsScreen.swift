@@ -64,6 +64,7 @@ struct PullRequestsScreen: View {
         let avatarLoader = viewModel.avatarLoader
         let canLoadMore = viewModel.canLoadMore(for: viewModel.selectedFilter)
         let isLoadingMore = viewModel.isLoadingMore
+        let hiddenIgnoredCount = viewModel.hiddenIgnoredCount(for: viewModel.selectedFilter)
         return GeometryReader { proxy in
             ScrollViewReader { scrollProxy in
                 ScrollView {
@@ -71,7 +72,9 @@ struct PullRequestsScreen: View {
                         if items.isEmpty {
                             PullRequestsEmptyState(
                                 filter: viewModel.selectedFilter,
-                                hasActiveNarrowing: viewModel.hasActiveNarrowing
+                                hasActiveNarrowing: viewModel.hasActiveNarrowing,
+                                hiddenIgnoredCount: hiddenIgnoredCount,
+                                onShowIgnored: { viewModel.ignoring.setShowsIgnored(true) }
                             )
                             .offset(y: emptyStateVerticalOffset)
                         }
@@ -91,6 +94,13 @@ struct PullRequestsScreen: View {
                                     },
                                     onStartAgenticThread: { summary, kind in
                                         viewModel.startAgenticThread(kind: kind, for: summary)
+                                    },
+                                    onToggleIgnored: { model in
+                                        if model.isIgnored {
+                                            viewModel.ignoring.unignore(model.id)
+                                        } else {
+                                            viewModel.ignoring.ignore(model.id)
+                                        }
                                     }
                                 )
                                 .equatable()
@@ -178,16 +188,34 @@ struct PullRequestsScreen: View {
 private struct PullRequestsEmptyState: View {
     let filter: PullRequestsFilter
     let hasActiveNarrowing: Bool
+    /// Rows this tab would show but for being ignored. Nonzero is what offers "Show ignored",
+    /// so a tab emptied by ignoring never reads as having nothing in it.
+    let hiddenIgnoredCount: Int
+    let onShowIgnored: () -> Void
 
     var body: some View {
         EmptyStateView(
             icon: .octicon(.pullRequest24),
             heading: heading,
             subtext: subtext,
-            actions: [],
+            actions: actions,
             iconToHeadingSpacing: 16
         )
         .frame(minHeight: 360)
+    }
+
+    private var actions: [EmptyStateAction] {
+        guard hiddenIgnoredCount > 0 else {
+            return []
+        }
+        return [
+            .init(
+                title: "Show \(hiddenIgnoredCount) Ignored",
+                systemImage: "bell.slash",
+                style: .secondary,
+                action: onShowIgnored
+            )
+        ]
     }
 
     private var heading: String {
@@ -207,6 +235,9 @@ private struct PullRequestsEmptyState: View {
     private var subtext: String {
         if hasActiveNarrowing {
             return "Try a different search or filter."
+        }
+        if hiddenIgnoredCount > 0 {
+            return "Pull requests you ignored are hidden."
         }
         switch filter {
         case .all:

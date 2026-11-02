@@ -201,6 +201,7 @@ private final class SnapshotGitHubCLIService: GitHubCLIService, @unchecked Senda
     func checkInstalled() async -> String? { "gh version 2.89.0" }
     func isAuthenticated() async -> Bool { false }
     func authenticate() async throws -> GitHubDeviceCode { throw GitHubError.authParseFailed }
+    func refreshAuthentication(addingScopes scopes: [String]) async throws -> GitHubDeviceCode { throw GitHubError.authParseFailed }
     func awaitAuthentication() async throws -> Bool { false }
     func cancelAuthentication() {}
 }

@@ -58,7 +58,7 @@ extension PullRequestsViewModel {
 
     /// Whether the menu narrows the list at all. True for the packaged `.open` default too — the
     /// list genuinely is narrowed there, and the highlighted button is what points at why merged
-    /// and closed pull requests are absent.
+    /// and closed pull requests are absent. "Show ignored" stays out: it widens the list.
     var hasActiveMenuFilters: Bool {
         selectedStatusFilter != .all || !selectedRepositories.isEmpty
     }
@@ -106,19 +106,35 @@ extension PullRequestsViewModel {
             status: selectedStatusFilter,
             repositories: selectedRepositories,
             searchQuery: activeSearchQuery,
+            ignoredIDs: ignoring.hiddenIDs,
+            showsIgnored: ignoring.showsIgnored,
             items: items
         )
         if let cached = visibleListCaches[tab], cached.key == key {
             return cached.rows
         }
-        let rows = computeVisibleRows(for: tab)
-        visibleListCaches[tab] = VisibleListCache(key: key, rows: rows)
+        let (rows, hiddenIgnoredCount) = computeVisibleRows(for: tab, key: key)
+        visibleListCaches[tab] = VisibleListCache(key: key, rows: rows, hiddenIgnoredCount: hiddenIgnoredCount)
         return rows
     }
 
-    private func computeVisibleRows(for tab: PullRequestsFilter) -> [PullRequestSummary] {
-        items.filter { summary in
-            matchesTab(summary, tab: tab)
+    /// How many rows the tab would show but for being ignored, for the empty state's
+    /// "Show N ignored". Zero while "Show ignored" is on.
+    func hiddenIgnoredCount(for tab: PullRequestsFilter) -> Int {
+        _ = visibleRows(for: tab)
+        return visibleListCaches[tab]?.hiddenIgnoredCount ?? 0
+    }
+
+    /// Ignored rows are dropped here — never from `items` or the buckets, which also feed the
+    /// list cache, paging, and the pane's summary lookup — so tabs, sections, keyboard order,
+    /// and empty states all agree on what is hidden.
+    private func computeVisibleRows(
+        for tab: PullRequestsFilter,
+        key: VisibleRowsCacheKey
+    ) -> (rows: [PullRequestSummary], hiddenIgnoredCount: Int) {
+        var hiddenIgnoredCount = 0
+        let rows = items.filter { summary in
+            let matches = matchesTab(summary, tab: tab)
                 // Kept alongside the search qualifier so the rows can never contradict the
                 // selected filter: between a status change and its reload `items` still holds
                 // the previous search, and `applyStatus` writes a close or reopen with no
@@ -126,6 +142,11 @@ extension PullRequestsViewModel {
                 && selectedStatusFilter.matches(summary.status)
                 && matchesRepositoryFilter(summary)
                 && matchesSearch(summary)
+            guard matches, !key.showsIgnored, key.ignoredIDs.contains(summary.id) else {
+                return matches
+            }
+            hiddenIgnoredCount += 1
+            return false
         }
         .sorted { lhs, rhs in
             if lhs.updatedAt != rhs.updatedAt {
@@ -133,6 +154,7 @@ extension PullRequestsViewModel {
             }
             return lhs.id.displayKey < rhs.id.displayKey
         }
+        return (rows, hiddenIgnoredCount)
     }
 
     /// Visible rows grouped into titled sections for the current tab. Empty sections
@@ -171,11 +193,14 @@ extension PullRequestsViewModel {
         let referenceDate = referenceDate
         let showsRepository = showsRepositoryInRows
         let workingAgenticKinds = listWorkingAgenticKinds
+        // Hidden rows never reach the column, so the key's set is exactly the rows to dim.
+        let ignoredIDs = visibleListCaches[tab]?.key.ignoredIDs ?? []
         if let cached = visibleListCaches[tab]?.items,
            cached.referenceDate == referenceDate,
            cached.showsRepository == showsRepository,
            cached.linkedThreadIDs == linkedThreadIDs,
-           cached.workingAgenticKinds == workingAgenticKinds {
+           cached.workingAgenticKinds == workingAgenticKinds,
+           cached.ignoredIDs == ignoredIDs {
             return cached.items
         }
         let items = PullRequestListItem.flatten(
@@ -183,13 +208,15 @@ extension PullRequestsViewModel {
             showsRepository: showsRepository,
             referenceDate: referenceDate,
             linkedThreadIDs: linkedThreadIDs,
-            workingAgenticKinds: workingAgenticKinds
+            workingAgenticKinds: workingAgenticKinds,
+            ignoredIDs: ignoredIDs
         )
         visibleListCaches[tab]?.items = PullRequestListItemsCache(
             referenceDate: referenceDate,
             showsRepository: showsRepository,
             linkedThreadIDs: linkedThreadIDs,
             workingAgenticKinds: workingAgenticKinds,
+            ignoredIDs: ignoredIDs,
             items: items
         )
         return items
@@ -295,6 +322,7 @@ extension PullRequestsViewModel {
 struct VisibleListCache {
     let key: VisibleRowsCacheKey
     let rows: [PullRequestSummary]
+    let hiddenIgnoredCount: Int
     var sections: [PullRequestListSection]?
     var items: PullRequestListItemsCache?
 }
@@ -309,6 +337,7 @@ struct PullRequestListItemsCache {
     let showsRepository: Bool
     let linkedThreadIDs: Set<PullRequestIdentifier>
     let workingAgenticKinds: [PullRequestIdentifier: Set<PullRequestAgenticThreadService.Kind>]
+    let ignoredIDs: Set<PullRequestIdentifier>
     let items: [PullRequestListItem]
 }
 
@@ -321,5 +350,7 @@ struct VisibleRowsCacheKey: Equatable {
     let status: PullRequestStatusFilter
     let repositories: Set<String>
     let searchQuery: String
+    let ignoredIDs: Set<PullRequestIdentifier>
+    let showsIgnored: Bool
     let items: [PullRequestSummary]
 }

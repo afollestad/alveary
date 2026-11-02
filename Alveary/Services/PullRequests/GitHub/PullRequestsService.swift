@@ -322,6 +322,10 @@ enum PullRequestsServiceError: Error, Sendable, Equatable {
     /// `.transport` and surface GitHub's own sentence verbatim to the user. Retrying is
     /// pointless — the same query costs the same next time — so the remedy is a cheaper query.
     case queryTooExpensive
+    /// The token lacks an OAuth scope the request needs — `notifications` for
+    /// `updateSubscription`, which `gh auth login` does not grant. Its own case because the
+    /// remedy is a scope grant through `gh auth refresh`, not a retry or a sign-in.
+    case insufficientScopes
     case transport(String)
 }
 
@@ -344,6 +348,8 @@ extension PullRequestsServiceError: LocalizedError {
             return "Unable to read the GitHub response: \(message)"
         case .queryTooExpensive:
             return "This GitHub search is too large for GitHub to complete"
+        case .insufficientScopes:
+            return "GitHub CLI is missing a permission this action needs"
         case .transport(let message):
             return message
         }
@@ -449,6 +455,15 @@ protocol PullRequestsService: Sendable {
     func setReviewThreadResolved(threadID: String, resolved: Bool) async throws
     /// Requests (or re-requests) a review from a user by login.
     func requestReview(_ id: PullRequestIdentifier, reviewerLogin: String) async throws
+    /// One batched read of each pull request's row fields, node id, and the viewer's notification
+    /// subscription. A pull request GitHub did not return — deleted, inaccessible, or behind SAML —
+    /// is absent from the result rather than thrown, so one bad entry cannot fail the batch.
+    func fetchSubscriptionStates(
+        for ids: [PullRequestIdentifier]
+    ) async throws -> [PullRequestIdentifier: PullRequestSubscriptionSnapshot]
+    /// Subscribes to or unsubscribes from a pull request's notifications, addressed by GraphQL
+    /// node id. Returns the state GitHub reports afterwards, nil when it reported none.
+    func updatePullRequestSubscription(nodeID: String, subscribed: Bool) async throws -> PullRequestSubscriptionState?
     /// Opens a pull request from the branch checked out in `directory`,
     /// returning the created pull request's identifier.
     func createPullRequest(

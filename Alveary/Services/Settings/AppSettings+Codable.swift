@@ -93,6 +93,7 @@ extension AppSettings {
         case pullRequestsSelectedTab
         case pullRequestsStatusFilter
         case pullRequestsRepositoryFilters
+        case pullRequestsShowIgnored
         case scheduledTasksSelectedTab
         case pullRequestOwnFooterActionKind
         case pullRequestOthersFooterActionKind
@@ -144,6 +145,9 @@ extension AppSettings {
         decodePullRequestsStatusFilter(from: container, legacyContainer: legacyContainer)
         if let repositories = try? container.decodeIfPresent(Set<String>.self, forKey: .pullRequestsRepositoryFilters) {
             pullRequestsRepositoryFilters = repositories
+        }
+        if let showsIgnored = try? container.decodeIfPresent(Bool.self, forKey: .pullRequestsShowIgnored) {
+            pullRequestsShowIgnored = showsIgnored
         }
         decodeFooterActionKinds(from: container, legacyContainer: legacyContainer)
     }

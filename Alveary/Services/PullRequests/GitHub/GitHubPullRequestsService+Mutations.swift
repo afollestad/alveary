@@ -221,6 +221,30 @@ extension GitHubPullRequestsService {
         }
     }
 
+    /// GraphQL rather than REST: REST's thread subscriptions are addressed by notification thread
+    /// id, which nothing in the list or detail reads carries, while this takes the node id.
+    ///
+    /// The body is decoded even when `gh` exits non-zero, because a missing `notifications` scope
+    /// arrives as a body error whose `type` is the stable signal; `decodeGraphQL` turns it into
+    /// `.insufficientScopes`, which is what lets the caller offer a scope grant.
+    func updatePullRequestSubscription(nodeID: String, subscribed: Bool) async throws -> PullRequestSubscriptionState? {
+        let ghExecutable = try await resolveGitHubCLI()
+        // A mutation: never retried.
+        let result = try await runGitHubCLI(
+            executable: ghExecutable,
+            args: Self.updateSubscriptionArgs(nodeID: nodeID, subscribed: subscribed),
+            timeout: .seconds(30),
+            stdoutLimitBytes: 64 * 1024
+        )
+        let decoded = try decodeGraphQL(UpdateSubscriptionGraphQLData.self, from: result)
+        guard let payload = decoded.data.updateSubscription else {
+            throw PullRequestsServiceError.transport(
+                decoded.warnings.first ?? "GitHub did not update the notification subscription"
+            )
+        }
+        return payload.subscribable?.viewerSubscription.flatMap(PullRequestSubscriptionState.init(rawValue:))
+    }
+
     func deleteReviewComment(_ id: PullRequestIdentifier, commentID: Int) async throws {
         let ghExecutable = try await resolveGitHubCLI()
         // A mutation: never retried.

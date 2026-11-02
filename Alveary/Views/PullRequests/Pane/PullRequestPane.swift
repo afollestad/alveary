@@ -145,6 +145,8 @@ struct PullRequestPane: View, Equatable {
 
             Spacer(minLength: 0)
 
+            ignoreButton
+
             openInBrowserButton
         }
         .contextualPaneHorizontalInsets()
@@ -172,6 +174,36 @@ struct PullRequestPane: View, Equatable {
         .accessibilityLabel("Open pull request on GitHub")
     }
 
+    /// Offered for open work, or to undo an ignore; the ignore sync drops merged and closed
+    /// entries, so ignoring one would not last. Left of Open on GitHub, which alone takes the
+    /// trailing glyph lane.
+    ///
+    /// The glyph shows the current state — a bell while notifications are on, a tinted, slashed
+    /// bell while ignored — and the help and label name what a click does.
+    @ViewBuilder
+    private var ignoreButton: some View {
+        let identifier = target.identifier
+        let isIgnored = viewModel.ignoring.isIgnored(identifier)
+        let session = viewModel.paneSessions[target]
+        let status = session?.detail?.status ?? session?.summary?.status
+        if isIgnored || status == .open || status == .draft {
+            Button {
+                if isIgnored {
+                    viewModel.ignoring.unignore(identifier)
+                } else {
+                    viewModel.ignoring.ignore(identifier)
+                }
+            } label: {
+                Image(systemName: isIgnored ? "bell.slash.fill" : "bell")
+            }
+            .iconActionButtonStyle(foregroundColor: isIgnored ? Color.accentColor : .primary)
+            .disabled(viewModel.ignoring.isPending(identifier))
+            .help(isIgnored ? "Stop ignoring" : "Ignore pull request")
+            .accessibilityLabel(isIgnored ? "Stop ignoring" : "Ignore pull request")
+            .accessibilityValue(isIgnored ? "Ignored" : "")
+        }
+    }
+
     /// Prefer the API-provided URL; the constructed fallback covers stale sessions.
     private var pullRequestURL: URL? {
         let session = viewModel.paneSessions[target]
@@ -191,6 +223,7 @@ struct PullRequestPane: View, Equatable {
                 PullRequestPaneOverview(
                     session: session,
                     viewModel: viewModel,
+                    isIgnored: viewModel.ignoring.isIgnored(target.identifier),
                     onOpenFiles: { selectedTab = .files }
                 )
                 .equatable()

@@ -133,7 +133,9 @@ struct ContentView: View {
     var body: some View {
         // Every group below is its own type-check scope; see the type-check budget
         // bullets in `Alveary/Views/AGENTS.md`.
-        reviewTeamDetailsSheetHost(rootSheetHost(rootActivityObservers(rootSelectionObservers(rootWindowView))))
+        pullRequestNotificationsAccessSheetHost(
+            reviewTeamDetailsSheetHost(rootSheetHost(rootActivityObservers(rootSelectionObservers(rootWindowView))))
+        )
             .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
             .task(id: folderRepositoryDiscoveryKey) {
                 await refreshSelectedFolderRepository()

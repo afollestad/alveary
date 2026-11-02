@@ -223,6 +223,9 @@ private final class CommandLineToolsGitHubCLIStub: GitHubCLIService, @unchecked 
     func checkInstalled() async -> String? { nil }
     func isAuthenticated() async -> Bool { false }
     func authenticate() async throws -> GitHubDeviceCode { throw GitHubError.authLaunchFailed("Not implemented") }
+    func refreshAuthentication(addingScopes scopes: [String]) async throws -> GitHubDeviceCode {
+        throw GitHubError.authLaunchFailed("Not implemented")
+    }
     func awaitAuthentication() async throws -> Bool { false }
     func cancelAuthentication() {}
 }

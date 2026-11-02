@@ -106,6 +106,14 @@ Alveary keeps a system menu bar item with your five most recent threads plus New
 
 The same tab has **Launch at startup**, which registers Alveary as a macOS login item. macOS owns that registration, so the switch reflects System Settings → General → Login Items rather than a saved preference, and it tells you when the item is switched off there.
 
+## Ignoring Pull Requests
+
+Right-click a row on the Pull requests screen, or use the bell button in a pull request's detail pane, to ignore it. Ignoring hides the pull request from the list and unsubscribes you from its GitHub notifications; **Show ignored** in the filter menu brings ignored pull requests back, dimmed, so you can stop ignoring them and resubscribe.
+
+Unsubscribing needs the GitHub CLI's `notifications` permission, which `gh auth login` does not grant. The first ignore explains why, then shows a one-time code to approve on GitHub; the permission is added to your existing `gh` sign-in, so the `gh` command line gets it too.
+
+GitHub cannot list the pull requests you unsubscribed from, so Alveary keeps the ignore list locally and checks it against GitHub when the list refreshes — at most every five minutes, or whenever you press refresh. A pull request that is merged or closed leaves the list, and one GitHub reports you subscribed to again — after you resubscribe on github.com, for example — stops being ignored.
+
 ## Pull Request Reviews
 
 Single-agent review is the default. In **Settings → Git → Pull requests**, choose **Review team** to configure one team of 2–5 distinct models. Reviewers inspect independently, cross-check findings, and propose comments supported by a fixed majority. The lead also consolidates findings. One task shows progress, failures, votes, cancellation, and retry controls; nothing is submitted without confirmation.

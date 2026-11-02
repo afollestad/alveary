@@ -94,7 +94,8 @@ private enum PullRequestInlineCodeTitleSnapshots {
             activeDetailID: summaries[0].id,
             reviewMode: .singleAgent,
             onSelect: { _ in },
-            onStartAgenticThread: { _, _ in }
+            onStartAgenticThread: { _, _ in },
+            onToggleIgnored: { _ in }
         )
         .padding(20)
     }

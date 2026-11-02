@@ -99,7 +99,8 @@ extension GitHubPullRequestsService {
     //   went 7.2s to 3.6s. Nothing renders it (the Overview shows the Reviewers list instead), and
     //   `get_pr` still carries it for the host tool.
     //
-    // One constant so that invariant has a single place to hold.
+    // One constant so that invariant has a single place to hold. The ignore sync's lookup
+    // (`subscriptionLookupArgs`) selects it too, so a field added here is billed there as well.
     private static let listFragment = """
     fragment pr on PullRequest {
       number title url state isDraft
@@ -237,6 +238,55 @@ extension GitHubPullRequestsService {
       }
     }
     """
+
+    /// One aliased `repository { pullRequest }` per identifier, so a batch of any size costs one
+    /// GraphQL point. Owners, names, and numbers travel as variables rather than text spliced
+    /// into the document. `pr\(index)` is the alias `fetchSubscriptionStates` maps back by.
+    ///
+    /// Selects the shared list fragment, so the ignore sync refreshes cached rows from the same
+    /// read — a field added to `listFragment` is billed here too.
+    static func subscriptionLookupArgs(for ids: [PullRequestIdentifier]) -> [String] {
+        let variables = ids.indices
+            .map { "$owner\($0): String!, $name\($0): String!, $number\($0): Int!" }
+            .joined(separator: ", ")
+        let lookups = ids.indices.map { index in
+            """
+              pr\(index): repository(owner: $owner\(index), name: $name\(index)) {
+                pullRequest(number: $number\(index)) { ...pr id viewerSubscription viewerCanSubscribe }
+              }
+            """
+        }
+        let query = """
+        query(\(variables)) {
+          rateLimit { cost }
+        \(lookups.joined(separator: "\n"))
+        }
+        \(listFragment)
+        """
+        var args = ["api", "graphql", "-f", "query=\(query)"]
+        for (index, id) in ids.enumerated() {
+            args += ["-f", "owner\(index)=\(id.owner)", "-f", "name\(index)=\(id.repo)", "-F", "number\(index)=\(id.number)"]
+        }
+        return args
+    }
+
+    /// `updateSubscription` on a pull request's node id. Selects the resulting state so the
+    /// caller can tell whether GitHub kept the change.
+    static func updateSubscriptionArgs(nodeID: String, subscribed: Bool) -> [String] {
+        let state: PullRequestSubscriptionState = subscribed ? .subscribed : .unsubscribed
+        return [
+            "api", "graphql",
+            "-f", """
+            query=mutation($subscribableId: ID!, $state: SubscriptionState!) {
+              updateSubscription(input: { subscribableId: $subscribableId, state: $state }) {
+                subscribable { viewerSubscription }
+              }
+            }
+            """,
+            "-f", "subscribableId=\(nodeID)",
+            "-f", "state=\(state.rawValue)"
+        ]
+    }
 
     /// `markPullRequestReadyForReview`; takes the pull request's own node id.
     /// There is no REST counterpart for leaving draft.

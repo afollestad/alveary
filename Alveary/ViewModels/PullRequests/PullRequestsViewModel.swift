@@ -51,6 +51,7 @@ final class PullRequestsViewModel {
     /// because tests and previews construct the view model without one, which simply leaves
     /// every pane unattached. See `PullRequestsViewModel+ReviewProposalAttachment.swift`.
     let reviewProposalCoordinator: PullRequestReviewProposalCoordinator?
+    let ignoring: PullRequestIgnoreCoordinator
 
     /// The bus a pull request Alveary changed elsewhere announces itself on; see
     /// `PullRequestsViewModel+RemoteChanges.swift`. Injectable so a test suite gets its own.
@@ -213,6 +214,7 @@ final class PullRequestsViewModel {
         openGitSettings: @escaping @MainActor () -> Void = {},
         agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
+        ignoring: PullRequestIgnoreCoordinator? = nil,
         imageBlobFetcher: (any DiffImageBlobFetching)? = nil,
         imagePreviewLoader: DiffImagePreviewLoader = .shared,
         imagePreviewOpener: @escaping @MainActor (URL, String) -> Void = { url, _ in NSWorkspace.shared.open(url) },
@@ -246,6 +248,7 @@ final class PullRequestsViewModel {
         self.agenticThreadActivity = agenticThreadActivity
             ?? PullRequestAgenticThreadActivity(notificationCenter: notificationCenter)
         self.reviewProposalCoordinator = reviewProposalCoordinator
+        self.ignoring = ignoring ?? PullRequestIgnoreCoordinator(ignoreService: PullRequestIgnoreService(service: service, store: nil))
         self.now = now
         self.referenceDate = now()
         if let settings = settingsService?.current {
@@ -337,25 +340,9 @@ final class PullRequestsViewModel {
 // MARK: - Pane Sessions
 
 extension PullRequestsViewModel {
-    func requestDetails(_ summary: PullRequestSummary, origin: PullRequestPaneOrigin = .screen) {
-        openPane(target: .details(summary.id), summary: summary, origin: origin)
-    }
-
-    /// Opens a pull request the caller has no summary for — a transcript's unlink card names
-    /// one that is deliberately not linked, so no stored snapshot exists to open it with.
-    ///
-    /// A listed row already carries a usable summary; otherwise the pane opens without one and
-    /// its own `loadDetail` backfills it, so the wait and any failure render in the pane rather
-    /// than blocking the open behind a `fetchDetail`.
-    func requestDetails(_ identifier: PullRequestIdentifier, origin: PullRequestPaneOrigin) {
-        guard let summary = items.first(where: { $0.id == identifier }) else {
-            openPane(target: .details(identifier), summary: nil, origin: origin)
-            return
-        }
-        requestDetails(summary, origin: origin)
-    }
-
-    private func openPane(
+    /// Internal only so `requestDetails` in `Pane/PullRequestsViewModel+Pane.swift` can reach it.
+    /// It stays in this file because it writes `paneSessions`, whose setter is private here.
+    func openPane(
         target: PullRequestPaneTarget,
         summary: PullRequestSummary?,
         origin: PullRequestPaneOrigin

@@ -35,6 +35,13 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     var requestReviewResult: Result<Void, PullRequestsServiceError> = .success(())
     var createPullRequestResult: Result<PullRequestIdentifier, PullRequestsServiceError> = .failure(.transport("unused"))
     var createPendingReviewResult: Result<String, PullRequestsServiceError> = .success("PENDING_REVIEW")
+    var subscriptionStatesResult: Result<[PullRequestIdentifier: PullRequestSubscriptionSnapshot], PullRequestsServiceError> = .success([:])
+    var subscriptionStatesGate: PullRequestsServiceGate?
+    /// Consumed one per call, before `updateSubscriptionResult`; with both empty the stub reports
+    /// the state it was asked for, as GitHub does on success.
+    var updateSubscriptionResults: [Result<PullRequestSubscriptionState?, PullRequestsServiceError>] = []
+    var updateSubscriptionResult: Result<PullRequestSubscriptionState?, PullRequestsServiceError>?
+    var updateSubscriptionGate: PullRequestsServiceGate?
     var addPendingCommentResult: Result<PullRequestReviewThread, PullRequestsServiceError>?
     /// Consumed one per call, before `addPendingCommentResult`, so a batch test can fail a
     /// specific comment in the middle of a run.
@@ -128,6 +135,11 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
         let body: String
     }
 
+    struct SubscriptionUpdate: Equatable {
+        let nodeID: String
+        let subscribed: Bool
+    }
+
     private(set) var submittedReviews: [SubmittedReview] = []
     private(set) var updatedComments: [UpdatedReviewComment] = []
     private(set) var deletedCommentIDs: [Int] = []
@@ -150,6 +162,8 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     private(set) var deletedPendingCommentNodeIDs: [String] = []
     private(set) var deletedPendingReviewNodeIDs: [String] = []
     private(set) var submittedPendingReviews: [SubmittedPendingReview] = []
+    private(set) var subscriptionLookups: [[PullRequestIdentifier]] = []
+    private(set) var subscriptionUpdates: [SubscriptionUpdate] = []
 
     /// Buckets asked for since `index`, as a set. A tab's buckets are fetched concurrently, so the
     /// order the legs record themselves in is nondeterministic and only membership is meaningful.
@@ -388,6 +402,26 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     func requestReview(_ id: PullRequestIdentifier, reviewerLogin: String) async throws {
         reviewRequests.append(reviewerLogin)
         return try requestReviewResult.get()
+    }
+
+    func fetchSubscriptionStates(
+        for ids: [PullRequestIdentifier]
+    ) async throws -> [PullRequestIdentifier: PullRequestSubscriptionSnapshot] {
+        subscriptionLookups.append(ids)
+        await subscriptionStatesGate?.wait()
+        return try subscriptionStatesResult.get().filter { ids.contains($0.key) }
+    }
+
+    func updatePullRequestSubscription(nodeID: String, subscribed: Bool) async throws -> PullRequestSubscriptionState? {
+        subscriptionUpdates.append(SubscriptionUpdate(nodeID: nodeID, subscribed: subscribed))
+        await updateSubscriptionGate?.wait()
+        if !updateSubscriptionResults.isEmpty {
+            return try updateSubscriptionResults.removeFirst().get()
+        }
+        if let updateSubscriptionResult {
+            return try updateSubscriptionResult.get()
+        }
+        return subscribed ? .subscribed : .unsubscribed
     }
 
     func createPullRequest(

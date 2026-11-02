@@ -151,6 +151,17 @@ struct DemoPullRequestsService: PullRequestsService {
         throw Self.unavailable
     }
 
+    /// Demo rows have no GitHub nodes, so the ignore sync finds none of them and keeps their entries.
+    func fetchSubscriptionStates(
+        for ids: [PullRequestIdentifier]
+    ) async throws -> [PullRequestIdentifier: PullRequestSubscriptionSnapshot] {
+        [:]
+    }
+
+    func updatePullRequestSubscription(nodeID: String, subscribed: Bool) async throws -> PullRequestSubscriptionState? {
+        throw Self.unavailable
+    }
+
     func createPullRequest(
         inDirectory directory: String,
         baseBranch: String,

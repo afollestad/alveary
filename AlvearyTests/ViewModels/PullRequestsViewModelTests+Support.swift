@@ -24,6 +24,7 @@ func makePullRequestsViewModel(
     openGitSettings: @escaping @MainActor () -> Void = {},
     agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
+    ignoring: PullRequestIgnoreCoordinator? = nil,
     imageBlobFetcher: (any DiffImageBlobFetching)? = nil,
     // Inert by default so no test can launch another app by opening an image.
     imagePreviewOpener: @escaping @MainActor (URL, String) -> Void = { _, _ in },
@@ -54,6 +55,7 @@ func makePullRequestsViewModel(
         openGitSettings: openGitSettings,
         agenticThreadActivity: agenticThreadActivity,
         reviewProposalCoordinator: reviewProposalCoordinator,
+        ignoring: ignoring,
         imageBlobFetcher: imageBlobFetcher,
         imagePreviewOpener: imagePreviewOpener,
         notificationCenter: notificationCenter,

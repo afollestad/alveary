@@ -50,6 +50,7 @@ struct ContentViewDependencies {
     let gitHubDiffImageBlobFetcher: GitHubDiffImageBlobFetcher
     let gitHubAvatarLoader: GitHubAvatarLoader
     let pullRequestsListCache: PullRequestsListCache
+    let pullRequestIgnoreService: PullRequestIgnoreService
     let pullRequestReviewProposalPreviewCache: PullRequestReviewProposalPreviewCache
     let voiceInputService: any VoiceInputService
     let voiceInputLifecycleController: VoiceInputLifecycleController
@@ -106,6 +107,7 @@ struct ContentViewDependencies {
             gitHubDiffImageBlobFetcher: component.gitHubDiffImageBlobFetcher,
             gitHubAvatarLoader: component.gitHubAvatarLoader,
             pullRequestsListCache: component.pullRequestsListCache,
+            pullRequestIgnoreService: component.pullRequestIgnoreService,
             pullRequestReviewProposalPreviewCache: component.pullRequestReviewProposalPreviewCache,
             voiceInputService: component.voiceInputService,
             voiceInputLifecycleController: component.voiceInputLifecycleController,

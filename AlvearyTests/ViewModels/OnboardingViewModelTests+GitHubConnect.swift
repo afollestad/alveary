@@ -192,6 +192,12 @@ final class OnboardingConnectGitHubCLIFake: GitHubCLIService, @unchecked Sendabl
     private let authenticateError: (any Error)?
     private var authenticationContinuation: CheckedContinuation<Bool, Error>?
     private(set) var didCancelAuthentication = false
+    private(set) var refreshedScopes: [[String]] = []
+
+    /// True once a caller is parked in `awaitAuthentication()`, so a test can complete it.
+    var isAwaitingAuthentication: Bool {
+        authenticationContinuation != nil
+    }
 
     init(
         isAuthenticated: Bool,
@@ -219,6 +225,11 @@ final class OnboardingConnectGitHubCLIFake: GitHubCLIService, @unchecked Sendabl
             throw GitHubError.authParseFailed
         }
         return deviceCode
+    }
+
+    func refreshAuthentication(addingScopes scopes: [String]) async throws -> GitHubDeviceCode {
+        refreshedScopes.append(scopes)
+        return try await authenticate()
     }
 
     func awaitAuthentication() async throws -> Bool {

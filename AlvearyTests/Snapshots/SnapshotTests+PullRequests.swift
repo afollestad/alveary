@@ -138,7 +138,8 @@ extension SnapshotTests {
                 activeDetailID: nil,
                 reviewMode: .singleAgent,
                 onSelect: { _ in },
-                onStartAgenticThread: { _, _ in }
+                onStartAgenticThread: { _, _ in },
+                onToggleIgnored: { _ in }
             )
             .padding(20),
             size: CGSize(width: 1_120, height: 460),
@@ -229,7 +230,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             PullRequestsFilterPopover(viewModel: fixture.viewModel),
-            size: CGSize(width: 260, height: 300),
+            size: CGSize(width: 260, height: 360),
             named: "pull_requests_filter_popover"
         )
     }

@@ -157,6 +157,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// merged, closed, and draft pull requests.
     var pullRequestsStatusFilter: PullRequestStatusFilter = .open
     var pullRequestsRepositoryFilters: Set<String> = []
+    /// Whether the Pull requests screen renders ignored pull requests, dimmed, instead of hiding them.
+    var pullRequestsShowIgnored = false
 
     func normalized() -> AppSettings {
         var copy = self

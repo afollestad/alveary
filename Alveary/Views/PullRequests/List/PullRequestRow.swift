@@ -43,6 +43,8 @@ struct PullRequestRow: View, Equatable {
 
             trailingCluster
         }
+        // The content dims, never the card: the selection fill must stay as legible as any row's.
+        .opacity(model.isIgnored ? 0.55 : 1)
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         // These rows live in a `ScrollView`, so the card draws its own fill:
@@ -100,6 +102,12 @@ struct PullRequestRow: View, Equatable {
                     Image(systemName: "bubble.left.and.bubble.right")
                         .imageScale(.small)
                         .help("Linked thread")
+                        .accessibilityHidden(true)
+                }
+                if model.isIgnored {
+                    Image(systemName: "bell.slash")
+                        .imageScale(.small)
+                        .help("Ignored")
                         .accessibilityHidden(true)
                 }
                 Text(model.ageText)

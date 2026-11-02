@@ -4,6 +4,8 @@ import SwiftUI
 /// menus dismiss on every click; the repository group stays open so several can be toggled in
 /// one visit. Status is radio because it is pushed into the GitHub search, whose qualifiers only
 /// AND — see `PullRequestStatusFilter`.
+///
+/// "Show ignored" widens rather than narrows, so it never counts toward `hasActiveMenuFilters`.
 struct PullRequestsFilterPopover: View {
     let viewModel: PullRequestsViewModel
 
@@ -27,6 +29,12 @@ struct PullRequestsFilterPopover: View {
                     filterToggle(nameWithOwner, isOn: viewModel.selectedRepositories.contains(nameWithOwner)) {
                         viewModel.toggleRepositoryFilter(nameWithOwner)
                     }
+                }
+            }
+
+            filterSection(title: "Ignored") {
+                filterToggle("Show ignored", isOn: viewModel.ignoring.showsIgnored) {
+                    viewModel.ignoring.setShowsIgnored(!viewModel.ignoring.showsIgnored)
                 }
             }
         }

@@ -21,7 +21,9 @@ final class PullRequestsSnapshotFixture {
         failure: PullRequestsServiceError? = nil,
         hasNextPage: Bool = false,
         loadInitially: Bool = true,
-        includeLinkedThreads: Bool = false
+        includeLinkedThreads: Bool = false,
+        ignored: Set<PullRequestIdentifier> = [],
+        showsIgnored: Bool = false
     ) async throws {
         container = try ModelContainer(
             for: Project.self,
@@ -54,16 +56,46 @@ final class PullRequestsSnapshotFixture {
         // Seed the broad status filter without selectStatusFilter spawning an unowned load.
         var settings = AppSettings()
         settings.pullRequestsStatusFilter = .all
+        settings.pullRequestsShowIgnored = showsIgnored
+        let settingsService = InMemorySettingsService(current: settings)
         viewModel = PullRequestsViewModel(
             service: service,
             avatarLoader: GitHubAvatarLoader(),
-            settingsService: InMemorySettingsService(current: settings),
+            settingsService: settingsService,
+            ignoring: try await Self.makeIgnoreCoordinator(
+                ignored: ignored,
+                summaries: summaries ?? Self.defaultSummaries,
+                service: service,
+                settingsService: settingsService
+            ),
             // Zero so a baseline that sets `searchQuery` renders the narrowed list in the same
             // turn, with no debounce to wait out before the snapshot is taken.
             searchDebounce: .zero,
             now: { Self.referenceDate }
         )
         if loadInitially { await viewModel.refresh() }
+    }
+
+    /// Ignores `ignored` through the service itself, with no store, so nothing touches disk.
+    private static func makeIgnoreCoordinator(
+        ignored: Set<PullRequestIdentifier>,
+        summaries: [PullRequestSummary],
+        service: SnapshotPullRequestsService,
+        settingsService: InMemorySettingsService
+    ) async throws -> PullRequestIgnoreCoordinator {
+        for summary in summaries where ignored.contains(summary.id) {
+            service.subscriptionStates[summary.id] = PullRequestSubscriptionSnapshot(
+                nodeID: "PR_\(summary.id.number)",
+                summary: summary,
+                subscription: .unsubscribed,
+                viewerCanSubscribe: true
+            )
+        }
+        let ignoreService = PullRequestIgnoreService(service: service, store: nil)
+        for id in ignored {
+            try await ignoreService.setIgnored(true, for: id)
+        }
+        return PullRequestIgnoreCoordinator(ignoreService: ignoreService, settingsService: settingsService)
     }
 
     /// Default fixtures leave the store empty. This variant mixes active links with excluded
@@ -190,6 +222,7 @@ final class PullRequestsSnapshotFixture {
 @MainActor
 final class SnapshotPullRequestsService: PullRequestsService, @unchecked Sendable {
     private(set) var completedBuckets: Set<PullRequestInvolvementBucket> = []
+    var subscriptionStates: [PullRequestIdentifier: PullRequestSubscriptionSnapshot] = [:]
     var listResult: Result<PullRequestListResult, PullRequestsServiceError> = .success(
         PullRequestListResult(summaries: [], warnings: [])
     )
@@ -316,6 +349,18 @@ final class SnapshotPullRequestsService: PullRequestsService, @unchecked Sendabl
 
     func requestReview(_ id: PullRequestIdentifier, reviewerLogin: String) async throws {
         throw PullRequestsServiceError.transport("unused")
+    }
+
+    /// Answers ignore lookups for the fixture's ignored rows with the row itself, so the sync
+    /// keeps them ignored and rewrites nothing on screen.
+    func fetchSubscriptionStates(
+        for ids: [PullRequestIdentifier]
+    ) async throws -> [PullRequestIdentifier: PullRequestSubscriptionSnapshot] {
+        subscriptionStates.filter { ids.contains($0.key) }
+    }
+
+    func updatePullRequestSubscription(nodeID: String, subscribed: Bool) async throws -> PullRequestSubscriptionState? {
+        subscribed ? .subscribed : .unsubscribed
     }
 
     func createPullRequest(
