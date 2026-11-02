@@ -1,12 +1,14 @@
 import Foundation
 
-/// A page-one read of one involvement bucket made outside the Pull requests screen — the status
-/// menu's background poll — handed to the screen so its list, and the cache it saves, catch up
-/// without a read of their own.
+/// A page-one read of one involvement bucket, shared between the Pull requests screen and the
+/// status menu's poll so whichever surface reads it, the other catches up without a read of its
+/// own: the poll's reads reach the screen's list and the cache it saves, and the screen's reloads —
+/// a review submitted from the pane among them — reach the menu.
 ///
 /// A notification because the poller is app-scoped and the screen's view model is window-lived,
-/// so neither can hold the other; `PullRequestsViewModel.applyBackgroundRefresh(_:)` owns when the
-/// list takes it.
+/// so neither can hold the other. Each side skips its own posts and rows older than its own;
+/// `PullRequestsViewModel.applyBackgroundRefresh(_:)` and `MenuBarReviewRequestsMonitor`'s
+/// `adopt(_:)` own when each takes one.
 struct PullRequestBucketRefresh: Equatable, Sendable {
     static let userInfoKey = "bucketRefresh"
 

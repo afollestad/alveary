@@ -61,6 +61,39 @@ extension PullRequestsViewModelTests {
         XCTAssertNil(fixture.viewModel.bucketStates[.reviewRequested])
     }
 
+    func testPageOneLoadOfTheReviewBucketIsAnnouncedToTheMenu() async {
+        let fixture = BackgroundRefreshFixture()
+        defer { fixture.removeCache() }
+        let announced = fixture.recordAnnouncements()
+
+        await fixture.viewModel.refreshForScreen()
+
+        XCTAssertEqual(announced.refreshes.count, 1)
+        XCTAssertEqual(announced.refreshes.first?.bucket, .reviewRequested)
+        XCTAssertEqual(announced.refreshes.first?.status, .open)
+        XCTAssertEqual(announced.refreshes.first?.summaries.map(\.id), [fixture.held.id])
+        XCTAssertEqual(announced.refreshes.first?.fetchedAt, fixture.loadedAt)
+    }
+
+    func testLoadsWithoutTheReviewBucketAnnounceNothing() async {
+        let fixture = BackgroundRefreshFixture()
+        defer { fixture.removeCache() }
+        let announced = fixture.recordAnnouncements()
+
+        await fixture.viewModel.loadIfNeeded(for: .authored)
+
+        XCTAssertTrue(announced.refreshes.isEmpty)
+    }
+
+    func testTheListNeverTakesBackItsOwnAnnouncement() async throws {
+        let fixture = try await BackgroundRefreshFixture.loaded()
+        defer { fixture.removeCache() }
+
+        fixture.post(fixture.refresh(summaries: []), from: fixture.viewModel)
+
+        XCTAssertEqual(fixture.viewModel.bucketStates[.reviewRequested]?.summaries.map(\.id), [fixture.held.id])
+    }
+
     func testReplacingOneCachedBucketKeepsTheOthersUnderTheSameStatusOnly() async {
         let cacheURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("pr-cache-replace-\(UUID().uuidString).json")
@@ -149,11 +182,34 @@ private struct BackgroundRefreshFixture {
         )
     }
 
-    func post(_ refresh: PullRequestBucketRefresh) {
+    func post(_ refresh: PullRequestBucketRefresh, from poster: AnyObject? = nil) {
         notificationCenter.post(
             name: .pullRequestBucketRefreshed,
-            object: nil,
+            object: poster,
             userInfo: [PullRequestBucketRefresh.userInfoKey: refresh]
         )
+    }
+
+    func recordAnnouncements() -> AnnouncementRecorder {
+        let recorder = AnnouncementRecorder()
+        recorder.observer = notificationCenter.addObserver(
+            forName: .pullRequestBucketRefreshed,
+            object: viewModel,
+            queue: nil
+        ) { notification in
+            guard let refresh = notification.userInfo?[PullRequestBucketRefresh.userInfoKey] as? PullRequestBucketRefresh else {
+                return
+            }
+            MainActor.assumeIsolated {
+                recorder.refreshes.append(refresh)
+            }
+        }
+        return recorder
+    }
+
+    @MainActor
+    final class AnnouncementRecorder {
+        var refreshes: [PullRequestBucketRefresh] = []
+        var observer: (any NSObjectProtocol)?
     }
 }

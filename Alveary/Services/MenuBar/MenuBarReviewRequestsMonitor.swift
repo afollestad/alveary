@@ -18,9 +18,10 @@ import Observation
 ///   list narrow at read time in `visibleSummaries`, and an observation on
 ///   `PullRequestIgnoreService` fires `onChange`, so ignoring the last waiting pull request in the
 ///   window clears the badge without a read.
-/// - **Every landed read is shared:** written into `PullRequestsListCache` and posted as a
-///   `PullRequestBucketRefresh`, so the screen paints it on its next launch and an open window
-///   shows it now.
+/// - **Reads are shared both ways.** Every read this lands is written into `PullRequestsListCache`
+///   and posted as a `PullRequestBucketRefresh`, so the screen paints it on its next launch and an
+///   open window shows it now; a page-one reload the screen lands arrives the same way, and
+///   `adopt(_:)` takes it so the menu follows without a read.
 @MainActor
 final class MenuBarReviewRequestsMonitor {
     typealias Sleeper = @Sendable (Duration) async throws -> Void
@@ -49,6 +50,9 @@ final class MenuBarReviewRequestsMonitor {
     }
 
     private var summaries: [PullRequestSummary] = []
+    /// When `summaries` was read, by this monitor or the screen; what `adopt(_:)` compares against
+    /// so an older read never replaces a newer one.
+    private var summariesFetchedAt = Date.distantPast
     private var filter = AppSettings().pullRequestListFilter
     /// `nil` while inactive. Compared on every `configure`, because `.appSettingsChanged` posts on
     /// every settings write — switching settings tabs included — and each must not cost a read.
@@ -56,6 +60,7 @@ final class MenuBarReviewRequestsMonitor {
     private var pollTask: Task<Void, Never>?
     private var remoteChangeTask: Task<Void, Never>?
     private var remoteChangeObserver: NSObjectProtocol?
+    private var bucketRefreshObserver: NSObjectProtocol?
     /// Bumped on every activation and deactivation, so an ignore-list observation armed by an
     /// earlier activation stops re-arming instead of doubling up beside the current one.
     private var ignoreObservationGeneration = 0
@@ -142,6 +147,7 @@ final class MenuBarReviewRequestsMonitor {
         ignoreObservationGeneration += 1
         observeIgnoredPullRequests(generation: ignoreObservationGeneration)
         observeRemoteChanges()
+        observeScreenRefreshes()
         onChange?()
     }
 
@@ -154,10 +160,15 @@ final class MenuBarReviewRequestsMonitor {
             notificationCenter.removeObserver(remoteChangeObserver)
         }
         remoteChangeObserver = nil
+        if let bucketRefreshObserver {
+            notificationCenter.removeObserver(bucketRefreshObserver)
+        }
+        bucketRefreshObserver = nil
         ignoreObservationGeneration += 1
         let wasVisible = phase != .inactive
         phase = .inactive
         summaries = []
+        summariesFetchedAt = .distantPast
         if wasVisible {
             onChange?()
         }
@@ -219,6 +230,7 @@ final class MenuBarReviewRequestsMonitor {
         switch outcome {
         case .success(let result):
             summaries = result.summariesByBucket[.reviewRequested] ?? []
+            summariesFetchedAt = now()
             phase = .loaded
             share(result, status: status)
         case .failure(let error):
@@ -241,7 +253,7 @@ final class MenuBarReviewRequestsMonitor {
             status: status,
             summaries: summaries,
             pageInfo: result.pageInfoByBucket[.reviewRequested],
-            fetchedAt: now()
+            fetchedAt: summariesFetchedAt
         )
         if let listCache {
             let summaries = refresh.summaries
@@ -254,6 +266,48 @@ final class MenuBarReviewRequestsMonitor {
             object: self,
             userInfo: [PullRequestBucketRefresh.userInfoKey: refresh]
         )
+    }
+
+    /// Synchronous (`queue: nil`), so the menu has the rows by the time the screen's `post`
+    /// returns. Every poster is `@MainActor`, which is what `assumeIsolated` rests on.
+    private func observeScreenRefreshes() {
+        bucketRefreshObserver = notificationCenter.addObserver(
+            forName: .pullRequestBucketRefreshed,
+            object: nil,
+            queue: nil
+        ) { [weak self] notification in
+            guard let refresh = notification.userInfo?[PullRequestBucketRefresh.userInfoKey]
+                as? PullRequestBucketRefresh else {
+                return
+            }
+            // An identity rather than the object, which cannot cross into the main-actor closure.
+            let poster = (notification.object as AnyObject?).map(ObjectIdentifier.init)
+            MainActor.assumeIsolated {
+                guard let self, poster != ObjectIdentifier(self) else {
+                    return
+                }
+                self.adopt(refresh)
+            }
+        }
+    }
+
+    /// Takes a page-one read of the review bucket the screen landed — the reload a review submitted
+    /// from the pane ends in, say, which posts no announcement — so the menu follows it now rather
+    /// than at its next poll. Only under the status it searches, and only rows newer than its own.
+    ///
+    /// The poll keeps its schedule: a read it already has in flight replaces these rows when it
+    /// lands, which is no older than what the screen just read.
+    private func adopt(_ refresh: PullRequestBucketRefresh) {
+        guard interval != nil,
+              refresh.bucket == .reviewRequested,
+              refresh.status == filter.status,
+              refresh.fetchedAt > summariesFetchedAt else {
+            return
+        }
+        summaries = refresh.summaries
+        summariesFetchedAt = refresh.fetchedAt
+        phase = .loaded
+        onChange?()
     }
 
     private func observeIgnoredPullRequests(generation: Int) {
@@ -273,8 +327,8 @@ final class MenuBarReviewRequestsMonitor {
     /// A review confirmed on a transcript card, or an agent's state change, can take a pull
     /// request out of the review-requested bucket; GitHub composes that bucket, so only a read
     /// can follow. Debounced so one agent turn's run of mutations costs one read. A review
-    /// submitted from the pane's own footer posts no announcement, so its row clears at the next
-    /// poll instead.
+    /// submitted from the pane's own footer posts no announcement; its list reload reaches the menu
+    /// through `adopt(_:)` instead.
     ///
     /// Every poster is `@MainActor`, which is what `assumeIsolated` rests on.
     private func observeRemoteChanges() {

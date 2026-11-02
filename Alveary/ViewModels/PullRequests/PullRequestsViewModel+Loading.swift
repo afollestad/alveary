@@ -315,6 +315,7 @@ extension PullRequestsViewModel {
         if !successes.isEmpty {
             let fetchedAt = now()
             var collectedWarnings: [String] = []
+            var landed: [PullRequestInvolvementBucket: PullRequestListPageInfo?] = [:]
             for (bucket, result) in successes {
                 // Absent means the bucket came back empty — a SAML-forbidden bucket decodes as null
                 // and must still count as fetched, or it would be reloaded on every pass.
@@ -326,6 +327,7 @@ extension PullRequestsViewModel {
                     hasNextPage: pageInfo?.hasNextPage ?? false
                 )
                 bucketFailures[bucket] = nil
+                landed[bucket] = pageInfo
                 // Every leg carries the same SAML message, so without this the banner repeats it
                 // once per bucket.
                 for warning in result.warnings where !collectedWarnings.contains(warning) {
@@ -336,6 +338,8 @@ extension PullRequestsViewModel {
             warnings = collectedWarnings
             touchReferenceDate()
             saveListCache()
+            // After the list has settled, so a synchronous observer never sees it half-applied.
+            announceBucketRefreshes(landed)
         }
 
         // After the successes, on both counts: a healthy sibling clears its own `bucketFailures`

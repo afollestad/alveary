@@ -248,6 +248,50 @@ final class MenuBarReviewRequestsMonitorTests: XCTestCase {
         XCTAssertTrue(announced.refreshes.isEmpty)
     }
 
+    func testAdoptsTheScreensNewerReviewBucketWithoutARead() async throws {
+        let fixture = try await MenuBarReviewRequestsMonitorFixture.loaded(rows: [alpha, beta], interval: interval)
+        let changes = fixture.recordChanges()
+
+        fixture.postScreenRefresh([beta], fetchedAt: fixture.now.addingTimeInterval(60))
+
+        XCTAssertEqual(fixture.monitor.visibleSummaries.map(\.id), [beta.id])
+        XCTAssertEqual(changes.count, 1)
+        XCTAssertEqual(fixture.service.listCallCount, 1)
+        XCTAssertEqual(fixture.sleeper.pendingDurations(), [interval])
+    }
+
+    func testIgnoresScreenRefreshesUnderAnotherStatusOrOlderThanItsOwnRead() async throws {
+        let fixture = try await MenuBarReviewRequestsMonitorFixture.loaded(rows: [alpha, beta], interval: interval)
+        let changes = fixture.recordChanges()
+
+        fixture.postScreenRefresh([beta], status: .merged, fetchedAt: fixture.now.addingTimeInterval(60))
+        fixture.postScreenRefresh([beta], fetchedAt: fixture.now.addingTimeInterval(-60))
+
+        XCTAssertEqual(fixture.monitor.visibleSummaries.map(\.id), [alpha.id, beta.id])
+        XCTAssertEqual(changes.count, 0)
+    }
+
+    func testScreenRefreshesWaitForActivation() {
+        let fixture = MenuBarReviewRequestsMonitorFixture(rows: [alpha])
+
+        fixture.postScreenRefresh([beta], fetchedAt: fixture.now)
+
+        XCTAssertEqual(fixture.monitor.phase, .inactive)
+        XCTAssertTrue(fixture.monitor.visibleSummaries.isEmpty)
+    }
+
+    func testScreenRefreshCanStandInForAFailedFirstRead() async throws {
+        let fixture = MenuBarReviewRequestsMonitorFixture(rows: [alpha])
+        fixture.service.listResult = .failure(.transport("offline"))
+        fixture.monitor.configure(isActive: true, interval: interval, filter: .packagedDefault)
+        try await waitUntil("the first read fails") { fixture.monitor.phase == .failed }
+
+        fixture.postScreenRefresh([alpha], fetchedAt: fixture.now)
+
+        XCTAssertEqual(fixture.monitor.phase, .loaded)
+        XCTAssertEqual(fixture.monitor.visibleSummaries.map(\.id), [alpha.id])
+    }
+
     /// Gives any spawned task a chance to run, for asserting that nothing happened.
     private func settle() async {
         for _ in 0..<20 {
@@ -333,6 +377,27 @@ private struct MenuBarReviewRequestsMonitorFixture {
             )
         ])
         try await ignoreService.setIgnored(true, for: summary.id)
+    }
+
+    /// What the Pull requests screen posts when one of its loads lands the review bucket.
+    func postScreenRefresh(
+        _ summaries: [PullRequestSummary],
+        status: PullRequestStatusFilter = .open,
+        fetchedAt: Date
+    ) {
+        notificationCenter.post(
+            name: .pullRequestBucketRefreshed,
+            object: NSObject(),
+            userInfo: [
+                PullRequestBucketRefresh.userInfoKey: PullRequestBucketRefresh(
+                    bucket: .reviewRequested,
+                    status: status,
+                    summaries: summaries,
+                    pageInfo: nil,
+                    fetchedAt: fetchedAt
+                )
+            ]
+        )
     }
 
     func announce(affectsListRow: Bool) {
