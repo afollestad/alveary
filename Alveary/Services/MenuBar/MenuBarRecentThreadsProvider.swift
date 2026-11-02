@@ -17,8 +17,6 @@ struct MenuBarRecentThread: Equatable, Identifiable, Sendable {
 @MainActor
 final class MenuBarRecentThreadsProvider {
     nonisolated static let defaultLimit = 5
-    /// Long thread names would stretch the menu across the screen; AppKit does not truncate.
-    nonisolated private static let maxTitleCharacters = 44
 
     private let modelContext: ModelContext
 
@@ -39,19 +37,8 @@ final class MenuBarRecentThreadsProvider {
                 }
                 return MenuBarRecentThread(
                     conversationID: conversation.id,
-                    title: Self.menuTitle(thread.displayName())
+                    title: MenuBarItemTitle.truncated(thread.displayName())
                 )
             }
-    }
-
-    static func menuTitle(_ name: String) -> String {
-        let collapsed = name
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        guard collapsed.count > maxTitleCharacters else {
-            return collapsed
-        }
-        return collapsed.prefix(maxTitleCharacters).trimmingCharacters(in: .whitespaces) + "…"
     }
 }

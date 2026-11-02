@@ -17,6 +17,19 @@ extension ContentView {
                 appState.startNewThreadFlow()
             case .openSettings:
                 appState.openSettings()
+            case .openPullRequest(let summary):
+                openMenuBarPullRequestInAppState(
+                    summary,
+                    pullRequestsEnabled: settingsService.current.pullRequestsEnabled,
+                    appState: appState,
+                    viewModel: pullRequestsViewModel
+                )
+            case .showPullRequestsNeedingReview:
+                showPullRequestsNeedingReviewInAppState(
+                    pullRequestsEnabled: settingsService.current.pullRequestsEnabled,
+                    appState: appState,
+                    viewModel: pullRequestsViewModel
+                )
             }
             menuBarCommandRouter.clearPendingIfMatches(request)
         }
@@ -31,4 +44,38 @@ extension ContentView {
         appShotCoordinator.clearPendingTrigger(triggerID)
         appShotCaptureController.captureIfIdle()
     }
+}
+
+/// Opens a status-menu pull request on the Pull requests screen, the way tapping its row there
+/// does; a `.screen` pane renders only while that screen is selected.
+///
+/// The menu hides its section while the integration is off, but a request queued just before the
+/// user switched it off must not land on a sidebar row that no longer exists.
+@MainActor
+func openMenuBarPullRequestInAppState(
+    _ summary: PullRequestSummary,
+    pullRequestsEnabled: Bool,
+    appState: AppState,
+    viewModel: PullRequestsViewModel
+) {
+    guard pullRequestsEnabled else {
+        return
+    }
+    appState.selectedSidebarItem = .pullRequests
+    viewModel.requestDetails(summary, origin: .screen)
+}
+
+/// The menu's overflow row lands on the Reviewing tab, whose Pending review section is the full
+/// list the menu truncated.
+@MainActor
+func showPullRequestsNeedingReviewInAppState(
+    pullRequestsEnabled: Bool,
+    appState: AppState,
+    viewModel: PullRequestsViewModel
+) {
+    guard pullRequestsEnabled else {
+        return
+    }
+    appState.selectedSidebarItem = .pullRequests
+    viewModel.selectFilter(.reviewing)
 }

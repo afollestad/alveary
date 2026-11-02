@@ -17,6 +17,18 @@ extension AppComponent {
         return shared { MenuBarRecentThreadsProvider(modelContext: modelContainer.mainContext) }
     }
 
+    var menuBarReviewRequestsMonitor: MenuBarReviewRequestsMonitor {
+        return shared {
+            // Hosted tests start the real status item, and a poll there would run `gh` against
+            // the developer's account; the monitor's lifecycle still runs, only the reads stop.
+            MenuBarReviewRequestsMonitor(
+                service: pullRequestsService,
+                ignoreService: pullRequestIgnoreService,
+                pollsGitHub: !AppRuntimeProfile.current.isHostedUnitTest
+            )
+        }
+    }
+
     var menuBarController: MenuBarController {
         return shared {
             // App-hosted unit tests run the real lifecycle, so the controller installs and
@@ -25,6 +37,7 @@ extension AppComponent {
             let isHostedUnitTest = AppRuntimeProfile.current.isHostedUnitTest
             return MenuBarController(
                 recentThreadsProvider: menuBarRecentThreadsProvider,
+                reviewRequestsMonitor: menuBarReviewRequestsMonitor,
                 notificationRouter: notificationRouter,
                 commandRouter: menuBarCommandRouter,
                 mainWindowPresenter: mainWindowPresenter,

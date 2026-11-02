@@ -220,6 +220,9 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
             switch kind {
             case .newThread: router.requestNewThread()
             case .openSettings: router.requestOpenSettings()
+            // Their routes read the root's `@State` view model, which an unmounted view cannot;
+            // `MenuBarPullRequestRoutingTests` drives them through the free functions instead.
+            case .openPullRequest, .showPullRequestsNeedingReview: XCTFail("Not driven through an unmounted root")
             }
             let request = try XCTUnwrap(router.pendingCommand)
 
@@ -240,6 +243,8 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
                 }
             case .openSettings:
                 XCTAssertEqual(appState.selectedSidebarItem, .settings)
+            case .openPullRequest, .showPullRequestsNeedingReview:
+                XCTFail("Not driven through an unmounted root")
             }
         }
     }

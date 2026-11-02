@@ -98,6 +98,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     var expandTerminalWhenActionsRun = false
     var maxTerminalSessions = Self.defaultMaxTerminalSessions
     var showsMenuBarIcon = true
+    // Lists open pull requests waiting on the viewer's review in the status menu, and badges
+    // the icon while any are waiting. Inert unless the icon and `pullRequestsEnabled` are on too.
+    var menuBarShowsPullRequestsNeedingReview = true
+    var menuBarPullRequestRefreshInterval = MenuBarPullRequestRefreshInterval.fiveMinutes
     var appShotsEnabled = true
     var appShotShortcut = Self.defaultAppShotShortcut
     var voiceInputShortcut: PhysicalKeyboardShortcut? = Self.defaultVoiceInputShortcut

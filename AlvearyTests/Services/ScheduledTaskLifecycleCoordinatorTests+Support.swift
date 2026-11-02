@@ -52,6 +52,19 @@ final class ScheduledLifecycleTestSleeper: @unchecked Sendable {
         continuation?.resume()
     }
 
+    /// Resumes the oldest pending sleep of exactly `duration`, for a subject that keeps several
+    /// sleeps of different lengths pending at once.
+    func resumeNext(matching duration: Duration) {
+        let continuation: CheckedContinuation<Void, any Error>? = lock.withLock {
+            guard let id = pendingOrder.first(where: { pendingSleeps[$0]?.duration == duration }) else {
+                return nil
+            }
+            pendingOrder.removeAll { $0 == id }
+            return pendingSleeps.removeValue(forKey: id)?.continuation
+        }
+        continuation?.resume()
+    }
+
     private func cancel(id: UUID) {
         let continuation: CheckedContinuation<Void, any Error>? = lock.withLock {
             guard let pendingSleep = pendingSleeps.removeValue(forKey: id) else {

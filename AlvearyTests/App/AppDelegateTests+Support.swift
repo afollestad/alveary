@@ -130,10 +130,18 @@ struct AppDelegateTestFixture {
     }
 
     /// The real controller on a fake status bar: launch and terminate exercise its lifecycle
-    /// without the hosted test run putting an icon in the runner's menu bar.
+    /// without the hosted test run putting an icon in the runner's menu bar, and its review
+    /// monitor runs without reading GitHub, as the hosted DI seam does.
     func makeMenuBarController() -> MenuBarController {
-        MenuBarController(
+        let pullRequestsService = StubPullRequestsService()
+        return MenuBarController(
             recentThreadsProvider: MenuBarRecentThreadsProvider(modelContext: ModelContext(modelContainer)),
+            reviewRequestsMonitor: MenuBarReviewRequestsMonitor(
+                service: pullRequestsService,
+                ignoreService: PullRequestIgnoreService(service: pullRequestsService, store: nil),
+                notificationCenter: menuBarNotificationCenter,
+                pollsGitHub: false
+            ),
             notificationRouter: NotificationRouter(),
             commandRouter: MenuBarCommandRouter(),
             mainWindowPresenter: mainWindowPresenter,

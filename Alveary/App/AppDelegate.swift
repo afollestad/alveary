@@ -276,6 +276,9 @@ private extension AppDelegate {
             guard !Task.isCancelled else {
                 return
             }
+            // The status menu's review list is as old as the sleep; ahead of the harness probes,
+            // which can take seconds and do not affect it.
+            dependencies.menuBarController.refreshAfterWake()
 
             await harnessDetection.checkAllHarnesses()
             // A machine can sleep for hours; the snapshot from before it did says nothing about

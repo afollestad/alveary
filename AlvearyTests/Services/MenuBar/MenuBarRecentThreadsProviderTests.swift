@@ -53,16 +53,6 @@ final class MenuBarRecentThreadsProviderTests: XCTestCase {
         XCTAssertEqual(fixture.harness.recentThreads(limit: 2).map(\.conversationID), ["convo-7", "convo-6"])
         XCTAssertTrue(fixture.harness.recentThreads(limit: 0).isEmpty)
     }
-
-    func testTruncatesLongTitlesAndCollapsesWhitespace() {
-        XCTAssertEqual(MenuBarRecentThreadsProvider.menuTitle("Fix   the\nflaky test"), "Fix the flaky test")
-
-        let long = String(repeating: "a", count: 80)
-        let truncated = MenuBarRecentThreadsProvider.menuTitle(long)
-
-        XCTAssertTrue(truncated.hasSuffix("…"))
-        XCTAssertLessThan(truncated.count, long.count)
-    }
 }
 
 @MainActor

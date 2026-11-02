@@ -189,7 +189,9 @@ struct SettingsScreen: View {
         case .menuBar:
             MenuBarSettingsTabView(
                 viewModel: viewModel,
-                showsMenuBarIcon: binding(for: \.showsMenuBarIcon)
+                showsMenuBarIcon: binding(for: \.showsMenuBarIcon),
+                showsPullRequestsNeedingReview: binding(for: \.menuBarShowsPullRequestsNeedingReview),
+                pullRequestRefreshInterval: binding(for: \.menuBarPullRequestRefreshInterval)
             )
         case .notifications:
             NotificationsSettingsTabView(
@@ -341,7 +343,7 @@ private extension AppSettings.SettingsPage {
         case .harnesses:
             return "Manage installed harnesses and availability."
         case .menuBar:
-            return "Show Alveary in the system menu bar, and choose whether it opens at login."
+            return "Show Alveary in the system menu bar, choose whether it opens at login, and list pull requests waiting on your review."
         case .notifications:
             return "Configure notification delivery and sounds."
         case .terminal:

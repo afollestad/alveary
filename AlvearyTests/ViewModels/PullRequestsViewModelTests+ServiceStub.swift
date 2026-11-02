@@ -72,6 +72,8 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     }
 
     private(set) var listRequests: [ListRequest] = []
+    /// The `GitHubRequestOrigin` each list call ran under, so a caller's quota label can be asserted.
+    private(set) var listOrigins: [String?] = []
     private(set) var listCallCount = 0
     private(set) var detailCallCount = 0
     private(set) var diffCallCount = 0
@@ -178,6 +180,7 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     ) async throws -> PullRequestListResult {
         listCallCount += 1
         listRequests.append(ListRequest(buckets: buckets, status: status, options: options))
+        listOrigins.append(GitHubRequestOrigin.current)
         await listGate?.wait()
         // A single-bucket override, so a test can fail one concurrent leg while its sibling
         // succeeds — something one shared `listResult` cannot express.

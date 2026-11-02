@@ -64,11 +64,12 @@ final class MenuBarControllerTests: XCTestCase {
 
         XCTAssertEqual(
             menu.items.map(\.title),
-            ["Newest", "Older", "", "New Thread", "Open Alveary", "Settings...", "", "Quit Alveary"]
+            ["Recent threads", "Newest", "Older", "", "New Thread", "Open Alveary", "Settings...", "", "Quit Alveary"]
         )
-        XCTAssertTrue(menu.items[2].isSeparatorItem)
-        XCTAssertTrue(menu.items[6].isSeparatorItem)
-        XCTAssertEqual(menu.items[0].representedObject as? String, "convo-newest")
+        XCTAssertTrue(menu.items[0].isSectionHeader)
+        XCTAssertTrue(menu.items[3].isSeparatorItem)
+        XCTAssertTrue(menu.items[7].isSeparatorItem)
+        XCTAssertEqual(menu.items[1].representedObject as? String, "convo-newest")
     }
 
     func testMenuShowsADisabledPlaceholderWithoutRecentThreads() throws {
@@ -77,8 +78,8 @@ final class MenuBarControllerTests: XCTestCase {
         let controller = fixture.makeController()
         controller.rebuild(menu)
 
-        XCTAssertEqual(menu.items.first?.title, "No Recent Threads")
-        XCTAssertNil(menu.items.first?.action)
+        XCTAssertEqual(menu.items[1].title, "No Recent Threads")
+        XCTAssertNil(menu.items[1].action)
     }
 
     func testCommandKeyEquivalentsFollowTheAppShortcuts() throws {
@@ -103,7 +104,7 @@ final class MenuBarControllerTests: XCTestCase {
         let controller = fixture.makeController()
         controller.rebuild(menu)
 
-        menu.performActionForItem(at: 0)
+        try performItem(titled: "Newest", in: menu)
 
         XCTAssertEqual(fixture.notificationRouter.pendingConversationId, "convo-newest")
     }

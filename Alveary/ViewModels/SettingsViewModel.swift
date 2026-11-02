@@ -213,6 +213,16 @@ final class SettingsViewModel {
         set { settingsService.update { $0.showsMenuBarIcon = newValue } }
     }
 
+    var menuBarShowsPullRequestsNeedingReview: Bool {
+        get { settingsService.current.menuBarShowsPullRequestsNeedingReview }
+        set { settingsService.update { $0.menuBarShowsPullRequestsNeedingReview = newValue } }
+    }
+
+    var menuBarPullRequestRefreshInterval: MenuBarPullRequestRefreshInterval {
+        get { settingsService.current.menuBarPullRequestRefreshInterval }
+        set { settingsService.update { $0.menuBarPullRequestRefreshInterval = newValue } }
+    }
+
     var launchAtStartup: Bool {
         launchAtStartupStatus.isEnabled
     }

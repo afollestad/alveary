@@ -52,6 +52,8 @@ extension AppSettings {
         case expandTerminalWhenActionsRun
         case maxTerminalSessions
         case showsMenuBarIcon
+        case menuBarShowsPullRequestsNeedingReview
+        case menuBarPullRequestRefreshInterval
         case appShotsEnabled
         case appShotShortcut
         case voiceInputShortcut
@@ -284,6 +286,16 @@ extension AppSettings {
         ) ?? expandTerminalWhenActionsRun
         maxTerminalSessions = try container.decodeIfPresent(Int.self, forKey: .maxTerminalSessions) ?? maxTerminalSessions
         showsMenuBarIcon = try container.decodeIfPresent(Bool.self, forKey: .showsMenuBarIcon) ?? showsMenuBarIcon
+        menuBarShowsPullRequestsNeedingReview = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .menuBarShowsPullRequestsNeedingReview
+        ) ?? menuBarShowsPullRequestsNeedingReview
+        if let interval = try? container.decodeIfPresent(
+            MenuBarPullRequestRefreshInterval.self,
+            forKey: .menuBarPullRequestRefreshInterval
+        ) {
+            menuBarPullRequestRefreshInterval = interval
+        }
         appShotsEnabled = try container.decodeIfPresent(Bool.self, forKey: .appShotsEnabled) ?? appShotsEnabled
         appShotShortcut = Self.normalizedAppShotShortcut(from: container)
         decodeVoiceInputShortcut(from: container)

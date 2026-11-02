@@ -37,6 +37,8 @@ final class SettingsServiceTests: XCTestCase {
             $0.expandTerminalWhenActionsRun = true
             $0.maxTerminalSessions = 12
             $0.showsMenuBarIcon = false
+            $0.menuBarShowsPullRequestsNeedingReview = false
+            $0.menuBarPullRequestRefreshInterval = .thirtyMinutes
             $0.contextManagementEnabled = false
             $0.sessionHandoffWindowPercentage = 75
             $0.handoffSteeringEnabled = false
@@ -67,6 +69,8 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertTrue(settings.expandTerminalWhenActionsRun)
         XCTAssertEqual(settings.maxTerminalSessions, 12)
         XCTAssertFalse(settings.showsMenuBarIcon)
+        XCTAssertFalse(settings.menuBarShowsPullRequestsNeedingReview)
+        XCTAssertEqual(settings.menuBarPullRequestRefreshInterval, .thirtyMinutes)
         XCTAssertFalse(settings.contextManagementEnabled)
         XCTAssertEqual(settings.sessionHandoffWindowPercentage, 75)
         XCTAssertFalse(settings.handoffSteeringEnabled)

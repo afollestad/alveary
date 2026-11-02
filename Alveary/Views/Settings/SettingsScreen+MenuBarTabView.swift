@@ -9,6 +9,8 @@ struct MenuBarSettingsTabView: View {
 
     let viewModel: SettingsViewModel
     @Binding var showsMenuBarIcon: Bool
+    @Binding var showsPullRequestsNeedingReview: Bool
+    @Binding var pullRequestRefreshInterval: MenuBarPullRequestRefreshInterval
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
@@ -35,6 +37,31 @@ struct MenuBarSettingsTabView: View {
                     }
                 }
             }
+
+            SettingsFormSection("Pull requests") {
+                SettingsToggleRow(
+                    "Show PRs needing review",
+                    helpText: pullRequestsHelpText,
+                    isOn: $showsPullRequestsNeedingReview,
+                    isDisabled: !canListPullRequests
+                )
+
+                SettingsFormRow(showsDivider: false) {
+                    SettingsResponsiveControlRow(
+                        "Refresh every",
+                        helpText: "How often Alveary checks GitHub in the background.",
+                        horizontalControlSizing: .intrinsic
+                    ) {
+                        SettingsMenuPicker(
+                            "Refresh every",
+                            selection: $pullRequestRefreshInterval,
+                            options: MenuBarPullRequestRefreshInterval.allCases,
+                            isDisabled: !canListPullRequests || !showsPullRequestsNeedingReview,
+                            label: \.label
+                        )
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         // The view model outlives this tab, and the registration is read once when it is built.
@@ -46,6 +73,19 @@ struct MenuBarSettingsTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             viewModel.refreshLaunchAtStartupStatus()
         }
+    }
+
+    /// The list needs both the icon to hang from and the pull-request integration, which the
+    /// Git tab can switch off; `MenuBarController.listsPullRequestsNeedingReview` reads the same three.
+    private var canListPullRequests: Bool {
+        showsMenuBarIcon && viewModel.pullRequestsEnabled
+    }
+
+    private var pullRequestsHelpText: String {
+        guard viewModel.pullRequestsEnabled else {
+            return "Turn on pull requests in Git settings to list the ones waiting on your review here."
+        }
+        return "Lists open pull requests waiting on your review, except ignored ones, and adds a dot to the menu bar icon while any are waiting."
     }
 
     private var launchAtStartupBinding: Binding<Bool> {

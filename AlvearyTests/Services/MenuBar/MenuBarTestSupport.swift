@@ -35,6 +35,10 @@ struct MenuBarControllerTestFixture {
     let notificationCenter = NotificationCenter()
     let settingsService: InMemorySettingsService
     let recentThreadsProvider: MenuBarRecentThreadsProvider
+    let pullRequestsService = StubPullRequestsService()
+    let ignoreService: PullRequestIgnoreService
+    let reviewRequestsSleeper = ScheduledLifecycleTestSleeper()
+    let reviewRequestsMonitor: MenuBarReviewRequestsMonitor
     let terminateCount = TerminateCounter()
     let container: ModelContainer
     let context: ModelContext
@@ -50,11 +54,19 @@ struct MenuBarControllerTestFixture {
         )
         context = ModelContext(container)
         recentThreadsProvider = MenuBarRecentThreadsProvider(modelContext: context)
+        ignoreService = PullRequestIgnoreService(service: pullRequestsService, store: nil)
+        reviewRequestsMonitor = MenuBarReviewRequestsMonitor(
+            service: pullRequestsService,
+            ignoreService: ignoreService,
+            notificationCenter: notificationCenter,
+            sleep: { [reviewRequestsSleeper] in try await reviewRequestsSleeper.sleep($0) }
+        )
     }
 
     func makeController() -> MenuBarController {
         MenuBarController(
             recentThreadsProvider: recentThreadsProvider,
+            reviewRequestsMonitor: reviewRequestsMonitor,
             notificationRouter: notificationRouter,
             commandRouter: commandRouter,
             mainWindowPresenter: mainWindowPresenter,

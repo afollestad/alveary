@@ -4,6 +4,9 @@ import Observation
 enum MenuBarCommandKind: Equatable, Sendable {
     case newThread
     case openSettings
+    /// Carries the menu's own summary so the pane paints its header before the detail loads.
+    case openPullRequest(PullRequestSummary)
+    case showPullRequestsNeedingReview
 }
 
 /// A menu bar pick waiting for the root to act on it. The `id` makes two identical picks
@@ -30,6 +33,14 @@ final class MenuBarCommandRouter {
 
     func requestOpenSettings() {
         pendingCommand = MenuBarCommandRequest(id: UUID(), kind: .openSettings)
+    }
+
+    func requestOpenPullRequest(_ summary: PullRequestSummary) {
+        pendingCommand = MenuBarCommandRequest(id: UUID(), kind: .openPullRequest(summary))
+    }
+
+    func requestShowPullRequestsNeedingReview() {
+        pendingCommand = MenuBarCommandRequest(id: UUID(), kind: .showPullRequestsNeedingReview)
     }
 
     func clearPendingIfMatches(_ request: MenuBarCommandRequest) {

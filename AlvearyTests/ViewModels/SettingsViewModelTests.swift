@@ -216,6 +216,24 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.branchPrefix, "feature/")
     }
 
+    func testMenuBarPullRequestSettingsReadAndWriteThrough() {
+        let service = InMemorySettingsService()
+        service.update {
+            $0.menuBarShowsPullRequestsNeedingReview = false
+            $0.menuBarPullRequestRefreshInterval = .oneHour
+        }
+        let viewModel = SettingsViewModel(settingsService: service)
+
+        XCTAssertFalse(viewModel.menuBarShowsPullRequestsNeedingReview)
+        XCTAssertEqual(viewModel.menuBarPullRequestRefreshInterval, .oneHour)
+
+        viewModel.menuBarShowsPullRequestsNeedingReview = true
+        viewModel.menuBarPullRequestRefreshInterval = .twoMinutes
+
+        XCTAssertTrue(service.current.menuBarShowsPullRequestsNeedingReview)
+        XCTAssertEqual(service.current.menuBarPullRequestRefreshInterval, .twoMinutes)
+    }
+
     func testLastSettingsPageSetterIgnoresUnchangedValue() {
         var settings = AppSettings()
         settings.lastSettingsPage = .notifications

@@ -102,7 +102,7 @@ Release workflow details live in [RELEASING.md](RELEASING.md).
 
 ## Menu Bar
 
-Alveary keeps a system menu bar item with your five most recent threads plus New Thread, Open Alveary, Settings, and Quit. Because that item is a way back into the app, closing the main window no longer quits Alveary: agent runs, scheduled tasks, and the app-shot shortcut keep going, and clicking the Dock icon or **Open Alveary** brings the window back. Turn the item off in **Settings → Menu bar**; the Dock icon remains either way.
+Alveary keeps a system menu bar item with your five most recent threads plus New Thread, Open Alveary, Settings, and Quit. Above them, a **Needs review** section lists open pull requests waiting on your review (minus ignored ones), and a dot on the icon says when any are waiting; picking one opens it on the Pull requests screen. Alveary refreshes that list in the background every five minutes by default. Because that item is a way back into the app, closing the main window no longer quits Alveary: agent runs, scheduled tasks, and the app-shot shortcut keep going, and clicking the Dock icon or **Open Alveary** brings the window back. Turn the item or its review list off, or change the refresh interval, in **Settings → Menu bar**; the Dock icon remains either way.
 
 The same tab has **Launch at startup**, which registers Alveary as a macOS login item. macOS owns that registration, so the switch reflects System Settings → General → Login Items rather than a saved preference, and it tells you when the item is switched off there.
 
