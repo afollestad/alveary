@@ -211,12 +211,15 @@ button:focus-visible {
     }
 }
 
+/* Wider than the siblings' 36rem so this longer tagline sets in two lines
+   rather than three. */
 .tagline {
-    max-width: 36rem;
+    max-width: 44rem;
     margin: 1rem auto 0;
     font-size: clamp(1.05rem, 1.6vw, 1.2rem);
     line-height: 1.55;
     color: var(--secondary);
+    text-wrap: balance;
 }
 
 /* A dotted underline, drawn as a background so it sits clear of descenders. */
@@ -278,18 +281,23 @@ button:focus-visible {
     color: var(--fg);
 }
 
-/* Two-line label, shorter together than the button, so it stays level with
-   the download button. */
+/* Two-line labels, shorter together than the button, so both buttons stay
+   the same height. */
 .btn-stack {
     display: inline-flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     line-height: 1.15;
 }
 
+/* Full --on-accent on the download button: --secondary on the honey drops
+   below 4.5:1. */
 .btn-subtext {
     font-size: .7rem;
     font-weight: 500;
+}
+
+.btn-ghost .btn-subtext {
     color: var(--secondary);
 }
 
@@ -304,7 +312,7 @@ button:focus-visible {
 }
 
 .not-macos .download-label-unavailable {
-    display: inline;
+    display: block;
 }
 
 .not-macos .btn-download {
