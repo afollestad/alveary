@@ -1,8 +1,17 @@
-# Alveary
+<p align="center">
+  <picture>
+    <source srcset="docs/images/app-icon-dark.png" media="(prefers-color-scheme: dark)">
+    <img src="docs/images/app-icon-light.png" alt="" width="128" height="128">
+  </picture>
+</p>
+
+<h1 align="center">Alveary</h1>
+
+<p align="center">A native macOS app for orchestrating AI coding agents.</p>
 
 _An alveary is a place where bees are kept, including a beehive or apiary enclosure._
 
-Alveary is a native macOS app for orchestrating AI coding agents. It's inspired by other apps like OpenAI's Codex.
+Alveary is inspired by other apps like OpenAI's Codex.
 
 Claude Code, Codex, and OpenCode are **harnesses**: they run models and manage agent sessions and tools. Anthropic and OpenAI are **model providers**. Alveary uses harness terminology when selecting or configuring a coding CLI.
 
