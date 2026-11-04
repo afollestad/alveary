@@ -9,6 +9,12 @@
 
 <p align="center">A native macOS app for orchestrating AI coding agents.</p>
 
+<p align="center">
+  <a href="https://github.com/afollestad/alveary/releases/latest/download/Alveary.app.zip">
+    <img src=".github/download-macos.svg?v=240x42" alt="Download Alveary for macOS (latest release)" width="240" height="42">
+  </a>
+</p>
+
 _An alveary is a place where bees are kept, including a beehive or apiary enclosure._
 
 Alveary is inspired by other apps like OpenAI's Codex.
