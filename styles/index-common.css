@@ -22,12 +22,15 @@ html {
     text-size-adjust: 100%;
 }
 
+/* break-word only splits a word too long for a line of its own, as on a phone
+   with enlarged text, and leaves every layout's widths alone. */
 body {
     margin: 0;
     font-family: var(--font);
     line-height: 1.5;
     background: var(--bg);
     color: var(--fg);
+    overflow-wrap: break-word;
     -webkit-font-smoothing: antialiased;
 }
 
@@ -190,10 +193,12 @@ button:focus-visible {
     filter: drop-shadow(0 .6rem 1.2rem var(--icon-shadow));
 }
 
+/* Its floor gives way to 20vw only on a phone with enlarged text, where the
+   name would otherwise be wider than the page. */
 .hero-copy h1 {
     display: inline-block;
     margin-top: 1.5rem;
-    font-size: clamp(2.75rem, 7vw, 4.25rem);
+    font-size: clamp(min(2.75rem, 20vw), 7vw, 4.25rem);
     font-weight: 700;
     letter-spacing: -.035em;
     line-height: 1.1;
@@ -244,25 +249,32 @@ button:focus-visible {
     margin-top: 2rem;
 }
 
+/* A minimum height and wrapping labels, so a button too wide for a phone with
+   enlarged text grows taller instead; a flex row wraps whole buttons first. */
 .btn-download,
 .btn-ghost {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: .5rem;
-    height: 3rem;
-    padding: 0 1.2rem;
+    min-height: 3rem;
+    max-width: 100%;
+    padding: .4rem 1.2rem;
     border-radius: .55rem;
     font-size: .95rem;
     font-weight: 600;
     text-decoration: none;
-    white-space: nowrap;
     transition: transform .3s cubic-bezier(0.34, 1.56, 0.64, 1), filter .2s ease;
+}
+
+.btn-download svg,
+.btn-ghost svg {
+    flex-shrink: 0;
 }
 
 /* Filled with the app's honey, lit along its top edge like the chips. */
 .btn-download {
-    padding: 0 1.4rem;
+    padding: .4rem 1.4rem;
     background: var(--accent);
     color: var(--on-accent);
     font-weight: 700;
@@ -288,6 +300,7 @@ button:focus-visible {
     flex-direction: column;
     align-items: flex-start;
     line-height: 1.15;
+    text-align: left;
 }
 
 /* Full --on-accent on the download button: --secondary on the honey drops
