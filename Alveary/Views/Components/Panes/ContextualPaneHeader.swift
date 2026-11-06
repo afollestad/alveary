@@ -40,7 +40,6 @@ struct ContextualPaneHeader: View {
         .contextualPaneHorizontalInsets()
         .padding(.vertical, 16)
         .frame(height: PaneHeaderLayout.height)
-        .background(.bar)
         .overlay(alignment: .bottom) {
             AppSeparatorHairline(surface: .paneHeader)
                 .contextualPaneHorizontalInsets()

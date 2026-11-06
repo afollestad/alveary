@@ -54,7 +54,6 @@ struct DiffViewerPaneHeader: View {
         .padding(.leading, DiffViewerPaneMetrics.headerLeadingInset)
         .padding(.trailing, DiffViewerPaneMetrics.headerTrailingInset)
         .padding(.bottom, 10)
-        .background(.bar)
         .overlay(alignment: .bottom) {
             Divider()
                 .opacity(showsFileListDivider ? 1 : 0)
@@ -185,12 +184,6 @@ private struct DiffViewerHeaderBranchLabel: View {
     var body: some View {
         Text(branchName)
             .font(.subheadline.weight(.medium))
-            // The concrete dynamic color, not the hierarchical `.secondary`
-            // style: this label sits on the header's `.bar` material, and inside
-            // that vibrancy a hierarchical style composites against the material
-            // rather than painting, which renders the glyphs invisible wherever
-            // the backdrop is absent — as in the snapshot host. The chips escape
-            // it only because their capsule fill is opaque.
             .foregroundStyle(Color(nsColor: .secondaryLabelColor))
             .lineLimit(1)
             .truncationMode(.tail)

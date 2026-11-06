@@ -53,7 +53,6 @@ struct ResponsivePaneHeader<Actions: View>: View {
         // user navigates with intact.
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: PaneHeaderLayout.height)
-        .background(.bar)
         .overlay(alignment: .bottom) {
             AppSeparatorHairline(surface: .paneHeader)
         }

@@ -4,8 +4,8 @@ import XCTest
 @testable import Alveary
 
 // Parity gate for `contextualPaneFooterChrome()`. The shared `ContextualPaneFooter`
-// and the hand-composed pull-request review footer must render the same insets,
-// bar fill, and top hairline; a surface that re-hand-rolls its padding shows up
+// and the hand-composed pull-request review footer must render the same insets
+// and top hairline; a surface that re-hand-rolls its padding shows up
 // here as a visible step between the two strips.
 extension SnapshotTests {
     func testPaneFooterChromeParity() {

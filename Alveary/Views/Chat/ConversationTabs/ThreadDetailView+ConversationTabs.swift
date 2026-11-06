@@ -101,7 +101,6 @@ struct ThreadDetailConversationTabs: View {
         }
         .padding(.trailing, PaneHeaderLayout.trailingInset)
         .padding(.vertical, 14)
-        .background(.bar)
         .overlay(alignment: .bottom) {
             AppSeparatorHairline(surface: .paneHeader)
         }

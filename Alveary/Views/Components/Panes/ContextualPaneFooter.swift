@@ -39,7 +39,7 @@ enum ContextualPaneLayout {
     }
 }
 
-/// The one vertical inset every bar-backed pane footer uses. Deliberately private:
+/// The one vertical inset every pane footer uses. Deliberately private:
 /// a footer reaches it through `contextualPaneFooterChrome()` and nowhere else, so
 /// a new footer cannot quietly pick its own number. Three surfaces had drifted to
 /// 16 / 12 / 10 before the chrome was pulled into one modifier.
@@ -74,14 +74,14 @@ private struct ContextualPaneTrailingGlyphLaneControl: ViewModifier {
     }
 }
 
-/// The full chrome of a pane footer: shared insets, the `.bar` fill, and the top
-/// hairline inset to match `ContextualPaneHeader`'s bottom one.
+/// The full chrome of a pane footer: shared insets and the top hairline inset to match
+/// `ContextualPaneHeader`'s bottom one. No fill, like every pane strip; see
+/// `Alveary/Views/Components/Panes/AGENTS.md`.
 private struct ContextualPaneFooterChrome: ViewModifier {
     func body(content: Content) -> some View {
         content
             .contextualPaneHorizontalInsets()
             .padding(.vertical, contextualPaneFooterVerticalPadding)
-            .background(.bar)
             .overlay(alignment: .top) {
                 AppSeparatorHairline(surface: .paneHeader)
                     .contextualPaneHorizontalInsets()
@@ -95,8 +95,8 @@ extension View {
     }
 
     /// Wraps a pane footer's content in the shared footer chrome. Every
-    /// bar-backed footer strip goes through this — hand-rolling the padding,
-    /// background, or hairline is what let the surfaces diverge.
+    /// footer strip goes through this — hand-rolling the padding or hairline
+    /// is what let the surfaces diverge.
     func contextualPaneFooterChrome() -> some View {
         modifier(ContextualPaneFooterChrome())
     }

@@ -13,7 +13,8 @@ These instructions cover `Alveary/Views/Components/Panes/` — `ResponsivePaneHe
 ### Pane Insets And Chrome
 
 - **Apply the contextual pane's inset through `contextualPaneHorizontalInsets()` or `ContextualPaneLayout.contentInsets(vertical:)`**, never a literal, so every surface moves together; re-record the pane baselines on change. `ContextualPaneHeader` stays at 16 points of vertical padding.
-- **Every bar-backed pane footer goes through `contextualPaneFooterChrome()`** — insets, vertical padding, `.bar` fill, and top hairline in one modifier. Do not re-inline it or promote its private vertical constant; `SnapshotTests+PaneFooterChrome.swift` is the parity gate.
+- **Pane chrome draws no fill.** Headers, footers, and the conversation tab strip let the window background show through to match the content beneath; `.bar` measured lighter than it on macOS 27.2. Do not reintroduce `.bar` or a flat window color.
+- **Every pane footer goes through `contextualPaneFooterChrome()`** — insets, vertical padding, and top hairline in one modifier. Do not re-inline it or promote its private vertical constant; `SnapshotTests+PaneFooterChrome.swift` is the parity gate.
 - **A pane's chromeless trailing glyphs center on `ContextualPaneLayout.trailingGlyphAxis`, never right-align.** Take the lane through `contextualPaneTrailingGlyphLane()`, or its `controlWidth:` overload for a wider chromeless control.
     - **A sub-point residual is the glyph's own side bearing, not a bug.** The lane centers the *frame*; an asymmetric glyph keeps its ink slightly off it (`chevron.right` lands 0.8pt out). Do not chase it with a nudge constant — that reintroduces exactly what the lane replaced.
     - **Inside a scroll view, widen the row's frame instead of padding the glyph** — negative padding leaves the glyph outside its own hit rect, unclickable. `diffPreviewViewportContentWidthFrame(trailingExtension:)` carries `AppHeaderToggle`'s content shape out with the caret.

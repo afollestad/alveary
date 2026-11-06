@@ -4,7 +4,7 @@ These instructions cover `Alveary/Views/DiffViewer/Pane/` — `DiffViewerPane`, 
 
 > **READ FIRST:** Focus and keyboard rules are centralized in **Focus And Keyboard Coordination** in `Alveary/Views/AGENTS.md`; the file-list focus bullets below stack on top of that contract.
 
-**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `DiffViewerVerticalSplit`, `DiffViewerHeaderActionContainer`, and `DiffViewerFileListScrollMonitor`, plus `DiffViewerHeaderBranchLabel`'s no-`minWidth` prohibition and vibrancy note, `DiffViewerPaneHeader`'s reserved close-button space, `DiffViewerTopListKeyboardMonitor`'s gating and key-repeat requirements, and `DiffViewerMode.title`'s length constraint (`Alveary/Services/Settings/DiffViewerMode.swift`) each carry theirs.
+**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `DiffViewerVerticalSplit`, `DiffViewerHeaderActionContainer`, and `DiffViewerFileListScrollMonitor`, plus `DiffViewerHeaderBranchLabel`'s no-`minWidth` prohibition, `DiffViewerPaneHeader`'s reserved close-button space, `DiffViewerTopListKeyboardMonitor`'s gating and key-repeat requirements, and `DiffViewerMode.title`'s length constraint (`Alveary/Services/Settings/DiffViewerMode.swift`) each carry theirs.
 
 ## Pane Modes
 
