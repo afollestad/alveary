@@ -103,12 +103,8 @@ executable_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$info_
 executable_path="$app_path/Contents/MacOS/$executable_name"
 architectures=$(lipo -archs "$executable_path")
 
-for required_architecture in arm64 x86_64; do
-  case " $architectures " in
-    *" $required_architecture "*) ;;
-    *)
-      echo "error: exported app executable is missing the $required_architecture slice (found: $architectures)" >&2
-      exit 1
-      ;;
-  esac
-done
+# Alveary ships for Apple silicon only (`ARCHS` in `project.yml`); any other slice means that setting was lost.
+if [ "$architectures" != "arm64" ]; then
+  echo "error: exported app executable must be arm64 only (found: $architectures)" >&2
+  exit 1
+fi

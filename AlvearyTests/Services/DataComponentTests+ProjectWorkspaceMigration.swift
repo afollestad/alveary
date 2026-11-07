@@ -133,58 +133,80 @@ extension DataComponentTests {
         XCTAssertEqual(thread.taskWorkspaceDescriptor?.sourceProjectPath, "/missing/source")
     }
 
+    /// Writes the store elsewhere and copies it to `url` while its container is still open. Once released, Core Data closes the
+    /// connection on a background queue, and that close checkpoints the WAL into whichever files it has open, which would change
+    /// `url` under a test that compares or clones its bytes.
     private func writePreFolderStore(
         at url: URL, sourcePath: String = "/missing/source", taskWithoutProject: Bool = false, reviewRunJSON: String? = nil
     ) throws {
+        let writerURL = url.deletingLastPathComponent().appendingPathComponent("fixture-writer/\(url.lastPathComponent)")
+        try FileManager.default.createDirectory(at: writerURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try autoreleasepool {
-            let container = try ModelContainer(for: Schema(versionedSchema: PreProjectFoldersSchema.self), configurations: .init(url: url))
-            let context = container.mainContext
-            let project = PreProjectFoldersSchema.Project()
-            project.path = sourcePath
-            project.name = "Original"
-            project.remoteName = "upstream"
-            project.gitRemote = "git@github.com:owner/repository.git"
-            project.baseRef = "upstream/main"
-            let thread = PreProjectFoldersSchema.AgentThread()
-            thread.name = "Existing thread"
-            thread.worktreePath = "/missing/worktree"
-            thread.modeRawValue = taskWithoutProject ? "task" : "project"
-            thread.taskSourceProjectPath = taskWithoutProject ? sourcePath : nil
-            thread.taskPrimaryRoot = taskWithoutProject ? thread.worktreePath : nil
-            thread.taskWorkspaceOwnershipStrategyRawValue = taskWithoutProject ? "projectLocal" : nil
-            thread.taskGrantedRoots = ["/missing/grant"]
-            thread.linkedPullRequestsJSON = "saved-links"
-            thread.project = taskWithoutProject ? nil : project
-            let conversation = PreProjectFoldersSchema.Conversation()
-            conversation.id = "saved-conversation"
-            conversation.providerSessionId = "saved-session"
-            conversation.pullRequestReviewRunJSON = reviewRunJSON
-            conversation.thread = thread
-            let event = PreProjectFoldersSchema.ConversationEventRecord()
-            event.id = "saved-event"
-            event.conversationId = conversation.id
-            event.type = "message"
-            event.content = "Keep this history"
-            event.conversation = conversation
-            let schedule = PreProjectFoldersSchema.ScheduledTask()
-            schedule.id = "saved-schedule"
-            schedule.project = project
-            schedule.workspaceKindRawValue = "project"
-            schedule.grantedRoots = ["/missing/schedule-grant"]
-            let run = PreProjectFoldersSchema.ScheduledTaskRun()
-            run.id = "saved-run"
-            run.projectPathSnapshot = "/original/run-source"
-            run.grantedRootsSnapshot = ["/original/run-grant"]
-            run.pendingWorktreeCleanupPath = "/original/cleanup"
-            run.scheduledTask = schedule
-            run.thread = thread
-            context.insert(project)
-            context.insert(thread)
-            context.insert(conversation)
-            context.insert(event)
-            context.insert(schedule)
-            context.insert(run)
-            try context.save()
+            let container = try ModelContainer(for: Schema(versionedSchema: PreProjectFoldersSchema.self), configurations: .init(url: writerURL))
+            try insertPreFolderModels(
+                into: container.mainContext, sourcePath: sourcePath, taskWithoutProject: taskWithoutProject, reviewRunJSON: reviewRunJSON
+            )
+            try copyStoreFiles(from: writerURL, to: url)
+        }
+    }
+
+    private func insertPreFolderModels(
+        into context: ModelContext, sourcePath: String, taskWithoutProject: Bool, reviewRunJSON: String?
+    ) throws {
+        let project = PreProjectFoldersSchema.Project()
+        project.path = sourcePath
+        project.name = "Original"
+        project.remoteName = "upstream"
+        project.gitRemote = "git@github.com:owner/repository.git"
+        project.baseRef = "upstream/main"
+        let thread = PreProjectFoldersSchema.AgentThread()
+        thread.name = "Existing thread"
+        thread.worktreePath = "/missing/worktree"
+        thread.modeRawValue = taskWithoutProject ? "task" : "project"
+        thread.taskSourceProjectPath = taskWithoutProject ? sourcePath : nil
+        thread.taskPrimaryRoot = taskWithoutProject ? thread.worktreePath : nil
+        thread.taskWorkspaceOwnershipStrategyRawValue = taskWithoutProject ? "projectLocal" : nil
+        thread.taskGrantedRoots = ["/missing/grant"]
+        thread.linkedPullRequestsJSON = "saved-links"
+        thread.project = taskWithoutProject ? nil : project
+        let conversation = PreProjectFoldersSchema.Conversation()
+        conversation.id = "saved-conversation"
+        conversation.providerSessionId = "saved-session"
+        conversation.pullRequestReviewRunJSON = reviewRunJSON
+        conversation.thread = thread
+        let event = PreProjectFoldersSchema.ConversationEventRecord()
+        event.id = "saved-event"
+        event.conversationId = conversation.id
+        event.type = "message"
+        event.content = "Keep this history"
+        event.conversation = conversation
+        let schedule = PreProjectFoldersSchema.ScheduledTask()
+        schedule.id = "saved-schedule"
+        schedule.project = project
+        schedule.workspaceKindRawValue = "project"
+        schedule.grantedRoots = ["/missing/schedule-grant"]
+        let run = PreProjectFoldersSchema.ScheduledTaskRun()
+        run.id = "saved-run"
+        run.projectPathSnapshot = "/original/run-source"
+        run.grantedRootsSnapshot = ["/original/run-grant"]
+        run.pendingWorktreeCleanupPath = "/original/cleanup"
+        run.scheduledTask = schedule
+        run.thread = thread
+        context.insert(project)
+        context.insert(thread)
+        context.insert(conversation)
+        context.insert(event)
+        context.insert(schedule)
+        context.insert(run)
+        try context.save()
+    }
+
+    private func copyStoreFiles(from source: URL, to destination: URL) throws {
+        for suffix in ["", "-wal", "-shm"] {
+            let input = URL(fileURLWithPath: source.path + suffix)
+            if FileManager.default.fileExists(atPath: input.path) {
+                try FileManager.default.copyItem(at: input, to: URL(fileURLWithPath: destination.path + suffix))
+            }
         }
     }
 }
