@@ -32,7 +32,7 @@ final class StandaloneGitHubCLIInstaller: StandaloneGitHubCLIInstalling {
     init(
         shell: ShellRunner,
         fileManager: FileManager = .default,
-        architecture: String = StandaloneGitHubCLIInstaller.hostArchitecture,
+        architecture: String = "arm64",
         installDirectory: URL? = nil,
         temporaryDirectory: URL? = nil
     ) {
@@ -42,14 +42,6 @@ final class StandaloneGitHubCLIInstaller: StandaloneGitHubCLIInstalling {
         self.installDirectory = installDirectory
             ?? URL(fileURLWithPath: ExecutableSearchPath.expandHomeDirectory(in: "~/.local/bin"), isDirectory: true)
         self.temporaryDirectory = temporaryDirectory ?? fileManager.temporaryDirectory
-    }
-
-    nonisolated static var hostArchitecture: String {
-        #if arch(arm64)
-        return "arm64"
-        #else
-        return "amd64"
-        #endif
     }
 
     func install() async throws {

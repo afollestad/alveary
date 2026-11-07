@@ -1,7 +1,5 @@
 import Foundation
 
-typealias VoiceInputArchitectureCheck = @Sendable () -> Bool
-
 final class VoiceInputPreparationBroadcast: @unchecked Sendable {
     private struct State {
         var observers: [UUID: VoiceInputPreparationProgressHandler] = [:]
@@ -141,14 +139,6 @@ func ensureVoiceInputMicrophonePermission(
     case .restricted:
         throw VoiceInputServiceError.permissionRestricted
     }
-}
-
-func isVoiceInputArchitectureSupported() -> Bool {
-    #if arch(arm64)
-    true
-    #else
-    false
-    #endif
 }
 
 func usableVoiceInputTranscript(_ transcript: String?) -> String? {

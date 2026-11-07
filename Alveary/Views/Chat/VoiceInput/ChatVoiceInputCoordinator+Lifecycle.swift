@@ -150,8 +150,8 @@ extension ChatVoiceInputCoordinator {
             "The local voice model could not be loaded. Try again to repair it."
         case .captureQueueOverflow:
             "Dictation stopped because audio processing could not keep up."
-        case .unsupportedArchitecture:
-            "Voice input requires a Mac with Apple silicon."
+        case .unavailable:
+            "Voice input isn't available."
         case nil:
             fallback
         default:

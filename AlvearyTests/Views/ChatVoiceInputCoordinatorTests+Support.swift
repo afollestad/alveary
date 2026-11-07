@@ -39,7 +39,6 @@ extension ChatVoiceInputCoordinatorTests {
             service: service,
             lifecycleController: lifecycleController,
             clock: clock,
-            supportedArchitecture: true,
             accessibilityAnnouncer: { [weak fixture] message in
                 fixture?.announcements.append(message)
             },

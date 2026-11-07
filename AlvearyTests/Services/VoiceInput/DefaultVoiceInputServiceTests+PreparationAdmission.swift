@@ -83,8 +83,7 @@ extension DefaultVoiceInputServiceTests {
             inferenceEngine: VoiceInputInferenceFake(),
             audioCaptureFactory: { VoiceInputAudioCaptureFake() },
             suddenTerminationController: SuddenTerminationControllerFake(),
-            memoryPressureMonitor: MemoryPressureMonitorFake(),
-            architectureCheck: { true }
+            memoryPressureMonitor: MemoryPressureMonitorFake()
         )
 
         XCTAssertEqual(service.admitPreparation(), .initiated)

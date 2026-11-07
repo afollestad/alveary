@@ -1,24 +1,11 @@
 import Foundation
 
-enum VoiceInputPlatform {
-    static var isSupported: Bool {
-        #if arch(arm64)
-        true
-        #else
-        false
-        #endif
-    }
-}
-
 enum VoiceInputShortcutUnavailableReason: Equatable, Sendable {
-    case unsupportedArchitecture
     case notConfigured
     case conflict(String)
 
     var message: String {
         switch self {
-        case .unsupportedArchitecture:
-            return "Voice input requires a Mac with Apple silicon. Mouse and keyboard dictation are unavailable on Intel."
         case .notConfigured:
             return "No keyboard shortcut is configured. Mouse dictation remains available."
         case let .conflict(message):
@@ -108,12 +95,8 @@ extension AppSettings {
 
     /// Re-evaluate this when `.appSettingsChanged` or `NSApplication.didBecomeActiveNotification` fires.
     func voiceInputShortcutAvailability(
-        supportsVoiceInput: Bool = VoiceInputPlatform.isSupported,
         hasEnabledSystemConflict: ((PhysicalKeyboardShortcut) -> Bool)? = nil
     ) -> VoiceInputShortcutAvailability {
-        guard supportsVoiceInput else {
-            return .unavailable(.unsupportedArchitecture)
-        }
         guard let shortcut = voiceInputShortcut else {
             return .unavailable(.notConfigured)
         }

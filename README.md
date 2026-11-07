@@ -25,7 +25,7 @@ Claude Code, Codex, and OpenCode are **harnesses**: they run models and manage a
 
 ## Download
 
-Download the latest release from [GitHub Releases](https://github.com/afollestad/alveary/releases/latest). Releases are direct-download ZIPs named `Alveary.app.zip` and contain a signed, notarized `Alveary.app`.
+Download the latest release from [GitHub Releases](https://github.com/afollestad/alveary/releases/latest). Releases are direct-download ZIPs named `Alveary.app.zip` and contain a signed, notarized `Alveary.app`. Alveary needs a Mac with Apple silicon, on macOS 26 or later.
 
 After downloading:
 
@@ -65,7 +65,7 @@ Punctual execution requires Alveary to be running and the Mac awake. Launch and 
 
 ## Development
 
-Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, BlockInputKit, FluidAudio, and SwiftTerm. AgentCLIKit owns harness processes and resumable sessions; Alveary owns harness-neutral scheduled-task persistence, execution, and recovery. Alveary's app-scoped conversation controllers share each conversation's subscription and persistence path across visible and background work. BlockInputKit provides the markdown editors. FluidAudio provides English speech recognition for on-device voice input on Apple silicon. Primer Octicons supplies the pull-request status glyphs. The embedded terminal runs local PTYs, and project actions are injected into the user's interactive zsh so their real prompt and startup environment apply. The app target intentionally remains unsandboxed while keeping hardened runtime enabled. Run setup once per clone:
+Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, BlockInputKit, FluidAudio, and SwiftTerm. AgentCLIKit owns harness processes and resumable sessions; Alveary owns harness-neutral scheduled-task persistence, execution, and recovery. Alveary's app-scoped conversation controllers share each conversation's subscription and persistence path across visible and background work. BlockInputKit provides the markdown editors. FluidAudio provides English speech recognition for on-device voice input. Primer Octicons supplies the pull-request status glyphs. The embedded terminal runs local PTYs, and project actions are injected into the user's interactive zsh so their real prompt and startup environment apply. The app target intentionally remains unsandboxed while keeping hardened runtime enabled. Run setup once per clone:
 
 ```sh
 ./scripts/setup.sh
@@ -157,7 +157,7 @@ Comment and review attachments use GitHub CLI 2.99.0 or newer with repository wr
 
 ## Voice Input
 
-Voice input records from the system-default microphone and transcribes English speech on device. Microphone audio and recognition output are not stored separately or sent to remote servers; committed dictation becomes ordinary composer text. Dictation requires Apple silicon, while Alveary remains a universal app.
+Voice input records from the system-default microphone and transcribes English speech on device. Microphone audio and recognition output are not stored separately or sent to remote servers; committed dictation becomes ordinary composer text.
 
 The first use opens a blocking setup modal that downloads the approximately 600 MB Parakeet Unified model from Hugging Face and caches validated model files by revision under `~/Library/Application Support/com.afollestad.alveary/VoiceInput/Models/`, excluded from backups. Later launches skip the modal when the microphone is authorized and the cached model is still valid: warmup happens in place, and a still-valid activation starts dictation automatically.
 

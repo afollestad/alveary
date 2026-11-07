@@ -175,7 +175,7 @@ struct ChatView: View {
         _voiceInputCoordinator = State(initialValue: ChatVoiceInputCoordinator(
             service: resolvedVoiceService,
             lifecycleController: resolvedVoiceLifecycle,
-            supportedArchitecture: voiceInputService != nil && VoiceInputPlatform.isSupported,
+            isAvailable: voiceInputService != nil,
             flushDraftFromEditor: {
                 _ = viewModel.flushDraftFromEditor()
             }

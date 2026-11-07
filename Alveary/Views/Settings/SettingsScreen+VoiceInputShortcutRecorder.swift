@@ -4,7 +4,6 @@ import SwiftUI
 struct VoiceInputShortcutRecorder: View {
     @Binding var shortcut: PhysicalKeyboardShortcut?
     let appShotShortcut: AppShotKeyboardShortcut
-    let supportsVoiceInput: Bool
 
     @State private var message: KeyboardShortcutRecorderMessage?
     @State private var validationRevision = UUID()
@@ -23,12 +22,11 @@ struct VoiceInputShortcutRecorder: View {
                     onValidationError: showValidationMessage
                 )
                 .frame(width: 150, height: SettingsScreenLayout.settingsControlSurfaceHeight)
-                .disabled(!supportsVoiceInput)
 
                 Button("Reset", action: reset)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(!supportsVoiceInput || shortcut == preferredShortcut)
+                    .disabled(shortcut == preferredShortcut)
                     .help("Restores the preferred voice-input shortcut.")
                     .accessibilityLabel("Reset voice input shortcut")
             }
@@ -59,9 +57,6 @@ struct VoiceInputShortcutRecorder: View {
         _ = validationRevision
         if let message {
             return message
-        }
-        guard supportsVoiceInput else {
-            return .warning(VoiceInputShortcutUnavailableReason.unsupportedArchitecture.message)
         }
         guard let shortcut else {
             return .warning(VoiceInputShortcutUnavailableReason.notConfigured.message)

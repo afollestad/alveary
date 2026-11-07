@@ -129,7 +129,8 @@ struct VoiceInputRecognitionResult: Equatable, Sendable {
 }
 
 enum VoiceInputServiceError: Error, Equatable, Sendable {
-    case unsupportedArchitecture
+    /// There is no voice input service here, as in tests and snapshots (`DisabledVoiceInputService`).
+    case unavailable
     case permissionNotDetermined
     case permissionDenied
     case permissionRestricted
@@ -158,8 +159,8 @@ enum VoiceInputServiceError: Error, Equatable, Sendable {
 extension VoiceInputServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
-        case .unsupportedArchitecture:
-            return "Voice input requires a Mac with Apple silicon."
+        case .unavailable:
+            return "Voice input isn't available."
         case .permissionNotDetermined:
             return "Microphone access must be requested before dictation can start."
         case .permissionDenied:

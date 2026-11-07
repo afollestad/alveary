@@ -73,8 +73,7 @@ extension DefaultVoiceInputServiceTests {
             inferenceEngine: inference,
             audioCaptureFactory: { VoiceInputAudioCaptureFake() },
             suddenTerminationController: SuddenTerminationControllerFake(),
-            memoryPressureMonitor: MemoryPressureMonitorFake(),
-            architectureCheck: { true }
+            memoryPressureMonitor: MemoryPressureMonitorFake()
         )
 
         try await prepareAdmittedVoiceInputService(service)
@@ -175,8 +174,7 @@ extension DefaultVoiceInputServiceTests {
             inferenceEngine: inference,
             audioCaptureFactory: { capture },
             suddenTerminationController: SuddenTerminationControllerFake(),
-            memoryPressureMonitor: MemoryPressureMonitorFake(),
-            architectureCheck: { true }
+            memoryPressureMonitor: MemoryPressureMonitorFake()
         )
     }
 

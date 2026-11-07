@@ -133,7 +133,6 @@ extension AppSettingsTests {
         settings.voiceInputShortcut = .controlShiftSpace
 
         let availability = settings.voiceInputShortcutAvailability(
-            supportsVoiceInput: true,
             hasEnabledSystemConflict: { _ in false }
         )
 
@@ -149,29 +148,17 @@ extension AppSettingsTests {
 
         XCTAssertEqual(
             settings.voiceInputShortcutAvailability(
-                supportsVoiceInput: true,
                 hasEnabledSystemConflict: { _ in false }
             ).descriptor,
             .controlShiftSpace
         )
         XCTAssertEqual(
             settings.voiceInputShortcutAvailability(
-                supportsVoiceInput: true,
                 hasEnabledSystemConflict: { _ in true }
             ),
             .unavailable(.conflict("⌃⇧Space conflicts with a macOS keyboard shortcut."))
         )
         XCTAssertEqual(settings.voiceInputShortcut, .controlShiftSpace)
-    }
-
-    func testVoiceInputAvailabilityIsDisabledOnIntelPresentation() {
-        XCTAssertEqual(
-            AppSettings().voiceInputShortcutAvailability(
-                supportsVoiceInput: false,
-                hasEnabledSystemConflict: { _ in false }
-            ),
-            .unavailable(.unsupportedArchitecture)
-        )
     }
 
     func testVoiceInputShortcutValidationRejectsEscape() {
@@ -278,7 +265,6 @@ extension AppSettingsTests {
     func testCapturedPhysicalDescriptorRemainsStableAcrossRebinding() {
         var settings = AppSettings()
         let capturedShortcut = settings.voiceInputShortcutAvailability(
-            supportsVoiceInput: true,
             hasEnabledSystemConflict: { _ in false }
         ).descriptor
 

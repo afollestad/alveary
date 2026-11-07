@@ -26,8 +26,7 @@ extension DefaultVoiceInputServiceTests {
                 inferenceEngine: inference,
                 audioCaptureFactory: { VoiceInputAudioCaptureFake() },
                 suddenTerminationController: SuddenTerminationControllerFake(),
-                memoryPressureMonitor: MemoryPressureMonitorFake(),
-                architectureCheck: { true }
+                memoryPressureMonitor: MemoryPressureMonitorFake()
             )
 
             XCTAssertEqual(service.admitPreparation(), .initiated)
@@ -73,8 +72,7 @@ extension DefaultVoiceInputServiceTests {
             inferenceEngine: inference,
             audioCaptureFactory: { VoiceInputAudioCaptureFake() },
             suddenTerminationController: SuddenTerminationControllerFake(),
-            memoryPressureMonitor: MemoryPressureMonitorFake(),
-            architectureCheck: { true }
+            memoryPressureMonitor: MemoryPressureMonitorFake()
         )
 
         let preparation = Task {
@@ -110,8 +108,7 @@ extension DefaultVoiceInputServiceTests {
             inferenceEngine: inference,
             audioCaptureFactory: { VoiceInputAudioCaptureFake() },
             suddenTerminationController: SuddenTerminationControllerFake(),
-            memoryPressureMonitor: MemoryPressureMonitorFake(),
-            architectureCheck: { true }
+            memoryPressureMonitor: MemoryPressureMonitorFake()
         )
 
         let preparation = Task {
@@ -153,8 +150,7 @@ extension DefaultVoiceInputServiceTests {
             inferenceEngine: inference,
             audioCaptureFactory: { VoiceInputAudioCaptureFake() },
             suddenTerminationController: SuddenTerminationControllerFake(),
-            memoryPressureMonitor: MemoryPressureMonitorFake(),
-            architectureCheck: { true }
+            memoryPressureMonitor: MemoryPressureMonitorFake()
         )
 
         let preparation = Task {
@@ -193,8 +189,7 @@ extension DefaultVoiceInputServiceTests {
             inferenceEngine: inference,
             audioCaptureFactory: { VoiceInputAudioCaptureFake() },
             suddenTerminationController: SuddenTerminationControllerFake(),
-            memoryPressureMonitor: MemoryPressureMonitorFake(),
-            architectureCheck: { true }
+            memoryPressureMonitor: MemoryPressureMonitorFake()
         )
 
         let preparation = Task {
@@ -227,8 +222,7 @@ extension DefaultVoiceInputServiceTests {
             inferenceEngine: inference,
             audioCaptureFactory: { VoiceInputAudioCaptureFake() },
             suddenTerminationController: SuddenTerminationControllerFake(),
-            memoryPressureMonitor: memoryPressure,
-            architectureCheck: { true }
+            memoryPressureMonitor: memoryPressure
         )
 
         let preparation = Task {

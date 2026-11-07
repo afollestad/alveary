@@ -6,7 +6,6 @@ actor DefaultVoiceInputService: VoiceInputService {
     let inferenceEngine: any VoiceInputInferenceEngine
     private let audioCaptureFactory: VoiceInputAudioCaptureFactory
     private let memoryPressureMonitor: any VoiceInputMemoryPressureMonitoring
-    private let architectureCheck: VoiceInputArchitectureCheck
     nonisolated let captureSlot = VoiceInputCaptureSlot()
     nonisolated let suddenTerminationLease: VoiceInputSuddenTerminationLease
     nonisolated let preparationBroadcast = VoiceInputPreparationBroadcast()
@@ -42,7 +41,6 @@ actor DefaultVoiceInputService: VoiceInputService {
         self.inferenceEngine = inferenceEngine
         self.audioCaptureFactory = { DefaultVoiceInputAudioCapture() }
         self.memoryPressureMonitor = memoryPressureMonitor
-        self.architectureCheck = isVoiceInputArchitectureSupported
         self.suddenTerminationLease = VoiceInputSuddenTerminationLease(controller: suddenTerminationController)
     }
 
@@ -52,15 +50,13 @@ actor DefaultVoiceInputService: VoiceInputService {
         inferenceEngine: any VoiceInputInferenceEngine,
         audioCaptureFactory: @escaping VoiceInputAudioCaptureFactory,
         suddenTerminationController: any VoiceInputSuddenTerminationControlling,
-        memoryPressureMonitor: any VoiceInputMemoryPressureMonitoring,
-        architectureCheck: @escaping VoiceInputArchitectureCheck = isVoiceInputArchitectureSupported
+        memoryPressureMonitor: any VoiceInputMemoryPressureMonitoring
     ) {
         self.permissionProvider = permissionProvider
         self.modelRepository = modelRepository
         self.inferenceEngine = inferenceEngine
         self.audioCaptureFactory = audioCaptureFactory
         self.memoryPressureMonitor = memoryPressureMonitor
-        self.architectureCheck = architectureCheck
         self.suddenTerminationLease = VoiceInputSuddenTerminationLease(controller: suddenTerminationController)
     }
 
@@ -72,7 +68,6 @@ actor DefaultVoiceInputService: VoiceInputService {
         await acquireLifecycleOperation()
         defer { releaseLifecycleOperation() }
         guard !attempt.cancelled else { throw VoiceInputServiceError.recognitionSessionExpired }
-        guard architectureCheck() else { throw VoiceInputServiceError.unsupportedArchitecture }
         guard modelLoaded else { throw VoiceInputServiceError.modelLoad("The voice model has not been prepared.") }
         try await ensureVoiceInputMicrophonePermission(permissionProvider: permissionProvider, canRequestAccess: false)
         guard activeRecognition == nil else { throw VoiceInputServiceError.alreadyRecording }
@@ -398,10 +393,6 @@ actor DefaultVoiceInputService: VoiceInputService {
 }
 
 extension DefaultVoiceInputService {
-    func isVoiceInputArchitectureAvailable() -> Bool {
-        architectureCheck()
-    }
-
     func startMemoryPressureMonitoringIfNeeded() {
         guard !memoryPressureMonitoringStarted else { return }
         memoryPressureMonitoringStarted = true

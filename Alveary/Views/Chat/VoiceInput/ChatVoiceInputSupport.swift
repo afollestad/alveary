@@ -16,14 +16,14 @@ final class DisabledVoiceInputService: VoiceInputService, @unchecked Sendable {
     func prepare(
         progress: @escaping VoiceInputPreparationProgressHandler
     ) async throws -> VoiceInputPreparationResult {
-        throw VoiceInputServiceError.unsupportedArchitecture
+        throw VoiceInputServiceError.unavailable
     }
 
     func beginRecognition(
         attempt: VoiceInputRecognitionAttempt,
         onUpdate: @escaping VoiceInputRecognitionUpdateHandler
     ) async throws -> VoiceInputRecognitionSession {
-        throw VoiceInputServiceError.unsupportedArchitecture
+        throw VoiceInputServiceError.unavailable
     }
 
     func stopRecognition(_ session: VoiceInputRecognitionSession) async -> VoiceInputRecognitionResult {
@@ -36,7 +36,7 @@ final class DisabledVoiceInputService: VoiceInputService, @unchecked Sendable {
     func cancelCaptureSynchronously(for session: VoiceInputRecognitionSession) {}
     func prepareForTerminationSynchronously() {}
     func clearModelCache() async throws {
-        throw VoiceInputServiceError.unsupportedArchitecture
+        throw VoiceInputServiceError.unavailable
     }
     func shutdown() async {}
 }

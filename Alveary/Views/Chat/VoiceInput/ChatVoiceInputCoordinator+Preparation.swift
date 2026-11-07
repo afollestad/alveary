@@ -1,14 +1,6 @@
 import Foundation
 
 extension ChatVoiceInputCoordinator {
-    static var isSupportedArchitecture: Bool {
-        #if arch(arm64)
-        true
-        #else
-        false
-        #endif
-    }
-
     func activateReadyVoiceInputOrPrepare(activation: ChatVoiceInputPreparationActivation) {
         guard preparationTask == nil else { return }
         switch service.admitPreparation() {

@@ -16,8 +16,7 @@ extension DefaultVoiceInputServiceTests {
             inferenceEngine: inference,
             audioCaptureFactory: { VoiceInputAudioCaptureFake() },
             suddenTerminationController: SuddenTerminationControllerFake(),
-            memoryPressureMonitor: MemoryPressureMonitorFake(),
-            architectureCheck: { true }
+            memoryPressureMonitor: MemoryPressureMonitorFake()
         )
 
         let preparation = Task {

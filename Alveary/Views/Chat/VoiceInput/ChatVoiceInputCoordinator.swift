@@ -33,7 +33,8 @@ final class ChatVoiceInputCoordinator: VoiceInputComposerSink {
     let lifecycleController: VoiceInputLifecycleController
     let clock: any ChatVoiceInputClock
     let flushDraftFromEditor: () -> Void
-    let supportedArchitecture: Bool
+    /// False without a voice input service, as in tests and snapshots: the button and shortcut then do nothing.
+    let isAvailable: Bool
     let accessibilityAnnouncer: @MainActor (String) -> Void
     nonisolated let startupLifetime: ChatVoiceInputStartupLifetime
 
@@ -68,7 +69,7 @@ final class ChatVoiceInputCoordinator: VoiceInputComposerSink {
         service: any VoiceInputService,
         lifecycleController: VoiceInputLifecycleController,
         clock: any ChatVoiceInputClock = ContinuousChatVoiceInputClock(),
-        supportedArchitecture: Bool = ChatVoiceInputCoordinator.isSupportedArchitecture,
+        isAvailable: Bool = true,
         accessibilityAnnouncer: @escaping @MainActor (String) -> Void = ChatVoiceInputCoordinator.postAccessibilityAnnouncement,
         flushDraftFromEditor: @escaping () -> Void
     ) {
@@ -76,10 +77,10 @@ final class ChatVoiceInputCoordinator: VoiceInputComposerSink {
         startupLifetime = ChatVoiceInputStartupLifetime()
         self.lifecycleController = lifecycleController
         self.clock = clock
-        self.supportedArchitecture = supportedArchitecture
+        self.isAvailable = isAvailable
         self.accessibilityAnnouncer = accessibilityAnnouncer
         self.flushDraftFromEditor = flushDraftFromEditor
-        phase = supportedArchitecture ? .idle : .unavailable
+        phase = isAvailable ? .idle : .unavailable
         isVoiceInputOwnedElsewhere = lifecycleController.isVoiceInputOwned(byAnotherComposer: self)
         ownershipObserver = NotificationCenter.default.addObserver(
             forName: .voiceInputOwnershipChanged,
@@ -124,7 +125,7 @@ final class ChatVoiceInputCoordinator: VoiceInputComposerSink {
     }
 
     var isButtonEnabled: Bool {
-        guard supportedArchitecture else {
+        guard isAvailable else {
             return false
         }
         guard modelModalState == nil else {
@@ -186,7 +187,7 @@ final class ChatVoiceInputCoordinator: VoiceInputComposerSink {
 
     @discardableResult
     func physicalPress(_ source: ChatVoiceInputActivationSource) -> Bool {
-        guard supportedArchitecture else {
+        guard isAvailable else {
             return false
         }
         guard modelModalState == nil else {
@@ -299,7 +300,7 @@ final class ChatVoiceInputCoordinator: VoiceInputComposerSink {
     }
 
     func accessibilityToggle() {
-        guard supportedArchitecture else {
+        guard isAvailable else {
             return
         }
         guard modelModalState == nil else {

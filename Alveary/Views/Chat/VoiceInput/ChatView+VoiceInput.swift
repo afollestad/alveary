@@ -71,9 +71,6 @@ extension ChatView {
     }
 
     func voiceInputButtonHelp(availability: VoiceInputShortcutAvailability) -> String? {
-        if !VoiceInputPlatform.isSupported {
-            return VoiceInputShortcutUnavailableReason.unsupportedArchitecture.message
-        }
         if voiceInputCoordinator.isVoiceInputOwnedElsewhere {
             return ChatVoiceInputCoordinator.voiceInputOwnedElsewhereMessage
         }

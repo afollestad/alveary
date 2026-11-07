@@ -448,8 +448,7 @@ func makeVoiceInputService(
     inference: any VoiceInputInferenceEngine = VoiceInputInferenceFake(),
     capture: VoiceInputAudioCaptureFake = VoiceInputAudioCaptureFake(),
     suddenTermination: SuddenTerminationControllerFake = SuddenTerminationControllerFake(),
-    memoryPressure: MemoryPressureMonitorFake = MemoryPressureMonitorFake(),
-    supported: Bool = true
+    memoryPressure: MemoryPressureMonitorFake = MemoryPressureMonitorFake()
 ) -> DefaultVoiceInputService {
     DefaultVoiceInputService(
         permissionProvider: permission,
@@ -457,8 +456,7 @@ func makeVoiceInputService(
         inferenceEngine: inference,
         audioCaptureFactory: { capture },
         suddenTerminationController: suddenTermination,
-        memoryPressureMonitor: memoryPressure,
-        architectureCheck: { supported }
+        memoryPressureMonitor: memoryPressure
     )
 }
 

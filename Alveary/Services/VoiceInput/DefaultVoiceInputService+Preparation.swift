@@ -23,7 +23,6 @@ extension DefaultVoiceInputService {
         try Task.checkCancellation()
         preparationBroadcast.begin()
         defer { preparationBroadcast.end() }
-        guard isVoiceInputArchitectureAvailable() else { throw VoiceInputServiceError.unsupportedArchitecture }
 
         preparationBroadcast.publish(.checkingPermission)
         let requestedMicrophonePermission = try await ensureVoiceInputMicrophonePermission(

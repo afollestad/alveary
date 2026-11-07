@@ -33,7 +33,6 @@ final class ChatComposerDraftTests: XCTestCase {
     }
 
     func testVoiceShortcutRemainsEnabledToStopWhenBaseComposerBecomesUnavailable() throws {
-        #if arch(arm64)
         let fixture = try ConversationViewModelTestFixture()
         let service = FakeChatVoiceInputService()
         let settings = InMemorySettingsService()
@@ -50,7 +49,6 @@ final class ChatComposerDraftTests: XCTestCase {
         chatView.voiceInputCoordinator.phase = .recording
 
         XCTAssertTrue(chatView.voiceInputShortcutConfiguration.isEnabled)
-        #endif
     }
 
     func testSendDraftClearsDraftAndRequestsComposerFocus() async throws {

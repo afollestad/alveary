@@ -391,22 +391,6 @@ final class DefaultVoiceInputServiceTests: XCTestCase {
         XCTAssertEqual(operations, ["load"])
     }
 
-    func testUnsupportedArchitectureDoesNoPermissionOrModelWork() async {
-        let permission = VoiceInputPermissionFake(status: .notDetermined)
-        let repository = VoiceInputModelRepositoryFake()
-        let service = makeVoiceInputService(permission: permission, repository: repository, supported: false)
-
-        do {
-            try await prepareAdmittedVoiceInputService(service)
-            XCTFail("Expected an unsupported-architecture error")
-        } catch {
-            XCTAssertEqual(error as? VoiceInputServiceError, .unsupportedArchitecture)
-        }
-        XCTAssertEqual(permission.requestCount, 0)
-        let preparationModes = await repository.preparationModes
-        XCTAssertEqual(preparationModes, [])
-    }
-
     func testLateAudioFromCancelledGenerationIsIgnored() async throws {
         let inference = VoiceInputInferenceFake()
         await inference.setProcessOutputs(["should not be used"])
@@ -419,8 +403,7 @@ final class DefaultVoiceInputServiceTests: XCTestCase {
             inferenceEngine: inference,
             audioCaptureFactory: { captures.makeCapture() },
             suddenTerminationController: SuddenTerminationControllerFake(),
-            memoryPressureMonitor: MemoryPressureMonitorFake(),
-            architectureCheck: { true }
+            memoryPressureMonitor: MemoryPressureMonitorFake()
         )
         try await prepareAdmittedVoiceInputService(service)
         let firstSession = try await service.beginRecognition(attempt: VoiceInputRecognitionAttempt()) { _ in }

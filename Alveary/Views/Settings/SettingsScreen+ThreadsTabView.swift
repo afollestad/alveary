@@ -57,8 +57,7 @@ struct ThreadsSettingsTabView: View {
                     ) {
                         VoiceInputShortcutRecorder(
                             shortcut: $voiceInputShortcut,
-                            appShotShortcut: viewModel.appShotShortcut,
-                            supportsVoiceInput: VoiceInputPlatform.isSupported
+                            appShotShortcut: viewModel.appShotShortcut
                         )
                     }
                 }
