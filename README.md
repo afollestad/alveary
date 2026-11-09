@@ -161,7 +161,7 @@ Voice input records from the system-default microphone and transcribes English s
 
 The first use opens a blocking setup modal that downloads the approximately 600 MB Parakeet Unified model from Hugging Face and caches validated model files by revision under `~/Library/Application Support/com.afollestad.alveary/VoiceInput/Models/`, excluded from backups. Later launches skip the modal when the microphone is authorized and the cached model is still valid: warmup happens in place, and a still-valid activation starts dictation automatically.
 
-Alveary pins FluidAudio exactly and downloads the model from the exact Hugging Face revision in `VoiceInputModelDescriptor.json`. There is no periodic or manual model-update check; changing the pin requires a new Alveary release. Model files are distributed separately on demand under the model's CC-BY-4.0 license, and the app bundles the required dependency and model attribution.
+Alveary pins FluidAudio exactly, with its TTS, diarization, and text-normalization traits disabled, and downloads the model from the exact Hugging Face revision in `VoiceInputModelDescriptor.json`. There is no periodic or manual model-update check; changing the pin requires a new Alveary release. Model files are distributed separately on demand under the model's CC-BY-4.0 license, and the app bundles the required dependency and model attribution.
 
 Maintainers regenerate the sorted descriptor and its verification digest with an explicit 40-character revision; the script never selects `main`:
 

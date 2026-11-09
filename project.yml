@@ -189,7 +189,11 @@ packages:
     revision: "19abc0cd7b02368391e5aacdf0a218eeee78bcc7"
   FluidAudio:
     url: https://github.com/FluidInference/FluidAudio.git
-    exactVersion: "0.15.5"
+    exactVersion: "0.18.3"
+    # Empty disables the default TTS, Diarizer, and NemoTextProcessing traits: voice input is ASR-only, and
+    # NemoTextProcessing links a prebuilt binary that `VoiceInputAttributions.txt` would have to cover
+    # (`scripts/ci/verify-exported-app.sh` fails a release that links it).
+    traits: []
   SwiftTerm:
     url: https://github.com/migueldeicaza/SwiftTerm.git
     revision: "d5ee56e1c74777120f3af688600d336de4201bd2"

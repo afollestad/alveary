@@ -230,7 +230,6 @@ actor DefaultVoiceInputModelRepository: VoiceInputModelRepository {
 
         let manifest = VoiceInputModelManifest(
             schema: VoiceInputModelManifest.currentSchema,
-            fluidAudioRevision: VoiceInputModelManifest.fluidAudioRevision,
             repository: descriptor.repository,
             modelRevision: descriptor.revision,
             descriptorSHA256: resolvedDescriptor.sha256,
@@ -291,7 +290,6 @@ actor DefaultVoiceInputModelRepository: VoiceInputModelRepository {
     ) -> Bool {
         let descriptor = resolvedDescriptor.descriptor
         return manifest.schema == VoiceInputModelManifest.currentSchema &&
-            manifest.fluidAudioRevision == VoiceInputModelManifest.fluidAudioRevision &&
             manifest.repository == descriptor.repository &&
             manifest.modelRevision == descriptor.revision &&
             manifest.descriptorSHA256 == resolvedDescriptor.sha256 &&

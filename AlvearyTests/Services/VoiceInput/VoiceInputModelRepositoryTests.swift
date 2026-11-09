@@ -41,6 +41,30 @@ final class VoiceInputModelRepositoryTests: XCTestCase {
         XCTAssertEqual(offlineDownloadCount, 0)
     }
 
+    func testCacheValidatedByEarlierFluidAudioReleaseLoadsWithoutDownloading() async throws {
+        let model = makeVoiceInputTestModelDescriptor()
+        _ = try await makeRepository(
+            model: model,
+            downloader: VoiceInputModelDownloaderFake(artifactData: model.dataByPath)
+        ).prepareModel(mode: .normal) { _ in }
+        // Earlier releases stamped the FluidAudio revision into the manifest; a library upgrade must accept that cache.
+        let manifestURL = validatedDirectory(for: model)
+            .appendingPathComponent(DefaultVoiceInputModelRepository.manifestFile)
+        var manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
+        )
+        manifest["fluidAudioRevision"] = "19600a485baa4998812e4654b70d2bab8f2c9949"
+        try JSONSerialization.data(withJSONObject: manifest).write(to: manifestURL, options: .atomic)
+
+        let offlineDownloader = VoiceInputModelDownloaderFake(artifactData: model.dataByPath, failure: .network)
+        let prepared = try await makeRepository(model: model, downloader: offlineDownloader)
+            .prepareModel(mode: .normal) { _ in }
+        let offlineDownloadCount = await offlineDownloader.downloadCount
+
+        XCTAssertEqual(prepared.source, .validatedCache)
+        XCTAssertEqual(offlineDownloadCount, 0)
+    }
+
     func testPromotedManifestStoresPinnedIdentityAndDescriptorDigest() async throws {
         let model = makeVoiceInputTestModelDescriptor()
         let repository = makeRepository(

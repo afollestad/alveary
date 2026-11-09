@@ -108,3 +108,11 @@ if [ "$architectures" != "arm64" ]; then
   echo "error: exported app executable must be arm64 only (found: $architectures)" >&2
   exit 1
 fi
+
+# `traits: []` on FluidAudio in `project.yml` keeps out NeMo text normalization, a prebuilt Rust library that
+# `VoiceInputAttributions.txt` does not cover; an XcodeGen that ignores `traits` links it silently. Alveary has no
+# Rust of its own, and Rust std panic paths are string data that survive stripping, unlike symbols.
+if find "$app_path/Contents" -type f -perm -u+x -exec strings -a {} + | grep -Eq '/rustc/[0-9a-f]{40}/library/'; then
+  echo "error: exported app links Rust code; keep FluidAudio's NemoTextProcessing trait disabled" >&2
+  exit 1
+fi

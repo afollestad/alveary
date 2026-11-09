@@ -271,12 +271,16 @@ struct VoiceInputResolvedModelDescriptor: Equatable, Sendable {
     let sha256: String
 }
 
+/// Identity of a validated model cache, keyed only on what determines the cached files' contents.
+///
+/// Deliberately omits the FluidAudio revision: Core ML loads these files, so a library bump leaves them
+/// valid, and keying on it would re-download byte-identical models on every upgrade. A library that
+/// needs different files must change the descriptor, which already invalidates the cache.
+/// Manifests written with the old `fluidAudioRevision` key still decode because unknown keys are ignored.
 struct VoiceInputModelManifest: Codable, Equatable, Sendable {
     static let currentSchema = 2
-    static let fluidAudioRevision = "19600a485baa4998812e4654b70d2bab8f2c9949"
 
     let schema: Int
-    let fluidAudioRevision: String
     let repository: String
     let modelRevision: String
     let descriptorSHA256: String

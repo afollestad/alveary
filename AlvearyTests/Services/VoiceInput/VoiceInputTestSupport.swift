@@ -418,7 +418,6 @@ func makeVoiceInputPreparedModel(
         repositoryDirectory: directory,
         manifest: VoiceInputModelManifest(
             schema: VoiceInputModelManifest.currentSchema,
-            fluidAudioRevision: VoiceInputModelManifest.fluidAudioRevision,
             repository: VoiceInputPinnedModelDescriptor.expectedRepository,
             modelRevision: "4252711f6f060f9a2f91e5f081a806d7f45eebd8",
             descriptorSHA256: String(repeating: "a", count: 64),
