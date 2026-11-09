@@ -58,11 +58,18 @@ jobs:
           path: |
             ~/.swiftpm/cache
             ~/Library/Caches/org.swift.swiftpm
-            .build/xcode/SourcePackages
           key: ${{ runner.os }}-xcode-27.0-swiftpm-${{ hashFiles('project.yml') }}
           restore-keys: |
             ${{ runner.os }}-xcode-27.0-swiftpm-
             ${{ runner.os }}-swiftpm-
+
+      # Exact key only: checkouts restored from an older `project.yml` broke resolution when FluidAudio gained
+      # `traits: []` ("declares no traits"), while a fresh resolve on the same Xcode succeeded.
+      - name: Cache resolved Swift package checkouts
+        uses: actions/cache@v5
+        with:
+          path: .build/xcode/SourcePackages
+          key: ${{ runner.os }}-xcode-27.0-source-packages-${{ hashFiles('project.yml') }}
 
       - name: Setup
         run: ./scripts/setup.sh
