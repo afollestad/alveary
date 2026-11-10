@@ -15,7 +15,7 @@ struct ReviewTeamDefaultsTests {
         #expect(lineup(draft) == [
             "codex/gpt-5.6-sol/high",
             "codex/gpt-6-astra/max",
-            "claude/claude-fable-5-1/max"
+            "claude/claude-fable-5-2/high"
         ])
         #expect(viewModel.pullRequestReviewTeamSettingsStatus(peers: draft.pullRequestReviewPeers, settings: draft) == .ready)
         #expect(service.current == original)
@@ -43,7 +43,7 @@ struct ReviewTeamDefaultsTests {
 
         let draft = viewModel.reviewTeamEditorSettings()
         let expected = harnessID == .codex
-            ? ["claude/claude-opus-5-5/high", "claude/claude-fable-5-1/max"]
+            ? ["claude/claude-opus-5-5/high", "claude/claude-fable-5-2/high"]
             : ["codex/gpt-5.6-sol/high", "codex/gpt-6-astra/max"]
 
         #expect(lineup(draft) == expected)
@@ -65,7 +65,7 @@ struct ReviewTeamDefaultsTests {
         #expect(lineup(draft) == [
             "claude/claude-opus-5-5/high",
             "codex/gpt-6-astra/max",
-            "claude/claude-fable-5-1/max"
+            "claude/claude-fable-5-2/high"
         ])
         #expect(viewModel.pullRequestReviewTeamSettingsStatus(peers: draft.pullRequestReviewPeers, settings: draft) == .ready)
     }
@@ -92,10 +92,12 @@ struct ReviewTeamDefaultsTests {
 
     @Test(arguments: [AgentHarnessID.codex, .claude], [false, true])
     func `unavailable peer models or efforts remain requested`(harnessID: AgentHarnessID, unsupportedEffort: Bool) async {
-        let modelID = harnessID == .codex ? "gpt-6-astra" : "claude-fable-5-1"
+        let modelID = harnessID == .codex ? "gpt-6-astra" : "claude-fable-5-2"
         var options = ReviewTeamDefaultsFixtures.models(for: harnessID).filter { $0.model != modelID }
         if unsupportedEffort {
-            options.append(ReviewTeamDefaultsFixtures.model(harnessID: harnessID, id: modelID, efforts: ["high"]))
+            // Each ladder omits the effort that harness's suggested peer requests (Astra `max`, Fable `high`).
+            let efforts = harnessID == .codex ? ["high"] : ["max"]
+            options.append(ReviewTeamDefaultsFixtures.model(harnessID: harnessID, id: modelID, efforts: efforts))
         }
         var statuses = ReviewTeamDefaultsFixtures.statuses
         statuses[harnessID] = ReviewTeamDefaultsFixtures.status(for: harnessID, models: options)
@@ -106,7 +108,7 @@ struct ReviewTeamDefaultsTests {
         #expect(lineup(draft) == [
             "codex/gpt-5.6-sol/high",
             "codex/gpt-6-astra/max",
-            "claude/claude-fable-5-1/max"
+            "claude/claude-fable-5-2/high"
         ])
         guard case .needsAttention = viewModel.pullRequestReviewTeamSettingsStatus(peers: draft.pullRequestReviewPeers, settings: draft) else {
             Issue.record("An unavailable exact peer selection must block Save")
@@ -189,7 +191,9 @@ enum ReviewTeamDefaultsFixtures {
     }
 
     static func models(for harnessID: AgentHarnessID) -> [AgentModelOption] {
-        let ids = harnessID == .codex ? ["gpt-5.6-sol", "gpt-6-astra"] : ["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1"]
+        let ids = harnessID == .codex
+            ? ["gpt-5.6-sol", "gpt-6-astra"]
+            : ["claude-opus-5-5", "claude-opus-5", "claude-fable-5-2", "claude-fable-5-1"]
         return ids.map {
             let efforts = $0 == "claude-opus-5-5" ? ["medium", "high", "max"] : ["high", "max"]
             return model(harnessID: harnessID, id: $0, efforts: efforts)
@@ -205,6 +209,7 @@ enum ReviewTeamDefaultsFixtures {
         case "gpt-6-astra": "GPT-6-Astra"
         case "claude-opus-5-5": "Opus 5.5"
         case "claude-opus-5": "Opus 5"
+        case "claude-fable-5-2": "Fable 5.2"
         case "claude-fable-5-1": "Fable 5.1"
         default: id
         }

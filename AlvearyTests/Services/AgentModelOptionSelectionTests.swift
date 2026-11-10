@@ -72,7 +72,10 @@ final class AgentModelOptionSelectionTests: XCTestCase {
     func testStaticCatalogResolvesAPersistedPinnedIDBeforeDiscovery() {
         let options = AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .claude)
         for (model, label) in [
-            ("claude-opus-5-5", "Opus 5.5"), ("claude-opus-5", "Opus 5"), ("claude-sonnet-5-5", "Sonnet 5.5"), ("claude-sonnet-5", "Sonnet 5")
+            ("claude-fable-5-2", "Fable 5.2"), ("claude-fable-5-1", "Fable 5.1"),
+            ("claude-opus-5-5", "Opus 5.5"), ("claude-opus-5", "Opus 5"),
+            ("claude-sonnet-5-5", "Sonnet 5.5"), ("claude-sonnet-5", "Sonnet 5"),
+            ("claude-haiku-5-5", "Haiku 5.5"), ("claude-haiku-4-5", "Haiku 4.5")
         ] {
             let menuItems = AgentModelOptionSelection.menuItems(
                 in: options,
@@ -90,13 +93,16 @@ final class AgentModelOptionSelectionTests: XCTestCase {
     func testStaticCatalogNormalizesEffortForTheSelectedModelVersion() {
         let options = AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .claude)
 
-        for model in ["opus", "claude-opus-5-5", "sonnet", "claude-sonnet-5-5"] {
+        for model in ["opus", "claude-opus-5-5", "sonnet", "claude-sonnet-5-5", "haiku", "claude-haiku-5-5"] {
             XCTAssertEqual(AgentModelOptionSelection.normalizedEffort("ultra", options: options, selectedModel: model), "medium")
             XCTAssertEqual(AgentModelOptionSelection.normalizedEffort("high", options: options, selectedModel: model), "high")
         }
-        for model in ["claude-opus-5", "claude-sonnet-5"] {
+        for model in ["fable", "claude-fable-5-2", "claude-opus-5", "claude-sonnet-5"] {
             XCTAssertEqual(AgentModelOptionSelection.normalizedEffort("ultra", options: options, selectedModel: model), "high")
         }
+        // A persisted `haiku` alias now resolves to Haiku 5.5's full ladder; pinned Haiku 4.5 still stops at `high`.
+        XCTAssertEqual(AgentModelOptionSelection.normalizedEffort("max", options: options, selectedModel: "haiku"), "max")
+        XCTAssertEqual(AgentModelOptionSelection.normalizedEffort("max", options: options, selectedModel: "claude-haiku-4-5"), "medium")
     }
 
     func testStaticCatalogResolvesTheDefaultSentinelToTheDefaultOption() {

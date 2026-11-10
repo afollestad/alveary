@@ -222,7 +222,7 @@ extension SettingsViewModel {
     private func suggestedPullRequestReviewPeers() -> [PullRequestReviewPeer] {
         [
             PullRequestReviewPeer(id: UUID().uuidString, harnessID: "codex", model: "gpt-6-astra", effort: "max"),
-            PullRequestReviewPeer(id: UUID().uuidString, harnessID: "claude", model: "claude-fable-5-1", effort: "max")
+            PullRequestReviewPeer(id: UUID().uuidString, harnessID: "claude", model: "claude-fable-5-2", effort: "high")
         ].filter { peer in
             guard let status = harnessStatuses[peer.harnessID],
                   settingsService.current.isHarnessEnabled(peer.harnessID),
