@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Alveary</title>
     <meta name="description"
-        content="Alveary is a free and open source native macOS app for orchestrating AI coding agents like Claude Code and Codex — with scheduled tasks, Git worktrees, and pull request workflows built in.">
+        content="Alveary is a free and open source native macOS app for AI coding agents: run Claude Code, Codex, and OpenCode in Git worktrees, on a schedule, and on your pull requests.">
 
     <meta name="theme-color" content="#fffaf0" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#120e07" media="(prefers-color-scheme: dark)">
@@ -15,7 +15,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://alveary.af.codes">
     <meta property="og:description"
-        content="Alveary is a free and open source native macOS app for orchestrating AI coding agents like Claude Code and Codex — with scheduled tasks, Git worktrees, and pull request workflows built in.">
+        content="A free and open source native macOS app for AI coding agents: run Claude Code, Codex, and OpenCode in Git worktrees, on a schedule, and on your pull requests.">
     <!-- images/og-image.png is composed for the 1200x630 link previews expect, on
          an opaque dark glow, since a preview can't know the reader's theme and
          composites transparency unpredictably. It has to stay a PNG: crawler
@@ -102,8 +102,7 @@
 
             <h1>Alveary</h1>
             <p class="tagline">
-                Run Claude Code, Codex, and <a href="https://opencode.ai">OpenCode</a> from one native macOS workspace&nbsp;— with an
-                embedded terminal, voice input, and deep Git integration.
+                Run Claude Code, Codex, and <a href="https://opencode.ai">OpenCode</a> from one native macOS workspace.
             </p>
 
             <div class="cta-row">
@@ -117,8 +116,8 @@
                     </svg>
                     <span class="btn-stack">
                         <span>Download</span>
-                        <span class="btn-subtext download-label">macOS 26 or later</span>
-                        <span class="btn-subtext download-label-unavailable">Only for macOS</span>
+                        <span class="btn-subtext download-label">Apple silicon, macOS 26+</span>
+                        <span class="btn-subtext download-label-unavailable">Only for Apple silicon Macs</span>
                     </span>
                 </a>
                 <a class="btn-ghost" href="https://github.com/afollestad/alveary">
@@ -156,7 +155,7 @@
             <h2>Work that starts itself</h2>
             <p class="feature-copy">
                 Run agents on a schedule — daily briefs, periodic pull request reviews, or any recurring
-                work you'd rather not kick off by hand.
+                work you'd rather not kick off by hand. Or just ask an agent to check back in half an hour.
             </p>
             <picture>
                 <source srcset="images/screenshot-scheduled-tasks-dark.webp" type="image/webp" data-theme="dark"
@@ -173,8 +172,9 @@
             <p class="chip">Pull requests</p>
             <h2>Review without leaving the app</h2>
             <p class="feature-copy">
-                Open and manage your own pull requests, and review your teammates' — by hand or with an
-                agent — all without leaving the app.
+                Open and manage your own pull requests, and hand an agent the feedback on them. Review your
+                teammates' by hand, with an agent, or with a team of models that cross-check each other —
+                nothing posts until you confirm.
             </p>
             <picture>
                 <source srcset="images/screenshot-pull-requests-dark.webp" type="image/webp" data-theme="dark"
@@ -183,6 +183,35 @@
                     alt="The Pull requests tab: pull requests on the left grouped into authored and pending review, and a detail pane on the right with the description, testing notes, linked threads, reviewers, and checks."
                     width="1953" height="1299" loading="lazy" decoding="async">
             </picture>
+        </div>
+    </section>
+
+    <section class="section-feature" id="details">
+        <div class="container details">
+            <div class="detail">
+                <h2>Worktrees</h2>
+                <p>Give a thread its own Git worktree, then diff, commit, and push from the panel beside it.</p>
+            </div>
+            <div class="detail">
+                <h2>Terminal</h2>
+                <p>Open shells and run project actions in terminal tabs, in the folder you pick from the toolbar.</p>
+            </div>
+            <div class="detail">
+                <h2>Voice input</h2>
+                <p>Dictate to an agent in English. Speech is transcribed on your Mac and never leaves it.</p>
+            </div>
+            <div class="detail">
+                <h2>App shots</h2>
+                <p>Attach a screenshot of any app with its accessibility tree, so an agent sees what you see.</p>
+            </div>
+            <div class="detail">
+                <h2>Skills and MCP</h2>
+                <p>Install skills from skills.sh, and add an MCP server to several harnesses at once.</p>
+            </div>
+            <div class="detail">
+                <h2>Menu bar</h2>
+                <p>Your recent threads and the pull requests waiting on your review, one click away.</p>
+            </div>
         </div>
     </section>
 

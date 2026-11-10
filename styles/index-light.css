@@ -20,6 +20,8 @@
     --logo-circle: #ffffff;
     --glass: rgba(255, 255, 255, .55);
     --glass-border: rgba(31, 26, 16, .1);
+    /* --fg, faint: the details grid's column rules. */
+    --hairline: rgba(31, 26, 16, .12);
     --glass-shadow: rgba(122, 74, 0, .18);
     --icon-shadow: rgba(122, 74, 0, .25);
     --window-rim-shadow: rgba(31, 26, 16, .18);
