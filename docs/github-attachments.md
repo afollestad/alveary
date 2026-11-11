@@ -74,4 +74,4 @@ attachment_repo_id=$("$gh_bin" api --hostname github.com "repos/$attachment_repo
 - Compare the version-pinned sources above with the installed and latest CLI implementations: endpoint host/path, credential support, query parameters, headers, response URL, formats, and error statuses.
 - Update transport, validation, compatibility requirements, picker formats, and response/error fixtures together. Keep credentials inside `gh`; do not restore the removed extension or browser-cookie flow.
 - Re-run focused attachment service and view-model tests, then relevant PR composer/list/review snapshots. Verify image/video drafts and partial failures; changing the transport must preserve inline-review workflows.
-- Update this source baseline and README requirements when changing the contract or minimum supported version.
+- Update this source baseline and the requirements in `docs/pull-requests.md` when changing the contract or minimum supported version.

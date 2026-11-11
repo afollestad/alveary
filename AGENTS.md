@@ -13,7 +13,7 @@
 - Categorize bullets with `##` sections when there are enough points; split dense rules into short sub-bullets with bold imperative leads.
 - **Give a cohesive subsystem its own folder and `AGENTS.md` once trimming and sectioning stop being enough.** `git mv` its files together, write the nested file, and leave the parent one line naming what the child now owns.
     - Create the sibling symlink with `ln -s AGENTS.md CLAUDE.md`; that symlink is what loads the file into context. `project.yml` already excludes `**/CLAUDE.md`.
-- Update `README.md` plus scoped guidance when dependencies, project structure, or lint rules change.
+- **Keep `README.md` and `docs/` for people.** Put agent rules here or in doc comments, and keep dependency pins, CI details, and change history out of both. Update `README.md` and scoped guidance when dependencies, project structure, or lint rules change, and `docs/` when user-facing behavior does.
 
 ## Scoped Guidance
 
@@ -27,6 +27,7 @@ Read the nearest `AGENTS.md` before editing; every scoped folder pairs it with a
 - After adding an SPM dependency, update `project.yml`, then run `xcodegen generate`.
 - After changing an SPM pin's revision, run `xcodegen generate`, then `xcodebuild -project Alveary.xcodeproj -scheme Alveary -derivedDataPath .build/xcode -resolvePackageDependencies`, and confirm `.build/xcode/SourcePackages/checkouts/<dep>` is at the new revision. Omitting `-derivedDataPath` resolves the default DerivedData instead of the tree the scripts build from, leaving that checkout untouched. `Package.resolved` can also carry the new revision while the checkout stays on the old one, and no build script forces resolution, so build, test, and snapshot runs all pass green against the old dependency.
 - Do not commit `Alveary.xcodeproj/`; it is gitignored and regenerated.
+- Keep the app target unsandboxed, with hardened runtime on.
 - Debug app signing uses `Config/CodeSigning/AlvearyDebugTCC.requirements` so app-shot TCC grants survive rebuilds. If `PRODUCT_BUNDLE_IDENTIFIER` changes, update that requirement too. When a privacy row is enabled but raw probes are false, reset Alveary's TCC grants or remove the stale row before re-dragging the rebuilt app.
 
 ## Build And Test
@@ -47,7 +48,6 @@ Read the nearest `AGENTS.md` before editing; every scoped folder pairs it with a
 - Run the built app: `./scripts/run.sh`.
 - Interactive development can also use the `Alveary` scheme in Xcode.
 - Test: `./scripts/test.sh`, or pass focused identifiers as arguments.
-- Lint: `./scripts/lint.sh`.
 - Release CI uses Developer ID signing and notarization secrets in GitHub Actions; do not commit certificate or API-key material.
 - Snapshot workflows use `./scripts/snapshots.sh`; verify snapshots before committing UI changes.
 - **CI does not run `snapshots.sh`, deliberately.** The scheme's test target is all of `AlvearyTests`, so `test.sh` already runs `SnapshotTests`; a separate verify step re-ran the same suite after a full recompile. Do not restore it.
