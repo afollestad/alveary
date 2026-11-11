@@ -9,7 +9,6 @@ This branch *is* the published site. GitHub Pages serves it from the repo root, 
 - The hero is a hive: a honeycomb fading down from the top over a glow behind the window. The comb is an inline SVG `<pattern>` stroked in `currentColor`, which the theme sheets set from `--comb`.
 - Feature sections are centered rather than split beside their text like the siblings' phones, since a window screenshot needs the full width.
 - `scripts/platform-gate.js` greys out the download for visitors not on a Mac before first paint, keyed on `#release-link`; Reqling's and Roastier's `gh-pages` carry it verbatim, so change the three together.
-- `#details` is plain columns between hairlines, three to a row, carried from reqling.af.codes' `gh-pages`; keep the count a multiple of three so rows stay full, and change the two sites' rules together.
 - The footer gradients that use `in oklab` follow an sRGB copy with literal colors, since a `var()` in the second declaration would defeat the fallback.
 
 ## Theming
