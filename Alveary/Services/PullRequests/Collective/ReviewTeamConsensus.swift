@@ -96,17 +96,27 @@ enum ReviewTeamConsensus {
         }
     }
 
-    /// Unwrap only a complete outer JSON fence; searching prose for an object could select the wrong report.
+    /// Unwrap one complete JSON fence that ends the response, or skip prose ahead of the first line
+    /// opening an object — a one-line preamble otherwise discards a reviewer's whole report. Never
+    /// search the prose for an object: everything after the preamble, or inside the fence, must parse
+    /// as the entire report, so trailing prose, a second report, or an example on its own line fails.
     private static func normalizedJSON(_ text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let openingEnd = trimmed.firstIndex(where: \.isNewline),
-              let closingStart = trimmed.lastIndex(where: \.isNewline),
-              openingEnd < closingStart else { return trimmed }
-        let opening = trimmed[..<openingEnd].trimmingCharacters(in: .whitespaces).lowercased()
-        let closing = trimmed[trimmed.index(after: closingStart)...].trimmingCharacters(in: .whitespaces)
-        guard opening == "```json" || opening == "```", closing == "```" else { return trimmed }
-        return String(trimmed[trimmed.index(after: openingEnd)..<closingStart])
+        let lines = trimmed.split(omittingEmptySubsequences: false, whereSeparator: lineBreaks.contains)
+        let markers = lines.map { $0.trimmingCharacters(in: .whitespaces) }
+        let fences = markers.indices.filter { markers[$0].hasPrefix("```") }
+        if fences.isEmpty {
+            guard let start = markers.firstIndex(where: { $0.hasPrefix("{") }) else { return trimmed }
+            return lines[start...].joined(separator: "\n")
+        }
+        guard fences.count == 2, fences[1] == lines.count - 1, markers[fences[1]] == "```",
+              ["```", "```json"].contains(markers[fences[0]].lowercased()) else { return trimmed }
+        return lines[(fences[0] + 1)..<fences[1]].joined(separator: "\n")
     }
+
+    /// A JSON string cannot hold a raw CR or LF, so these never fall inside one. `isNewline` would also
+    /// split on U+2028 and U+2029, which JSON allows unescaped in a string.
+    private static let lineBreaks: Set<Character> = ["\n", "\r\n", "\r"]
 
     /// Decoder debug descriptions can echo response content; expose only the failure category and schema path.
     private static func decodingDiagnostic(_ error: DecodingError, data: Data) -> String {

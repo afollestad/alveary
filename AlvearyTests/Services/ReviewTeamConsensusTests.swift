@@ -97,11 +97,15 @@ struct ReviewTeamConsensusTests {
         }
     }
 
-    @Test(arguments: ["bare", "", "json", "JSON"])
-    func `all review reports accept a single JSON response with optional code fencing`(format: String) throws {
+    @Test(arguments: ["bare", "", "json", "JSON", "prose", "prose-fenced"])
+    func `all review reports accept a single JSON response with optional code fencing or prose preamble`(format: String) throws {
         func response(_ payload: String) -> String {
-            if format == "bare" { return " \t\r\n" + payload + "\r\n\t " }
-            return " \t\r\n  ```\(format) \t\r\n\(payload)\r\n \t```  \r\n\t "
+            switch format {
+            case "bare": return " \t\r\n" + payload + "\r\n\t "
+            case "prose": return "All candidates check out. Producing the JSON now.\n\n" + payload
+            case "prose-fenced": return "Here is the result:\n```json\n\(payload)\n```"
+            default: return " \t\r\n  ```\(format) \t\r\n\(payload)\r\n \t```  \r\n\t "
+            }
         }
         let evidence = #"The value "雪" retains literal ``` backticks and a \ path."#
         let inspection = try ReviewTeamConsensus.inspection(
@@ -119,7 +123,8 @@ struct ReviewTeamConsensusTests {
     }
 
     @Test(arguments: [
-        "Here is the result:\n{\"findings\":[]}",
+        "Here is the result:\n{\"findings\":[]}\nDone.",
+        "Example:\n{\"findings\":[]}\nThe report:\n{\"findings\":[]}",
         "{\"findings\":[]}\nDone.",
         "```json\n{\"findings\":[]}",
         "```json {\"findings\":[]}\n```",
