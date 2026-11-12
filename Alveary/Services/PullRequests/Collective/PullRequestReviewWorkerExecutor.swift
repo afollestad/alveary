@@ -26,6 +26,8 @@ enum PullRequestReviewWorkerError: Error, Equatable, LocalizedError {
     case outputTooLarge
     case commandFailed(harnessID: String, exitCode: Int32, message: String)
     case emptyOutput(String)
+    /// `progress` is a content-free summary of how far the worker got, when its harness reports one.
+    case timedOut(harnessID: String, timeout: Duration, progress: String?)
 
     var errorDescription: String? {
         switch self {
@@ -47,7 +49,19 @@ enum PullRequestReviewWorkerError: Error, Equatable, LocalizedError {
             "The \(harnessID) review worker exited with code \(exitCode). \(message)"
         case .emptyOutput(let harnessID):
             "The \(harnessID) review worker returned no output."
+        case .timedOut(let harnessID, let timeout, let progress):
+            Self.timeoutDescription(harnessID: harnessID, timeout: timeout, progress: progress)
         }
+    }
+
+    private static func timeoutDescription(harnessID: String, timeout: Duration, progress: String?) -> String {
+        let seconds = Int(timeout.components.seconds)
+        let length = seconds >= 60 && seconds % 60 == 0
+            ? ReviewTeamDiagnostics.counted(seconds / 60, "minute")
+            : ReviewTeamDiagnostics.counted(seconds, "second")
+        let summary = "The \(harnessID) review worker timed out after \(length)."
+        guard let progress else { return summary }
+        return "\(summary) \(progress)"
     }
 }
 
@@ -229,19 +243,7 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
         adapter: any AgentCLIKit.AgentHarnessAdapter,
         processKey: PullRequestReviewWorkerProcessKey
     ) async throws -> String {
-        let timeout: Duration
-        let timeoutClock: ShellTimeoutClock
-        if let deadline = prepared.executionDeadline {
-            let remaining = deadline.timeIntervalSinceNow
-            guard remaining > 0 else {
-                throw AgentCLIKit.AgentOneShotPromptError.timedOut(harnessId: request.harnessId, timeout: 0)
-            }
-            timeout = .seconds(min(Self.timeoutSeconds, remaining))
-            timeoutClock = .continuous
-        } else {
-            timeout = .seconds(Self.timeoutSeconds)
-            timeoutClock = .suspending
-        }
+        let (timeout, timeoutClock) = try Self.executionTimeout(prepared, harnessID: request.harnessId)
         let shellRunner = executionShellRunner ?? DefaultShellRunner(processTracker: processRegistry.tracker(for: processKey))
         let result: ShellResult
         do {
@@ -260,6 +262,11 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
                     standardInput: command.standardInput.map(ShellStandardInput.text) ?? .nullDevice
                 )
             )
+        } catch let ShellError.timeout(_, timeout, capturedStdout, stdoutWasTruncated) {
+            let progress = request.harnessId == .claude
+                ? ReviewWorkerClaudeProgress(stdout: capturedStdout, wasTruncated: stdoutWasTruncated)?.summary
+                : nil
+            throw PullRequestReviewWorkerError.timedOut(harnessID: request.harnessId.rawValue, timeout: timeout, progress: progress)
         } catch let ShellError.ioFailure(failure) {
             try Task.checkCancellation()
             let assessment = request.harnessId == .codex ? ReviewWorkerCodexCompletion.assess(failure) : nil
@@ -274,6 +281,17 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
             request: request,
             adapter: adapter
         )
+    }
+
+    /// A credential deadline is wall-clock; otherwise the limit counts only awake time.
+    private static func executionTimeout(
+        _ prepared: AgentCLIKit.AgentPreparedOneShotPrompt,
+        harnessID: AgentCLIKit.AgentHarnessID
+    ) throws -> (Duration, ShellTimeoutClock) {
+        guard let deadline = prepared.executionDeadline else { return (.seconds(timeoutSeconds), .suspending) }
+        let remaining = deadline.timeIntervalSinceNow
+        guard remaining > 0 else { throw AgentCLIKit.AgentOneShotPromptError.timedOut(harnessId: harnessID, timeout: 0) }
+        return (.seconds(min(timeoutSeconds, remaining)), .continuous)
     }
 
     private func finalText(

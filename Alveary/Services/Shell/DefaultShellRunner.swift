@@ -93,7 +93,10 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
             }
             try Task.checkCancellation()
             if !capture.didFinish, let timeout = options.timeout {
-                throw ShellError.timeout(executable: executable, timeout: timeout)
+                throw ShellError.timeout(
+                    executable: executable, timeout: timeout,
+                    capturedStdout: capture.standardOutput.data, stdoutWasTruncated: capture.standardOutput.wasTruncated
+                )
             }
             let result = ShellResult(
                 stdout: String(bytes: capture.standardOutput.data, encoding: .utf8) ?? "",

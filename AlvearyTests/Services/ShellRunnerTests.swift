@@ -163,12 +163,14 @@ final class ShellRunnerTests: XCTestCase {
                 _ = try await runner.run(
                     executable: "/usr/bin/perl",
                     args: ["-e", "$SIG{TERM}=sub{}; $|=1; print 'A' x 131072; sleep 10;"],
-                    options: ShellRunOptions(timeout: .milliseconds(100), timeoutClock: timeoutClock)
+                    options: ShellRunOptions(timeout: .milliseconds(100), timeoutClock: timeoutClock, stdoutLimitBytes: 65_536)
                 )
                 XCTFail("Expected timeout on \(timeoutClock)")
-            } catch let ShellError.timeout(executable, timeout) {
+            } catch let ShellError.timeout(executable, timeout, capturedStdout, stdoutWasTruncated) {
                 XCTAssertEqual(executable, "/usr/bin/perl")
                 XCTAssertEqual(timeout, .milliseconds(100))
+                XCTAssertEqual(capturedStdout, Data(repeating: UInt8(ascii: "A"), count: 65_536))
+                XCTAssertTrue(stdoutWasTruncated)
                 XCTAssertLessThan(start.duration(to: clock.now), .seconds(3))
             }
         }
@@ -286,7 +288,7 @@ final class ShellRunnerTests: XCTestCase {
                 timeout: .milliseconds(100)
             )
             XCTFail("Expected timeout")
-        } catch let ShellError.timeout(executable, timeout) {
+        } catch let ShellError.timeout(executable, timeout, _, _) {
             XCTAssertEqual(executable, "/usr/bin/perl")
             XCTAssertEqual(timeout, .milliseconds(100))
             XCTAssertLessThan(start.duration(to: clock.now), .seconds(4))

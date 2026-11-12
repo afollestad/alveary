@@ -144,7 +144,9 @@ extension ShellRunner {
 
 enum ShellError: Error, Sendable, Equatable {
     case launchFailed(executable: String, domain: String, code: Int, reason: String)
-    case timeout(executable: String, timeout: Duration)
+    /// `capturedStdout` is what the child wrote before it was stopped, so a caller can report how far it got; past
+    /// `stdoutLimitBytes` it holds only the start. It can hold review content, so no description may include it.
+    case timeout(executable: String, timeout: Duration, capturedStdout: Data = Data(), stdoutWasTruncated: Bool = false)
     case ioFailure(ShellIOFailure)
     case invalidDirectory(String)
 }
@@ -199,7 +201,7 @@ extension ShellError: LocalizedError, CustomStringConvertible, CustomDebugString
             return "Could not launch \(executable) (\(domain), code \(code)): \(reason)"
         case .invalidDirectory(let directory):
             return "The working directory is unavailable: \(directory)"
-        case .timeout(let executable, let timeout):
+        case .timeout(let executable, let timeout, _, _):
             return "\(executable) timed out after \(timeout.components.seconds) seconds"
         case .ioFailure(let failure):
             return failure.diagnostic

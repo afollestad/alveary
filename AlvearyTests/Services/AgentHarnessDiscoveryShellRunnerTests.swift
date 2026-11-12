@@ -79,7 +79,7 @@ final class AgentHarnessDiscoveryShellRunnerTests: XCTestCase {
         do {
             _ = try await runner.run(.init(executable: "/usr/bin/perl", arguments: ["-e", script]))
             XCTFail("Expected the stalled discovery command to time out")
-        } catch let ShellError.timeout(executable, timeout) {
+        } catch let ShellError.timeout(executable, timeout, _, _) {
             XCTAssertEqual(executable, "/usr/bin/perl")
             XCTAssertEqual(timeout, .seconds(1))
             XCTAssertLessThan(startedAt.duration(to: clock.now), .seconds(4))

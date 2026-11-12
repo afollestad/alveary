@@ -88,14 +88,39 @@ extension PullRequestReviewWorkerExecutorTests {
         let fixture = try await makeFixture(
             harnessID: "codex", script: "#!/bin/sh\nexit 99\n",
             capabilityShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.help]),
-            executionShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.timeout])
+            executionShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.timeout(stdout: "{\"type\":\"turn.started\"}\n")])
         )
 
         do {
             _ = try await executeIOFixture(fixture)
             XCTFail("Expected timeout")
-        } catch let error as ShellError {
-            XCTAssertEqual(error, .timeout(executable: fixture.configuration.executablePath, timeout: .seconds(1)))
+        } catch let error as PullRequestReviewWorkerError {
+            XCTAssertEqual(error, .timedOut(harnessID: "codex", timeout: .seconds(1), progress: nil))
+            XCTAssertEqual(error.localizedDescription, "The codex review worker timed out after 1 second.")
+        }
+    }
+
+    /// A Claude timeout reports how far the worker got, from what it streamed before it was stopped.
+    func testClaudeExecutionTimeoutReportsProgress() async throws {
+        let stream = [
+            #"{"type":"assistant","message":{"id":"m1","content":[{"type":"tool_use","name":"Grep"}],"usage":{"input_tokens":12000}}}"#,
+            #"{"type":"system","subtype":"api_retry","attempt":2,"max_retries":10,"error":"overloaded","error_status":529}"#
+        ].joined(separator: "\n")
+        let fixture = try await makeFixture(
+            harnessID: "claude", script: "#!/bin/sh\nexit 99\n",
+            capabilityShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.help]),
+            executionShellRunner: ReviewWorkerIOTestShellRunner(outcomes: [.timeout(stdout: stream)])
+        )
+
+        do {
+            _ = try await executeIOFixture(fixture)
+            XCTFail("Expected timeout")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, """
+            The claude review worker timed out after 1 second. It had taken 1 turn and made 1 tool call, and its last answered \
+            request carried 12K tokens of context. It was retrying a failed API request when it was stopped (attempt 2 of 10, overloaded, \
+            HTTP 529).
+            """)
         }
     }
 
@@ -154,7 +179,7 @@ actor ReviewWorkerIOTestShellRunner: ShellRunner {
     enum Outcome: Sendable {
         case help
         case ioFailure(String)
-        case timeout
+        case timeout(stdout: String)
         case cancelledIOFailure(String)
     }
 
@@ -175,8 +200,8 @@ actor ReviewWorkerIOTestShellRunner: ShellRunner {
                                stdoutWasTruncated: false, stderrWasTruncated: false)
         case .ioFailure(let stdout):
             throw ReviewWorkerIOTestSupport.failure(executable: executable, stdout: stdout)
-        case .timeout:
-            throw ShellError.timeout(executable: executable, timeout: .seconds(1))
+        case .timeout(let stdout):
+            throw ShellError.timeout(executable: executable, timeout: .seconds(1), capturedStdout: Data(stdout.utf8))
         case .cancelledIOFailure(let stdout):
             withUnsafeCurrentTask { $0?.cancel() }
             throw ReviewWorkerIOTestSupport.failure(executable: executable, stdout: stdout)
