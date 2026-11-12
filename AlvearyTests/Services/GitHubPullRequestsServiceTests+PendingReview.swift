@@ -100,6 +100,29 @@ extension GitHubPullRequestsServiceTests {
         XCTAssertTrue(comment.viewerCanDelete)
     }
 
+    /// A comment's read-back carries its whole `diffHunk` — on a new file, everything above the
+    /// commented line — and GitHub has kept the write by the time it arrives, so its size must not
+    /// fail the call.
+    func testReviewCommentWritesAcceptAReadBackPastTheDefaultCap() async throws {
+        let hunk = String(repeating: "+let value = 1\\n", count: 8_000)
+        let thread = Self.addThreadResponse.replacingOccurrences(
+            of: #""state": "PENDING","#,
+            with: #""state": "PENDING", "diffHunk": "\#(hunk)","#
+        )
+        let comment = #"{"diff_hunk":"\#(hunk)"}"#
+        let shell = MockShellRunner()
+        for stdout in [thread, comment, comment] {
+            await shell.enqueue(.success(pullRequestsShellResult(stdout: stdout)))
+        }
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        _ = try await service.addPendingReviewComment(
+            reviewNodeID: "PRR_draft", path: "Sources/Parser.swift", line: 12, side: .left, body: "Note"
+        )
+        try await service.replyToReviewComment(Self.id, commentID: 987, body: "Reply")
+        try await service.updateReviewComment(Self.id, commentID: 987, body: "Edit")
+    }
+
     func testUpdateAndDeletePendingCommentUseNodeIDs() async throws {
         let shell = MockShellRunner()
         await shell.enqueue(.success(pullRequestsShellResult(stdout: "{}")))
@@ -180,6 +203,10 @@ extension GitHubPullRequestsServiceTests {
         let detail = try await service.fetchDetail(Self.id)
 
         XCTAssertEqual(detail.pendingReviewNodeID, "PRR_draft")
+        // Read off the review itself, without its pending reply.
+        XCTAssertEqual(detail.pendingReviewComments, [
+            PullRequestPendingReviewComment(path: "Sources/Lexer.swift", line: 4, bodyMarkdown: "Not submitted yet.")
+        ])
         // The viewer's own draft is not activity: it must never render as a
         // review card or a reviewer verdict.
         XCTAssertEqual(detail.reviews.map(\.nodeID), ["PRR_1"])

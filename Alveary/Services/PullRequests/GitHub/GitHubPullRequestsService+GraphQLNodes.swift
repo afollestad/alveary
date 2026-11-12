@@ -214,6 +214,10 @@ struct GraphQLCommentNode: Decodable {
     /// its review card in the Overview timeline.
     let pullRequestReview: GraphQLNodeReference?
     let reactionGroups: [GraphQLReactionGroupNode?]?
+    // Selected only on the pending review's own comments.
+    let path: String?
+    let line: Int?
+    let replyTo: GraphQLNodeReference?
 }
 
 /// A bare `{ id }` node reference.
@@ -244,6 +248,8 @@ struct GraphQLReviewNode: Decodable {
     let body: String?
     let submittedAt: Date?
     let reactionGroups: [GraphQLReactionGroupNode?]?
+    /// Selected only on the aliased pending review.
+    let comments: GraphQLCommentsNode?
 }
 
 struct GraphQLReviewThreadsNode: Decodable {

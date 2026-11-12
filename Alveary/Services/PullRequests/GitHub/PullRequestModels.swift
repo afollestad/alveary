@@ -342,6 +342,10 @@ struct PullRequestDetail: Equatable, Sendable {
     /// through it, and submitting finishes *this* review rather than opening a
     /// second one beside it.
     var pendingReviewNodeID: String?
+    /// The pending review's root comments, read off the review itself. `reviewThreads` is one
+    /// oldest-first page, so on a busy pull request it can end before the draft's threads, which
+    /// are usually the newest.
+    var pendingReviewComments: [PullRequestPendingReviewComment] = []
     /// The head commit the diff ends at. Image rows in the Changes tab fetch ordinary blob bytes by
     /// commit, so an image is left as a callout when this is missing.
     var headRefOid: String?
@@ -359,4 +363,11 @@ struct PullRequestDetail: Equatable, Sendable {
     var pendingCommentCount: Int {
         reviewThreads.reduce(0) { $0 + $1.comments.filter(\.isPending).count }
     }
+}
+
+/// GitHub reports no diff side on a review comment, only on its thread.
+struct PullRequestPendingReviewComment: Equatable, Sendable {
+    let path: String
+    let line: Int?
+    let bodyMarkdown: String
 }

@@ -71,7 +71,8 @@ extension GitHubPullRequestsService {
                 side: side,
                 body: body
             ),
-            timeout: .seconds(30)
+            timeout: .seconds(30),
+            stdoutLimitBytes: Self.reviewCommentReadBackLimitBytes
         )
         guard result.succeeded else {
             throw Self.makeError(from: result)
@@ -132,7 +133,8 @@ extension GitHubPullRequestsService {
                 "-X", "PATCH",
                 "-f", "body=\(body)"
             ],
-            timeout: .seconds(30)
+            timeout: .seconds(30),
+            stdoutLimitBytes: Self.reviewCommentReadBackLimitBytes
         )
         guard result.succeeded else {
             throw Self.makeError(from: result)
@@ -325,7 +327,8 @@ extension GitHubPullRequestsService {
                 "-X", "POST",
                 "-f", "body=\(body)"
             ],
-            timeout: .seconds(30)
+            timeout: .seconds(30),
+            stdoutLimitBytes: Self.reviewCommentReadBackLimitBytes
         )
         guard result.succeeded else {
             throw Self.makeError(from: result)
@@ -439,4 +442,10 @@ extension GitHubPullRequestsService {
             .compactMap { PullRequestURLParser.identifier(from: String($0).trimmingCharacters(in: .whitespaces)) }
             .first
     }
+
+    /// For writes whose response carries a review comment's `diffHunk`, which on a new file is
+    /// everything above the commented line. The write has landed by the time the response is
+    /// refused, so a cap it can outgrow reports failure for a comment GitHub kept — and a retry
+    /// posts it again. Matches the detail query's cap, which holds every thread's hunk at once.
+    private static let reviewCommentReadBackLimitBytes = 8 * 1024 * 1024
 }

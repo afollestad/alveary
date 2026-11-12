@@ -186,8 +186,8 @@ extension ReviewProposalCoordinatorTests {
         )
         var detail = makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
         // The first attempt already wrote the comment — at the relocated line 2, not the stored 1.
-        detail.reviewThreads = [
-            makeReviewThread(nodeID: "THREAD_1", path: "File0.swift", line: 2, isPending: true)
+        detail.pendingReviewComments = [
+            PullRequestPendingReviewComment(path: "File0.swift", line: 2, bodyMarkdown: "Consider a guard here.")
         ]
         fixture.service.detailResult = .success(detail)
         fixture.service.diffResult = .success(

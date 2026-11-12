@@ -209,7 +209,19 @@ enum PullRequestsServiceFixtures {
             }
           ]
         },
-        "pendingReview": { "nodes": [{ "id": "PRR_draft" }] },
+        "pendingReview": {
+          "nodes": [
+            {
+              "id": "PRR_draft",
+              "comments": {
+                "nodes": [
+                  { "path": "Sources/Lexer.swift", "line": 4, "body": "Not submitted yet.", "replyTo": null },
+                  { "path": "Sources/Parser.swift", "line": 12, "body": "Pending reply", "replyTo": { "id": "PRRC_1" } }
+                ]
+              }
+            }
+          ]
+        },
         "reviewRequests": {
           "nodes": [
             {

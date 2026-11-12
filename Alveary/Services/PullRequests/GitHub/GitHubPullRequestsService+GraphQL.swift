@@ -180,7 +180,9 @@ extension GitHubPullRequestsService {
               reactionGroups { content viewerHasReacted reactors { totalCount } }
             }
           }
-          pendingReview: reviews(first: 1, states: [PENDING]) { nodes { id } }
+          pendingReview: reviews(first: 1, states: [PENDING]) {
+            nodes { id comments(first: 100) { nodes { path line body replyTo { id } } } }
+          }
           reviewThreads(first: \(PullRequestDetail.reviewThreadPageSize)) { nodes { \(reviewThreadSelection) } }
           reviewRequests(first: 20) {
             nodes {

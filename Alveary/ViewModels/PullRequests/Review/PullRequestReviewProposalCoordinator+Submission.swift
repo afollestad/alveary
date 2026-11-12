@@ -127,21 +127,19 @@ extension PullRequestReviewProposalCoordinator {
     /// `line` is the *resolved* line, because that is where the write loop publishes: a relocated
     /// comment a first attempt landed sits in the draft at its new line, and matching the stored
     /// one would re-post it on every retry.
+    ///
+    /// Reads `pendingReviewComments`, never `reviewThreads`, whose page can end before the draft's
+    /// threads; it carries no side, so the match is by path, line, and body.
     static func alreadyWritten(
         _ comment: PullRequestReviewProposalRecord.Comment,
         at line: Int,
         in detail: PullRequestDetail
     ) -> Bool {
         let body = comment.body.trimmingCharacters(in: .whitespacesAndNewlines)
-        return detail.reviewThreads.contains { thread in
-            thread.isPending
-                && thread.path == comment.path
-                && thread.line == line
-                && thread.side.rawValue == comment.side
-                && thread.comments.contains { candidate in
-                    candidate.isPending
-                        && candidate.bodyMarkdown.trimmingCharacters(in: .whitespacesAndNewlines) == body
-                }
+        return detail.pendingReviewComments.contains { candidate in
+            candidate.path == comment.path
+                && candidate.line == line
+                && candidate.bodyMarkdown.trimmingCharacters(in: .whitespacesAndNewlines) == body
         }
     }
 }

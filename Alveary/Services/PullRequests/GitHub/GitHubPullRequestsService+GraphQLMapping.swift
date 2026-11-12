@@ -198,9 +198,18 @@ extension GitHubPullRequestsService {
             viewerCanUpdate: node.viewerCanUpdate ?? false,
             headRefExists: node.headRef != nil,
             pendingReviewNodeID: node.pendingReview?.nodes?.first??.id,
+            pendingReviewComments: makePendingReviewComments(from: node.pendingReview?.nodes?.first??.comments),
             headRefOid: node.headRefOid,
             baseRefOid: node.baseRefOid
         )
+    }
+
+    /// Root comments only: a pending reply sits on a thread the draft did not open.
+    static func makePendingReviewComments(from node: GraphQLCommentsNode?) -> [PullRequestPendingReviewComment] {
+        (node?.nodes ?? []).compactMap { comment in
+            guard let comment, comment.replyTo == nil, let path = comment.path else { return nil }
+            return PullRequestPendingReviewComment(path: path, line: comment.line, bodyMarkdown: comment.body ?? "")
+        }
     }
 
     static func makeStatus(state: String, isDraft: Bool) -> PullRequestStatus {

@@ -135,15 +135,16 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
     }
 
     /// The refetched detail carries whatever the first attempt wrote, so a retry writes only what
-    /// is missing rather than double-posting the comments that landed.
+    /// is missing rather than double-posting the comments that landed — even when the draft's
+    /// threads fall past the detail's single thread page, as they do on a busy pull request.
     func testARetrySkipsStagedCommentsAlreadyInTheDraft() async throws {
         let fixture = try ReviewProposalFixture(comments: [
             ReviewProposalFixture.stagedComment(line: 1, body: "Consider a guard here."),
             ReviewProposalFixture.stagedComment(line: 2, body: "Second")
         ])
         var detail = makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
-        detail.reviewThreads = [
-            makeReviewThread(nodeID: "THREAD_1", path: "File0.swift", line: 1, isPending: true)
+        detail.pendingReviewComments = [
+            PullRequestPendingReviewComment(path: "File0.swift", line: 1, bodyMarkdown: "Consider a guard here.")
         ]
         fixture.service.detailResult = .success(detail)
 
