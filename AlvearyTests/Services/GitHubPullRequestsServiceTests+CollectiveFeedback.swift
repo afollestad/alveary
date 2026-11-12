@@ -18,10 +18,7 @@ extension GitHubPullRequestsServiceTests {
             feedbackPage("reviewThreads", nodes: []),
             ["data": ["node": ["comments": feedbackConnection(nodes: [["id": "reply-2", "state": "SUBMITTED"]])]]]
         ]
-        for page in pages {
-            let data = try JSONSerialization.data(withJSONObject: page)
-            await shell.enqueue(.success(pullRequestsShellResult(stdout: try XCTUnwrap(String(data: data, encoding: .utf8)))))
-        }
+        try await enqueueFeedbackPages(pages, on: shell)
         let service = makeGitHubPullRequestsService(shell: shell)
         let data = try await service.fetchReviewFeedback(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
         let result = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -35,6 +32,32 @@ extension GitHubPullRequestsServiceTests {
         XCTAssertEqual(invocations.count, 7)
         XCTAssertTrue(invocations[1].args.contains("cursor=comments-2"))
         XCTAssertTrue(invocations[6].args.contains("cursor=replies-2"))
+    }
+
+    /// On a new file a hunk is everything above the commented line, repeated on every reply, so a
+    /// thread carries one excerpt of its root hunk and only that hunk is fetched.
+    func testCollectiveFeedbackExcerptsEachThreadsRootHunk() async throws {
+        let shell = MockShellRunner()
+        try await enqueueFeedbackPages([
+            feedbackPage("comments", nodes: []),
+            feedbackPage("reviews", nodes: []),
+            feedbackPage("reviewThreads", nodes: [[
+                "id": "thread-1",
+                "rootComment": ["nodes": [["diffHunk": "@@ -0,0 +1,6 @@\n+one\n+two\n+three\n+four\n+five\n+six"]]],
+                "comments": feedbackConnection(nodes: [["id": "comment-1", "state": "SUBMITTED"]])
+            ]])
+        ], on: shell)
+
+        let data = try await makeGitHubPullRequestsService(shell: shell)
+            .fetchReviewFeedback(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
+
+        let result = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let thread = try XCTUnwrap((result["reviewThreads"] as? [[String: Any]])?.first)
+        XCTAssertEqual(thread["diffHunkExcerpt"] as? String, "+three\n+four\n+five\n+six")
+        XCTAssertNil(thread["rootComment"])
+        let invocations = await shell.invocations
+        let query = try XCTUnwrap(invocations.last?.args.first { $0.hasPrefix("query=") })
+        XCTAssertEqual(query.components(separatedBy: "diffHunk").count, 2)
     }
 
     func testCollectiveFeedbackRejectsRepeatedPaginationCursor() async throws {
@@ -60,6 +83,13 @@ extension GitHubPullRequestsServiceTests {
         await assertPullRequestsServiceThrows(.responseTooLarge) {
             _ = try await makeGitHubPullRequestsService(shell: truncated).fetchReviewFeedback(identifier)
         }
+    }
+}
+
+private func enqueueFeedbackPages(_ pages: [[String: Any]], on shell: MockShellRunner) async throws {
+    for page in pages {
+        let data = try JSONSerialization.data(withJSONObject: page)
+        await shell.enqueue(.success(pullRequestsShellResult(stdout: try XCTUnwrap(String(data: data, encoding: .utf8)))))
     }
 }
 

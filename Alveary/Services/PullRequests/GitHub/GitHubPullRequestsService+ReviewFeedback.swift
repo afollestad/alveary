@@ -2,6 +2,10 @@ import Foundation
 
 extension GitHubPullRequestsService {
     /// Separate from the bounded detail query: a review must see replies beyond the UI's first page.
+    ///
+    /// Each thread carries one short `diffHunkExcerpt` instead of every comment's `diffHunk`. A hunk runs
+    /// from its start to the commented line — on a new file, everything above it — and repeats on every
+    /// reply, which made it nearly all of a packet that reviewer workers search line by line.
     func fetchReviewFeedback(_ id: PullRequestIdentifier) async throws -> Data {
         let executable = try await resolveGitHubCLI()
         var payload: [String: Any] = [:]
@@ -17,6 +21,9 @@ extension GitHubPullRequestsService {
                     nodes[index]["comments"] = try await threadCommentPages(
                         threadID: threadID, firstPage: connection, executable: executable, acquiredBytes: &acquiredBytes
                     )
+                    let rootComments = (nodes[index].removeValue(forKey: "rootComment") as? [String: Any])?["nodes"]
+                    let rootHunk = (rootComments as? [[String: Any]])?.first?["diffHunk"] as? String
+                    nodes[index]["diffHunkExcerpt"] = Self.diffHunkExcerpt(rootHunk)
                 }
             }
             payload[kind.rawValue] = nodes
@@ -36,9 +43,10 @@ private extension GitHubPullRequestsService {
             case .reviewThreads:
                 """
                 id path line diffSide isResolved isOutdated
+                rootComment: comments(first:1) { nodes { diffHunk } }
                 comments(first:100) {
                   pageInfo { hasNextPage endCursor }
-                  nodes { id body author { login } createdAt state diffHunk }
+                  nodes { id body author { login } createdAt state }
                 }
                 """
             }
@@ -92,7 +100,7 @@ private extension GitHubPullRequestsService {
         query($id:ID!, $cursor:String!) { rateLimit { cost } node(id:$id) { ... on PullRequestReviewThread {
           comments(first:100, after:$cursor) {
             pageInfo { hasNextPage endCursor }
-            nodes { id body author { login } createdAt state diffHunk }
+            nodes { id body author { login } createdAt state }
           }
         } } }
         """
