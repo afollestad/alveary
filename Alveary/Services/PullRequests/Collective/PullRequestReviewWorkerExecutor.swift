@@ -54,7 +54,8 @@ enum PullRequestReviewWorkerError: Error, Equatable, LocalizedError {
 /// Runs app-configured isolated review workers against app-minted packet leases.
 actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
     /// Deep reviews of large diffs can outlast twenty minutes, and a kill discards the worker's paid work; a hung worker only
-    /// delays a run the user can cancel. OpenCode stays bounded by AgentCLIKit's shorter credential-validity `executionDeadline`.
+    /// delays a run the user can cancel. Counted in awake time, since sleep pauses the worker too. OpenCode stays bounded by
+    /// AgentCLIKit's shorter credential-validity `executionDeadline`, in wall-clock time because that is how a credential expires.
     static let timeoutSeconds: TimeInterval = 60 * 60
     static let missingDiagnostic = "No harness diagnostic was returned."
     private static let stdoutLimitBytes = 16 * 1024 * 1024
@@ -228,9 +229,18 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
         adapter: any AgentCLIKit.AgentHarnessAdapter,
         processKey: PullRequestReviewWorkerProcessKey
     ) async throws -> String {
-        let remaining = prepared.executionDeadline?.timeIntervalSinceNow ?? Self.timeoutSeconds
-        guard remaining > 0 else {
-            throw AgentCLIKit.AgentOneShotPromptError.timedOut(harnessId: request.harnessId, timeout: 0)
+        let timeout: Duration
+        let timeoutClock: ShellTimeoutClock
+        if let deadline = prepared.executionDeadline {
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else {
+                throw AgentCLIKit.AgentOneShotPromptError.timedOut(harnessId: request.harnessId, timeout: 0)
+            }
+            timeout = .seconds(min(Self.timeoutSeconds, remaining))
+            timeoutClock = .continuous
+        } else {
+            timeout = .seconds(Self.timeoutSeconds)
+            timeoutClock = .suspending
         }
         let shellRunner = executionShellRunner ?? DefaultShellRunner(processTracker: processRegistry.tracker(for: processKey))
         let result: ShellResult
@@ -239,13 +249,16 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
                 executable: command.executable,
                 args: command.arguments,
                 in: command.workingDirectory?.path,
-                environment: command.environment,
-                environmentPolicy: .replace,
-                processGroupPolicy: .create,
-                timeout: .seconds(min(Self.timeoutSeconds, remaining)),
-                stdoutLimitBytes: Self.stdoutLimitBytes,
-                stderrLimitBytes: Self.stderrLimitBytes,
-                standardInput: command.standardInput.map(ShellStandardInput.text) ?? .nullDevice
+                options: ShellRunOptions(
+                    environment: command.environment,
+                    environmentPolicy: .replace,
+                    processGroupPolicy: .create,
+                    timeout: timeout,
+                    timeoutClock: timeoutClock,
+                    stdoutLimitBytes: Self.stdoutLimitBytes,
+                    stderrLimitBytes: Self.stderrLimitBytes,
+                    standardInput: command.standardInput.map(ShellStandardInput.text) ?? .nullDevice
+                )
             )
         } catch let ShellError.ioFailure(failure) {
             try Task.checkCancellation()

@@ -34,6 +34,7 @@ struct ShellRunOptions: Sendable, Equatable {
     let environmentPolicy: ShellEnvironmentPolicy
     let processGroupPolicy: ShellProcessGroupPolicy
     let timeout: Duration?
+    let timeoutClock: ShellTimeoutClock
     let stdoutLimitBytes: Int?
     let stderrLimitBytes: Int?
     let standardInput: ShellStandardInput
@@ -43,6 +44,7 @@ struct ShellRunOptions: Sendable, Equatable {
         environmentPolicy: ShellEnvironmentPolicy = .inherit,
         processGroupPolicy: ShellProcessGroupPolicy = .inherit,
         timeout: Duration? = nil,
+        timeoutClock: ShellTimeoutClock = .continuous,
         stdoutLimitBytes: Int? = nil,
         stderrLimitBytes: Int? = nil,
         standardInput: ShellStandardInput = .inherit
@@ -51,10 +53,18 @@ struct ShellRunOptions: Sendable, Equatable {
         self.environmentPolicy = environmentPolicy
         self.processGroupPolicy = processGroupPolicy
         self.timeout = timeout
+        self.timeoutClock = timeoutClock
         self.stdoutLimitBytes = stdoutLimitBytes
         self.stderrLimitBytes = stderrLimitBytes
         self.standardInput = standardInput
     }
+}
+
+enum ShellTimeoutClock: Sendable, Equatable {
+    /// Counts time the Mac is asleep, so the timeout holds as a wall-clock bound.
+    case continuous
+    /// Pauses while the Mac is asleep, along with the child, so a long run is not killed for time it never had.
+    case suspending
 }
 
 enum ShellEnvironmentPolicy: Sendable, Equatable {

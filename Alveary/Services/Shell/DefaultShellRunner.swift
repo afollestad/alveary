@@ -153,6 +153,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
         let didFinish = await waitForExit(
             of: process,
             timeout: options.timeout,
+            clock: options.timeoutClock,
             terminationController: terminationController
         )
         if didFinish, options.processGroupPolicy == .create {
@@ -222,6 +223,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
     private func waitForExit(
         of process: Process,
         timeout: Duration?,
+        clock: ShellTimeoutClock,
         terminationController: ProcessTerminationController
     ) async -> Bool {
         await withCheckedContinuation { continuation in
@@ -240,7 +242,10 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
             }
 
             Task {
-                try? await Task.sleep(for: timeout)
+                switch clock {
+                case .continuous: try? await Task.sleep(for: timeout, clock: .continuous)
+                case .suspending: try? await Task.sleep(for: timeout, clock: .suspending)
+                }
                 guard resumption.resume(continuation: continuation, returning: false) else {
                     return
                 }

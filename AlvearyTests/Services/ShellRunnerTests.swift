@@ -153,22 +153,24 @@ final class ShellRunnerTests: XCTestCase {
         XCTAssertTrue(result.stdoutWasTruncated)
     }
 
-    func testTimeoutTerminatesLongRunningProcess() async throws {
+    func testTimeoutTerminatesLongRunningProcessOnEitherClock() async throws {
         let runner = DefaultShellRunner()
         let clock = ContinuousClock()
-        let start = clock.now
 
-        do {
-            _ = try await runner.run(
-                executable: "/usr/bin/perl",
-                args: ["-e", "$SIG{TERM}=sub{}; sleep 10;"],
-                timeout: .milliseconds(100)
-            )
-            XCTFail("Expected timeout")
-        } catch let ShellError.timeout(executable, timeout) {
-            XCTAssertEqual(executable, "/usr/bin/perl")
-            XCTAssertEqual(timeout, .milliseconds(100))
-            XCTAssertLessThan(start.duration(to: clock.now), .seconds(3))
+        for timeoutClock in [ShellTimeoutClock.continuous, .suspending] {
+            let start = clock.now
+            do {
+                _ = try await runner.run(
+                    executable: "/usr/bin/perl",
+                    args: ["-e", "$SIG{TERM}=sub{}; $|=1; print 'A' x 131072; sleep 10;"],
+                    options: ShellRunOptions(timeout: .milliseconds(100), timeoutClock: timeoutClock)
+                )
+                XCTFail("Expected timeout on \(timeoutClock)")
+            } catch let ShellError.timeout(executable, timeout) {
+                XCTAssertEqual(executable, "/usr/bin/perl")
+                XCTAssertEqual(timeout, .milliseconds(100))
+                XCTAssertLessThan(start.duration(to: clock.now), .seconds(3))
+            }
         }
     }
 

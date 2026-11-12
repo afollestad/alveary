@@ -5,7 +5,7 @@ import XCTest
 
 extension PullRequestReviewWorkerExecutorTests {
     func testOpenCodeReviewPreflightAndExecutionUseDisposableProfile() async throws {
-        let execution = OpenCodeReviewExecutionShellRunner()
+        let execution = RecordingReviewWorkerShellRunner()
         let fixture = try await makeFixture(
             harnessID: "opencode", script: Self.openCodeScript(outcome: "success"), executionShellRunner: execution
         )
@@ -23,6 +23,7 @@ extension PullRequestReviewWorkerExecutorTests {
         XCTAssertEqual(options.environmentPolicy, .replace)
         XCTAssertEqual(options.processGroupPolicy, .create)
         XCTAssertLessThan(try XCTUnwrap(options.timeout), .seconds(20 * 60))
+        XCTAssertEqual(options.timeoutClock, .continuous)
         let arguments = try String(contentsOf: fixture.argumentsURL, encoding: .utf8).components(separatedBy: .newlines)
         XCTAssertEqual(arguments.prefix(5), ["run", "--format", "json", "--model", "provider/model"])
         XCTAssertFalse(arguments.contains("--variant"))
@@ -124,14 +125,5 @@ extension PullRequestReviewWorkerExecutorTests {
         print qq({"type":"text","sessionID":"session","part":{"id":"text","messageID":"message","text":"OPENCODE-OK","time":{"end":1}}}\n);
         print qq({"type":"step_finish","sessionID":"session","part":{"messageID":"message","reason":"stop"}}\n);
         """#
-    }
-}
-
-private actor OpenCodeReviewExecutionShellRunner: ShellRunner {
-    private(set) var lastOptions: ShellRunOptions?
-
-    func run(executable: String, args: [String], in directory: String?, options: ShellRunOptions) async throws -> ShellResult {
-        lastOptions = options
-        return try await DefaultShellRunner().run(executable: executable, args: args, in: directory, options: options)
     }
 }

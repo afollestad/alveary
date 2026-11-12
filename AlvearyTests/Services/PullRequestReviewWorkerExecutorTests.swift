@@ -60,6 +60,21 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         XCTAssertTrue(arguments.contains("model_reasoning_effort=\"\(fixture.configuration.effort)\""))
     }
 
+    /// Sleep pauses the worker too; only OpenCode's credential deadline may count it.
+    func testExecutionTimeoutCountsOnlyAwakeTime() async throws {
+        let execution = RecordingReviewWorkerShellRunner()
+        let fixture = try await makeFixture(harnessID: "claude", script: Self.claudeScript, executionShellRunner: execution)
+
+        _ = try await fixture.executor.execute(
+            configuration: fixture.configuration, packet: fixture.packet, prompt: "Review the packet",
+            runID: fixture.packet.runID, generation: 1, executionID: "awake-timeout"
+        )
+
+        let options = await execution.lastOptions
+        XCTAssertEqual(options?.timeout, .seconds(DefaultPullRequestReviewWorkerExecutor.timeoutSeconds))
+        XCTAssertEqual(options?.timeoutClock, .suspending)
+    }
+
     func testHarnessAuthenticationEnvironmentIsPreserved() async throws {
         let fixture = try await makeFixture(
             harnessID: "codex",
@@ -395,5 +410,15 @@ struct ReviewWorkerTestEnvironmentBuilder: AgentEnvironmentBuilder {
 
     func buildEnvironment(harnessEnv: [String: String]?) -> [String: String] {
         values.merging(harnessEnv ?? [:]) { _, harness in harness }
+    }
+}
+
+/// Records the options the executor launches with, then runs the fake harness for real.
+actor RecordingReviewWorkerShellRunner: ShellRunner {
+    private(set) var lastOptions: ShellRunOptions?
+
+    func run(executable: String, args: [String], in directory: String?, options: ShellRunOptions) async throws -> ShellResult {
+        lastOptions = options
+        return try await DefaultShellRunner().run(executable: executable, args: args, in: directory, options: options)
     }
 }
