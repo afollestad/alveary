@@ -59,7 +59,7 @@ The workflow performs these high-level steps:
 6. Verify exported app metadata, signing, entitlements, and architectures.
 7. Notarize `Alveary.app`, staple the ticket, and confirm Gatekeeper acceptance. Canary builds skip this step.
 8. Create `Alveary.app.zip` with `scripts/ci/create-release-zip.sh`. Canary builds skip this and upload the bundle itself, staged and guarded by `scripts/ci/stage-canary-app.sh`.
-9. For releases, generate header-free release notes with `scripts/ci/generate-release-notes.sh`. Notes cover user-facing changes only, grouped into bold theme bullets with indented italic child bullets that merge related commits.
+9. For releases, generate header-free release notes with `scripts/ci/generate-release-notes.sh`. Notes cover user-facing changes only, condensed to one imperative bullet per feature or improvement that merges its commits.
 10. Upload the canary bundle or the dry run ZIP as an Actions artifact, or for releases publish the ZIP as a GitHub Release asset with `scripts/ci/create-github-release.sh`.
 
 Keep release implementation logic in `scripts/ci/` and keep the workflow YAML focused on orchestration.

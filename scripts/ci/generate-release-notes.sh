@@ -17,23 +17,22 @@ candidate_commit_count=$(git log \
 expected_full_changelog="**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${TAG_NAME}"
 
 prompt=$(printf '%s\n' \
-  "Review the git log and commit diffs in range ${RELEASE_NOTES_BASE}..HEAD and write a Markdown list of the user-facing changes made since release ${PREVIOUS_TAG}." \
+  "Review the git log and commit diffs in range ${RELEASE_NOTES_BASE}..HEAD and write a short Markdown list of the user-facing changes made since release ${PREVIOUS_TAG}." \
   "Include only changes a user of the app would notice: features, user interface, behavior, performance, and bug fixes." \
   "Exclude version-release commits, continuous integration and workflow changes, tests, snapshots, internal refactors, dependency bumps, documentation, and agent-guidance edits." \
-  "Group the changes by feature or theme. Each group is a top-level bullet whose entire content is the bold theme name, like this: - **Theme name**" \
-  "Under each group, write child bullets that start with exactly two spaces, then a hyphen and a space, then the summary wrapped in single asterisks so it renders in italics." \
-  "Merge closely related commits into a single child bullet instead of repeating one bullet per commit." \
-  "Use simple past or present tense for change summaries, such as 'Added' or 'Add', never a progressive opening such as 'Adding'." \
-  "End every child bullet with the short commit hash of each merged commit as a Markdown link, comma-separated inside one set of parentheses, followed by the GitHub username of the commit authors, using this exact suffix format: ([\`short-hash\`](https://github.com/${GITHUB_REPOSITORY}/commit/full-hash), [\`short-hash\`](https://github.com/${GITHUB_REPOSITORY}/commit/full-hash)) by @username" \
+  "Summarize features, not commits: write one bullet per feature or notable improvement, and merge every commit that builds, extends, or fixes it into that bullet. For example, commits that add a feature, polish its interface, and fix its early bugs become a single 'Add ...' bullet." \
+  "Merge scattered fixes and reliability work in one area into one broad bullet, such as 'Improve sync reliability.', instead of listing each fix." \
+  "Write each summary as one short sentence in the imperative mood, like a commit subject: 'Add', 'Improve', 'Fix', never 'Added', 'Improved', 'Fixed', or 'Adding'." \
+  "Use plain language a user understands. Name menu items and settings as the app shows them, but never source code, types, frameworks, or APIs." \
+  "Write every bullet at the start of its line as a hyphen and a space followed by the summary, with no headings, theme groups, nested bullets, bold, or italics." \
+  "End every bullet with the short commit hash of each merged commit as a Markdown link, comma-separated inside one set of parentheses, followed by the GitHub username of the commit authors, using this exact suffix format: ([\`short-hash\`](https://github.com/${GITHUB_REPOSITORY}/commit/full-hash), [\`short-hash\`](https://github.com/${GITHUB_REPOSITORY}/commit/full-hash)) by @username" \
   "Separate multiple authors with commas after 'by'." \
-  "Every child bullet must sit under a group, and every group must have at least one child bullet." \
-  "Put any user-facing change that fits no theme under a final group named - **Other**" \
-  "If no commit in the range is user-facing, write exactly one - **Other** group containing a single child bullet that summarizes the internal work and links those commits." \
-  "Begin directly with the first group bullet. Do not add a heading, introduction, or other content before it, and keep every bullet on one line." \
+  "If no commit in the range is user-facing, write exactly one bullet that summarizes the internal work and links those commits." \
+  "Begin directly with the first bullet. Do not add a heading, introduction, or other content before it, and keep every bullet on one line." \
   "Separate the Full Changelog footer from the list with a blank line. The final line must exactly equal the following text, with no trailing punctuation:" \
   "$expected_full_changelog" \
   "Use the write tool to write the complete final output directly to this Markdown file: ${RELEASE_NOTES_PATH}" \
-  "Write nothing to that file except the grouped bullet list and Full Changelog link. Do not use a code fence." \
+  "Write nothing to that file except the bullet list and Full Changelog link. Do not use a code fence." \
   "Do not modify any other files, and do not return the release notes in your response after writing the file.")
 
 rm -f "$RELEASE_NOTES_PATH"
@@ -59,51 +58,37 @@ fi
 
 actual_final_line=$(awk 'NF { line = $0 } END { print line }' "$RELEASE_NOTES_PATH")
 
-# One stateful pass: group and child bullets are only valid relative to each other, so orphan
-# children and childless groups cannot be counted by independent line-matching passes.
-# The child pattern accepts two-or-more leading spaces rather than an exact count so a model
-# that indents four spaces still passes; both nest correctly in GitHub-flavored Markdown.
+# Every non-blank line must be a top-level bullet or the footer, so headings and nested bullets fail as
+# invalid lines, and a bold theme-group header fails as a bullet without commit links.
 validation_counts=$(awk -v full_changelog="$expected_full_changelog" '
   $0 == full_changelog { footer_count += 1; next }
   !NF { next }
-  /^- [*][*].+[*][*]$/ {
-    if (open_group && children_in_group == 0) { invalid_count += 1 }
-    group_count += 1
-    open_group = 1
-    children_in_group = 0
-    next
-  }
-  /^  +- [*].+[*]/ {
-    if (!open_group) { invalid_count += 1 }
+  /^- [^[:space:]]/ {
     if ($0 !~ /\]\(http/) { unlinked_count += 1 }
-    child_count += 1
-    children_in_group += 1
+    bullet_count += 1
     next
   }
   { invalid_count += 1 }
-  END {
-    if (open_group && children_in_group == 0) { invalid_count += 1 }
-    print group_count + 0, child_count + 0, footer_count + 0, invalid_count + 0, unlinked_count + 0
-  }
+  END { print bullet_count + 0, footer_count + 0, invalid_count + 0, unlinked_count + 0 }
 ' "$RELEASE_NOTES_PATH")
-read -r group_count child_count footer_line_count invalid_body_line_count unlinked_child_count <<< "$validation_counts"
+read -r bullet_count footer_line_count invalid_body_line_count unlinked_bullet_count <<< "$validation_counts"
 
 if [[ "$actual_final_line" != "$expected_full_changelog" ||
       "$footer_line_count" -ne 1 ||
       "$invalid_body_line_count" -ne 0 ||
-      "$unlinked_child_count" -ne 0 ||
-      ( "$candidate_commit_count" -gt 0 && ( "$group_count" -eq 0 || "$child_count" -eq 0 ) ) ||
-      ( "$candidate_commit_count" -eq 0 && ( "$group_count" -ne 0 || "$child_count" -ne 0 ) ) ]]; then
+      "$unlinked_bullet_count" -ne 0 ||
+      ( "$candidate_commit_count" -gt 0 && "$bullet_count" -eq 0 ) ||
+      ( "$candidate_commit_count" -eq 0 && "$bullet_count" -ne 0 ) ]]; then
   echo "error: Copilot generated release notes outside the required Markdown format" >&2
-  echo "candidate commits: ${candidate_commit_count}, groups: ${group_count}, children: ${child_count}," \
+  echo "candidate commits: ${candidate_commit_count}, bullets: ${bullet_count}," \
     "footers: ${footer_line_count}, invalid lines: ${invalid_body_line_count}," \
-    "children without commit links: ${unlinked_child_count}" >&2
+    "bullets without commit links: ${unlinked_bullet_count}" >&2
   echo "generated ${RELEASE_NOTES_PATH}:" >&2
   cat "$RELEASE_NOTES_PATH" >&2
   exit 1
 fi
 
-# Without a blank line, Markdown treats the footer as a continuation of the last child bullet.
+# Without a blank line, Markdown treats the footer as a continuation of the last bullet.
 normalized_notes_path=$(mktemp)
 trap 'rm -f "$normalized_notes_path"' EXIT
 awk -v full_changelog="$expected_full_changelog" '
